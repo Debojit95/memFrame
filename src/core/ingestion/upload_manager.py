@@ -502,15 +502,15 @@ class Uploader:
                                            columns: List[str]) -> None:
         full_table = arrow_table.rename_columns(columns)
 
-        with io.BytesIO() as buf:
-            with io.TextIOWrapper(buf, encoding="utf-8", write_through=True) as text_writer:
-                writer = csv.writer(text_writer, quoting=csv.QUOTE_MINIMAL)
-                for batch in full_table.to_batches(max_chunksize=10000):
-                    cols_data = [list(batch.column(j).to_pylist()) for j in range(batch.num_columns)]
-                    for i in range(batch.num_rows):
-                        row = [cols_data[j][i] for j in range(batch.num_columns)]
-                        writer.writerow(row)
-            buf.seek(0)
+        text_buffer = io.StringIO()
+        writer = csv.writer(text_buffer, quoting=csv.QUOTE_MINIMAL)
+        for batch in full_table.to_batches(max_chunksize=10000):
+            cols_data = [list(batch.column(j).to_pylist()) for j in range(batch.num_columns)]
+            for i in range(batch.num_rows):
+                row = [cols_data[j][i] for j in range(batch.num_columns)]
+                writer.writerow(row)
+
+        with io.BytesIO(text_buffer.getvalue().encode("utf-8")) as buf:
             await self._conn.copy_to_table(
                 self._split_qualified_table_name(final_table)[1],
                 source=buf,
@@ -650,7 +650,6 @@ class Uploader:
     # @async_to_sync
     # async def upload_df(self, df: "pd.DataFrame", filename: Optional[str] = None) -> ContextManager:
     #     return await self.aupload_df(df, filename)
-
 
 
 
