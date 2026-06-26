@@ -1,0 +1,74 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+*$py.class
+*.so
+*.pyd
+build/
+dist/
+wheels/
+*.egg-info
+.eggs/
+*.egg
+pip-wheel-metadata/
+MANIFEST
+
+# Virtual environments
+.venv
+.venv/
+venv/
+env/
+ENV/
+
+# Existing local repository artifacts
+.git
+.gitignore
+!.gitignore
+tests/results
+tests/results/
+
+# Test, coverage, and analysis caches
+.pytest_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
+.cache/
+.ruff_cache/
+.mypy_cache/
+.pyright/
+
+# Documentation builds
+site/
+
+# uv/local package-manager cache
+.uv-cache/
+
+# Local environment and secrets
+.env
+!.env.template
+
+# Local databases and generated runtime state
+*.duckdb
+*.duckdb.wal
+*.duckdb.tmp
+*.duckdb.lock
+*.db
+*.sqlite
+*.sqlite3
+*.log
+logs/
+commands.md
+
+# Notebook/editor/OS noise
+.ipynb_checkpoints/
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db

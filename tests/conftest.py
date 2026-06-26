@@ -1,0 +1,44 @@
+import pytest
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--save-to-file",
+        action="store_true",
+        default=False,
+        help="Save test results (expected vs actual) to a PDF report"
+    )
+    parser.addoption(
+        "--upload-type",
+        dest="upload_type",
+        choices=("csv", "parquet", "df"),
+        default=None,
+        help="Upload integration target for tests/test_upload.py: csv, parquet, or df",
+    )
+    parser.addoption(
+        "--filepath",
+        dest="filepath",
+        default=None,
+        help="Path to the source file for csv/parquet upload tests",
+    )
+    parser.addoption(
+        "--db-backend",
+        "--db-connection-type",
+        dest="db_backend",
+        choices=("duckdb", "postgres"),
+        default=None,
+        help="Database backend for tests that support DB selection: duckdb or postgres",
+    )
+    parser.addoption(
+        "--db-params",
+        "--db-connection-params",
+        dest="db_params",
+        default=None,
+        help=(
+            "JSON object with connection params. DuckDB accepts db_path. "
+            "Postgres accepts host, port, user, password, database, and optional backend."
+        ),
+    )
+
+@pytest.fixture(scope="session")
+def save_to_file(request):
+    return request.config.getoption("--save-to-file")

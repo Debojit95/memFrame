@@ -1,0 +1,42 @@
+.md-header__button.md-logo {
+  margin: 0;
+  padding: 0.25rem;
+}
+
+.md-header__button.md-logo img {
+  display: block;
+  height: 2rem;
+  width: auto;
+  object-fit: contain;
+}
+
+.memframe-hero {
+  margin: 0 auto 1.5rem;
+  max-width: 38rem;
+  text-align: center;
+}
+
+.memframe-hero img {
+  display: block;
+  width: 100%;
+}
+
+@media screen and (max-width: 44.984375em) {
+  .md-header__button.md-logo img {
+    height: 1.8rem;
+  }
+}
+
+.compact-api,
+.compact-api .doc-contents {
+  font-size: 0.68rem;
+}
+
+.compact-api .doc-heading,
+.compact-api .doc-heading code {
+  font-size: 0.74rem;
+}
+
+.compact-api .doc-signature {
+  font-size: 0.66rem;
+}

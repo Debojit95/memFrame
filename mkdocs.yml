@@ -1,0 +1,42 @@
+site_name: memFrame
+site_description: Data analytics with database-backed DataFrame operations
+site_url: https://github.com/debojit95/memFrame
+
+theme:
+  name: material
+  logo: assets/logo-nav.png
+  favicon: assets/logo-nav.png
+  features:
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+
+markdown_extensions:
+  - admonition
+  - md_in_html
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences
+  - toc:
+      permalink: true
+
+extra_css:
+  - stylesheets/extra.css
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths:
+            - .
+          options:
+            docstring_style: google
+            show_source: false
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - API:
+      - Upload Manager: api/upload-manager.md
+      - Dataset Operations: api/database.md
