@@ -15,8 +15,10 @@ env:
   UPLOAD_PARQUET_FILEPATH: tests/datasets/sample.parquet
   DUCKDB_UPLOAD_DB_BACKEND: duckdb
   DUCKDB_UPLOAD_DB_PARAMS: '{"db_path":"memFrame_new.duckdb"}'
+  DUCKDB_DB_PARAMS: '{"db_path":"memFrame_new.duckdb"}'
   POSTGRES_UPLOAD_DB_BACKEND: postgres
   POSTGRES_UPLOAD_DB_PARAMS: '{"backend":"postgres","host":"localhost","port":5723,"user":"postgres","password":"xx","database":"xx"}'
+  POSTGRES_DB_PARAMS: '{"backend":"postgres","host":"localhost","port":5723,"user":"postgres","password":"xx","database":"xx"}'
   POSTGRES_USER: postgres
   POSTGRES_PASSWORD: xx
   POSTGRES_DB: xx
@@ -78,8 +80,10 @@ jobs:
             echo "UPLOAD_PARQUET_FILEPATH=$UPLOAD_PARQUET_FILEPATH"
             echo "DUCKDB_UPLOAD_DB_BACKEND=$DUCKDB_UPLOAD_DB_BACKEND"
             echo "DUCKDB_UPLOAD_DB_PARAMS='$DUCKDB_UPLOAD_DB_PARAMS'"
+            echo "DUCKDB_DB_PARAMS='$DUCKDB_DB_PARAMS'"
             echo "POSTGRES_UPLOAD_DB_BACKEND=$POSTGRES_UPLOAD_DB_BACKEND"
             echo "POSTGRES_UPLOAD_DB_PARAMS='$POSTGRES_UPLOAD_DB_PARAMS'"
+            echo "POSTGRES_DB_PARAMS='$POSTGRES_DB_PARAMS'"
           } > .env
 
       - name: Run commit checks

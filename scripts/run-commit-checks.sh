@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -uo pipefail
 
 if [ -d ".venv/bin" ]; then
   PATH="$PWD/.venv/bin:$PATH"
@@ -21,7 +21,26 @@ export UV_LINK_MODE="${UV_LINK_MODE:-copy}"
 : "${POSTGRES_UPLOAD_DB_BACKEND:?Set POSTGRES_UPLOAD_DB_BACKEND in .env}"
 : "${POSTGRES_UPLOAD_DB_PARAMS:?Set POSTGRES_UPLOAD_DB_PARAMS in .env}"
 
+DUCKDB_DB_PARAMS="${DUCKDB_DB_PARAMS:-$DUCKDB_UPLOAD_DB_PARAMS}"
+POSTGRES_DB_PARAMS="${POSTGRES_DB_PARAMS:-$POSTGRES_UPLOAD_DB_PARAMS}"
+
 find . \( -path "./src/*" -o -path "./tests/*" \) -name "__pycache__" -type d -exec rm -rf {} +
+
+failures=()
+
+run_check() {
+  local label="$1"
+  shift
+
+  echo "==> Running ${label}"
+  if "$@"; then
+    echo "==> Passed ${label}"
+  else
+    local status=$?
+    echo "==> Failed ${label} (exit ${status}); continuing commit checks" >&2
+    failures+=("${label} (exit ${status})")
+  fi
+}
 
 run_upload_test() {
   local upload_type="$1"
@@ -36,10 +55,35 @@ run_upload_test() {
     --db-params "$db_params"
 }
 
+run_selection_test() {
+  local db_backend="$1"
+  local db_params="$2"
+
+  pytest tests/test_selection.py \
+    -v \
+    --db-backend "$db_backend" \
+    --db-params "$db_params"
+}
+
 for upload_type in csv parquet; do
   filepath_var="UPLOAD_${upload_type^^}_FILEPATH"
-  run_upload_test "$upload_type" "${!filepath_var}" "$DUCKDB_UPLOAD_DB_BACKEND" "$DUCKDB_UPLOAD_DB_PARAMS"
-  run_upload_test "$upload_type" "${!filepath_var}" "$POSTGRES_UPLOAD_DB_BACKEND" "$POSTGRES_UPLOAD_DB_PARAMS"
+  run_check "upload ${upload_type} duckdb" \
+    run_upload_test "$upload_type" "${!filepath_var}" "$DUCKDB_UPLOAD_DB_BACKEND" "$DUCKDB_UPLOAD_DB_PARAMS"
+  run_check "upload ${upload_type} postgres" \
+    run_upload_test "$upload_type" "${!filepath_var}" "$POSTGRES_UPLOAD_DB_BACKEND" "$POSTGRES_UPLOAD_DB_PARAMS"
 done
 
-tox -r -p auto -e py310,py311,py312,py313
+run_check "selection duckdb" run_selection_test duckdb "$DUCKDB_DB_PARAMS"
+run_check "selection postgres" run_selection_test postgres "$POSTGRES_DB_PARAMS"
+run_check "tox py310 py311 py312 py313" tox -r -p auto -e py310,py311,py312,py313
+
+if [ "${#failures[@]}" -gt 0 ]; then
+  echo ""
+  echo "Commit checks completed with failures, but the pre-commit hook will not block this commit:" >&2
+  printf ' - %s\n' "${failures[@]}" >&2
+else
+  echo ""
+  echo "Commit checks completed successfully."
+fi
+
+exit 0

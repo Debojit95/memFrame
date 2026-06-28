@@ -591,7 +591,7 @@ class Uploader:
                     ELSE NULL
                 END AS "{col}"
             """
-        elif base in ("NUMERIC", "DECIMAL", "REAL", "DOUBLE PRECISION"):
+        elif base in ("NUMERIC", "DECIMAL", "REAL", "DOUBLE PRECISION", "FLOAT", "FLOAT4", "FLOAT8", "DOUBLE"):
             return f"""
                 CASE
                     WHEN TRIM({col_quoted}) ~ '^-?[0-9]*\\.?[0-9]+$' THEN
@@ -650,7 +650,6 @@ class Uploader:
     # @async_to_sync
     # async def upload_df(self, df: "pd.DataFrame", filename: Optional[str] = None) -> ContextManager:
     #     return await self.aupload_df(df, filename)
-
 
 
 

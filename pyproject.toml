@@ -21,6 +21,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "matplotlib>=3.10.9",
     "pytest>=8.0",
     "tox>=4.0",
 ]

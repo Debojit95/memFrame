@@ -11,11 +11,9 @@ from src.wrappers.base import BaseWrapper
 
 
 import logging
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import  Any, Dict, List, Optional
 
-
-if TYPE_CHECKING:
-    import pandas as pd
+import asyncio
 
 
 
@@ -172,3 +170,5 @@ class MemFrame(BaseWrapper):
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self.close()
+
+

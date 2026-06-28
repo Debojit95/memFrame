@@ -40,3 +40,5 @@ nav:
   - API:
       - Upload Manager: api/upload-manager.md
       - Dataset Operations: api/database.md
+      - Selection: api/selection.md
+

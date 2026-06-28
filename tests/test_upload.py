@@ -1,4 +1,5 @@
 from src.main import MemFrame
+from src.core.ingestion.upload_manager import Uploader
 
 
 import asyncio
@@ -7,6 +8,13 @@ from pathlib import Path
 from typing import Any, Dict
 import pandas as pd
 import pytest
+
+
+def test_postgres_safe_cast_handles_float_alias() -> None:
+    sql = Uploader()._build_safe_cast_postgres("score", "FLOAT")
+
+    assert 'REPLACE(TRIM("score"), \',\', \'\')::FLOAT' in sql
+    assert 'AS "score"' in sql
 
 
 
