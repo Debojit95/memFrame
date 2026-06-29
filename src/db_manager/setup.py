@@ -72,10 +72,10 @@ class DatabaseBackend:
         try:
             if conn_loop is current_loop:
                 await conn.close()
-            elif _loop_is_running(conn_loop):
-                future = asyncio.run_coroutine_threadsafe(conn.close(), conn_loop)
-                await asyncio.wrap_future(future)
             else:
+                # Cross-loop asyncpg closes can deadlock when a sync wrapper is
+                # blocking the original event loop. Terminate and reconnect on
+                # the current loop instead.
                 _terminate_postgres_connection(conn)
         finally:
             self._conn = None

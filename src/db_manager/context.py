@@ -30,6 +30,7 @@ class ContextManager:
         self._adapter: Optional[DatabaseAdapter] = None
         
         self._selection_wrapper = None
+        self._inspect_wrapper = None
         
     
     def __getattr__(self, name: str) -> Any:
@@ -63,10 +64,7 @@ class ContextManager:
             ops.datetime.year(...) / await ops.datetime.ayear(...)
         """
         
-
-        # Priority matters for overlapping method names (e.g. `clip`):
-        # direct `ops.clip(...)` resolves to arithmetic clip.
-        for wrapper in (self.select,):
+        for wrapper in (self.inspect, self.select):
             if hasattr(wrapper, name):
                 return getattr(wrapper, name)
         raise AttributeError(f"{self.__class__.__name__!r} object has no attribute {name!r}")
@@ -75,6 +73,8 @@ class ContextManager:
         return sorted(
             set(super().__dir__())
             | set(dir(self.select))
+            | set(dir(self.inspect))
+            
         )
     
     
@@ -88,7 +88,14 @@ class ContextManager:
         return self._selection_wrapper
 
 
-    
+     
+    @property
+    def inspect(self):
+        from wrappers.analytix.inspect import TableOpsWrapper
+
+        if self._inspect_wrapper is None:
+            self._inspect_wrapper = TableOpsWrapper(self)
+        return self._inspect_wrapper
     
     
     

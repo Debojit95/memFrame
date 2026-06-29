@@ -24,8 +24,9 @@ ENV/
 .git
 .gitignore
 !.gitignore
-tests/results
-tests/results/
+tests/result
+tests/result/
+tests/result/*
 
 # Test, coverage, and analysis caches
 .pytest_cache/

@@ -172,3 +172,116 @@ class MemFrame(BaseWrapper):
         await self.close()
 
 
+
+
+def log_result(result:Dict):
+        
+        if not result["is_error"]:
+            print(result["result"])   
+        else:
+            print(result["error_message"])
+
+async def test():
+    import numpy as np
+    import pandas as pd
+   
+   
+   
+    pd.set_option('display.max_columns', 100) 
+
+    # mf = MemFrame(connection_type="local", connection_params={"db_path": "memFrame_new.duckdb"})
+    
+    params={
+        "backend": "postgres",
+        "host": "localhost",
+        "port": 5723,
+        "user":"postgres",
+        "password":  "1daa7b94de72ed5e958797469df6bbeb3f14e0f6daa862b8442bc63a4da3b7c3",
+        "database": "testA"}
+    mf = MemFrame(connection_type="remote", connection_params=params)
+    
+    await mf.connect()
+    print(mf)
+
+        
+    
+    np.random.seed(42)
+
+    df = pd.DataFrame(
+        [
+            [pd.to_datetime("2023-09-19"), 2, 2, "zoom", 0, "er","holiday"],
+            [pd.to_datetime("2024-09-01"), 10, 3, "zoom", 4.54532, "zoom","Halfday"],
+            [pd.to_datetime("2023-04-01"), 7, np.nan, "zoom", 2.567, "rt","work"],
+            [pd.to_datetime("2023-05-12"), 8, np.nan, "meet", np.nan, "meet","work"],
+            [pd.to_datetime("2022-12-25"), 17, 9, "zoom", 6.1, "er","work"],
+            [pd.to_datetime("2024-03-31"), 32, 5, np.nan, np.nan, "er","Halfday"],
+            [pd.to_datetime("2023-07-07"), 4, np.nan, "meet", 3, "rt","Halfday"],
+            [pd.to_datetime("2022-11-11"), 1, 1, "zoom", 1.12, "rt","holiday"],
+            [pd.to_datetime("2023-03-03"), 7, 7, np.nan, 12.675, "er","workday"],
+            [pd.to_datetime("2024-01-01"), 1, 4, "meet", 5.345, "meet","Halfday"],
+        ],
+        columns=list("ABCDEFG")
+    )
+
+    # random time for column A
+    hours = np.random.randint(0, 24, len(df))
+    minutes = np.random.randint(0, 60, len(df))
+    seconds = np.random.randint(0, 60, len(df))
+
+    df["A"] = df["A"] + pd.to_timedelta(hours, unit="h") \
+                        + pd.to_timedelta(minutes, unit="m") \
+                        + pd.to_timedelta(seconds, unit="s")
+
+    # ✅ Create 8th column (H) as datetime with timezone
+    # Step 1: create another datetime (could be random offset from A)
+    df["H"] = df["A"] + pd.to_timedelta(np.random.randint(1, 100, len(df)), unit="h")
+    # df["H"] = df["H"].dt.tz_localize("Asia/Kolkata")
+
+
+    df["I"] = [1672531200, 1675209600,1677628800, 1680307200,1682899200, 1685577600,1688169600,1690848000,1693526400, 1699866400]
+    df['J'] = pd.to_datetime([
+            "2023-01-01",
+            "2024-07-31",
+            "2021-11-01",
+            "2024-02-01",
+            "2022-03-01",
+            "2023-04-01",
+            "2024-05-31",
+            "2022-12-01",
+            "2025-03-11",
+            "2023-04-01",
+        ])
+
+    
+
+    ops1 = await mf.aupload_df(df)
+        
+    print(await mf.alist_tables())
+    print("*"*100)
+    
+            
+    result1 = ops1.iloc('0:2', '0:5')
+    log_result(result1)
+    print("*"*100)
+
+    result1 = ops1.sample()
+    log_result(result1)
+        
+    print("*"*100)
+    result1 = ops1.describe()
+    log_result(result1)
+    
+    print("*"*100)
+    result1 = ops1.columns()
+    log_result(result1)
+    
+    print("*"*100)
+    result1 = ops1.dtypes()
+    log_result(result1)
+    
+    return
+
+
+if __name__=="__main__":
+    import asyncio
+    asyncio.run(test())

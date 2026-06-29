@@ -69,10 +69,10 @@ class PostgresAdapter(DatabaseAdapter):
         try:
             if pool_loop is current_loop:
                 await pool.close()
-            elif _loop_is_running(pool_loop):
-                future = asyncio.run_coroutine_threadsafe(pool.close(), pool_loop)
-                await asyncio.wrap_future(future)
             else:
+                # Cross-loop asyncpg pool closes can deadlock when the owning
+                # event loop is blocked by a sync wrapper. Terminate and let the
+                # adapter create a fresh pool on the current loop.
                 _terminate_pool(pool)
         except Exception as exc:
             logger.warning("Terminating PostgreSQL pool after close failed: %s", exc)

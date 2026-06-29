@@ -65,6 +65,16 @@ run_selection_test() {
     --db-params "$db_params"
 }
 
+run_inspect_test() {
+  local db_backend="$1"
+  local db_params="$2"
+
+  pytest tests/test_inspect.py \
+    -v \
+    --db-backend "$db_backend" \
+    --db-params "$db_params"
+}
+
 for upload_type in csv parquet; do
   filepath_var="UPLOAD_${upload_type^^}_FILEPATH"
   run_check "upload ${upload_type} duckdb" \
@@ -75,6 +85,8 @@ done
 
 run_check "selection duckdb" run_selection_test duckdb "$DUCKDB_DB_PARAMS"
 run_check "selection postgres" run_selection_test postgres "$POSTGRES_DB_PARAMS"
+run_check "inspect duckdb" run_inspect_test duckdb "$DUCKDB_DB_PARAMS"
+run_check "inspect postgres" run_inspect_test postgres "$POSTGRES_DB_PARAMS"
 run_check "tox py310 py311 py312 py313" tox -r -p auto -e py310,py311,py312,py313
 
 if [ "${#failures[@]}" -gt 0 ]; then

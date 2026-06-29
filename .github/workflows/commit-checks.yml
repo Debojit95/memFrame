@@ -87,4 +87,4 @@ jobs:
           } > .env
 
       - name: Run commit checks
-        run: scripts/run-commit-checks.sh
+        run: bash scripts/run-commit-checks.sh
