@@ -4,19 +4,23 @@ Source: `src/wrappers/analytix/inspect.py`
 
 `TableOpsWrapper` is the public inspection and table-utility interface exposed
 through a `ContextManager`. It provides pandas-like methods for previewing
-rows, reading schema metadata, computing summaries, and applying a small set of
-table-level transformations against the active backend table.
+rows, reading schema metadata, computing summaries, applying lightweight table
+utilities, and retrieving compact table properties from the active backend
+table.
 
-Users normally call these methods directly on a dataset context returned by an
-upload operation:
+Users normally call inspect methods directly on a dataset context returned by
+an upload operation:
 
 ```python
 dataset = mf.upload_df(frame)
-result = dataset.head()
+result = dataset.head(n=5)
 ```
+
+The same methods are also available from `dataset.inspect`.
 
 The lower-level files are implementation details:
 
+- `src/core/analytix/table_ops.py` builds and executes backend-specific SQL.
 - `src/core/orchestrator/analytix/table_ops.py` resolves the active dataset
   context and delegates work to the core table engine.
 - `src/wrappers/analytix/inspect.py` exposes synchronous and asynchronous
@@ -57,8 +61,8 @@ Every inspect operation has synchronous and asynchronous forms:
 | `iterrows()` | `await aiterrows()` | Row iterator result |
 | `itertuples(index=True)` | `await aitertuples(...)` | Tuple-style row iterator result |
 
-All methods return a dictionary with `is_error`, `message`, and either
-`result`, `iterator`, or error details.
+All methods return a dictionary with `is_error`, `message`, `error_message`,
+and either `result`, `iterator`, or method-specific metadata.
 
 ## Usage Overview
 
@@ -78,15 +82,14 @@ if not summary["is_error"]:
     frame = summary["result"]
 ```
 
-Inspect methods are exposed directly through the context forwarding behavior.
-The same methods are also available from `dataset.inspect`.
+Inspect methods are exposed directly through context forwarding. You can use
+`dataset.head(...)` or the explicit `dataset.inspect.head(...)` form.
 
 ## Row Preview
 
 ### `head`
 
-`head` returns the first `n` rows. If `columns` is provided, only valid column
-names from that list are selected.
+`head` returns the first `n` rows from the active table.
 
 ```python
 result = dataset.head(n=10)
@@ -99,17 +102,34 @@ result = await dataset.ahead(
 )
 ```
 
+Parameters:
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `n` | `int` | Maximum number of rows to return. Defaults to `10`. |
+| `columns` | `list[str]` or `None` | Optional columns to include. Invalid names are ignored; if none are valid, all columns are used. |
+
+The response includes a DataFrame under `result` and row/column metadata under
+`result_metadata`.
+
 ### `tail`
 
-`tail` returns the last `n` rows by counting the table and applying an offset.
+`tail` returns the last `n` rows by counting total rows and applying an offset.
 
 ```python
 result = dataset.tail(n=5)
 ```
 
 ```python
-result = await dataset.atail(n=5)
+result = await dataset.atail(n=5, columns=["name", "score"])
 ```
+
+Parameters:
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `n` | `int` | Maximum number of rows to return. Defaults to `10`. |
+| `columns` | `list[str]` or `None` | Optional columns to include. |
 
 ### `sample`
 
@@ -126,8 +146,13 @@ result = await dataset.asample(
 )
 ```
 
-`random_state` is applied through PostgreSQL `setseed` for PostgreSQL. DuckDB
-accepts the parameter but does not currently use it to seed sampling.
+Parameters:
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `n` | `int` | Number of random rows to return. Defaults to `10`. |
+| `columns` | `list[str]` or `None` | Optional columns to include. |
+| `random_state` | `int` or `None` | Optional seed. PostgreSQL applies it through `setseed`; DuckDB currently accepts but does not use it for deterministic sampling. |
 
 ### `full_table`
 
@@ -143,7 +168,14 @@ async for chunk in result["iterator"]:
     ...
 ```
 
-When chunking is enabled, the response contains `iterator` instead of `result`.
+Parameters:
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `columns` | `list[str]` or `None` | Optional columns to include. |
+| `chunk_size` | `int` or `None` | Positive row count per chunk. When set, response contains `iterator` instead of `result`. |
+
+Invalid or non-positive `chunk_size` returns an error response.
 
 ## Summary Methods
 
@@ -160,8 +192,15 @@ result = dataset.info()
 result = await dataset.ainfo()
 ```
 
-The result is also saved as a generated table when the method-call logger
-receives backend context.
+Parameters: none.
+
+Return behavior:
+
+- `result` is a DataFrame with one row per column.
+- `new_table` contains the generated summary table name when persistence
+  context is available.
+- `result_metadata.table_info` contains table-level metadata such as row count,
+  column count, and backend size information.
 
 ### `describe`
 
@@ -176,12 +215,20 @@ result = dataset.describe()
 result = await dataset.adescribe(columns=["amount", "score"])
 ```
 
-If `columns` is omitted, numeric columns are discovered from the backend schema.
+Parameters:
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `columns` | `list[str]` or `None` | Numeric columns to summarize. If omitted, numeric columns are discovered from the backend schema. |
+
+The result DataFrame has a `statistic` column plus one column per summarized
+numeric column. If no numeric columns are available, the method returns
+`is_error=True`.
 
 ### `null_analysis`
 
-`null_analysis` reports whether each selected column contains nulls and the
-percentage of missing values.
+`null_analysis` reports whether selected columns contain null values and their
+missing percentages.
 
 ```python
 result = dataset.null_analysis(columns=["score", "note"])
@@ -191,11 +238,18 @@ result = dataset.null_analysis(columns=["score", "note"])
 result = await dataset.anull_analysis()
 ```
 
-Pass `None`, `"*"`, or `["*"]` to analyze all columns.
+Parameters:
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `columns` | `list[str]`, `"*"`, or `None` | Columns to analyze. `None`, `"*"`, or `["*"]` analyzes all columns. |
+
+The result DataFrame is indexed by column name when data is available and
+contains `contains_null` and `percent_missing` columns.
 
 ### `corr`
 
-`corr` computes a Pearson correlation matrix for numeric columns.
+`corr` computes a numeric correlation matrix.
 
 ```python
 result = dataset.corr(columns=["amount", "score"])
@@ -205,9 +259,15 @@ result = dataset.corr(columns=["amount", "score"])
 result = await dataset.acorr()
 ```
 
-At least two numeric columns are required. The `method` parameter is accepted by
-the wrapper, but the core implementation currently computes Pearson
-correlation.
+Parameters:
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `columns` | `list[str]`, `"*"`, or `None` | Numeric columns to include. Defaults to all numeric columns. |
+| `method` | `str` | Accepted by the wrapper. The current core implementation computes Pearson correlation with SQL `CORR`. |
+
+At least two numeric columns are required. Metadata includes the analyzed
+columns and up to ten strong correlations.
 
 ## Table Utilities
 
@@ -228,7 +288,23 @@ result = await dataset.aastype(
 )
 ```
 
-Supported dtype aliases are integer, float, double, and text/string aliases.
+Parameters:
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `columns` | `list[str]` or `None` | Columns to cast when `dtype_map` is not provided. |
+| `dtypes` | `list[str]` or `None` | Target dtypes matching `columns` by position. |
+| `dtype_map` | `dict[str, str]` or `None` | Direct mapping of column name to target dtype. Takes precedence over `columns`/`dtypes`. |
+
+Supported dtype aliases:
+
+| Alias group | Examples | SQL target |
+| --- | --- | --- |
+| Integer | `int`, `int8`, `int16`, `int32` | `INTEGER` |
+| Big integer | `int64` | `BIGINT` |
+| Float | `float`, `float32` | `FLOAT` |
+| Double | `float64`, `double` | `DOUBLE` |
+| Text | `str`, `string`, `text` | `TEXT` |
 
 ### `insert`
 
@@ -248,6 +324,13 @@ result = await dataset.ainsert(
     value=["retail", "enterprise", "retail"],
 )
 ```
+
+Parameters:
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `column` | `str` | New column name. |
+| `value` | `list` | Values assigned row-by-row. Must match row count. |
 
 ### `map`
 
@@ -269,8 +352,29 @@ result = await dataset.amap(
 )
 ```
 
-`datetime_action` controls datetime columns: `skip`, `cast_string`,
-`extract_epoch`, `keep`, or `error`.
+Parameters:
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `func` | `str` | SQL expression using `x` as the current column placeholder. |
+| `na_action` | `str` or `None` | `"ignore"` preserves nulls; `None` applies the expression normally. |
+| `columns` | `list[str]`, `"*"`, or `None` | Columns to map. Defaults to all columns. |
+| `datetime_action` | `str` | How datetime columns are handled. Defaults to `"skip"`. |
+
+Supported `datetime_action` values:
+
+| Value | Behavior |
+| --- | --- |
+| `skip` | Skip datetime columns. |
+| `cast_string` | Cast datetime values to text before applying `func`. |
+| `extract_epoch` | Apply `func` to epoch seconds. |
+| `keep` | Return datetime column unchanged. |
+| `error` | Return an error if a datetime column is selected. |
+
+Numeric columns accept arithmetic expressions. String columns are only applied
+when the expression uses string-safe functions such as `UPPER`, `LOWER`,
+`LENGTH`, or `TRIM`. Boolean columns are auto-cast to integer for arithmetic
+expressions.
 
 ### `rename`
 
@@ -284,10 +388,16 @@ result = dataset.rename(columns={"old_name": "new_name"})
 result = await dataset.arename(columns={"old_name": "new_name"})
 ```
 
+Parameters:
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `columns` | `dict[str, str]` | Mapping of old column names to new names. |
+
 ### `set_index` and `reset_index`
 
-`set_index` adds a primary-key constraint over the selected columns.
-`reset_index` recreates an `id` index column.
+`set_index` adds a primary-key constraint over selected columns. `reset_index`
+recreates an `id` index column.
 
 ```python
 result = dataset.set_index(columns=["customer_id"])
@@ -296,6 +406,12 @@ result = dataset.set_index(columns=["customer_id"])
 ```python
 result = await dataset.areset_index()
 ```
+
+`set_index` parameters:
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `columns` | `list[str]` | Columns used for the primary key. |
 
 ### `update`
 
@@ -318,9 +434,19 @@ result = await dataset.aupdate(
 )
 ```
 
+Parameters:
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `on` | `str` | Key column used to match rows. |
+| `other_table` | `str` | Table containing update values. |
+| `other_schema` | `str` | Schema for `other_table`. Defaults to `"upload"`. |
+| `overwrite` | `bool` | Whether matched values should overwrite existing values. |
+| `errors` | `str` | Error handling mode passed to the core update implementation. Defaults to `"ignore"`. |
+
 ### `resample`
 
-`resample` groups timestamp data by a time bucket and aggregate.
+`resample` groups timestamp data into time buckets and applies an aggregate.
 
 ```python
 result = dataset.resample(
@@ -339,21 +465,32 @@ result = await dataset.aresample(
 )
 ```
 
+Parameters:
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `time_column` | `str` | Date/timestamp column used for bucketing. |
+| `rule` | `str` | Time bucket rule passed to the core SQL implementation. |
+| `agg` | `str` | Aggregate function. Defaults to `"COUNT"`. |
+| `value_column` | `str` or `None` | Column aggregated for value-based aggregates. |
+| `label` | `str` | Bucket labeling option. Defaults to `"left"`. |
+| `closed` | `str` | Bucket boundary option. Defaults to `"left"`. |
+
 ## Property Methods
 
 These methods return compact dictionary payloads under `result`:
 
-| Method | Result key |
-| --- | --- |
-| `axes()` | `{"axes": [row_index, columns]}` |
-| `columns()` | `{"columns": [...]}` |
-| `dtypes()` | `{"dtypes": {column: db_type}}` |
-| `first_valid_index()` | `{"first_valid_index": 0}` or `None` |
-| `memory_usage()` | `{"memory_bytes": value}` |
-| `ndim()` | `{"ndim": 2}` |
-| `shape()` | `{"shape": (rows, columns)}` |
-| `size()` | `{"size": rows * columns}` |
-| `values()` | `{"values": [[...], ...]}` |
+| Method | Async | Result key |
+| --- | --- | --- |
+| `axes()` | `aaxes()` | `{"axes": [row_index, columns]}` |
+| `columns()` | `acolumns()` | `{"columns": [...]}` |
+| `dtypes()` | `adtypes()` | `{"dtypes": {column: db_type}}` |
+| `first_valid_index()` | `afirst_valid_index()` | `{"first_valid_index": 0}` or `None` |
+| `memory_usage()` | `amemory_usage()` | `{"memory_bytes": value}` |
+| `ndim()` | `andim()` | `{"ndim": 2}` |
+| `shape()` | `ashape()` | `{"shape": (rows, columns)}` |
+| `size()` | `asize()` | `{"size": rows * columns}` |
+| `values()` | `avalues()` | `{"values": [[...], ...]}` |
 
 ```python
 print(dataset.shape()["result"]["shape"])
@@ -364,6 +501,8 @@ print(dataset.columns()["result"]["columns"])
 shape = await dataset.ashape()
 dtypes = await dataset.adtypes()
 ```
+
+Parameters: none for these property methods.
 
 ## Iterator Methods
 
@@ -382,6 +521,14 @@ rows = await dataset.aiterrows()
 tuples = await dataset.aitertuples(index=False)
 ```
 
+Parameters:
+
+| Method | Parameter | Type | Description |
+| --- | --- | --- | --- |
+| `items` | none | - | Returns column-oriented iterator payload from the core engine. |
+| `iterrows` | none | - | Returns row-oriented iterator payload from the core engine. |
+| `itertuples` | `index` | `bool` | Whether tuple rows include an index value. Defaults to `True`. |
+
 The exact payload is returned under `result` or iterator-specific response
 fields from the core table engine.
 
@@ -391,17 +538,26 @@ Inspect methods return dictionaries. Common keys are:
 
 | Key | Type | Description |
 | --- | --- | --- |
-| `is_error` | `bool` | `True` when the operation failed |
-| `message` | `str` | Human-readable operation summary |
-| `error_message` | `str` or `None` | Error details when `is_error` is true |
-| `result` | Any | DataFrame, scalar-like dict, or iterator payload |
-| `iterator` | async generator or `None` | Chunk iterator from `full_table` |
-| `involved_cols` | `list` | Columns read or analyzed |
-| `generated_cols` | `list` | Columns produced by the operation |
-| `new_table` | `str` or `None` | Generated table name for logged summary outputs |
-| `result_metadata` | `dict` | Row counts, selected columns, and method-specific metadata |
+| `is_error` | `bool` | `True` when the operation failed. |
+| `message` | `str` | Human-readable operation summary. |
+| `error_message` | `str` or `None` | Error details when `is_error` is true. |
+| `result` | Any | DataFrame, scalar-like dict, or iterator payload. |
+| `iterator` | async generator or `None` | Chunk iterator from `full_table`. |
+| `involved_cols` | `list` | Columns read or analyzed. |
+| `generated_cols` | `list` | Columns produced by the operation. |
+| `new_table` | `str` or `None` | Generated table name for logged summary outputs. |
+| `result_metadata` | `dict` | Row counts, selected columns, and method-specific metadata. |
 
 Always check `is_error` before consuming `result` or `iterator`.
+
+## Generated Tables
+
+Some inspect methods create generated summary tables when method-call logging
+receives backend context. This is most visible for `info`, `describe`,
+`null_analysis`, and `corr`, which return `new_table` and saved-table metadata.
+
+Preview methods such as `head`, `tail`, `sample`, and unchunked `full_table`
+are read-oriented and return a DataFrame sample directly.
 
 ## Backend Behavior
 
@@ -411,10 +567,10 @@ Inspect supports DuckDB and PostgreSQL adapters:
 - Schema discovery is delegated to the active database adapter.
 - `describe` uses backend-specific percentile functions.
 - `corr` uses SQL `CORR` over numeric columns.
-- PostgreSQL can report relation memory usage; DuckDB currently returns
-  `None` for `memory_usage`.
-
-Column and table identifiers are sanitized before SQL is generated.
+- `sample` uses backend `RANDOM()` ordering.
+- PostgreSQL can report relation memory usage; DuckDB currently returns `None`
+  for `memory_usage`.
+- Column and table identifiers are sanitized before SQL is generated.
 
 ## Errors
 
@@ -425,10 +581,13 @@ use.
 - `describe` returns an error when no numeric columns are available.
 - `corr` returns an error when fewer than two numeric columns are available.
 - `astype` returns an error for missing columns or unsupported dtype aliases.
+- `astype` requires either `dtype_map` or matching `columns` and `dtypes`.
 - `insert` returns an error when `value` is not a list or its length does not
   match the row count.
-- `map` returns an error when no selected columns are compatible with the SQL
-  expression.
+- `map` returns an error when `func` is not a SQL expression string or when no
+  selected columns are compatible with the expression.
+- `rename`, `set_index`, `reset_index`, `update`, and `resample` can return
+  backend SQL errors when identifiers or constraints are invalid.
 
 ## API Reference
 

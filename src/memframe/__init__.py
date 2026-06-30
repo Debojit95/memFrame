@@ -1,2 +1,3 @@
-def hello() -> str:
-    return "Hello from memframe!"
+from src.main import MemFrame
+
+__all__ = ["MemFrame"]

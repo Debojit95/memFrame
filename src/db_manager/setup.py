@@ -99,7 +99,7 @@ class DatabaseBackend:
     async def connect(self) -> None:
         try:
             if self.backend == Backend.DUCKDB:
-                db_path = self.conn_params.get("db_path", "totem_new.duckdb")
+                db_path = self.conn_params.get("db_path", "memframe_new.duckdb")
                 loop = asyncio.get_running_loop()
                 self._conn = await loop.run_in_executor(None, duckdb.connect, db_path)
                 logger.info(f"Connected to DuckDB: {db_path}")

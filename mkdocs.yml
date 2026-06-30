@@ -1,6 +1,6 @@
 site_name: memFrame
 site_description: Data analytics with database-backed DataFrame operations
-site_url: https://github.com/debojit95/memFrame
+site_url: https://debojit95.github.io/memFrame/
 
 theme:
   name: material
@@ -41,4 +41,5 @@ nav:
       - Upload Manager: api/upload-manager.md
       - Dataset Operations: api/database.md
       - Inspect: api/inspect.md
+      - Cleaning: api/cleaning.md
       - Selection: api/selection.md

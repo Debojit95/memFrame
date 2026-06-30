@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 if TYPE_CHECKING:
-    import pandas as pd
+    pass
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 

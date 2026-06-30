@@ -31,6 +31,7 @@ class ContextManager:
         
         self._selection_wrapper = None
         self._inspect_wrapper = None
+        self._clean_wrapper = None
         
     
     def __getattr__(self, name: str) -> Any:
@@ -64,7 +65,7 @@ class ContextManager:
             ops.datetime.year(...) / await ops.datetime.ayear(...)
         """
         
-        for wrapper in (self.inspect, self.select):
+        for wrapper in (self.inspect, self.select, self.clean):
             if hasattr(wrapper, name):
                 return getattr(wrapper, name)
         raise AttributeError(f"{self.__class__.__name__!r} object has no attribute {name!r}")
@@ -74,6 +75,7 @@ class ContextManager:
             set(super().__dir__())
             | set(dir(self.select))
             | set(dir(self.inspect))
+            | set(dir(self.clean))
             
         )
     
@@ -98,15 +100,17 @@ class ContextManager:
         return self._inspect_wrapper
     
     
+    @property
+    def clean(self):
+        from wrappers.analytix.cleaning import CleaningWrapper
+
+        if self._clean_wrapper is None:
+            self._clean_wrapper = CleaningWrapper(self)
+        return self._clean_wrapper
     
     
     
-    
-    
-    
-    
-    
-    
+        
     async def _ensure_adapter(self):
         """Create the appropriate adapter from memframe's backend."""
         if self._adapter is not None:
