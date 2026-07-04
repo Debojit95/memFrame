@@ -30,7 +30,7 @@ class DataCleaningOps:
     async def _fetchval(self, sql: str, *args):
         return await self.db.fetchval(sql, *args)
 
-    async def _fetch_data(self, table: str, schema: str, columns: Any = "*") -> pd.DataFrame:
+    async def _fetch_data(self, table: str, schema: str, columns: Any = "*", limit:int = -1) -> pd.DataFrame:
         """Return a DataFrame sample of the table for the response."""
         qualified = self._qualified_table(table, schema)
 
@@ -48,8 +48,12 @@ class DataCleaningOps:
         else:
             safe_col = SQLIdentifierSanitizer.sanitize(str(columns), allow_qualified=False)
             column_clause = self.db.quote_identifier(safe_col)
-
-        rows = await self._fetch(f"SELECT {column_clause} FROM {qualified}")
+        
+        if limit > 0:
+            rows = await self._fetch(f"SELECT {column_clause} FROM {qualified} LIMIT {limit}")
+        else:
+            rows = await self._fetch(f"SELECT {column_clause} FROM {qualified}")
+            
         records = [dict(row) for row in rows]
         return pd.DataFrame.from_records(records)
 

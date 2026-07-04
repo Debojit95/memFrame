@@ -36,7 +36,7 @@ class CleaningOrchestrator:
         return {"backend": backend, "data_id": data_id}
 
     async def _detect_fillna_dtype(self, ops: DataCleaningOps, table: str, schema: str, column: str) -> str:
-        sample_df = await ops._fetch_data(table, schema, columns=[column])
+        sample_df = await ops._fetch_data(table, schema, columns=[column],limit=10)
         if sample_df.empty:
             return "categorical"
         

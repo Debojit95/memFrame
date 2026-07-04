@@ -226,10 +226,3 @@ The API documentation is available in the `docs/api` directory and can be served
 ```bash
 mkdocs serve
 ```
-
-## Development
-
-```bash
-pip install -e .
-python -m pytest
-```

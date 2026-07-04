@@ -43,3 +43,4 @@ nav:
       - Inspect: api/inspect.md
       - Cleaning: api/cleaning.md
       - Selection: api/selection.md
+      - Stats: api/stats.md
