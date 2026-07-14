@@ -1,20 +1,22 @@
+import asyncio
+import logging
+import os
 import sys
 from pathlib import Path
+import time
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 from src.core.ingestion.datatype_detector import Backend
 from src.db_manager.setup import DatabaseBackend
 from src.db_manager.context import ContextManager
 from src.wrappers.base import BaseWrapper
-
-
-import logging
-from typing import  Any, Dict, List, Optional
-
-
-
 
 logger = logging.getLogger("memFrame")
 logger.setLevel(logging.INFO)
@@ -34,7 +36,6 @@ class MemFrame(BaseWrapper):
         self.conn_params = connection_params or {}
         self._backend: Optional[DatabaseBackend] = None
         self._active_id: Optional[str] = None
-        self._mcp_manager = None
         self._context_manager = ContextManager(self)
 
 
@@ -111,7 +112,7 @@ class MemFrame(BaseWrapper):
         if not self._backend or self._backend.backend != Backend.DUCKDB:
             raise RuntimeError("Local DuckDB connection is not active.")
 
-        db_path = self._backend.conn_params.get("db_path", "memframe_new.duckdb")
+        db_path = self._backend.conn_params.get("db_path", "totem_new.duckdb")
 
         if db_path == ":memory:":
             return None
@@ -123,10 +124,10 @@ class MemFrame(BaseWrapper):
         if self.connection_type == "local":
             backend = Backend.DUCKDB
 
-            db_path = self.conn_params.get("db_path", "memframe_new.duckdb")
+            db_path = self.conn_params.get("db_path", "memFrame_new.duckdb")
             if db_path == ":memory:":
-                logger.warning("In-memory DuckDB is disabled for local mode; using 'memframe_new.duckdb' instead.")
-                db_path = "memframe_new.duckdb"
+                logger.warning("In-memory DuckDB is disabled for local mode; using 'totem_new.duckdb' instead.")
+                db_path = "memFrame_new.duckdb"
 
             params = {"db_path": db_path}
 
@@ -141,8 +142,23 @@ class MemFrame(BaseWrapper):
                     "password": self.conn_params["password"],
                     "database": self.conn_params["database"],
                 }
+            elif backend_type == "clickhouse":              
+                backend = Backend.CLICKHOUSE
+                params = {
+                    "host": self.conn_params["host"],
+                    "port": self.conn_params.get("port", 8123),
+                    "user": self.conn_params["user"],
+                    "password": self.conn_params["password"],
+                }
+                if "database" in self.conn_params:
+                    params["database"] = self.conn_params["database"]
+                if "secure" in self.conn_params:
+                    params["secure"] = self.conn_params["secure"]
+                if "timeout" in self.conn_params:
+                    params["timeout"] = self.conn_params["timeout"]
+
             else:
-                raise ValueError("Remote backend must be 'postgres'")
+                raise ValueError("Remote backend must be 'postgres' or clickhouse")
         else:
             raise ValueError("connection_type must be 'local' or 'remote'")
 
@@ -153,11 +169,6 @@ class MemFrame(BaseWrapper):
     async def close(self) -> None:
         if self._backend:
             await self._backend.close()
-        if self._mcp_manager:
-            await self._mcp_manager.close()
-            self._mcp_manager = None
-
-    
 
     def memFrame(self, data_id: Optional[str] = None, data: Any = None, columns: Optional[List[str]] = None,  ):
         return self._ops(data_id,data,columns)
@@ -169,7 +180,3 @@ class MemFrame(BaseWrapper):
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self.close()
-
-
-
-

@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import asyncpg
 import duckdb
 from src.core.ingestion.datatype_detector import DatatypeDetector, Backend
+from src.db_manager.adapters.clickhouse import HttpxClickHouseClient
 
 logger = logging.getLogger("memFrame")
 logger.setLevel(logging.INFO)
@@ -73,9 +74,6 @@ class DatabaseBackend:
             if conn_loop is current_loop:
                 await conn.close()
             else:
-                # Cross-loop asyncpg closes can deadlock when a sync wrapper is
-                # blocking the original event loop. Terminate and reconnect on
-                # the current loop instead.
                 _terminate_postgres_connection(conn)
         finally:
             self._conn = None
@@ -111,6 +109,20 @@ class DatabaseBackend:
                 logger.info(
                     f"Connected to PostgreSQL: {self.conn_params['host']}:{self.conn_params.get('port', 5432)}/{self.conn_params['database']}"
                 )
+            elif self.backend == Backend.CLICKHOUSE:          
+                self._conn = HttpxClickHouseClient(
+                    host=self.conn_params["host"],
+                    port=self.conn_params.get("port", 8123),
+                    username=self.conn_params["user"],
+                    password=self.conn_params["password"],
+                    database=self.conn_params.get("database"),
+                    secure=self.conn_params.get("secure", False),
+                    timeout=self.conn_params.get("timeout", 10.0),
+                )
+                logger.info(
+                    f"Connected to ClickHouse: {self.conn_params['host']}:"
+                    f"{self.conn_params.get('port', 8123)}"
+                )
             else:
                 raise ValueError(f"Unsupported backend: {self.backend}")
         except Exception as e:
@@ -125,6 +137,12 @@ class DatabaseBackend:
             elif self.backend == Backend.POSTGRES:
                 if self._conn:
                     await self._close_postgres_connection()
+            elif self.backend == Backend.CLICKHOUSE:          # ← ADD
+                if self._conn:
+                    await self._conn.close()
+            else:
+                raise ValueError(f"Unsupported backend: {self.backend}")
+                
             logger.info("Database connection closed")
         except Exception as e:
             logger.error(f"Error during close: {e}")
@@ -137,6 +155,10 @@ class DatabaseBackend:
             elif self.backend == Backend.POSTGRES:
                 await self._ensure_postgres_connection()
                 await self._conn.execute(query, *args)
+            elif self.backend == Backend.CLICKHOUSE:          # ← ADD
+                await self._conn.command(query, parameters=args if args else None)
+            else:
+                raise ValueError(f"Unsupported backend: {self.backend}")
             logger.debug(f"Executed: {query[:100]}...")
         except Exception as e:
             logger.error(f"Query failed: {query[:200]}\nError: {e}")
@@ -154,6 +176,13 @@ class DatabaseBackend:
                 await self._ensure_postgres_connection()
                 rows = await self._conn.fetch(query, *args)
                 return [tuple(r) for r in rows]
+            elif self.backend == Backend.CLICKHOUSE:          # ← ADD
+                result = await self._conn.query(
+                    query, parameters=args if args else None
+                )
+                return result.result_rows
+            else:
+                raise ValueError(f"Unsupported backend: {self.backend}")
         except Exception as e:
             logger.error(f"Fetch failed: {e}")
             raise
@@ -170,6 +199,13 @@ class DatabaseBackend:
                 await self._ensure_postgres_connection()
                 row = await self._conn.fetchrow(query, *args)
                 return tuple(row) if row else None
+            elif self.backend == Backend.CLICKHOUSE:          
+                result = await self._conn.query(
+                    query, parameters=args if args else None
+                )
+                return result.first_row
+            else:
+                raise ValueError(f"Unsupported backend: {self.backend}")
         except Exception as e:
             logger.error(f"Fetch one failed: {e}")
             raise
@@ -191,16 +227,25 @@ class DatabaseBackend:
             return self._strip_identifier_quotes(schema), self._strip_identifier_quotes(tbl)
         return None, self._strip_identifier_quotes(table_name)
 
+    def _clickhouse_qualified_table_name(
+        self,
+        table_name: str,
+        default_database: str = "upload",
+    ) -> str:
+        database, table = self._split_qualified_table_name(table_name)
+        database = database or default_database
+        return f"`{database}`.`{table}`"
+
     def get_upload_table_name(self, data_id: str) -> str:
         return data_id
 
-    def get_transient_table_name(self, data_id: str, opidx: int) -> str:
-        return f'transient."{data_id}_{opidx}"'
 
     # ---------- Schema helpers (unchanged) ----------
     async def create_schema_if_not_exists(self, schema_name: str) -> None:
         if self.backend in (Backend.DUCKDB, Backend.POSTGRES):
             await self.execute(f"CREATE SCHEMA IF NOT EXISTS {schema_name}")
+        elif self.backend == Backend.CLICKHOUSE:
+            await self.execute(f"CREATE DATABASE IF NOT EXISTS `{schema_name}`")
 
     async def table_exists(self, table_name: str) -> bool:
         schema, tbl = self._split_qualified_table_name(table_name)
@@ -220,10 +265,28 @@ class DatabaseBackend:
                 query = "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = $1)"
                 res = await self.fetch_one(query, tbl)
             return res[0] if res else False
+        elif self.backend == Backend.CLICKHOUSE:              
+            schema = schema or "upload"
+            query = (
+                "SELECT count() FROM system.tables "
+                "WHERE database = ? AND name = ?"
+            )
+            res = await self.fetch_one(query, schema, tbl)
+            return res[0] > 0 if res else False
+        
         raise ValueError(f"Unsupported backend: {self.backend}")
 
     async def drop_table(self, table_name: str) -> None:
-        await self.execute(f"DROP TABLE IF EXISTS {table_name} CASCADE")
+        if self.backend == Backend.CLICKHOUSE:                
+            qualified = self._clickhouse_qualified_table_name(table_name)
+            await self.execute(f"DROP TABLE IF EXISTS {qualified}")
+        else:
+            await self.execute(f"DROP TABLE IF EXISTS {table_name} CASCADE")
+
+    def get_transient_table_name(self, data_id: str, opidx: int) -> str:
+        if self.backend == Backend.CLICKHOUSE:                
+            return f"`transient`.`{data_id}_{opidx}`"
+        return f'transient."{data_id}_{opidx}"'
 
     @property
     def transient_registry_table(self) -> str:
@@ -234,7 +297,7 @@ class DatabaseBackend:
         return "registry.csv_registry"
 
     async def init_database(self) -> None:
-        if self.backend in (Backend.DUCKDB, Backend.POSTGRES):
+        if self.backend in (Backend.DUCKDB, Backend.POSTGRES,Backend.CLICKHOUSE):
             await self.create_schema_if_not_exists("upload")
             await self.create_schema_if_not_exists("transient")
             await self.create_schema_if_not_exists("registry")
@@ -242,40 +305,77 @@ class DatabaseBackend:
         logger.info("Database initialized")
 
     async def create_registry_tables(self) -> None:
-        await self.execute("""
-            CREATE TABLE IF NOT EXISTS registry.csv_registry (
-                data_id CHAR(6) PRIMARY KEY,
-                filename TEXT NOT NULL,
-                uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                is_upload_success BOOLEAN DEFAULT TRUE,
-                table_name TEXT NOT NULL,
-                row_count BIGINT
-            )
-        """)
-        await self.execute("""
-            CREATE TABLE IF NOT EXISTS registry.transient_registry (
-                data_id CHAR(6) NOT NULL,
-                opidx INTEGER NOT NULL,
-                generated_table_name TEXT,
-                operation_type TEXT,
-                class_name TEXT,
-                method_name TEXT,
-                args TEXT,
-                kwargs TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                PRIMARY KEY (data_id, opidx)
-            )
-        """)
+        if self.backend == Backend.CLICKHOUSE:                
+            await self.execute("""
+                CREATE TABLE IF NOT EXISTS registry.csv_registry (
+                    data_id String,
+                    filename String,
+                    uploaded_at DateTime DEFAULT now(),
+                    is_upload_success UInt8 DEFAULT 1,
+                    table_name String,
+                    row_count Int64
+                ) ENGINE = MergeTree()
+                ORDER BY data_id
+            """)
+            await self.execute("""
+                CREATE TABLE IF NOT EXISTS registry.transient_registry (
+                    data_id String,
+                    opidx Int32,
+                    generated_table_name Nullable(String),
+                    operation_type Nullable(String),
+                    class_name Nullable(String),
+                    method_name Nullable(String),
+                    args Nullable(String),
+                    kwargs Nullable(String),
+                    created_at DateTime DEFAULT now()
+                ) ENGINE = MergeTree()
+                ORDER BY (data_id, opidx)
+            """)
+        else:
+            await self.execute("""
+                CREATE TABLE IF NOT EXISTS registry.csv_registry (
+                    data_id CHAR(6) PRIMARY KEY,
+                    filename TEXT NOT NULL,
+                    uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    is_upload_success BOOLEAN DEFAULT TRUE,
+                    table_name TEXT NOT NULL,
+                    row_count BIGINT
+                )
+            """)
+            await self.execute("""
+                CREATE TABLE IF NOT EXISTS registry.transient_registry (
+                    data_id CHAR(6) NOT NULL,
+                    opidx INTEGER NOT NULL,
+                    generated_table_name TEXT,
+                    operation_type TEXT,
+                    class_name TEXT,
+                    method_name TEXT,
+                    args TEXT,
+                    kwargs TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (data_id, opidx)
+                )
+            """)
         await self._migrate_transient_registry_schema()
 
     async def _column_exists(self, schema: str, table: str, column: str) -> bool:
-        query = f"""
-            SELECT COUNT(*)
-            FROM information_schema.columns
-            WHERE table_schema = {self.placeholder(1)}
-              AND table_name = {self.placeholder(2)}
-              AND column_name = {self.placeholder(3)}
-        """
+        
+        if self.backend == Backend.CLICKHOUSE:                
+            query = """
+                SELECT count()
+                FROM system.columns
+                WHERE database = ?
+                  AND table = ?
+                  AND name = ?
+            """
+        else:
+            query = f"""
+                SELECT COUNT(*)
+                FROM information_schema.columns
+                WHERE table_schema = {self.placeholder(1)}
+                AND table_name = {self.placeholder(2)}
+                AND column_name = {self.placeholder(3)}
+            """
         count = await self.fetch_val(query, schema, table, column)
         return bool(count and count > 0)
 
@@ -293,18 +393,61 @@ class DatabaseBackend:
 
         for column_name, column_type in required_columns.items():
             if not await self._column_exists(schema_name, table_name, column_name):
+                ch_type = (
+                    "Nullable(String)"
+                    if self.backend == Backend.CLICKHOUSE
+                    else column_type
+                )
                 await self.execute(
-                    f"ALTER TABLE {fq_table_name} ADD COLUMN {column_name} {column_type}"
+                    f"ALTER TABLE {fq_table_name} ADD COLUMN {column_name} {ch_type}"
                 )
 
-        try:
-            await self.execute(
-                f"ALTER TABLE {fq_table_name} ALTER COLUMN generated_table_name DROP NOT NULL"
-            )
-        except Exception:
-            # Ignore if column is already nullable or backend/version handles this differently.
-            pass
+        if self.backend != Backend.CLICKHOUSE:            
+            try:
+                await self.execute(
+                    f"ALTER TABLE {fq_table_name} "
+                    f"ALTER COLUMN generated_table_name DROP NOT NULL"
+                )
+            except Exception:
+                pass
 
+    async def insert_rows(
+        self, table_name: str, rows: List[List[Any]], columns: List[str]
+    ) -> None:
+        """ClickHouse-only bulk insert via the local HTTP client."""
+        if self.backend != Backend.CLICKHOUSE:
+            raise NotImplementedError("insert_rows is ClickHouse-only")
+
+        # The HTTP client expects bare table name + database kwarg.
+        clean = table_name.replace("`", "").replace('"', "")
+        if "." in clean:
+            database, table = clean.split(".", 1)
+        else:
+            database = self.conn_params.get("database")
+            if not database:
+                raise ValueError("ClickHouse inserts require a database-qualified table")
+            table = clean
+
+        await self._conn.insert(table, rows, database=database, column_names=columns)
+    
+    
+    async def insert_arrow_table(self, table_name: str, arrow_table: Any) -> None:
+        """ClickHouse-only ArrowStream insert, avoiding Python row conversion."""
+        if self.backend != Backend.CLICKHOUSE:
+            raise NotImplementedError("insert_arrow_table is ClickHouse-only")
+
+        clean = table_name.replace("`", "").replace('"', "")
+        if "." in clean:
+            database, table = clean.split(".", 1)
+        else:
+            database = self.conn_params.get("database")
+            if not database:
+                raise ValueError("ClickHouse inserts require a database-qualified table")
+            table = clean
+
+        await self._conn.insert_arrow(table, arrow_table, database=database)
+    
+    
     # ------------------------------------------------------------------
     #  Robust encoding detection + fallback
     # ------------------------------------------------------------------
@@ -329,11 +472,3 @@ class DatabaseBackend:
                 return enc
 
         return "latin-1"  
-
-
-
-
-
-
-
-

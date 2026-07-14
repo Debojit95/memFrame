@@ -23,6 +23,7 @@ _BOOLEAN_SET = frozenset(
 class Backend:
     DUCKDB = "duckdb"
     POSTGRES = "postgres"
+    CLICKHOUSE = "clickhouse"
 
 
 def _generate_6char_id() -> str:

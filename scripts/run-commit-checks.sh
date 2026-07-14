@@ -13,6 +13,8 @@ fi
 
 export UV_CACHE_DIR="${UV_CACHE_DIR:-$PWD/.uv-cache}"
 export UV_LINK_MODE="${UV_LINK_MODE:-copy}"
+export MPLCONFIGDIR="${MPLCONFIGDIR:-$PWD/.matplotlib-cache}"
+mkdir -p "$MPLCONFIGDIR"
 
 : "${UPLOAD_CSV_FILEPATH:?Set UPLOAD_CSV_FILEPATH in .env}"
 : "${UPLOAD_PARQUET_FILEPATH:?Set UPLOAD_PARQUET_FILEPATH in .env}"
@@ -20,6 +22,8 @@ export UV_LINK_MODE="${UV_LINK_MODE:-copy}"
 : "${DUCKDB_UPLOAD_DB_PARAMS:?Set DUCKDB_UPLOAD_DB_PARAMS in .env}"
 : "${POSTGRES_UPLOAD_DB_BACKEND:?Set POSTGRES_UPLOAD_DB_BACKEND in .env}"
 : "${POSTGRES_UPLOAD_DB_PARAMS:?Set POSTGRES_UPLOAD_DB_PARAMS in .env}"
+: "${CLICKHOUSE_UPLOAD_DB_BACKEND:?Set CLICKHOUSE_UPLOAD_DB_BACKEND in .env}"
+: "${CLICKHOUSE_UPLOAD_DB_PARAMS:?Set CLICKHOUSE_UPLOAD_DB_PARAMS in .env}"
 
 DUCKDB_DB_PARAMS="${DUCKDB_DB_PARAMS:-$DUCKDB_UPLOAD_DB_PARAMS}"
 POSTGRES_DB_PARAMS="${POSTGRES_DB_PARAMS:-$POSTGRES_UPLOAD_DB_PARAMS}"
@@ -101,6 +105,10 @@ for upload_type in csv parquet; do
     run_upload_test "$upload_type" "${!filepath_var}" "$DUCKDB_UPLOAD_DB_BACKEND" "$DUCKDB_UPLOAD_DB_PARAMS"
   run_check "upload ${upload_type} postgres" \
     run_upload_test "$upload_type" "${!filepath_var}" "$POSTGRES_UPLOAD_DB_BACKEND" "$POSTGRES_UPLOAD_DB_PARAMS"
+  if [ -n "${CLICKHOUSE_UPLOAD_DB_BACKEND:-}" ] && [ -n "${CLICKHOUSE_UPLOAD_DB_PARAMS:-}" ]; then
+    run_check "upload ${upload_type} clickhouse" \
+      run_upload_test "$upload_type" "${!filepath_var}" "$CLICKHOUSE_UPLOAD_DB_BACKEND" "$CLICKHOUSE_UPLOAD_DB_PARAMS"
+  fi
 done
 
 run_check "selection duckdb" run_selection_test duckdb "$DUCKDB_DB_PARAMS"

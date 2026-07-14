@@ -1,34 +1,33 @@
-import sys
-from pathlib import Path
-
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
-from src.core.ingestion.datatype_detector import Backend, _generate_6char_id
-from src.db_manager.context import ContextManager
-
 
 import csv
 import logging
+import sys
 import os
 import tempfile
 import io
 import asyncpg
-import asyncio
 import pyarrow as pa
 import pyarrow.csv as pcsv
 import pyarrow.parquet as pq
 import numpy as np
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple,Union,TYPE_CHECKING
 
+import asyncio
 
-
-
+from utils.async_sync import async_to_sync
 
 
 if TYPE_CHECKING:
     import pandas as pd
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from src.core.ingestion.datatype_detector import Backend, _generate_6char_id
+from src.db_manager.context import ContextManager
 
 
 logger = logging.getLogger("memFrame")
@@ -40,13 +39,72 @@ if not logger.handlers:
 
 class Uploader:
     
-    async def _aupload_csv_data_id(self, file_path: Union[str, Path]) -> str:
+    
+    # ── new helpers ─────────────────────────────────────────
+    def _postgres_type_to_clickhouse(self, pg_type: str) -> str:
+        base = pg_type.split("(")[0].upper()
+        mapping = {
+            "TEXT": "String",
+            "VARCHAR": "String",
+            "CHAR": "String",
+            "INTEGER": "Int32",
+            "INT": "Int32",
+            "BIGINT": "Int64",
+            "SMALLINT": "Int16",
+            "NUMERIC": "Decimal(38, 10)",
+            "DECIMAL": "Decimal(38, 10)",
+            "REAL": "Float32",
+            "FLOAT": "Float32",
+            "FLOAT4": "Float32",
+            "DOUBLE": "Float64",
+            "FLOAT8": "Float64",
+            "DOUBLE PRECISION": "Float64",
+            "BOOLEAN": "UInt8",
+            "BOOL": "UInt8",
+            "DATE": "Date",
+            "TIMESTAMP": "DateTime",
+            "DATETIME": "DateTime",
+        }
+        return mapping.get(base, "String")
+
+    def _build_safe_cast_clickhouse(self, col: str, pg_type: str) -> str:
+        ch_type = self._postgres_type_to_clickhouse(pg_type)
+        col_q = f"`{col}`"
+        if ch_type == "String":
+            return f"{col_q} AS `{col}`"
+        if ch_type == "Int32":
+            return f"toInt32OrNull({col_q}) AS `{col}`"
+        if ch_type == "Int64":
+            return f"toInt64OrNull({col_q}) AS `{col}`"
+        if ch_type == "Int16":
+            return f"toInt16OrNull({col_q}) AS `{col}`"
+        if ch_type == "Float32":
+            return f"toFloat32OrNull({col_q}) AS `{col}`"
+        if ch_type == "Float64":
+            return f"toFloat64OrNull({col_q}) AS `{col}`"
+        if ch_type == "UInt8":
+            return f"toUInt8OrNull({col_q}) AS `{col}`"
+        if ch_type == "Date":
+            return f"toDateOrNull({col_q}) AS `{col}`"
+        if ch_type == "DateTime":
+            return f"toDateTimeOrNull({col_q}) AS `{col}`"
+        if "Decimal" in ch_type:
+            return f"toDecimal64OrNull({col_q}, 10) AS `{col}`"
+        return f"toString({col_q}) AS `{col}`"
+    
+    
+    async def _aupload_csv_data_id(
+        self,
+        file_path: Union[str, Path],
+        registry_filename: Optional[str] = None,
+    ) -> str:
         """Upload a CSV file and return the generated data_id."""
         if not self._backend:
             raise RuntimeError("Not connected. Call await connect() first.")
         file_path = Path(file_path)
         if not file_path.exists():
             raise FileNotFoundError(f"File not found: {file_path}")
+        registry_filename = registry_filename or file_path.name
 
         while True:
             data_id = _generate_6char_id()
@@ -63,7 +121,7 @@ class Uploader:
             VALUES ({self._placeholder(1)}, {self._placeholder(2)}, {self._placeholder(3)}, {self._placeholder(4)}, {self._placeholder(5)})
             """,
             data_id,
-            file_path.name,
+            registry_filename,
             table_name,
             row_count,
             True,
@@ -114,6 +172,9 @@ class Uploader:
         if len(df.columns) == 0:
             raise ValueError("DataFrame must have at least one column.")
 
+        if self._backend.backend == Backend.CLICKHOUSE:
+            return await self._aupload_df_clickhouse(df, filename)
+
         upload_name = filename or f"dataframe_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
         upload_name = Path(upload_name).name
         if not upload_name.lower().endswith(".csv"):
@@ -127,21 +188,93 @@ class Uploader:
             loop = asyncio.get_running_loop()
             await loop.run_in_executor(None, lambda: df.to_csv(temp_csv_path, index=False))
 
-            data_id = await self._aupload_csv_data_id(temp_csv_path)
-
-            await self._backend.execute(
-                f"""
-                UPDATE {self._backend.csv_registry_table}
-                SET filename = {self._placeholder(1)}
-                WHERE data_id = {self._placeholder(2)}
-                """,
-                upload_name,
-                data_id,
+            data_id = await self._aupload_csv_data_id(
+                temp_csv_path,
+                registry_filename=upload_name,
             )
             logger.info(f"Uploaded DataFrame -> {data_id} ({len(df)} rows)")
             return data_id
         finally:
             temp_csv_path.unlink(missing_ok=True)
+
+    async def _aupload_df_clickhouse(
+        self,
+        df: "pd.DataFrame",
+        filename: Optional[str] = None,
+        chunk_size: int = 500_000,
+    ) -> str:
+        """Upload a DataFrame directly to ClickHouse using ArrowStream batches."""
+        while True:
+            data_id = _generate_6char_id()
+            table_name = self.get_upload_table_name(data_id)
+            if not await self._backend.table_exists(table_name):
+                break
+
+        columns = self._make_unique_column_names([str(col) for col in df.columns])
+        arrow_table = pa.Table.from_pandas(df, preserve_index=False)
+        arrow_table = arrow_table.rename_columns(columns)
+
+        sample_size = min(arrow_table.num_rows, self._type_detector.sample_size)
+        sample_table = arrow_table.slice(0, sample_size)
+        schema = {
+            col: self._type_detector._infer_column(sample_table.column(col))
+            for col in columns
+        }
+        # Preserve native pandas/Arrow numeric widths. Sample-based CSV inference
+        # otherwise labels float64 as FLOAT, which maps to ClickHouse Float32.
+        for field in arrow_table.schema:
+            if pa.types.is_float64(field.type):
+                schema[field.name]["postgres_type"] = "DOUBLE PRECISION"
+            elif pa.types.is_float32(field.type):
+                schema[field.name]["postgres_type"] = "REAL"
+            elif pa.types.is_int64(field.type) or pa.types.is_uint64(field.type):
+                schema[field.name]["postgres_type"] = "BIGINT"
+            elif pa.types.is_int16(field.type) or pa.types.is_uint16(field.type):
+                schema[field.name]["postgres_type"] = "SMALLINT"
+            elif pa.types.is_integer(field.type):
+                schema[field.name]["postgres_type"] = "INTEGER"
+
+        final_table = f"`upload`.`{table_name}`"
+        logger.info(
+            "Uploading DataFrame as %s via ClickHouse ArrowStream (%s rows)...",
+            data_id,
+            arrow_table.num_rows,
+        )
+        await self._create_final_table_direct(final_table, columns, schema)
+
+        try:
+            for batch in arrow_table.to_batches(max_chunksize=chunk_size):
+                await self._backend.insert_arrow_table(
+                    final_table,
+                    pa.Table.from_batches([batch]),
+                )
+
+            upload_name = Path(
+                filename or f"dataframe_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+            ).name
+            if not upload_name.lower().endswith(".csv"):
+                upload_name = f"{upload_name}.csv"
+
+            await self._backend.execute(
+                f"""
+                INSERT INTO {self._backend.csv_registry_table}
+                    (data_id, filename, table_name, row_count, is_upload_success)
+                VALUES ({self._placeholder(1)}, {self._placeholder(2)},
+                        {self._placeholder(3)}, {self._placeholder(4)},
+                        {self._placeholder(5)})
+                """,
+                data_id,
+                upload_name,
+                table_name,
+                arrow_table.num_rows,
+                True,
+            )
+        except Exception:
+            await self._backend.drop_table(final_table)
+            raise
+
+        logger.info("Uploaded DataFrame -> %s (%s rows)", data_id, arrow_table.num_rows)
+        return data_id
 
     def _memframe_from_data_id(self, data_id: str) -> ContextManager:
         return ContextManager(self, data_id=data_id)
@@ -157,6 +290,9 @@ class Uploader:
     async def _aupload_df(self, df: "pd.DataFrame", filename: Optional[str] = None) -> ContextManager:
         data_id = await self._aupload_df_data_id(df, filename)
         return self._memframe_from_data_id(data_id)
+
+
+        # ------------------------------------------------------------------
    
    
     # helpers
@@ -180,9 +316,13 @@ class Uploader:
         schema_name = "upload"
         base_table = table_name
         await self.create_schema_if_not_exists(schema_name)
-        staging_table = f'{schema_name}."{base_table}_staging"'
-        final_table = f'{schema_name}."{base_table}"'
-
+        if self._backend.backend == Backend.CLICKHOUSE:        # ← ADD
+            staging_table = f"`{schema_name}`.`{base_table}_staging`"
+            final_table = f"`{schema_name}`.`{base_table}`"
+        else:
+            staging_table = f'{schema_name}."{base_table}_staging"'
+            final_table = f'{schema_name}."{base_table}"'
+            
         # Load all data as TEXT
         await self._create_text_staging_table(staging_table, columns)
         await self._load_csv_into_staging(staging_table, file_path, columns, encoding)
@@ -312,8 +452,11 @@ class Uploader:
         return columns, schema
 
     async def _create_text_staging_table(self, staging_table: str, columns: List[str]) -> None:
-        col_defs = ", ".join(f'"{col}" TEXT' for col in columns)
-        await self.execute(f'CREATE TABLE {staging_table} ({col_defs})')
+        if self._backend.backend == Backend.CLICKHOUSE:        # ← ADD
+            col_defs = ", ".join(f"`{col}` String" for col in columns)
+        else:
+            col_defs = ", ".join(f'"{col}" TEXT' for col in columns)
+        await self.execute(f"CREATE TABLE {staging_table} ({col_defs})")
 
     async def _load_csv_into_staging(
         self,
@@ -363,7 +506,13 @@ class Uploader:
             logger.info("Falling back to Python CSV reader for DuckDB loading")
             await self._fallback_load_duckdb_python_csv(staging_table, file_path, columns)
 
-        else:  # PostgreSQL – server‑side COPY from file
+        elif self.backend == Backend.CLICKHOUSE:               # ← ADD
+            await self._load_csv_into_staging_clickhouse(
+                staging_table, file_path, columns, encoding
+            )
+            return
+        
+        elif self.backend == Backend.POSTGRES:     # PostgreSQL – server‑side COPY from file
             schema_name, raw_table = self._split_qualified_table_name(staging_table)
 
             original_encoding = await self.fetch_val("SHOW client_encoding")
@@ -387,6 +536,33 @@ class Uploader:
             finally:
                 await self.execute(f"SET client_encoding = '{original_encoding}'")
 
+        else:
+            raise ValueError(f"Unsupported Backend : {self.backend}")
+    
+    async def _load_csv_into_staging_clickhouse(
+        self, staging_table: str, file_path: str, columns: List[str], encoding: str
+    ) -> None:
+        loop = asyncio.get_running_loop()
+
+        def _read_batches():
+            with open(file_path, "r", encoding=encoding, newline="") as f:
+                reader = csv.reader(f)
+                next(reader)  # skip header
+                batch = []
+                for row in reader:
+                    row = row[: len(columns)]
+                    row += [""] * (len(columns) - len(row))
+                    batch.append(row)
+                    if len(batch) >= 10000:
+                        yield batch
+                        batch = []
+                if batch:
+                    yield batch
+
+        for batch in await loop.run_in_executor(None, lambda: list(_read_batches())):
+            await self._backend.insert_rows(staging_table, batch, columns)
+    
+    
     async def _fallback_load_duckdb_python_csv(
         self, staging_table: str, file_path: str, columns: List[str]
     ) -> None:
@@ -474,43 +650,77 @@ class Uploader:
             schema[col] = self._type_detector._infer_column(chunked)
 
         schema_name = "upload"
-        final_table = f'{schema_name}."{table_name}"'
         await self.create_schema_if_not_exists(schema_name)
 
         if self.backend == Backend.DUCKDB:
+            final_table = f'{schema_name}."{table_name}"'
             await self._create_final_table_direct(final_table, columns, schema)
             full_table = arrow_table.rename_columns(columns)
             self._conn.register("parquet_temp", full_table)
             self._conn.execute(f"INSERT INTO {final_table} SELECT * FROM parquet_temp")
             self._conn.unregister("parquet_temp")
-        else:
+        elif self.backend == Backend.POSTGRES:
+            final_table = f'{schema_name}."{table_name}"'
             await self._create_final_table_direct(final_table, columns, schema)
             await self._insert_arrow_table_postgres(final_table, arrow_table, columns)
-
+        elif self.backend == Backend.CLICKHOUSE:               # ← ADD
+            final_table = f"`{schema_name}`.`{table_name}`"
+            await self._create_final_table_direct(final_table, columns, schema)
+            full_table = arrow_table.rename_columns(columns)
+            rows = []
+            for batch in full_table.to_batches(max_chunksize=10000):
+                for i in range(batch.num_rows):
+                    row = [batch.column(j)[i].as_py() for j in range(batch.num_columns)]
+                    rows.append(row)
+                    if len(rows) >= 10000:
+                        await self._backend.insert_rows(final_table, rows, columns)
+                        rows = []
+            if rows:
+                await self._backend.insert_rows(final_table, rows, columns)
+                
+        else:
+            raise ValueError(f"Unsupported backend : {self.backend}")
         row_count = await self.fetch_val(f"SELECT COUNT(*) FROM {final_table}")
         return row_count
 
-    async def _create_final_table_direct(self, final_table: str, columns: List[str],
-                                        schema: Dict[str, Dict[str, Any]]) -> None:
-        col_defs = []
-        for col in columns:
-            target_type = schema.get(col, {}).get("postgres_type", "TEXT")
-            col_defs.append(f'"{col}" {target_type}')
-        await self.execute(f'CREATE TABLE {final_table} ({", ".join(col_defs)})')
+    async def _create_final_table_direct(
+        self, final_table: str, columns: List[str], schema: Dict[str, Dict[str, Any]]
+    ) -> None:
+        if self.backend == Backend.CLICKHOUSE:         # ← ADD
+            col_defs = []
+            for col in columns:
+                pg_type = schema.get(col, {}).get("postgres_type", "TEXT")
+                ch_type = self._postgres_type_to_clickhouse(pg_type)
+                col_defs.append(f"`{col}` Nullable({ch_type})")
+            await self.execute(
+                f"CREATE TABLE {final_table} ({', '.join(col_defs)}) "
+                f"ENGINE = MergeTree() ORDER BY tuple()"
+            )
+        elif self.backend == Backend.POSTGRES or  self.backend == Backend.DUCKDB:
+            col_defs = []
+            for col in columns:
+                target_type = schema.get(col, {}).get("postgres_type", "TEXT")
+                col_defs.append(f'"{col}" {target_type}')
+            await self.execute(f"CREATE TABLE {final_table} ({', '.join(col_defs)})")
+
+        else:
+            raise ValueError("Unsupported backend!")
 
     async def _insert_arrow_table_postgres(self, final_table: str, arrow_table: pa.Table,
                                            columns: List[str]) -> None:
         full_table = arrow_table.rename_columns(columns)
 
-        text_buffer = io.StringIO()
-        writer = csv.writer(text_buffer, quoting=csv.QUOTE_MINIMAL)
-        for batch in full_table.to_batches(max_chunksize=10000):
-            cols_data = [list(batch.column(j).to_pylist()) for j in range(batch.num_columns)]
-            for i in range(batch.num_rows):
-                row = [cols_data[j][i] for j in range(batch.num_columns)]
-                writer.writerow(row)
-
-        with io.BytesIO(text_buffer.getvalue().encode("utf-8")) as buf:
+        with io.BytesIO() as buf:
+            text_writer = io.TextIOWrapper(buf, encoding="utf-8", write_through=True, newline="")
+            writer = csv.writer(text_writer, quoting=csv.QUOTE_MINIMAL)
+            for batch in full_table.to_batches(max_chunksize=10000):
+                cols_data = [list(batch.column(j).to_pylist()) for j in range(batch.num_columns)]
+                for i in range(batch.num_rows):
+                    row = [cols_data[j][i] for j in range(batch.num_columns)]
+                    writer.writerow(row)
+            text_writer.flush()
+            text_writer.detach()
+            buf.seek(0)
             await self._conn.copy_to_table(
                 self._split_qualified_table_name(final_table)[1],
                 source=buf,
@@ -533,9 +743,42 @@ class Uploader:
     ) -> None:
         if self.backend == Backend.DUCKDB:
             await self._create_final_table_duckdb(final_table, staging_table, columns, schema)
-        else:
+        elif self.backend == Backend.POSTGRES:
             await self._create_final_table_postgres(final_table, staging_table, columns, schema)
+        elif self.backend == Backend.CLICKHOUSE:               # ← ADD
+            await self._create_final_table_clickhouse(
+                final_table, staging_table, columns, schema
+            )
+        else:
+            raise ValueError(f"Unsupported Backend Error : {self.backend}")
+    
+    async def _create_final_table_clickhouse(
+        self,
+        final_table: str,
+        staging_table: str,
+        columns: List[str],
+        schema: Dict[str, Dict[str, Any]],
+    ) -> None:
+        col_defs = []
+        for col in columns:
+            pg_type = schema.get(col, {}).get("postgres_type", "TEXT")
+            ch_type = self._postgres_type_to_clickhouse(pg_type)
+            col_defs.append(f"`{col}` Nullable({ch_type})")
 
+        await self.execute(
+            f"CREATE TABLE {final_table} ({', '.join(col_defs)}) "
+            f"ENGINE = MergeTree() ORDER BY tuple()"
+        )
+
+        select_parts = []
+        for col in columns:
+            pg_type = schema.get(col, {}).get("postgres_type", "TEXT")
+            select_parts.append(self._build_safe_cast_clickhouse(col, pg_type))
+
+        await self.execute(
+            f"INSERT INTO {final_table} SELECT {', '.join(select_parts)} FROM {staging_table}"
+        )
+    
     async def _create_final_table_duckdb(
         self,
         final_table: str,
@@ -591,7 +834,7 @@ class Uploader:
                     ELSE NULL
                 END AS "{col}"
             """
-        elif base in ("NUMERIC", "DECIMAL", "REAL", "DOUBLE PRECISION", "FLOAT", "FLOAT4", "FLOAT8", "DOUBLE"):
+        elif base in ("NUMERIC", "DECIMAL", "REAL", "FLOAT", "DOUBLE PRECISION"):
             return f"""
                 CASE
                     WHEN TRIM({col_quoted}) ~ '^-?[0-9]*\\.?[0-9]+$' THEN
@@ -615,20 +858,20 @@ class Uploader:
                     ELSE NULL
                 END AS "{col}"
             """
-        elif base == "TIMESTAMP":
+        elif base in ("TIMESTAMP", "TIMESTAMPTZ", "TIMESTAMP WITH TIME ZONE"):
             return f"""
                 CASE
                     WHEN TRIM({col_quoted}) ~ '^[0-9]{{4}}-[0-9]{{1,2}}-[0-9]{{1,2}}[ T][0-9]{{1,2}}:[0-9]{{1,2}}' THEN
-                        TRIM({col_quoted})::TIMESTAMP
+                        TRIM({col_quoted})::{target_type}
                     ELSE NULL
                 END AS "{col}"
             """
         else:
             return f'{col_quoted} AS "{col}"'
 
-
     
-    # # ====================== SYNC APIS ===================
+    
+    # ====================== SYNC APIS ===================
     # async def aupload_csv(self, file_path: Union[str, Path]) -> ContextManager:
     #     return await self._aupload_csv(file_path)
     
@@ -650,8 +893,3 @@ class Uploader:
     # @async_to_sync
     # async def upload_df(self, df: "pd.DataFrame", filename: Optional[str] = None) -> ContextManager:
     #     return await self.aupload_df(df, filename)
-
-
-
-
-

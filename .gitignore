@@ -47,6 +47,7 @@ site/
 
 # uv/local package-manager cache
 .uv-cache/
+.matplotlib-cache/
 
 # Local environment and secrets
 .env

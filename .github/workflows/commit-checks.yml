@@ -5,6 +5,16 @@ on:
     branches:
       - "**"
   pull_request:
+  workflow_dispatch:
+    inputs:
+      commit_mode:
+        description: "Commit check mode"
+        required: true
+        default: "verify"
+        type: choice
+        options:
+          - verify
+          - no-verify
 
 permissions:
   contents: read
@@ -22,11 +32,24 @@ env:
   POSTGRES_USER: postgres
   POSTGRES_PASSWORD: xx
   POSTGRES_DB: xx
+  CLICKHOUSE_UPLOAD_DB_BACKEND: clickhouse
+  CLICKHOUSE_UPLOAD_DB_PARAMS: '{"backend":"clickhouse","host":"localhost","port":8123,"user":"default","password":"xx"}'
+  CLICKHOUSE_USER: default
+  CLICKHOUSE_PASSWORD: xx
 
 jobs:
+  no-verify:
+    name: Skip commit checks
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.commit_mode == 'no-verify' }}
+    steps:
+      - name: Skip checks
+        run: echo "Skipping commit checks because commit_mode=no-verify was selected."
+
   checks:
     name: Upload tests and tox
     runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.commit_mode != 'no-verify' }}
     timeout-minutes: 20
 
     services:
@@ -40,6 +63,18 @@ jobs:
           - 5723:5432
         options: >-
           --health-cmd "pg_isready -U postgres -d xx"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      clickhouse:
+        image: clickhouse/clickhouse-server:24.8
+        env:
+          CLICKHOUSE_USER: ${{ env.CLICKHOUSE_USER }}
+          CLICKHOUSE_PASSWORD: ${{ env.CLICKHOUSE_PASSWORD }}
+        ports:
+          - 8123:8123
+        options: >-
+          --health-cmd "clickhouse-client --user default --password xx --query 'SELECT 1'"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -84,6 +119,8 @@ jobs:
             echo "POSTGRES_UPLOAD_DB_BACKEND=$POSTGRES_UPLOAD_DB_BACKEND"
             echo "POSTGRES_UPLOAD_DB_PARAMS='$POSTGRES_UPLOAD_DB_PARAMS'"
             echo "POSTGRES_DB_PARAMS='$POSTGRES_DB_PARAMS'"
+            echo "CLICKHOUSE_UPLOAD_DB_BACKEND=$CLICKHOUSE_UPLOAD_DB_BACKEND"
+            echo "CLICKHOUSE_UPLOAD_DB_PARAMS='$CLICKHOUSE_UPLOAD_DB_PARAMS'"
           } > .env
 
       - name: Run commit checks
