@@ -24,9 +24,9 @@ def pytest_addoption(parser):
         "--db-backend",
         "--db-connection-type",
         dest="db_backend",
-        choices=("duckdb", "postgres"),
+        choices=("duckdb", "postgres", "clickhouse"),
         default=None,
-        help="Database backend for tests that support DB selection: duckdb or postgres",
+        help="Database backend for tests that support DB selection: duckdb, postgres, or clickhouse",
     )
     parser.addoption(
         "--db-params",
@@ -35,7 +35,8 @@ def pytest_addoption(parser):
         default=None,
         help=(
             "JSON object with connection params. DuckDB accepts db_path. "
-            "Postgres accepts host, port, user, password, database, and optional backend."
+            "Postgres accepts host, port, user, password, database, and optional backend. "
+            "ClickHouse accepts host, port, user, password, database, secure, timeout, and optional backend."
         ),
     )
 

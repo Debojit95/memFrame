@@ -36,8 +36,8 @@ def _parse_db_params(raw: str | None) -> Dict[str, Any]:
 def _connection_config(db_backend: str | None, db_params: Dict[str, Any]) -> tuple[str, Dict[str, Any]]:
     backend = (db_backend or db_params.get("backend") or "duckdb").lower()
 
-    if backend not in {"duckdb", "postgres"}:
-        pytest.fail("--db-backend must be either 'duckdb' or 'postgres'")
+    if backend not in {"duckdb", "postgres", "clickhouse"}:
+        pytest.fail("--db-backend must be 'duckdb', 'postgres', or 'clickhouse'")
 
     params = dict(db_params)
     declared_backend = params.get("backend")
@@ -49,6 +49,15 @@ def _connection_config(db_backend: str | None, db_params: Dict[str, Any]) -> tup
         missing = [key for key in ("host", "user", "password", "database") if key not in params]
         if missing:
             pytest.fail(f"Postgres upload tests require db params: {', '.join(missing)}")
+        if "port" in params:
+            params["port"] = int(params["port"])
+        return "remote", params
+
+    if backend == "clickhouse":
+        params["backend"] = "clickhouse"
+        missing = [key for key in ("host", "user", "password") if key not in params]
+        if missing:
+            pytest.fail(f"ClickHouse upload tests require db params: {', '.join(missing)}")
         if "port" in params:
             params["port"] = int(params["port"])
         return "remote", params
