@@ -2,7 +2,7 @@ from typing import Dict, List, Any, Optional
 import traceback
 import pandas as pd
 from collections import namedtuple
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 from src.db_manager.adapters.base import DatabaseAdapter
@@ -203,7 +203,7 @@ class GeneralTableOps:
             candidate = await self._generate_transient_table_name(base_table, backend, data_id)
         else:
             safe_base = SQLIdentifierSanitizer.sanitize(base_table)
-            ts = datetime.utcnow().strftime("%Y%m%d%H%M%S%f")
+            ts = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f")
             candidate = f"{safe_base}__op_{ts}"
 
         table_name = SQLIdentifierSanitizer.sanitize(candidate)

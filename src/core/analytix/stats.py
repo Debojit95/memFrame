@@ -4,7 +4,7 @@ Mirrors pandas .describe(), .sum(), .mean(), .corr(), etc.
 """
 
 from typing import Any, Dict, List, Optional
-from datetime import datetime, UTC
+from datetime import datetime, timezone
 import numpy as np
 import traceback
 import pandas as pd
@@ -137,7 +137,7 @@ class DataStatsOps:
         elif backend is not None and data_id:
             candidate = await self._generate_result_table_name(safe_table, backend, data_id)
         else:
-            candidate = f"{safe_table}__op_{datetime.now(UTC).strftime('%Y%m%d%H%M%S%f')}"
+            candidate = f"{safe_table}__op_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}"
 
         output_table = SQLIdentifierSanitizer.sanitize(candidate)
         dedupe_idx = 1
