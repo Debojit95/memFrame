@@ -185,8 +185,7 @@ class Uploader:
         temp_csv_path = Path(temp_csv)
 
         try:
-            loop = asyncio.get_running_loop()
-            await loop.run_in_executor(None, lambda: df.to_csv(temp_csv_path, index=False))
+            df.to_csv(temp_csv_path, index=False)
 
             data_id = await self._aupload_csv_data_id(
                 temp_csv_path,
@@ -234,7 +233,8 @@ class Uploader:
             elif pa.types.is_integer(field.type):
                 schema[field.name]["postgres_type"] = "INTEGER"
 
-        final_table = f"`upload`.`{table_name}`"
+        schema_name = self._backend.upload_schema
+        final_table = f"`{schema_name}`.`{table_name}`"
         logger.info(
             "Uploading DataFrame as %s via ClickHouse ArrowStream (%s rows)...",
             data_id,
@@ -303,17 +303,13 @@ class Uploader:
    
     #  CSV IMPORT (PyArrow‑based)  
     async def _create_table_from_csv(self, table_name: str, file_path: str) -> int:
-        loop = asyncio.get_running_loop()
-
         # ---------- Robust encoding ----------
         encoding = await self._resolve_encoding(file_path)
 
         # ---------- Read columns & schema using that encoding ----------
-        columns, schema = await loop.run_in_executor(
-            None, self._get_columns_and_schema, file_path, encoding
-        )
+        columns, schema = self._get_columns_and_schema(file_path, encoding)
 
-        schema_name = "upload"
+        schema_name = self._backend.upload_schema
         base_table = table_name
         await self.create_schema_if_not_exists(schema_name)
         if self._backend.backend == Backend.CLICKHOUSE:        # ← ADD
@@ -467,8 +463,6 @@ class Uploader:
     ) -> None:
         """Load CSV into staging table using the most robust method available."""
         if self.backend == Backend.DUCKDB:
-            loop = asyncio.get_running_loop()
-
             # Helper: attempt to read with PyArrow using a given encoding
             def _read_pyarrow(enc):
                 read_opts = pcsv.ReadOptions(encoding=enc, use_threads=True)
@@ -494,7 +488,7 @@ class Uploader:
             # Try the provided encoding, then latin-1, then fallback to Python CSV
             for enc in (encoding, "latin-1"):
                 try:
-                    arrow_table = await loop.run_in_executor(None, _read_pyarrow, enc)
+                    arrow_table = _read_pyarrow(enc)
                     renamed = arrow_table.rename_columns(columns)
                     self._conn.register("arrow_temp", renamed)
                     self._conn.execute(f"INSERT INTO {staging_table} SELECT * FROM arrow_temp")
@@ -542,8 +536,6 @@ class Uploader:
     async def _load_csv_into_staging_clickhouse(
         self, staging_table: str, file_path: str, columns: List[str], encoding: str
     ) -> None:
-        loop = asyncio.get_running_loop()
-
         def _read_batches():
             with open(file_path, "r", encoding=encoding, newline="") as f:
                 reader = csv.reader(f)
@@ -559,7 +551,7 @@ class Uploader:
                 if batch:
                     yield batch
 
-        for batch in await loop.run_in_executor(None, lambda: list(_read_batches())):
+        for batch in list(_read_batches()):
             await self._backend.insert_rows(staging_table, batch, columns)
     
     
@@ -567,8 +559,6 @@ class Uploader:
         self, staging_table: str, file_path: str, columns: List[str]
     ) -> None:
         """Insert rows using Python's csv module – handles any byte."""
-        loop = asyncio.get_running_loop()
-
         def _insert():
             with open(file_path, "r", encoding="latin-1", newline="") as f:
                 reader = csv.reader(f)
@@ -591,7 +581,7 @@ class Uploader:
                         values,
                     )
 
-        await loop.run_in_executor(None, _insert)
+        _insert()
 
     async def _fallback_load_with_padding(
         self, staging_table: str, file_path: str, columns: List[str],
@@ -628,9 +618,7 @@ class Uploader:
     #  PARQUET SUPPORT 
     # ------------------------------------------------------------------
     async def _create_table_from_parquet(self, table_name: str, file_path: str) -> int:
-        loop = asyncio.get_running_loop()
-
-        arrow_table = await loop.run_in_executor(None, pq.read_table, file_path)
+        arrow_table = pq.read_table(file_path)
 
         original_names = arrow_table.schema.names
         columns = self._make_unique_column_names(original_names)
@@ -649,7 +637,7 @@ class Uploader:
             chunked = sample_table.column(col)
             schema[col] = self._type_detector._infer_column(chunked)
 
-        schema_name = "upload"
+        schema_name = self._backend.upload_schema
         await self.create_schema_if_not_exists(schema_name)
 
         if self.backend == Backend.DUCKDB:
@@ -725,7 +713,7 @@ class Uploader:
                 self._split_qualified_table_name(final_table)[1],
                 source=buf,
                 columns=columns,
-                schema_name="upload",
+                schema_name=self._backend.upload_schema,
                 format="csv",
                 header=False,
                 encoding="UTF8",

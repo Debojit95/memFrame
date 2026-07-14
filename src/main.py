@@ -142,6 +142,8 @@ class MemFrame(BaseWrapper):
                     "password": self.conn_params["password"],
                     "database": self.conn_params["database"],
                 }
+                if "schema_prefix" in self.conn_params:
+                    params["schema_prefix"] = self.conn_params["schema_prefix"]
             elif backend_type == "clickhouse":              
                 backend = Backend.CLICKHOUSE
                 params = {
@@ -156,6 +158,8 @@ class MemFrame(BaseWrapper):
                     params["secure"] = self.conn_params["secure"]
                 if "timeout" in self.conn_params:
                     params["timeout"] = self.conn_params["timeout"]
+                if "schema_prefix" in self.conn_params:
+                    params["schema_prefix"] = self.conn_params["schema_prefix"]
 
             else:
                 raise ValueError("Remote backend must be 'postgres' or clickhouse")

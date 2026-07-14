@@ -15,6 +15,7 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 
 from src.main import MemFrame
+from db_test_utils import default_duckdb_test_path
 
 # ----------------------------------------------------------------------
 # Backend configuration - set environment variables for PostgreSQL
@@ -104,14 +105,14 @@ def _validate_duckdb_params(params: Dict[str, Any]) -> Dict[str, Any]:
     if unknown:
         raise _usage_error(f"DuckDB does not accept params: {', '.join(unknown)}")
 
-    db_path = params.get("db_path", "memFrame_new.duckdb")
+    db_path = params.get("db_path", default_duckdb_test_path("cleaning"))
     if not isinstance(db_path, str) or not db_path.strip():
         raise _usage_error("DuckDB param 'db_path' must be a non-empty string")
     return {"db_path": db_path}
 
 
 def _validate_postgres_params(params: Dict[str, Any]) -> Dict[str, Any]:
-    allowed = {"backend", "host", "port", "user", "password", "database"}
+    allowed = {"backend", "host", "port", "user", "password", "database", "schema_prefix"}
     unknown = sorted(set(params) - allowed)
     if unknown:
         raise _usage_error(f"Postgres does not accept params: {', '.join(unknown)}")

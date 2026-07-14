@@ -158,7 +158,8 @@ class DataSelectionOps:
         candidate = await self._generate_transient_table_name(base_table, backend, data_id)
         output_table = SQLIdentifierSanitizer.sanitize(candidate)
         dedupe_idx = 1
-        while await self.db.table_exists(output_table, "transient"):
+        transient_schema = getattr(backend, "transient_schema", "transient")
+        while await self.db.table_exists(output_table, transient_schema):
             output_table = SQLIdentifierSanitizer.sanitize(f"{candidate}_{dedupe_idx}")
             dedupe_idx += 1
         return output_table
@@ -815,10 +816,11 @@ class DataSelectionOps:
             if backend and data_id:
                 base_table_name = f"iloc_{len(row_pos)}x{len(col_pos)}"
                 new_table = await self._resolve_transient_table_name(base_table_name, backend, data_id)
-                full_new = f"{self.db.quote_identifier('transient')}.{self._quote(new_table)}"
+                transient_schema = getattr(backend, "transient_schema", "transient")
+                full_new = f"{self.db.quote_identifier(transient_schema)}.{self._quote(new_table)}"
                 create_sql = f"CREATE TABLE {full_new} AS {sql}"
                 await self._exec(create_sql)
-                sample = await self._fetch_sample(new_table, "transient", columns=selected_cols)
+                sample = await self._fetch_sample(new_table, transient_schema, columns=selected_cols)
                 return self._success_response(
                     f"iloc rows {row_pos} cols {col_pos}",
                     sample,

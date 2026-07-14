@@ -75,8 +75,8 @@ async def _load_generated_table(memframe_instance, generated_table_name: str) ->
         candidates = [(schema_part, table_part)]
     else:
         candidates = [
-            ("upload", generated_table_name),
-            ("transient", generated_table_name),
+            (backend.upload_schema, generated_table_name),
+            (backend.transient_schema, generated_table_name),
             ("main", generated_table_name),
         ]
 
@@ -93,15 +93,10 @@ async def _load_generated_table(memframe_instance, generated_table_name: str) ->
                 return pd.DataFrame([dict(r) for r in rows])
 
             if backend.backend == Backend.DUCKDB:
-                loop = asyncio.get_running_loop()
-
-                def _fetch_df():
-                    cur = backend._conn.execute(query)
-                    cols = [d[0] for d in (cur.description or [])]
-                    rows = cur.fetchall()
-                    return pd.DataFrame(rows, columns=cols)
-
-                return await loop.run_in_executor(None, _fetch_df)
+                cur = backend._conn.execute(query)
+                cols = [d[0] for d in (cur.description or [])]
+                rows = cur.fetchall()
+                return pd.DataFrame(rows, columns=cols)
         except Exception:
             continue
 

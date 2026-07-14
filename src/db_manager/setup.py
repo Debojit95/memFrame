@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import re
 from typing import Any, Dict, List, Optional, Tuple
 import asyncpg
 import duckdb
@@ -12,6 +13,16 @@ if not logger.handlers:
     handler = logging.StreamHandler()
     handler.setFormatter(logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s"))
     logger.addHandler(handler)
+
+
+def _sanitize_schema_name(value: str) -> str:
+    name = re.sub(r"[^A-Za-z0-9_]", "_", value.strip())
+    name = re.sub(r"_+", "_", name).strip("_")
+    if not name:
+        raise ValueError("schema_prefix must contain at least one alphanumeric character")
+    if name[0].isdigit():
+        name = f"mf_{name}"
+    return name.lower()
 
 
 def _loop_is_running(loop: Optional[asyncio.AbstractEventLoop]) -> bool:
@@ -38,13 +49,28 @@ class DatabaseBackend:
         self._conn: Optional[Any] = None
         self._conn_loop: Optional[asyncio.AbstractEventLoop] = None
         self._type_detector = DatatypeDetector()
+        schema_prefix = self.conn_params.get("schema_prefix")
+        if schema_prefix:
+            prefix = _sanitize_schema_name(str(schema_prefix))
+            self.upload_schema = f"{prefix}_upload"
+            self.transient_schema = f"{prefix}_transient"
+            self.registry_schema = f"{prefix}_registry"
+        else:
+            self.upload_schema = "upload"
+            self.transient_schema = "transient"
+            self.registry_schema = "registry"
 
     async def _connect_postgres(self) -> Any:
+        connect_params = {
+            key: self.conn_params[key]
+            for key in ("host", "port", "user", "password", "database")
+            if key in self.conn_params
+        }
         try:
-            conn = await asyncpg.connect(**self.conn_params)
+            conn = await asyncpg.connect(**connect_params)
         except asyncpg.InvalidCatalogNameError:
-            target_db = self.conn_params["database"]
-            admin_params = self.conn_params.copy()
+            target_db = connect_params["database"]
+            admin_params = connect_params.copy()
             admin_params["database"] = "postgres"
 
             temp_conn = await asyncpg.connect(**admin_params)
@@ -58,7 +84,7 @@ class DatabaseBackend:
             finally:
                 await temp_conn.close()
 
-            conn = await asyncpg.connect(**self.conn_params)
+            conn = await asyncpg.connect(**connect_params)
 
         self._conn_loop = asyncio.get_running_loop()
         return conn
@@ -98,8 +124,7 @@ class DatabaseBackend:
         try:
             if self.backend == Backend.DUCKDB:
                 db_path = self.conn_params.get("db_path", "memframe_new.duckdb")
-                loop = asyncio.get_running_loop()
-                self._conn = await loop.run_in_executor(None, duckdb.connect, db_path)
+                self._conn = duckdb.connect(db_path)
                 logger.info(f"Connected to DuckDB: {db_path}")
 
             elif self.backend == Backend.POSTGRES:
@@ -133,7 +158,8 @@ class DatabaseBackend:
         try:
             if self.backend == Backend.DUCKDB:
                 if self._conn:
-                    await asyncio.get_running_loop().run_in_executor(None, self._conn.close)
+                    self._conn.close()
+                    self._conn = None
             elif self.backend == Backend.POSTGRES:
                 if self._conn:
                     await self._close_postgres_connection()
@@ -150,8 +176,7 @@ class DatabaseBackend:
     async def execute(self, query: str, *args) -> None:
         try:
             if self.backend == Backend.DUCKDB:
-                loop = asyncio.get_running_loop()
-                await loop.run_in_executor(None, lambda: self._conn.execute(query, args))
+                self._conn.execute(query, args)
             elif self.backend == Backend.POSTGRES:
                 await self._ensure_postgres_connection()
                 await self._conn.execute(query, *args)
@@ -167,11 +192,7 @@ class DatabaseBackend:
     async def fetch(self, query: str, *args) -> List[Tuple]:
         try:
             if self.backend == Backend.DUCKDB:
-                loop = asyncio.get_running_loop()
-                result = await loop.run_in_executor(
-                    None, lambda: self._conn.execute(query, args).fetchall()
-                )
-                return result
+                return self._conn.execute(query, args).fetchall()
             elif self.backend == Backend.POSTGRES:
                 await self._ensure_postgres_connection()
                 rows = await self._conn.fetch(query, *args)
@@ -190,11 +211,7 @@ class DatabaseBackend:
     async def fetch_one(self, query: str, *args) -> Optional[Tuple]:
         try:
             if self.backend == Backend.DUCKDB:
-                loop = asyncio.get_running_loop()
-                result = await loop.run_in_executor(
-                    None, lambda: self._conn.execute(query, args).fetchone()
-                )
-                return result
+                return self._conn.execute(query, args).fetchone()
             elif self.backend == Backend.POSTGRES:
                 await self._ensure_postgres_connection()
                 row = await self._conn.fetchrow(query, *args)
@@ -230,10 +247,10 @@ class DatabaseBackend:
     def _clickhouse_qualified_table_name(
         self,
         table_name: str,
-        default_database: str = "upload",
+        default_database: Optional[str] = None,
     ) -> str:
         database, table = self._split_qualified_table_name(table_name)
-        database = database or default_database
+        database = database or default_database or self.upload_schema
         return f"`{database}`.`{table}`"
 
     def get_upload_table_name(self, data_id: str) -> str:
@@ -266,7 +283,7 @@ class DatabaseBackend:
                 res = await self.fetch_one(query, tbl)
             return res[0] if res else False
         elif self.backend == Backend.CLICKHOUSE:              
-            schema = schema or "upload"
+            schema = schema or self.upload_schema
             query = (
                 "SELECT count() FROM system.tables "
                 "WHERE database = ? AND name = ?"
@@ -285,29 +302,29 @@ class DatabaseBackend:
 
     def get_transient_table_name(self, data_id: str, opidx: int) -> str:
         if self.backend == Backend.CLICKHOUSE:                
-            return f"`transient`.`{data_id}_{opidx}`"
-        return f'transient."{data_id}_{opidx}"'
+            return f"`{self.transient_schema}`.`{data_id}_{opidx}`"
+        return f'{self.transient_schema}."{data_id}_{opidx}"'
 
     @property
     def transient_registry_table(self) -> str:
-        return "registry.transient_registry"
+        return f"{self.registry_schema}.transient_registry"
 
     @property
     def csv_registry_table(self) -> str:
-        return "registry.csv_registry"
+        return f"{self.registry_schema}.csv_registry"
 
     async def init_database(self) -> None:
         if self.backend in (Backend.DUCKDB, Backend.POSTGRES,Backend.CLICKHOUSE):
-            await self.create_schema_if_not_exists("upload")
-            await self.create_schema_if_not_exists("transient")
-            await self.create_schema_if_not_exists("registry")
+            await self.create_schema_if_not_exists(self.upload_schema)
+            await self.create_schema_if_not_exists(self.transient_schema)
+            await self.create_schema_if_not_exists(self.registry_schema)
         await self.create_registry_tables()
         logger.info("Database initialized")
 
     async def create_registry_tables(self) -> None:
         if self.backend == Backend.CLICKHOUSE:                
-            await self.execute("""
-                CREATE TABLE IF NOT EXISTS registry.csv_registry (
+            await self.execute(f"""
+                CREATE TABLE IF NOT EXISTS {self.registry_schema}.csv_registry (
                     data_id String,
                     filename String,
                     uploaded_at DateTime DEFAULT now(),
@@ -317,8 +334,8 @@ class DatabaseBackend:
                 ) ENGINE = MergeTree()
                 ORDER BY data_id
             """)
-            await self.execute("""
-                CREATE TABLE IF NOT EXISTS registry.transient_registry (
+            await self.execute(f"""
+                CREATE TABLE IF NOT EXISTS {self.registry_schema}.transient_registry (
                     data_id String,
                     opidx Int32,
                     generated_table_name Nullable(String),
@@ -332,8 +349,8 @@ class DatabaseBackend:
                 ORDER BY (data_id, opidx)
             """)
         else:
-            await self.execute("""
-                CREATE TABLE IF NOT EXISTS registry.csv_registry (
+            await self.execute(f"""
+                CREATE TABLE IF NOT EXISTS {self.registry_schema}.csv_registry (
                     data_id CHAR(6) PRIMARY KEY,
                     filename TEXT NOT NULL,
                     uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -342,8 +359,8 @@ class DatabaseBackend:
                     row_count BIGINT
                 )
             """)
-            await self.execute("""
-                CREATE TABLE IF NOT EXISTS registry.transient_registry (
+            await self.execute(f"""
+                CREATE TABLE IF NOT EXISTS {self.registry_schema}.transient_registry (
                     data_id CHAR(6) NOT NULL,
                     opidx INTEGER NOT NULL,
                     generated_table_name TEXT,
@@ -380,7 +397,7 @@ class DatabaseBackend:
         return bool(count and count > 0)
 
     async def _migrate_transient_registry_schema(self) -> None:
-        schema_name = "registry"
+        schema_name = self.registry_schema
         table_name = "transient_registry"
         fq_table_name = f"{schema_name}.{table_name}"
 
@@ -453,10 +470,8 @@ class DatabaseBackend:
     # ------------------------------------------------------------------
     async def _resolve_encoding(self, file_path: str) -> str:
         """Return an encoding that can definitely read the whole file."""
-        loop = asyncio.get_running_loop()
-
         # Try detected encoding with 64 KB check
-        detected = await loop.run_in_executor(None, self._type_detector._detect_encoding, file_path)
+        detected = self._type_detector._detect_encoding(file_path)
 
         def _validate(enc):
             try:
@@ -468,7 +483,7 @@ class DatabaseBackend:
                 return False
 
         for enc in (detected, "utf-8", "latin-1", "cp1252"):
-            if await loop.run_in_executor(None, _validate, enc):
+            if _validate(enc):
                 return enc
 
         return "latin-1"  

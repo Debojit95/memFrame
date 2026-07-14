@@ -189,6 +189,8 @@ class TableOpsOrchestrator:
     async def update(self, on: str, other_table: str, other_schema: str = "upload",overwrite: bool = True, errors: str = "ignore",) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
+        if other_schema == "upload":
+            other_schema = schema
 
         return await ops.dataframe_update(
             table,

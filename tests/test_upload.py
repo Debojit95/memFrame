@@ -130,7 +130,7 @@ async def _run_upload_test(
 
         assert registry_entry is not None, f"Uploaded data_id '{data_id}' is missing from list_tables()"
         assert registry_entry["filename"] == expected_filename
-        assert await mf._backend.table_exists(f'upload."{data_id}"')
+        assert await mf._backend.table_exists(f'{mf._backend.upload_schema}."{data_id}"')
 
         row_count = await mf._backend.fetch_val(
             f"""

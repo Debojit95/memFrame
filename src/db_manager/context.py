@@ -175,6 +175,6 @@ class ContextManager:
             raise ValueError(f"No registry entry for {data_id}")
 
         table_name = rows[0][0]   
-        schema = "upload"         # hardcoded schema for both backends
+        schema = backend.upload_schema
 
         return table_name, schema
