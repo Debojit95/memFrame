@@ -1,0 +1,127 @@
+from __future__ import annotations
+
+from typing import Any
+
+from src.core.plots.bar import BarPlotCore
+
+
+class BarOrchestrator:
+    """Orchestrator layer for bar plotting."""
+
+    def __init__(self, memframe_ops_instance=None, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._ops_parent = memframe_ops_instance
+        self._bar_ops = None
+
+    async def _ensure_ops(self) -> BarPlotCore:
+        if self._ops_parent is None:
+            raise RuntimeError(
+                "BarOrchestrator is not bound to a ContextManager instance."
+            )
+        if self._bar_ops is None:
+            await self._ops_parent._ensure_adapter()
+            self._bar_ops = BarPlotCore(self._ops_parent._adapter)
+        return self._bar_ops
+
+    async def _get_context(self):
+        return await self._ops_parent._get_active_context()
+
+    async def bar(
+        self,
+        *,
+        x: Any = None,
+        y: Any = None,
+        color: Any = None,
+        pattern_shape: Any = None,
+        facet_row: Any = None,
+        facet_col: Any = None,
+        facet_col_wrap: int = 0,
+        facet_row_spacing: float | None = None,
+        facet_col_spacing: float | None = None,
+        hover_name: Any = None,
+        hover_data: Any = None,
+        custom_data: Any = None,
+        text: Any = None,
+        base: Any = None,
+        error_x: Any = None,
+        error_x_minus: Any = None,
+        error_y: Any = None,
+        error_y_minus: Any = None,
+        animation_frame: Any = None,
+        animation_group: Any = None,
+        category_orders: Any = None,
+        labels: Any = None,
+        color_discrete_sequence: Any = None,
+        color_discrete_map: Any = None,
+        color_continuous_scale: Any = None,
+        pattern_shape_sequence: Any = None,
+        pattern_shape_map: Any = None,
+        range_color: Any = None,
+        color_continuous_midpoint: Any = None,
+        opacity: float | None = None,
+        orientation: str | None = None,
+        barmode: str = "relative",
+        log_x: bool = False,
+        log_y: bool = False,
+        range_x: Any = None,
+        range_y: Any = None,
+        text_auto: bool | str = False,
+        title: str | None = None,
+        subtitle: str | None = None,
+        template: str | None = None,
+        width: int | None = None,
+        height: int | None = None,
+        **kwargs: Any,
+    ):
+        ops = await self._ensure_ops()
+        table, schema = await self._get_context()
+        return await ops.bar(
+            table,
+            schema,
+            x=x,
+            y=y,
+            color=color,
+            pattern_shape=pattern_shape,
+            facet_row=facet_row,
+            facet_col=facet_col,
+            facet_col_wrap=facet_col_wrap,
+            facet_row_spacing=facet_row_spacing,
+            facet_col_spacing=facet_col_spacing,
+            hover_name=hover_name,
+            hover_data=hover_data,
+            custom_data=custom_data,
+            text=text,
+            base=base,
+            error_x=error_x,
+            error_x_minus=error_x_minus,
+            error_y=error_y,
+            error_y_minus=error_y_minus,
+            animation_frame=animation_frame,
+            animation_group=animation_group,
+            category_orders=category_orders,
+            labels=labels,
+            color_discrete_sequence=color_discrete_sequence,
+            color_discrete_map=color_discrete_map,
+            color_continuous_scale=color_continuous_scale,
+            pattern_shape_sequence=pattern_shape_sequence,
+            pattern_shape_map=pattern_shape_map,
+            range_color=range_color,
+            color_continuous_midpoint=color_continuous_midpoint,
+            opacity=opacity,
+            orientation=orientation,
+            barmode=barmode,
+            log_x=log_x,
+            log_y=log_y,
+            range_x=range_x,
+            range_y=range_y,
+            text_auto=text_auto,
+            title=title,
+            subtitle=subtitle,
+            template=template,
+            width=width,
+            height=height,
+            **kwargs,
+        )
+
+
+__all__ = ["BarOrchestrator"]

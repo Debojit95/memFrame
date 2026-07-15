@@ -11,8 +11,7 @@ from src.core.ingestion.datatype_detector import Backend
 from src.db_manager.adapters.base import DatabaseAdapter
 from src.db_manager.adapters.postgresql import PostgresAdapter
 from src.db_manager.adapters.duckdb import DuckDBAdapter
-
-
+from src.db_manager.adapters.clickhouse import ClickHouseAdapter  
     
 
 logger = logging.getLogger("memFrame")
@@ -33,6 +32,10 @@ class ContextManager:
         self._inspect_wrapper = None
         self._clean_wrapper = None
         self._stats_wrapper = None
+        
+        
+        # PLOTS
+        self._bar_wrapper = None
         
         
     
@@ -67,7 +70,8 @@ class ContextManager:
             ops.datetime.year(...) / await ops.datetime.ayear(...)
         """
         
-        for wrapper in (self.inspect, self.select, self.clean,self.stats):
+        for wrapper in (self.inspect, self.select, self.clean,self.stats,
+                        self.bar):
             if hasattr(wrapper, name):
                 return getattr(wrapper, name)
         raise AttributeError(f"{self.__class__.__name__!r} object has no attribute {name!r}")
@@ -119,7 +123,14 @@ class ContextManager:
             self._stats_wrapper = StatsWrapper(self)
         return self._stats_wrapper
     
+    # PLOTTING-------
     
+    @property
+    def bar(self):
+        from wrappers.plots.bar import BarWrapper
+        if self._bar_wrapper is None:
+            self._bar_wrapper = BarWrapper(self)
+        return self._bar_wrapper
     
     
         
@@ -145,6 +156,16 @@ class ContextManager:
                 user=params["user"],
                 password=params["password"],
                 database=params["database"],
+            )
+        elif backend.backend == Backend.CLICKHOUSE:           
+            params = backend.conn_params
+            self._adapter = ClickHouseAdapter(
+                host=params["host"],
+                port=params.get("port", 8123),
+                user=params["user"],
+                password=params["password"],
+                database=params.get("database"),
+                timeout=params.get("timeout", 10.0),
             )
         else:
             raise RuntimeError("Unsupported backend")
