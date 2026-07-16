@@ -36,6 +36,7 @@ class ContextManager:
         
         # PLOTS
         self._bar_wrapper = None
+        self._bar_polar_wrapper = None
         
         
     
@@ -55,23 +56,10 @@ class ContextManager:
             ops.select_dtypes(exclude="categorical")
             ops.sort_values(by="B")
             ops.mean("A")
-        instead of:
-            ops.inspect.head() / await ops.inspect.ahead()
-            ops.clean.fillna(...) / await ops.clean.adropna(...)
-            ops.arithmetic.pow(...) / ops.arithmetic.clip(...)
-            ops.compare.compare("A >= B")
-            ops.cumulative.cumsum(...) / await ops.cumulative.acumsum(...)
-            ops.filters.filter("A > B")
-            ops.preprocess.cyclical(column="date", features=["month"])
-            ops.reshape.rank(columns=["B", "C"])
-            ops.select.select_dtypes(exclude="categorical")
-            ops.sort.sort_values(by="B")
-            ops.stats.holiday_counts("A")
-            ops.datetime.year(...) / await ops.datetime.ayear(...)
         """
         
         for wrapper in (self.inspect, self.select, self.clean,self.stats,
-                        self.bar):
+                        self.bar,self.bar_polar):
             if hasattr(wrapper, name):
                 return getattr(wrapper, name)
         raise AttributeError(f"{self.__class__.__name__!r} object has no attribute {name!r}")
@@ -83,6 +71,9 @@ class ContextManager:
             | set(dir(self.inspect))
             | set(dir(self.clean))
             | set(dir(self.stats))
+            | set(dir(self.bar))
+            | set(dir(self.bar_polar))
+            
             
         )
     
@@ -133,7 +124,15 @@ class ContextManager:
         return self._bar_wrapper
     
     
-        
+    @property
+    def bar_polar(self):
+        from wrappers.plots.bar_polar import BarPolarWrapper
+        if self._bar_polar_wrapper is None:
+            self._bar_polar_wrapper = BarPolarWrapper(self)
+        return self._bar_polar_wrapper
+    
+    
+    
     async def _ensure_adapter(self):
         """Create the appropriate adapter from memframe's backend."""
         if self._adapter is not None:
