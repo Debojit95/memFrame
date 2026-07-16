@@ -4,18 +4,17 @@
 
 # memFrame
 
-memFrame is a database-backed DataFrame processing framework. It uploads tabular
-data into DuckDB or PostgreSQL and returns a context that can be used for later
-operations.
+memFrame is a database-backed data processing & analytics framework that works with duckdb,postgres & clickhouse.
 
 ## What It Provides
 
-- Synchronous and asynchronous APIs.
-- Local DuckDB and remote PostgreSQL backends.
+- Asynchronous(first) and synchronous APIs.
+- Local DuckDB and remote PostgreSQL/Clickhouse backends.
+- pandas equivalent syntax.
 - CSV, Parquet, and pandas DataFrame uploads.
-- Column-name normalization and data type inference.
-- Dataset registry, active-dataset selection, and operation history.
-- Backup and restore for file-backed DuckDB databases.
+- Persistent Caching Layer.
+- Transaction audit trail.
+- plotting support(Plotly wrapper)
 
 ## Start Here
 

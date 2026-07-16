@@ -38,9 +38,14 @@ nav:
   - Home: index.md
   - Getting Started: getting-started.md
   - API:
-      - Upload Manager: api/upload-manager.md
-      - Dataset Operations: api/database.md
-      - Inspect: api/inspect.md
-      - Cleaning: api/cleaning.md
-      - Selection: api/selection.md
-      - Stats: api/stats.md
+      - DB Manager:
+          - Connector: api/connector.md
+          - Upload Manager: api/upload-manager.md
+          - Dataset Operations: api/database.md
+      - memFrame:
+          - Inspect: api/inspect.md
+          - Cleaning: api/cleaning.md
+          - Selection: api/selection.md
+          - Stats: api/stats.md
+      - Plots:
+          - Bar: api/bar.md

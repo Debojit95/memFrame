@@ -119,7 +119,7 @@ Supported methods depend on detected or supplied dtype:
 
 | Dtype | Methods |
 | --- | --- |
-| `numeric` | `mean`, `avg`, `average`, `median`, `mode`, `constant`, `std`, `var`, `variance`, `min`, `max`, `ffill`, `bfill` |
+| `numeric` | `mean`, `avg`, `average`, `median`, `mode`, `constant`, `std`, `var`,  `min`, `max`, `ffill`, `bfill` |
 | `categorical` | `constant`, `mode`, `map`, `ffill`, `bfill` |
 | `datetime` | `constant`, `min`, `max`, `mean`, `median`, `mode`, `now`, `ffill`, `bfill` |
 
@@ -162,7 +162,7 @@ Supported group methods:
 
 | Dtype | Methods |
 | --- | --- |
-| `numeric` | `mean`, `avg`, `average`, `median`, `mode`, `constant`, `std`, `var`, `variance`, `min`, `max`, `ffill`, `bfill` |
+| `numeric` | `mean`, `avg`, `average`, `median`, `mode`, `constant`, `std`, `var`, `min`, `max`, `ffill`, `bfill` |
 | `categorical` | `mode`, `ffill`, `bfill` |
 | `datetime` | `min`, `max`, `mean`, `median`, `mode`, `ffill`, `bfill` |
 

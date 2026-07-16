@@ -47,7 +47,7 @@ jobs:
         run: echo "Skipping commit checks because commit_mode=no-verify was selected."
 
   checks:
-    name: Upload tests and tox
+    name: Commit tests and tox
     runs-on: ubuntu-latest
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.commit_mode != 'no-verify' }}
     timeout-minutes: 20
