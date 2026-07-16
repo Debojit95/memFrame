@@ -49,3 +49,4 @@ nav:
           - Stats: api/stats.md
       - Plots:
           - Bar: api/bar.md
+          - Bar Polar: api/bar_polar.md
