@@ -1,0 +1,92 @@
+from __future__ import annotations
+
+from typing import Any
+
+
+class PieWrapper:
+    """Public sync + async pie chart plotting interface."""
+
+ 
+    async def apie(
+        self,
+        *,
+        names: Any = ...,
+        values: Any = ...,
+        color: Any = ...,
+        facet_row: Any = ...,
+        facet_col: Any = ...,
+        facet_col_wrap: int = ...,
+        facet_row_spacing: float | None = ...,
+        facet_col_spacing: float | None = ...,
+        color_discrete_sequence: Any = ...,
+        color_discrete_map: Any = ...,
+        hover_name: Any = ...,
+        hover_data: Any = ...,
+        custom_data: Any = ...,
+        category_orders: Any = ...,
+        labels: Any = ...,
+        title: str | None = ...,
+        subtitle: str | None = ...,
+        template: str | None = ...,
+        width: int | None = ...,
+        height: int | None = ...,
+        opacity: float | None = ...,
+        hole: float | None = ...,
+        **kwargs: Any,
+    ) -> Any: ...
+
+    def __call__(
+        self,
+        *,
+        names: Any = ...,
+        values: Any = ...,
+        color: Any = ...,
+        facet_row: Any = ...,
+        facet_col: Any = ...,
+        facet_col_wrap: int = ...,
+        facet_row_spacing: float | None = ...,
+        facet_col_spacing: float | None = ...,
+        color_discrete_sequence: Any = ...,
+        color_discrete_map: Any = ...,
+        hover_name: Any = ...,
+        hover_data: Any = ...,
+        custom_data: Any = ...,
+        category_orders: Any = ...,
+        labels: Any = ...,
+        title: str | None = ...,
+        subtitle: str | None = ...,
+        template: str | None = ...,
+        width: int | None = ...,
+        height: int | None = ...,
+        opacity: float | None = ...,
+        hole: float | None = ...,
+        **kwargs: Any,
+    ) -> Any: ...
+
+    def pie(
+        self,
+        *,
+        names: Any = ...,
+        values: Any = ...,
+        color: Any = ...,
+        facet_row: Any = ...,
+        facet_col: Any = ...,
+        facet_col_wrap: int = ...,
+        facet_row_spacing: float | None = ...,
+        facet_col_spacing: float | None = ...,
+        color_discrete_sequence: Any = ...,
+        color_discrete_map: Any = ...,
+        hover_name: Any = ...,
+        hover_data: Any = ...,
+        custom_data: Any = ...,
+        category_orders: Any = ...,
+        labels: Any = ...,
+        title: str | None = ...,
+        subtitle: str | None = ...,
+        template: str | None = ...,
+        width: int | None = ...,
+        height: int | None = ...,
+        opacity: float | None = ...,
+        hole: float | None = ...,
+        **kwargs: Any,
+    ) -> Any: ...

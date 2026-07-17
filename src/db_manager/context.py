@@ -37,6 +37,7 @@ class ContextManager:
         # PLOTS
         self._bar_wrapper = None
         self._bar_polar_wrapper = None
+        self._pie_wrapper = None
         
         
     
@@ -59,7 +60,8 @@ class ContextManager:
         """
         
         for wrapper in (self.inspect, self.select, self.clean,self.stats,
-                        self.bar,self.bar_polar):
+                        self.bar,self.bar_polar, self.pie):
+            
             if hasattr(wrapper, name):
                 return getattr(wrapper, name)
         raise AttributeError(f"{self.__class__.__name__!r} object has no attribute {name!r}")
@@ -73,6 +75,7 @@ class ContextManager:
             | set(dir(self.stats))
             | set(dir(self.bar))
             | set(dir(self.bar_polar))
+            | set(dir(self.pie))
             
             
         )
@@ -131,6 +134,13 @@ class ContextManager:
             self._bar_polar_wrapper = BarPolarWrapper(self)
         return self._bar_polar_wrapper
     
+    
+    @property
+    def pie(self):
+        from wrappers.plots.pie import PieWrapper
+        if self._pie_wrapper is None:
+            self._pie_wrapper = PieWrapper(self)
+        return self._pie_wrapper
     
     
     async def _ensure_adapter(self):

@@ -10,14 +10,13 @@ The package is designed for workflows where data may be larger than what you wan
 
 ## Features
 
-- Upload CSV, Parquet, and pandas DataFrame inputs.
-- Use local DuckDB for file-backed analytics.
-- Use remote PostgreSQL for server-backed workflows.
-- Work with uploaded datasets through a context object.
-- Inspect data with APIs such as `head`, `tail`, `describe`, `dtypes`, `shape`, `columns`, and null analysis helpers.
-- Select data with `loc`, `iloc`, `at`, `iat`, `where`, `take`, `get`, and dtype-based selection.
-- Clean data with helpers such as `fillna`, `dropna`, `drop_duplicates`, `clip`, outlier handling, rare-value compression, and value mapping.
-- Choose async APIs for event-loop based apps or sync APIs for scripts and notebooks.
+- Local DuckDB and remote PostgreSQL/Clickhouse backends.
+- Asynchronous(first) and synchronous APIs.
+- csv, parquet, and pandas DataFrame upload.
+- Persistent Caching Layer.
+- Transaction audit trail.
+- Plotting support(Plotly wrapper)
+
 
 ## Installation
 
