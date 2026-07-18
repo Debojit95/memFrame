@@ -38,6 +38,7 @@ class ContextManager:
         self._bar_wrapper = None
         self._bar_polar_wrapper = None
         self._pie_wrapper = None
+        self._line_wrapper = None
         
         
     
@@ -60,7 +61,7 @@ class ContextManager:
         """
         
         for wrapper in (self.inspect, self.select, self.clean,self.stats,
-                        self.bar,self.bar_polar, self.pie):
+                        self.bar,self.bar_polar, self.pie,self.line):
             
             if hasattr(wrapper, name):
                 return getattr(wrapper, name)
@@ -76,6 +77,7 @@ class ContextManager:
             | set(dir(self.bar))
             | set(dir(self.bar_polar))
             | set(dir(self.pie))
+            | set(dir(self.line))
             
             
         )
@@ -141,6 +143,16 @@ class ContextManager:
         if self._pie_wrapper is None:
             self._pie_wrapper = PieWrapper(self)
         return self._pie_wrapper
+    
+    
+    @property
+    def line(self):
+        from wrappers.plots.line import LineWrapper
+        if self._line_wrapper is None:
+            self._line_wrapper = LineWrapper(self)
+        return self._line_wrapper
+    
+    
     
     
     async def _ensure_adapter(self):

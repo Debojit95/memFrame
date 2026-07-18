@@ -187,3 +187,10 @@ class MemFrame(BaseWrapper):
 
 
 
+
+
+
+
+
+
+
