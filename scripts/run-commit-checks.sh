@@ -143,6 +143,16 @@ run_bar_polar_test() {
     --db-params "$db_params"
 }
 
+run_pie_test() {
+  local db_backend="$1"
+  local db_params="$2"
+
+  pytest tests/test_pie.py \
+    -v \
+    --db-backend "$db_backend" \
+    --db-params "$db_params"
+}
+
 for upload_type in csv parquet; do
   filepath_var="UPLOAD_${upload_type^^}_FILEPATH"
   run_check "upload ${upload_type} duckdb" \
@@ -167,6 +177,8 @@ run_check "bar duckdb" run_bar_test duckdb "$(duckdb_params_for bar)"
 run_check "bar postgres" run_bar_test postgres "$POSTGRES_DB_PARAMS"
 run_check "bar polar duckdb" run_bar_polar_test duckdb "$(duckdb_params_for bar_polar)"
 run_check "bar polar postgres" run_bar_polar_test postgres "$POSTGRES_DB_PARAMS"
+run_check "pie duckdb" run_pie_test duckdb "$(duckdb_params_for pie)"
+run_check "pie postgres" run_pie_test postgres "$POSTGRES_DB_PARAMS"
 tox_args=(-p auto -e py310,py311,py312,py313)
 if [ "${TOX_RECREATE:-0}" = "1" ]; then
   tox_args=(-r "${tox_args[@]}")
