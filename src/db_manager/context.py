@@ -3,7 +3,7 @@ import logging
 from pathlib import Path
 from typing import Any, Optional
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent   # adjust if needed
+PROJECT_ROOT = Path(__file__).resolve().parent.parent  
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
     
@@ -39,6 +39,7 @@ class ContextManager:
         self._bar_polar_wrapper = None
         self._pie_wrapper = None
         self._line_wrapper = None
+        self._scatter_wrapper = None
         
         
     
@@ -61,7 +62,7 @@ class ContextManager:
         """
         
         for wrapper in (self.inspect, self.select, self.clean,self.stats,
-                        self.bar,self.bar_polar, self.pie,self.line):
+                        self.bar,self.bar_polar, self.pie,self.line,self.scatter):
             
             if hasattr(wrapper, name):
                 return getattr(wrapper, name)
@@ -78,6 +79,7 @@ class ContextManager:
             | set(dir(self.bar_polar))
             | set(dir(self.pie))
             | set(dir(self.line))
+            | set(dir(self.scatter))
             
             
         )
@@ -153,7 +155,12 @@ class ContextManager:
         return self._line_wrapper
     
     
-    
+    @property
+    def scatter(self):
+        from wrappers.plots.scatter import ScatterWrapper
+        if self._scatter_wrapper is None:
+            self._scatter_wrapper = ScatterWrapper(self)
+        return self._scatter_wrapper
     
     async def _ensure_adapter(self):
         """Create the appropriate adapter from memframe's backend."""
