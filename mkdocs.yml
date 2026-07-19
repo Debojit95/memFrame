@@ -52,3 +52,4 @@ nav:
           - Bar Polar: api/bar_polar.md
           - Pie: api/pie.md
           - Line: api/line.md
+          - Scatter: api/scatter.md
