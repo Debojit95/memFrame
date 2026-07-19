@@ -28,7 +28,7 @@ pip install -e .
 import asyncio
 import pandas as pd
 
-from src.main import MemFrame
+from memframe import MemFrame
 
 
 async def main():
@@ -74,7 +74,7 @@ Choose a backend with `connection_type` and `connection_params`.
 ### DuckDB
 
 ```python
-from src.main import MemFrame
+from memframe import MemFrame
 
 mf = MemFrame(
     connection_type="local",
@@ -89,7 +89,7 @@ Local mode uses DuckDB. If `db_path` is omitted, memFrame uses
 ### PostgreSQL
 
 ```python
-from src.main import MemFrame
+from memframe import MemFrame
 
 mf = MemFrame(
     connection_type="remote",
@@ -107,7 +107,7 @@ mf = MemFrame(
 ### ClickHouse
 
 ```python
-from src.main import MemFrame
+from memframe import MemFrame
 
 mf = MemFrame(
     connection_type="remote",
@@ -133,7 +133,7 @@ with `asyncio.run`, then use the sync wrappers:
 ```python
 import asyncio
 
-from src.main import MemFrame
+from memframe import MemFrame
 
 mf = MemFrame(
     connection_type="local",

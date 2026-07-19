@@ -74,8 +74,8 @@ if TYPE_CHECKING:
     # IDE/type-checker visibility:
     # Keep these imports updated when you add new wrapper classes and want
     # static autocomplete for their method signatures on MemFrame/BaseWrapper.
-    from src.wrappers.ops import OpsWrapper
-    from src.wrappers.upload import UploadWrapper
+    from wrappers.ops import OpsWrapper
+    from wrappers.upload import UploadWrapper
 
     class BaseWrapper(OpsWrapper, UploadWrapper):
         """Typing-time base wrapper with concrete signatures for IDEs."""

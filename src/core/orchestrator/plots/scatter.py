@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from typing import Any
-from src.core.plots.scatter import ScatterPlotCore
+from core.plots.scatter import ScatterPlotCore
 
 
 class ScatterOrchestrator:

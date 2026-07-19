@@ -2,8 +2,8 @@
 
 from typing import Any, Dict, List
 
-from src.core.orchestrator.analytix.stats import StatsOrchestrator
-from src.utils.async_sync import async_to_sync
+from core.orchestrator.analytix.stats import StatsOrchestrator
+from utils.async_sync import async_to_sync
 
 
 class StatsWrapper(StatsOrchestrator):

@@ -26,8 +26,8 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.core.ingestion.datatype_detector import Backend, _generate_6char_id
-from src.db_manager.context import ContextManager
+from core.ingestion.datatype_detector import Backend, _generate_6char_id
+from db_manager.context import ContextManager
 
 
 logger = logging.getLogger("memFrame")

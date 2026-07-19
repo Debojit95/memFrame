@@ -17,7 +17,7 @@ use `MemFrame` as an asynchronous context manager.
 DuckDB is the local backend.
 
 ```python
-from src.main import MemFrame
+from memframe import MemFrame
 
 mf = MemFrame(
     connection_type="local",
@@ -44,7 +44,7 @@ Parameters:
 PostgreSQL is configured as a remote backend.
 
 ```python
-from src.main import MemFrame
+from memframe import MemFrame
 
 mf = MemFrame(
     connection_type="remote",
@@ -78,7 +78,7 @@ Parameters:
 ClickHouse is configured as a remote backend and uses the HTTP interface.
 
 ```python
-from src.main import MemFrame
+from memframe import MemFrame
 
 mf = MemFrame(
     connection_type="remote",

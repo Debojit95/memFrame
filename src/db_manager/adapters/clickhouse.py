@@ -249,15 +249,32 @@ class ClickHouseAdapter(DatabaseAdapter):
         user: str,
         password: str,
         database: Optional[str] = None,
+        secure: bool = False,
         timeout: float = 10.0,
+        schema_prefix: Optional[str] = None,
     ):
         self.host = host
         self.port = port or 8123
         self.user = user
         self.password = password
         self.database = database
+        self.secure = secure
         self.timeout = timeout
+        self.schema_prefix = schema_prefix
         self.client: Optional[Any] = None
+
+    @classmethod
+    def connection_params(cls, conn_params: Dict[str, Any]) -> Dict[str, Any]:
+        params = {
+            "host": conn_params["host"],
+            "port": conn_params.get("port", 8123),
+            "user": conn_params["user"],
+            "password": conn_params["password"],
+        }
+        for optional_key in ("database", "secure", "timeout", "schema_prefix"):
+            if optional_key in conn_params:
+                params[optional_key] = conn_params[optional_key]
+        return params
 
     async def connect(self) -> None:
         self.client = HttpxClickHouseClient(
@@ -266,6 +283,7 @@ class ClickHouseAdapter(DatabaseAdapter):
             username=self.user,
             password=self.password,
             database=self.database,
+            secure=self.secure,
             timeout=self.timeout,
         )
         logger.info(

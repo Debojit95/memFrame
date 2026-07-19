@@ -7,11 +7,11 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
     
-from src.core.ingestion.datatype_detector import Backend
-from src.db_manager.adapters.base import DatabaseAdapter
-from src.db_manager.adapters.postgresql import PostgresAdapter
-from src.db_manager.adapters.duckdb import DuckDBAdapter
-from src.db_manager.adapters.clickhouse import ClickHouseAdapter  
+from core.ingestion.datatype_detector import Backend
+from db_manager.adapters.base import DatabaseAdapter
+from db_manager.adapters.postgresql import PostgresAdapter
+from db_manager.adapters.duckdb import DuckDBAdapter
+from db_manager.adapters.clickhouse import ClickHouseAdapter
     
 
 logger = logging.getLogger("memFrame")
@@ -193,6 +193,7 @@ class ContextManager:
                 user=params["user"],
                 password=params["password"],
                 database=params.get("database"),
+                secure=params.get("secure", False),
                 timeout=params.get("timeout", 10.0),
             )
         else:

@@ -1,22 +1,20 @@
 import asyncio
 import logging
-import os
 import sys
 from pathlib import Path
-import time
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
+SOURCE_ROOT = Path(__file__).resolve().parent
+if str(SOURCE_ROOT) not in sys.path:
+    sys.path.insert(0, str(SOURCE_ROOT))
 
 if TYPE_CHECKING:
     import pandas as pd
 
-from src.core.ingestion.datatype_detector import Backend
-from src.db_manager.setup import DatabaseBackend
-from src.db_manager.context import ContextManager
-from src.wrappers.base import BaseWrapper
+from core.ingestion.datatype_detector import Backend
+from db_manager.setup import DatabaseBackend
+from db_manager.context import ContextManager
+from wrappers.base import BaseWrapper
 
 logger = logging.getLogger("memFrame")
 logger.setLevel(logging.INFO)
@@ -120,56 +118,6 @@ class MemFrame(BaseWrapper):
         return Path(db_path)
     
     
-    async def connect(self) -> None:
-        if self.connection_type == "local":
-            backend = Backend.DUCKDB
-
-            db_path = self.conn_params.get("db_path", "memFrame_new.duckdb")
-            if db_path == ":memory:":
-                logger.warning("In-memory DuckDB is disabled for local mode; using 'totem_new.duckdb' instead.")
-                db_path = "memFrame_new.duckdb"
-
-            params = {"db_path": db_path}
-
-        elif self.connection_type == "remote":
-            backend_type = self.conn_params.get("backend")
-            if backend_type == "postgres":
-                backend = Backend.POSTGRES
-                params = {
-                    "host": self.conn_params["host"],
-                    "port": self.conn_params.get("port", 5432),
-                    "user": self.conn_params["user"],
-                    "password": self.conn_params["password"],
-                    "database": self.conn_params["database"],
-                }
-                if "schema_prefix" in self.conn_params:
-                    params["schema_prefix"] = self.conn_params["schema_prefix"]
-            elif backend_type == "clickhouse":              
-                backend = Backend.CLICKHOUSE
-                params = {
-                    "host": self.conn_params["host"],
-                    "port": self.conn_params.get("port", 8123),
-                    "user": self.conn_params["user"],
-                    "password": self.conn_params["password"],
-                }
-                if "database" in self.conn_params:
-                    params["database"] = self.conn_params["database"]
-                if "secure" in self.conn_params:
-                    params["secure"] = self.conn_params["secure"]
-                if "timeout" in self.conn_params:
-                    params["timeout"] = self.conn_params["timeout"]
-                if "schema_prefix" in self.conn_params:
-                    params["schema_prefix"] = self.conn_params["schema_prefix"]
-
-            else:
-                raise ValueError("Remote backend must be 'postgres' or clickhouse")
-        else:
-            raise ValueError("connection_type must be 'local' or 'remote'")
-
-        self._backend = DatabaseBackend(backend, params)
-        await self._backend.connect()
-        await self._backend.init_database()
-    
     async def close(self) -> None:
         if self._backend:
             await self._backend.close()
@@ -179,12 +127,11 @@ class MemFrame(BaseWrapper):
     
     
     async def __aenter__(self):
-        await self.connect()
+        await self.aconnect()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self.close()
-
 
 
 

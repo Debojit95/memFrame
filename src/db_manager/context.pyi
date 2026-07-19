@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from src.db_manager.adapters.base import DatabaseAdapter
-from src.wrappers.analytix.inspect import TableOpsWrapper
-from src.wrappers.analytix.selection import SelectionWrapper
+from db_manager.adapters.base import DatabaseAdapter
+from wrappers.analytix.inspect import TableOpsWrapper
+from wrappers.analytix.selection import SelectionWrapper
 from wrappers.analytix.cleaning import CleaningWrapper
 from wrappers.analytix.stats import StatsWrapper
 

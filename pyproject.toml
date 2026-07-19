@@ -1,20 +1,28 @@
 [project]
 name = "memframe"
 version = "0.1.0"
-description = "Add your description here"
+description = "memFrame is a Python package for working with database-backed DataFrame operations. It lets you upload CSV files, Parquet files, and pandas DataFrames into a local DuckDB database or a remote PostgreSQL/Clickhouse database, then run DataFrame-style inspection, selection, cleaning, and table-management operations through one consistent API."
 readme = "README.md"
 authors = [
     { name = "Debojit", email = "debo.mandal95@gmail.com" }
 ]
 requires-python = ">=3.10"
+license = {text = "Apache-2.0"}  # Add this since you have Apache-2.0 in repo
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
 dependencies = [
     "asyncpg==0.30",
     "chardet>=7.4.3",
     "clickhouse-connect>=1.4.2",
     "duckdb>=1.0.0",
     "httpx>=0.28.1",
-    "mkdocs-material>=9.7.6",
-    "mkdocstrings[python]>=1.0.4",
     "pandas>=2.2,<3.0",
     "plotly>=6.9.0",
     "psycopg2-binary>=2.9.12",
@@ -22,22 +30,37 @@ dependencies = [
     "pydantic>=2.13.4",
 ]
 
-[dependency-groups]
+[project.optional-dependencies]
 dev = [
     "matplotlib>=3.10.9",
     "pytest>=8.0",
     "tox>=4.0",
+    "mkdocs-material>=9.7.6",
+    "mkdocstrings[python]>=1.0.4",
 ]
+
+[project.urls]
+Homepage = "https://github.com/Debojit95/memFrame"
+Documentation = "https://debojit95.github.io/memFrame/"
+Repository = "https://github.com/Debojit95/memFrame"
+Issues = "https://github.com/Debojit95/memFrame/issues"
 
 [tool.pytest.ini_options]
 addopts = "-ra"
-pythonpath = [
-    ".",
-]
-testpaths = [
-    "tests",
-]
+pythonpath = ["."]
+testpaths = ["tests"]
 
 [build-system]
-requires = ["uv_build>=0.11.18,<0.12.0"]
-build-backend = "uv_build"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/memframe"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"src/main.py" = "src/main.py"
+"src/main.pyi" = "src/main.pyi"
+"src/core" = "src/core"
+"src/db_manager" = "src/db_manager"
+"src/utils" = "src/utils"
+"src/wrappers" = "src/wrappers"

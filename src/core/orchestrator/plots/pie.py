@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from src.core.plots.pie import PiePlotCore
+from core.plots.pie import PiePlotCore
 
 
 class PieOrchestrator:

@@ -38,6 +38,7 @@ class PostgresAdapter(DatabaseAdapter):
         database: str,
         min_size: int = 0,
         max_size: int = 1,
+        schema_prefix: Optional[str] = None,
     ):
         self.host = host
         self.port = port
@@ -46,8 +47,22 @@ class PostgresAdapter(DatabaseAdapter):
         self.database = database
         self.min_size = min_size
         self.max_size = max_size
+        self.schema_prefix = schema_prefix
         self.pool: Optional[asyncpg.Pool] = None
         self._pool_loop: Optional[asyncio.AbstractEventLoop] = None
+
+    @classmethod
+    def connection_params(cls, conn_params: Dict[str, Any]) -> Dict[str, Any]:
+        params = {
+            "host": conn_params["host"],
+            "port": conn_params.get("port", 5432),
+            "user": conn_params["user"],
+            "password": conn_params["password"],
+            "database": conn_params["database"],
+        }
+        if "schema_prefix" in conn_params:
+            params["schema_prefix"] = conn_params["schema_prefix"]
+        return params
 
     async def _create_pool(self) -> asyncpg.Pool:
         return await asyncpg.create_pool(

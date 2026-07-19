@@ -2,9 +2,9 @@ from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 
-from src.core.ingestion.datatype_detector import DatatypeDetector
-from src.core.analytix.cleaning import DataCleaningOps
-from src.utils.method_call_logger import record_call
+from core.ingestion.datatype_detector import DatatypeDetector
+from core.analytix.cleaning import DataCleaningOps
+from utils.method_call_logger import record_call
 
 
 class CleaningOrchestrator:

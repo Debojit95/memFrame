@@ -2,8 +2,8 @@
 
 from typing import Any, List, Optional, Tuple, Union
 
-from src.core.orchestrator.analytix.selection import SelectionOrchestrator
-from src.utils.async_sync import async_to_sync
+from core.orchestrator.analytix.selection import SelectionOrchestrator
+from utils.async_sync import async_to_sync
 
 
 class SelectionWrapper(SelectionOrchestrator):

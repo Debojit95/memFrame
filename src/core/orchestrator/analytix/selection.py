@@ -1,6 +1,6 @@
 from typing import Any, List, Optional, Tuple, Union
-from src.core.analytix.selection import DataSelectionOps
-from src.utils.method_call_logger import record_call
+from core.analytix.selection import DataSelectionOps
+from utils.method_call_logger import record_call
 
 
 class SelectionOrchestrator:

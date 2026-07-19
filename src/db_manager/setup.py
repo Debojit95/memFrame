@@ -4,8 +4,8 @@ import re
 from typing import Any, Dict, List, Optional, Tuple
 import asyncpg
 import duckdb
-from src.core.ingestion.datatype_detector import DatatypeDetector, Backend
-from src.db_manager.adapters.clickhouse import HttpxClickHouseClient
+from core.ingestion.datatype_detector import DatatypeDetector, Backend
+from db_manager.adapters.clickhouse import HttpxClickHouseClient
 
 logger = logging.getLogger("memFrame")
 logger.setLevel(logging.INFO)

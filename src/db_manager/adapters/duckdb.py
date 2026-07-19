@@ -1,8 +1,13 @@
+import logging
 from typing import Any, Dict, Optional
 
 import duckdb
 
 from .base import DatabaseAdapter
+
+logger = logging.getLogger("memFrame")
+
+
 # ----------------------------------------------------------------------
 # DuckDB Adapter
 # ----------------------------------------------------------------------
@@ -17,6 +22,17 @@ class DuckDBAdapter(DatabaseAdapter):
         self.db_path = db_path
         self.conn: Optional[duckdb.DuckDBPyConnection] = existing_conn
         self._owns_connection = existing_conn is None
+
+    @classmethod
+    def connection_params(cls, conn_params: Dict[str, Any]) -> Dict[str, Any]:
+        db_path = conn_params.get("db_path", "memFrame_new.duckdb")
+        if db_path == ":memory:":
+            logger.warning(
+                "In-memory DuckDB is disabled for local mode; using "
+                "'memFrame_new.duckdb' instead."
+            )
+            db_path = "memFrame_new.duckdb"
+        return {"db_path": db_path}
 
     async def connect(self):
         if self.conn is not None:

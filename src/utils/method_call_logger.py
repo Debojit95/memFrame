@@ -5,8 +5,8 @@ from typing import Any, Dict, Optional
 
 import pandas as pd
 
-from src.core.ingestion.datatype_detector import Backend
-from src.utils.helper import SQLIdentifierSanitizer
+from core.ingestion.datatype_detector import Backend
+from utils.helper import SQLIdentifierSanitizer
 
 
 def _json_signature(value: Any) -> str:

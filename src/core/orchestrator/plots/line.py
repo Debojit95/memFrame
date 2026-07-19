@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from src.core.plots.line import LinePlotCore
+from core.plots.line import LinePlotCore
 
 
 class LineOrchestrator:

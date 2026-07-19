@@ -1,6 +1,6 @@
 from typing import Optional, Dict, Any, List
-from src.utils.method_call_logger import record_call
-from src.core.analytix.table_ops import GeneralTableOps
+from utils.method_call_logger import record_call
+from core.analytix.table_ops import GeneralTableOps
 
 
 class TableOpsOrchestrator:

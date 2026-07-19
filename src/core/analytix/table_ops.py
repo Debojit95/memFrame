@@ -5,10 +5,10 @@ from collections import namedtuple
 from datetime import datetime, timezone
 
 
-from src.db_manager.adapters.base import DatabaseAdapter
-from src.db_manager.adapters.postgresql import PostgresAdapter
-from src.db_manager.adapters.duckdb import DuckDBAdapter
-from src.utils.helper import SQLIdentifierSanitizer
+from db_manager.adapters.base import DatabaseAdapter
+from db_manager.adapters.postgresql import PostgresAdapter
+from db_manager.adapters.duckdb import DuckDBAdapter
+from utils.helper import SQLIdentifierSanitizer
 
 class GeneralTableOps:
     """

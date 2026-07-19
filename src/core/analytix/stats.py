@@ -9,10 +9,10 @@ import numpy as np
 import traceback
 import pandas as pd
 
-from src.db_manager.adapters.base import DatabaseAdapter
-from src.db_manager.adapters.duckdb import DuckDBAdapter
-from src.db_manager.adapters.postgresql import PostgresAdapter
-from src.utils.helper import SQLIdentifierSanitizer
+from db_manager.adapters.base import DatabaseAdapter
+from db_manager.adapters.duckdb import DuckDBAdapter
+from db_manager.adapters.postgresql import PostgresAdapter
+from utils.helper import SQLIdentifierSanitizer
 
 
 class DataStatsOps:

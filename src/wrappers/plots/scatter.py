@@ -1,8 +1,8 @@
 from __future__ import annotations
 from typing import Any
 
-from src.core.orchestrator.plots.scatter import ScatterOrchestrator
-from src.utils.async_sync import async_to_sync
+from core.orchestrator.plots.scatter import ScatterOrchestrator
+from utils.async_sync import async_to_sync
 
 
 class ScatterWrapper(ScatterOrchestrator):

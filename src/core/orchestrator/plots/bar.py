@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from src.core.plots.bar import BarPlotCore
+from core.plots.bar import BarPlotCore
 
 
 class BarOrchestrator:

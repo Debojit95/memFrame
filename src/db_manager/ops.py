@@ -2,6 +2,9 @@ import json
 import logging
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
+from db_manager.adapters.factory import resolve_backend_config
+from db_manager.setup import DatabaseBackend
+
 if TYPE_CHECKING:
     pass
 
@@ -15,6 +18,11 @@ if not logger.handlers:
 
 
 class OpsManager:
+    async def _aconnect(self) -> None:
+        backend, params = resolve_backend_config(self.connection_type, self.conn_params)
+        self._backend = DatabaseBackend(backend, params)
+        await self._backend.connect()
+        await self._backend.init_database()
     
     async def _alist_tables(self) -> List[Dict[str, str]]:
         """

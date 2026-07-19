@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from src.core.orchestrator.plots.pie import PieOrchestrator
-from src.utils.async_sync import async_to_sync
+from core.orchestrator.plots.pie import PieOrchestrator
+from utils.async_sync import async_to_sync
 
 
 class PieWrapper(PieOrchestrator):

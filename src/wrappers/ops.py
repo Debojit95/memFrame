@@ -1,5 +1,5 @@
-from src.db_manager.ops import OpsManager
-from src.utils.async_sync import async_to_sync
+from db_manager.ops import OpsManager
+from utils.async_sync import async_to_sync
 
 
 import sys
@@ -32,6 +32,13 @@ class OpsWrapper(OpsManager):
     
     
     # Wrappers
+    async def aconnect(self) -> None:
+        return await super()._aconnect()
+
+    @async_to_sync
+    async def connect(self) -> None:
+        return await self.aconnect()
+
     async def alist_tables(self)-> List[Dict[str, str]]:
         return await super()._alist_tables()
 

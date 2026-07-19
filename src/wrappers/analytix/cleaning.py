@@ -10,8 +10,8 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.utils.async_sync import async_to_sync
-from src.core.orchestrator.analytix.cleaning import CleaningOrchestrator
+from utils.async_sync import async_to_sync
+from core.orchestrator.analytix.cleaning import CleaningOrchestrator
 
 logger = logging.getLogger("memFrame")
 logger.setLevel(logging.INFO)

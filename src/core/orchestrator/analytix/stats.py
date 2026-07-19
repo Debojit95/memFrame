@@ -1,9 +1,9 @@
 from typing import Any, Dict, List
 import numpy as np
 import pandas as pd
-from src.core.ingestion.datatype_detector import DatatypeDetector
-from src.core.analytix.stats import DataStatsOps
-from src.utils.method_call_logger import record_call
+from core.ingestion.datatype_detector import DatatypeDetector
+from core.analytix.stats import DataStatsOps
+from utils.method_call_logger import record_call
 
 
 class StatsOrchestrator:

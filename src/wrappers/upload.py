@@ -10,9 +10,9 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 
-from src.db_manager.context import ContextManager
-from src.utils.async_sync import async_to_sync
-from src.core.ingestion.upload_manager import Uploader
+from db_manager.context import ContextManager
+from utils.async_sync import async_to_sync
+from core.ingestion.upload_manager import Uploader
 
 if TYPE_CHECKING:
     import pandas as pd

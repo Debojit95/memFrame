@@ -3,8 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from src.core.ingestion.upload_manager import Uploader
-from src.db_manager.context import ContextManager
+from core.ingestion.upload_manager import Uploader
+from db_manager.context import ContextManager
 
 import pandas as pd
 

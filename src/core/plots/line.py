@@ -4,8 +4,8 @@ from typing import Any
 
 import pandas as pd
 
-from src.db_manager.adapters.base import DatabaseAdapter
-from src.utils.helper import SQLIdentifierSanitizer
+from db_manager.adapters.base import DatabaseAdapter
+from utils.helper import SQLIdentifierSanitizer
 
 try:
     import plotly.express as px

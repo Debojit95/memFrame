@@ -3,8 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
-from src.db_manager.context import ContextManager
-from src.wrappers.base import BaseWrapper
+from db_manager.context import ContextManager
+from wrappers.base import BaseWrapper
 
 
 class MemFrame(BaseWrapper):
@@ -18,7 +18,8 @@ class MemFrame(BaseWrapper):
         connection_params: Optional[Dict[str, Any]] = None,
     ) -> None: ...
 
-    async def connect(self) -> None: ...
+    async def aconnect(self) -> None: ...
+    def connect(self) -> None: ...
     async def close(self) -> None: ...
 
     async def aupload_csv(self, file_path: Union[str, Path]) -> ContextManager: ...

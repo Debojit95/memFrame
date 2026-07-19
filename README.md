@@ -4,7 +4,7 @@
 
 # memFrame
 
-memFrame is a Python package for working with database-backed DataFrame operations. It lets you upload CSV files, Parquet files, and pandas DataFrames into a local DuckDB database or a remote PostgreSQL database, then run DataFrame-style inspection, selection, cleaning, and table-management operations through one consistent API.
+memFrame is a Python package for working with database-backed DataFrame operations. It lets you upload CSV files, Parquet files, and pandas DataFrames into a local DuckDB database or a remote PostgreSQL/Clickhouse database, then run DataFrame-style inspection, selection, cleaning, and table-management operations through one consistent API.
 
 The package is designed for workflows where data may be larger than what you want to repeatedly pull into memory, while still keeping a familiar pandas-like developer experience.
 
