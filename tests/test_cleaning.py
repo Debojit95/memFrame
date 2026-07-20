@@ -15,15 +15,15 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 
 from src.main import MemFrame
-from db_test_utils import default_duckdb_test_path
 
 # ----------------------------------------------------------------------
-# Backend configuration - set environment variables for PostgreSQL
+# Backend configuration - set environment variables for remote databases
 # ----------------------------------------------------------------------
 LOCAL_DB = "local"
 REMOTE_DB = "remote"
 DUCKDB_BACKEND = "duckdb"
 POSTGRES_BACKEND = "postgres"
+CLICKHOUSE_BACKEND = "clickhouse"
 
 BACKEND_PARAMS = {
     LOCAL_DB: {"connection_type": "local", "params": {}},
@@ -45,6 +45,7 @@ BACKEND_ALIASES = {
     REMOTE_DB: POSTGRES_BACKEND,
     DUCKDB_BACKEND: DUCKDB_BACKEND,
     POSTGRES_BACKEND: POSTGRES_BACKEND,
+    CLICKHOUSE_BACKEND: CLICKHOUSE_BACKEND,
 }
 
 # Choose which backends to run when the CLI does not provide --db-backend.
@@ -105,14 +106,14 @@ def _validate_duckdb_params(params: Dict[str, Any]) -> Dict[str, Any]:
     if unknown:
         raise _usage_error(f"DuckDB does not accept params: {', '.join(unknown)}")
 
-    db_path = params.get("db_path", default_duckdb_test_path("cleaning"))
+    db_path = params.get("db_path", "memFrame_new.duckdb")
     if not isinstance(db_path, str) or not db_path.strip():
         raise _usage_error("DuckDB param 'db_path' must be a non-empty string")
     return {"db_path": db_path}
 
 
 def _validate_postgres_params(params: Dict[str, Any]) -> Dict[str, Any]:
-    allowed = {"backend", "host", "port", "user", "password", "database", "schema_prefix"}
+    allowed = {"backend", "host", "port", "user", "password", "database"}
     unknown = sorted(set(params) - allowed)
     if unknown:
         raise _usage_error(f"Postgres does not accept params: {', '.join(unknown)}")
@@ -132,6 +133,59 @@ def _validate_postgres_params(params: Dict[str, Any]) -> Dict[str, Any]:
     return merged
 
 
+def _env_bool(name: str, default: bool = False) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _validate_clickhouse_params(params: Dict[str, Any]) -> Dict[str, Any]:
+    allowed = {"backend", "host", "port", "user", "password", "database", "secure", "timeout"}
+    unknown = sorted(set(params) - allowed)
+    if unknown:
+        raise _usage_error(f"ClickHouse does not accept params: {', '.join(unknown)}")
+
+    merged: Dict[str, Any] = {
+        "backend": CLICKHOUSE_BACKEND,
+        "host": os.getenv("CLICKHOUSE_HOST", "localhost"),
+        "port": os.getenv("CLICKHOUSE_PORT", 8123),
+        "user": os.getenv("CLICKHOUSE_USER", "default"),
+        "password": os.getenv("CLICKHOUSE_PASSWORD", ""),
+        "secure": _env_bool("CLICKHOUSE_SECURE", False),
+    }
+    if os.getenv("CLICKHOUSE_DATABASE"):
+        merged["database"] = os.getenv("CLICKHOUSE_DATABASE")
+    if os.getenv("CLICKHOUSE_TIMEOUT"):
+        merged["timeout"] = os.getenv("CLICKHOUSE_TIMEOUT")
+    merged.update(params)
+    merged["backend"] = CLICKHOUSE_BACKEND
+
+    for key in ("host", "user"):
+        value = merged.get(key)
+        if not isinstance(value, str) or not value.strip():
+            raise _usage_error(f"ClickHouse param '{key}' must be a non-empty string")
+    password = merged.get("password")
+    if not isinstance(password, str):
+        raise _usage_error("ClickHouse param 'password' must be a string")
+    database = merged.get("database")
+    if database is not None and (not isinstance(database, str) or not database.strip()):
+        raise _usage_error("ClickHouse param 'database' must be a non-empty string")
+    secure = merged.get("secure", False)
+    if isinstance(secure, str):
+        secure = secure.strip().lower() in {"1", "true", "yes", "on"}
+    if not isinstance(secure, bool):
+        raise _usage_error("ClickHouse param 'secure' must be a boolean")
+    merged["secure"] = secure
+    if "timeout" in merged:
+        try:
+            merged["timeout"] = float(merged["timeout"])
+        except (TypeError, ValueError) as exc:
+            raise _usage_error("ClickHouse param 'timeout' must be a number") from exc
+    merged["port"] = _validate_port(merged.get("port", 8123))
+    return merged
+
+
 def _build_backend_config(backend_name: str, params: Dict[str, Any]) -> Dict[str, Any]:
     backend = _normalize_backend_name(backend_name)
     if backend == DUCKDB_BACKEND:
@@ -140,10 +194,16 @@ def _build_backend_config(backend_name: str, params: Dict[str, Any]) -> Dict[str
             "connection_type": "local",
             "params": _validate_duckdb_params(params),
         }
+    if backend == POSTGRES_BACKEND:
+        return {
+            "backend": POSTGRES_BACKEND,
+            "connection_type": "remote",
+            "params": _validate_postgres_params(params),
+        }
     return {
-        "backend": POSTGRES_BACKEND,
+        "backend": CLICKHOUSE_BACKEND,
         "connection_type": "remote",
-        "params": _validate_postgres_params(params),
+        "params": _validate_clickhouse_params(params),
     }
 
 
@@ -212,7 +272,7 @@ def connected_memframe(backend_config) -> MemFrame:
         connection_type=backend_config["connection_type"],
         connection_params=backend_config.get("params", {}),
     )
-    asyncio.run(mf.connect())
+    asyncio.run(mf.aconnect())
     try:
         yield mf
     finally:
@@ -321,9 +381,11 @@ def _coerce_pdf_df(value: Any, empty_message: str) -> pd.DataFrame:
             return pd.DataFrame(value)
         except ValueError:
             return pd.DataFrame([value])
+    if isinstance(value, (list, tuple, set, np.ndarray)):
+        return pd.DataFrame({"Result": list(value)})
     if value is None:
         return _empty_pdf_df(empty_message)
-    return pd.DataFrame({"value": [value]})
+    return pd.DataFrame({"Result": [value]})
 
 
 def _prepare_pdf_df(df: pd.DataFrame) -> pd.DataFrame:
@@ -419,31 +481,32 @@ class TestCleaningOperations:
     @pytest.fixture(autouse=True)
     def _capture_failed_pdf_result(self, request):
         self._current_pdf_records = []
-        try:
-            yield
-        except Exception as exc:
-            self._mark_current_pdf_records("FAILED", str(exc))
+        yield
+        report = getattr(request.node, "rep_call", None)
+        if report is not None and report.failed:
+            error_message = self._format_report_failure(report)
+            self._mark_current_pdf_records("FAILED", error_message)
             if self._save_to_file and not self._current_pdf_records:
-                self._record_failure_from_traceback(request, exc)
-            raise
+                self._record_failure_from_report(request, error_message)
         else:
             self._mark_current_pdf_records("PASSED", "")
-        finally:
-            self._current_pdf_records = []
+        self._current_pdf_records = []
 
     def _mark_current_pdf_records(self, status: str, error_message: str) -> None:
         for result in getattr(self, "_current_pdf_records", []):
             result["status"] = status
             result["error_message"] = error_message
 
-    def _record_failure_from_traceback(self, request, exc: Exception) -> None:
-        tb = exc.__traceback__
-        frame_locals = {}
-        while tb:
-            frame = tb.tb_frame
-            if frame.f_code.co_name.startswith("test_"):
-                frame_locals = frame.f_locals
-            tb = tb.tb_next
+    def _format_report_failure(self, report) -> str:
+        lines = str(report.longrepr).splitlines()
+        if not lines:
+            return "Test failed"
+        return lines[-1][:500]
+
+    def _record_failure_from_report(self, request, error_message: str) -> None:
+        frame_locals = getattr(request.node, "_cleaning_failure_locals", None)
+        if frame_locals is None:
+            frame_locals = getattr(request.node, "_failure_locals", {})
 
         original_df = _coerce_pdf_df(
             frame_locals.get("df", frame_locals.get("sample_df")),
@@ -494,7 +557,7 @@ class TestCleaningOperations:
             pandas_df=pandas_df,
             backend=backend_config.get("connection_type", "unknown"),
             status="FAILED",
-            error_message=str(exc),
+            error_message=error_message,
         )
 
     def _record_result(
@@ -1161,3 +1224,4 @@ class TestCleaningOperations:
         assert isinstance(result, dict)
         assert "completeness" in result
         assert "numeric" in result
+    

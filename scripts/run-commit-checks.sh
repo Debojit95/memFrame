@@ -30,6 +30,7 @@ mkdir -p "$COMMIT_CHECK_TMPDIR"
 
 DUCKDB_DB_PARAMS="${DUCKDB_DB_PARAMS:-}"
 POSTGRES_DB_PARAMS="${POSTGRES_DB_PARAMS:-$POSTGRES_UPLOAD_DB_PARAMS}"
+CLICKHOUSE_DB_PARAMS="${CLICKHOUSE_DB_PARAMS:-$CLICKHOUSE_UPLOAD_DB_PARAMS}"
 
 duckdb_params_for() {
   local label="$1"
@@ -191,18 +192,24 @@ run_check "inspect duckdb" run_inspect_test duckdb "$(duckdb_params_for inspect)
 run_check "inspect postgres" run_inspect_test postgres "$(params_with_schema_prefix "$POSTGRES_DB_PARAMS" "inspect_postgres")"
 run_check "cleaning duckdb" run_cleaning_test duckdb "$(duckdb_params_for cleaning)"
 run_check "cleaning postgres" run_cleaning_test postgres "$(params_with_schema_prefix "$POSTGRES_DB_PARAMS" "cleaning_postgres")"
+run_check "cleaning clickhouse" run_cleaning_test clickhouse "$CLICKHOUSE_DB_PARAMS"
 run_check "stats duckdb" run_stats_test duckdb "$(duckdb_params_for stats)"
 run_check "stats postgres" run_stats_test postgres "$(params_with_schema_prefix "$POSTGRES_DB_PARAMS" "stats_postgres")"
 run_check "bar duckdb" run_bar_test duckdb "$(duckdb_params_for bar)"
 run_check "bar postgres" run_bar_test postgres "$POSTGRES_DB_PARAMS"
+run_check "bar clickhouse" run_bar_test clickhouse "$CLICKHOUSE_DB_PARAMS"
 run_check "bar polar duckdb" run_bar_polar_test duckdb "$(duckdb_params_for bar_polar)"
 run_check "bar polar postgres" run_bar_polar_test postgres "$POSTGRES_DB_PARAMS"
+run_check "bar polar clickhouse" run_bar_polar_test clickhouse "$CLICKHOUSE_DB_PARAMS"
 run_check "pie duckdb" run_pie_test duckdb "$(duckdb_params_for pie)"
 run_check "pie postgres" run_pie_test postgres "$POSTGRES_DB_PARAMS"
+run_check "pie clickhouse" run_pie_test clickhouse "$CLICKHOUSE_DB_PARAMS"
 run_check "line duckdb" run_line_test duckdb "$(duckdb_params_for line)"
 run_check "line postgres" run_line_test postgres "$POSTGRES_DB_PARAMS"
+run_check "line clickhouse" run_line_test clickhouse "$CLICKHOUSE_DB_PARAMS"
 run_check "scatter duckdb" run_scatter_test duckdb "$(duckdb_params_for scatter)"
 run_check "scatter postgres" run_scatter_test postgres "$POSTGRES_DB_PARAMS"
+run_check "scatter clickhouse" run_scatter_test clickhouse "$CLICKHOUSE_DB_PARAMS"
 tox_args=(-p auto -e py310,py311,py312,py313)
 if [ "${TOX_RECREATE:-0}" = "1" ]; then
   tox_args=(-r "${tox_args[@]}")

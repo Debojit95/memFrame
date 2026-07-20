@@ -261,7 +261,7 @@ def connected_memframe(backend_config) -> MemFrame:
         connection_type=backend_config["connection_type"],
         connection_params=backend_config.get("params", {}),
     )
-    asyncio.run(mf.connect())
+    mf.connect()
     try:
         yield mf
     finally:

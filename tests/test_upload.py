@@ -108,7 +108,7 @@ async def _run_upload_test(
     connection_params: Dict[str, Any],
 ) -> None:
     mf = MemFrame(connection_type=connection_type, connection_params=connection_params)
-    await mf.connect()
+    await mf.aconnect()
 
     try:
         if upload_type == "csv":

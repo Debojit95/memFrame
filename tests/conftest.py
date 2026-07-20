@@ -1,5 +1,31 @@
 import pytest
 
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_makereport(item, call):
+    outcome = yield
+    report = outcome.get_result()
+    setattr(item, f"rep_{report.when}", report)
+
+    if report.when != "call" or call.excinfo is None:
+        return
+
+    frame_locals = {}
+    tb = call.excinfo.value.__traceback__
+    while tb:
+        frame = tb.tb_frame
+        if frame.f_code.co_name.startswith("test_"):
+            frame_locals = dict(frame.f_locals)
+        tb = tb.tb_next
+
+    item._failure_locals = frame_locals
+    module_name = getattr(item.module, "__name__", "")
+    if module_name.endswith("test_stats"):
+        item._stats_failure_locals = frame_locals
+    elif module_name.endswith("test_cleaning"):
+        item._cleaning_failure_locals = frame_locals
+
+
 def pytest_addoption(parser):
     parser.addoption(
         "--save-to-file",
