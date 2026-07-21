@@ -40,6 +40,7 @@ class ContextManager:
         self._pie_wrapper = None
         self._line_wrapper = None
         self._scatter_wrapper = None
+        self._scatter3d_wrapper = None
         
         
     
@@ -62,7 +63,7 @@ class ContextManager:
         """
         
         for wrapper in (self.inspect, self.select, self.clean,self.stats,
-                        self.bar,self.bar_polar, self.pie,self.line,self.scatter):
+                        self.bar,self.bar_polar, self.pie,self.line,self.scatter,self.scatter3d):
             
             if hasattr(wrapper, name):
                 return getattr(wrapper, name)
@@ -80,6 +81,7 @@ class ContextManager:
             | set(dir(self.pie))
             | set(dir(self.line))
             | set(dir(self.scatter))
+            | set(dir(self.scatter3d))
             
             
         )
@@ -161,6 +163,15 @@ class ContextManager:
         if self._scatter_wrapper is None:
             self._scatter_wrapper = ScatterWrapper(self)
         return self._scatter_wrapper
+    
+    
+    
+    @property
+    def scatter3d(self):
+        from wrappers.plots.scatter_3d import Scatter3DWrapper
+        if self._scatter3d_wrapper is None:
+            self._scatter3d_wrapper = Scatter3DWrapper(self)
+        return self._scatter3d_wrapper
     
     async def _ensure_adapter(self):
         """Create the appropriate adapter from memframe's backend."""

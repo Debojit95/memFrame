@@ -7,6 +7,7 @@ from wrappers.analytix.inspect import TableOpsWrapper
 from wrappers.analytix.selection import SelectionWrapper
 from wrappers.analytix.cleaning import CleaningWrapper
 from wrappers.analytix.stats import StatsWrapper
+from wrappers.plots.scatter_3d import Scatter3DWrapper
 
 
 class ContextManager(TableOpsWrapper, SelectionWrapper,CleaningWrapper,StatsWrapper):
@@ -32,5 +33,9 @@ class ContextManager(TableOpsWrapper, SelectionWrapper,CleaningWrapper,StatsWrap
     @property
     def stats(self) -> StatsWrapper: ...
     
+    @property
+    def scatter3d(self) -> Scatter3DWrapper: ...
+    
+
 
     async def close(self) -> None: ...

@@ -138,36 +138,10 @@ class MemFrame(BaseWrapper):
 
 
 
-
-
-def log_result(result:Dict):
-    
-    if not result["is_error"]:
-        print(result["result"])   
-    else:
-        print(result["error_message"])
-
-
-def _postgres_demo_params(database: str) -> Dict[str, Any]:
-    """Return PostgreSQL params for either Docker Compose or a host terminal."""
-    return {
-        "backend": "postgres",
-        "host": os.getenv("PGHOST") or os.getenv("DB_HOST") or "127.0.0.1",
-        "port": int(os.getenv("PGPORT") or os.getenv("DB_PORT") or "5723"),
-        "user": os.getenv("PGUSER") or os.getenv("DB_USER") or "postgres",
-        "password": (
-            os.getenv("PGPASSWORD")
-            or os.getenv("DB_PASSWORD")
-            or "1daa7b94de72ed5e958797469df6bbeb3f14e0f6daa862b8442bc63a4da3b7c3"
-        ),
-        "database": os.getenv("PGDATABASE") or database,
-    }
-    
 async def test():
     import numpy as np
     import pandas as pd
-    # from src.utils.plot_renderer import smart_show
-   
+    from utils.plot_renderer import smart_show
     
     pd.set_option('display.max_columns', 100) 
 
@@ -237,13 +211,13 @@ async def test():
             "2023-04-01",
         ])
     
-    # mf = MemFrame(connection_type="local", connection_params={"db_path": "memFrame_new.duckdb"})
-    mf = MemFrame(connection_type="remote", connection_params=pg_params)
+    mf = MemFrame(connection_type="local", connection_params={"db_path": "memFrame_new.duckdb"})
+    # mf = MemFrame(connection_type="remote", connection_params=pg_params)
     # mf = MemFrame(connection_type="remote", connection_params=clickhouse_params)
     
     
     
-    mf.connect()
+    await mf.aconnect()
     print(mf)
 
     df1 = pd.DataFrame(
@@ -263,15 +237,19 @@ async def test():
         print("*"*100)
         
 
+        fig = ops1.scatter3d(x="B",y="C",z="E",color="G")
+        smart_show(fig)
+        
+        
         
         # result1 = ops1.groupby("F","D").agg({"B": ["sum", "mean", "std"],"C":["var","min"]})
         # log_result(result1)
         # print("*"*100)
         
         
-        result1 =  ops1.fillna("C")
-        log_result(result1)
-        print("*"*100)
+        # result1 =  ops1.groupby("D").mean("B")
+        # log_result(result1)
+        # print("*"*100)
         
         # result1 = ops1.groupby("G").median("B")
         # log_result(result1)
@@ -300,9 +278,4 @@ async def test():
 
 if __name__ == "__main__":
     _ = asyncio.run(test())
-
-
-
-
-
 
