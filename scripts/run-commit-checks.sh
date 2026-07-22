@@ -174,6 +174,16 @@ run_scatter_test() {
     --db-params "$db_params"
 }
 
+run_scatter3d_test() {
+  local db_backend="$1"
+  local db_params="$2"
+
+  pytest tests/test_scatter3d.py \
+    -v \
+    --db-backend "$db_backend" \
+    --db-params "$db_params"
+}
+
 for upload_type in csv parquet; do
   filepath_var="UPLOAD_${upload_type^^}_FILEPATH"
   run_check "upload ${upload_type} duckdb" \
@@ -210,6 +220,9 @@ run_check "line clickhouse" run_line_test clickhouse "$CLICKHOUSE_DB_PARAMS"
 run_check "scatter duckdb" run_scatter_test duckdb "$(duckdb_params_for scatter)"
 run_check "scatter postgres" run_scatter_test postgres "$POSTGRES_DB_PARAMS"
 run_check "scatter clickhouse" run_scatter_test clickhouse "$CLICKHOUSE_DB_PARAMS"
+run_check "scatter3d duckdb" run_scatter3d_test duckdb "$(duckdb_params_for scatter3d)"
+run_check "scatter3d postgres" run_scatter3d_test postgres "$POSTGRES_DB_PARAMS"
+run_check "scatter3d clickhouse" run_scatter3d_test clickhouse "$CLICKHOUSE_DB_PARAMS"
 tox_args=(-p auto -e py310,py311,py312,py313)
 if [ "${TOX_RECREATE:-0}" = "1" ]; then
   tox_args=(-r "${tox_args[@]}")

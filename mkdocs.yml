@@ -53,3 +53,4 @@ nav:
           - Pie: api/pie.md
           - Line: api/line.md
           - Scatter: api/scatter.md
+          - Scatter 3D: api/scatter3d.md
