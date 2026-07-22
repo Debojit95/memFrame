@@ -5,8 +5,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 SOURCE_ROOT = Path(__file__).resolve().parent
-if str(SOURCE_ROOT) not in sys.path:
-    sys.path.insert(0, str(SOURCE_ROOT))
+source_root = str(SOURCE_ROOT)
+if source_root in sys.path:
+    sys.path.remove(source_root)
+sys.path.insert(0, source_root)
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -278,4 +280,3 @@ async def test():
 
 if __name__ == "__main__":
     _ = asyncio.run(test())
-

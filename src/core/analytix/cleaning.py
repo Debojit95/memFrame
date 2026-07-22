@@ -130,6 +130,42 @@ class DataCleaningOps:
         await self._exec(f"CREATE TABLE {qualified_target} AS SELECT * FROM {qualified_source}")
         return output_table
 
+    async def _prepare_column_operation_table(
+        self,
+        table: str,
+        schema: str,
+        columns: List[str],
+        backend=None,
+        data_id: Optional[str] = None,
+        new_table: Optional[str] = None,
+    ) -> str:
+        safe_schema = SQLIdentifierSanitizer.sanitize(schema)
+        source_table = SQLIdentifierSanitizer.sanitize(table)
+        output_table = await self._resolve_output_table_name(
+            source_table,
+            safe_schema,
+            backend=backend,
+            data_id=data_id,
+            new_table=new_table,
+        )
+
+        sanitized_cols = []
+        seen_cols = set()
+        for col in columns:
+            safe_col = SQLIdentifierSanitizer.sanitize(str(col), allow_qualified=False)
+            if safe_col not in seen_cols:
+                sanitized_cols.append(safe_col)
+                seen_cols.add(safe_col)
+
+        if not sanitized_cols:
+            raise ValueError("At least one column is required for a column operation table")
+
+        column_clause = ", ".join(self.db.quote_identifier(col) for col in sanitized_cols)
+        qualified_source = self._qualified_table(source_table, safe_schema)
+        qualified_target = f'{self.db.quote_identifier(safe_schema)}.{self.db.quote_identifier(output_table)}'
+        await self._exec(f"CREATE TABLE {qualified_target} AS SELECT {column_clause} FROM {qualified_source}")
+        return output_table
+
     async def _materialize_query_as_table(
         self,
         query: str,
@@ -220,9 +256,10 @@ class DataCleaningOps:
         new_table: Optional[str] = None,
     ) -> Dict[str, Any]:
         try:
-            table = await self._prepare_operation_table(
+            table = await self._prepare_column_operation_table(
                 table,
                 schema,
+                [column],
                 backend=backend,
                 data_id=data_id,
                 new_table=new_table,
@@ -645,8 +682,8 @@ class DataCleaningOps:
         new_table: Optional[str] = None,
     ) -> Dict[str, Any]:
         try:
-            table = await self._prepare_operation_table(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table,
+            table = await self._prepare_column_operation_table(
+                table, schema, [column], backend=backend, data_id=data_id, new_table=new_table,
             )
             mode = mode.upper()
 
@@ -1020,8 +1057,8 @@ class DataCleaningOps:
         new_table: Optional[str] = None,
     ) -> Dict[str, Any]:
         try:
-            table = await self._prepare_operation_table(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table,
+            table = await self._prepare_column_operation_table(
+                table, schema, [column], backend=backend, data_id=data_id, new_table=new_table,
             )
             mode = mode.upper()
 
@@ -1404,8 +1441,14 @@ class DataCleaningOps:
         new_table: Optional[str] = None,
     ) -> Dict[str, Any]:
         try:
-            table = await self._prepare_operation_table(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table,
+            involved_cols = [*(group_cols or []), column]
+            table = await self._prepare_column_operation_table(
+                table,
+                schema,
+                involved_cols,
+                backend=backend,
+                data_id=data_id,
+                new_table=new_table,
             )
             mode = mode.upper()
 
@@ -1650,7 +1693,13 @@ class DataCleaningOps:
             msg = f"Filled {null_count} nulls in '{column}' using {mode} (grouped={bool(group_cols)})"
 
             return self._success_response(
-                msg, [column], [new_col], sample, fill_mode=mode, fill_value=fill_value, new_table=table,
+                msg,
+                involved_cols,
+                [new_col],
+                sample,
+                fill_mode=mode,
+                fill_value=fill_value,
+                new_table=table,
             )
 
         except Exception as e:
@@ -1670,8 +1719,14 @@ class DataCleaningOps:
         new_table: Optional[str] = None,
     ) -> Dict[str, Any]:
         try:
-            table = await self._prepare_operation_table(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table,
+            involved_cols = [*(group_cols or []), column]
+            table = await self._prepare_column_operation_table(
+                table,
+                schema,
+                involved_cols,
+                backend=backend,
+                data_id=data_id,
+                new_table=new_table,
             )
             mode = mode.upper()
 
@@ -1874,7 +1929,13 @@ class DataCleaningOps:
             msg = f"Processed '{column}' using {mode} (grouped={bool(group_cols)}), affected {null_count} nulls"
 
             return self._success_response(
-                msg, [column], [new_col], sample, fill_mode=mode, fill_value=fill_value, new_table=table,
+                msg,
+                involved_cols,
+                [new_col],
+                sample,
+                fill_mode=mode,
+                fill_value=fill_value,
+                new_table=table,
             )
 
         except Exception as e:
@@ -1894,8 +1955,14 @@ class DataCleaningOps:
         new_table: Optional[str] = None,
     ) -> Dict[str, Any]:
         try:
-            table = await self._prepare_operation_table(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table,
+            involved_cols = [*(group_cols or []), column]
+            table = await self._prepare_column_operation_table(
+                table,
+                schema,
+                involved_cols,
+                backend=backend,
+                data_id=data_id,
+                new_table=new_table,
             )
             mode = mode.upper()
 
@@ -2147,7 +2214,13 @@ class DataCleaningOps:
             msg = f"Filled {null_count} nulls in '{column}' using {mode} (grouped={bool(group_cols)})"
 
             return self._success_response(
-                msg, [column], [new_col], sample, fill_mode=mode, fill_value=fill_value, new_table=table,
+                msg,
+                involved_cols,
+                [new_col],
+                sample,
+                fill_mode=mode,
+                fill_value=fill_value,
+                new_table=table,
             )
 
         except Exception as e:
