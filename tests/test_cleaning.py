@@ -14,7 +14,7 @@ import pytest
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 
-from src.main import MemFrame
+from memframe import MemFrame
 
 # ----------------------------------------------------------------------
 # Backend configuration - set environment variables for remote databases

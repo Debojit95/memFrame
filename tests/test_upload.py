@@ -1,5 +1,5 @@
-from src.main import MemFrame
-from src.core.ingestion.upload_manager import Uploader
+from memframe import MemFrame
+from memframe.core.ingestion.upload.base import Uploader
 
 
 import asyncio

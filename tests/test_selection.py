@@ -13,7 +13,7 @@ import pytest
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 
-from src.main import MemFrame
+from memframe import MemFrame
 from db_test_utils import default_duckdb_test_path
 
 # ----------------------------------------------------------------------
