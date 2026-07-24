@@ -6,7 +6,7 @@ from typing import Any, Dict, Optional
 import pandas as pd
 
 from memframe.core.ingestion.datatype_detector import Backend
-from utils.helper import SQLIdentifierSanitizer
+from memframe.utils.helper import SQLIdentifierSanitizer
 
 
 def _json_signature(value: Any) -> str:

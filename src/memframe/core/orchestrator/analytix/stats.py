@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 from memframe.core.ingestion.datatype_detector import DatatypeDetector
 from memframe.core.analytix.stats import DataStatsOps
-from utils.method_call_logger import record_call
+from memframe.utils.method_call_logger import record_call
 
 
 class StatsOrchestrator:

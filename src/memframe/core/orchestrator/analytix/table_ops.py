@@ -1,5 +1,5 @@
 from typing import Optional, Dict, Any, List
-from utils.method_call_logger import record_call
+from memframe.utils.method_call_logger import record_call
 from memframe.core.analytix.table_ops import GeneralTableOps
 
 

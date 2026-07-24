@@ -3,7 +3,7 @@
 from typing import Any, List, Optional, Tuple, Union
 
 from memframe.core.orchestrator.analytix.selection import SelectionOrchestrator
-from utils.async_sync import async_to_sync
+from memframe.utils.async_sync import async_to_sync
 
 
 class SelectionWrapper(SelectionOrchestrator):

@@ -1,6 +1,6 @@
 from typing import Any, List, Optional, Tuple, Union
 from memframe.core.analytix.selection import DataSelectionOps
-from utils.method_call_logger import record_call
+from memframe.utils.method_call_logger import record_call
 
 
 class SelectionOrchestrator:

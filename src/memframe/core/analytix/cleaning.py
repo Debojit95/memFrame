@@ -7,7 +7,7 @@ from memframe.db_manager.adapters.base import DatabaseAdapter
 from memframe.db_manager.adapters.duckdb import DuckDBAdapter
 from memframe.db_manager.adapters.postgresql import PostgresAdapter
 from memframe.db_manager.adapters.clickhouse import ClickHouseAdapter
-from utils.helper import SQLIdentifierSanitizer
+from memframe.utils.helper import SQLIdentifierSanitizer
 
 
 class DataCleaningOps:

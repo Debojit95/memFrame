@@ -32,11 +32,10 @@ if not logger.handlers:
 
 
 class Uploader:
-    """Base uploader class with common functionality for all backends."""
-
-    def __init__(self, backend=None, type_detector=None):
-        self._backend = backend
-        self._type_detector = type_detector
+    """Uploader mixin class - works when mixed into MemFrame via BaseWrapper.
+    
+    Accesses self._backend and self._type_detector from the MemFrame instance.
+    """
 
     # ── Helper methods ─────────────────────────────────────────
     def _postgres_type_to_clickhouse(self, pg_type: str) -> str:
@@ -227,7 +226,11 @@ class Uploader:
 
     # ── Staging table creation ──────────────────────────────────
     async def _create_text_staging_table(self, staging_table: str, columns: List[str]) -> None:
-        raise NotImplementedError("Subclasses must implement _create_text_staging_table")
+        if self._backend.backend == Backend.CLICKHOUSE:
+            col_defs = ", ".join(f"`{col}` String" for col in columns)
+        else:
+            col_defs = ", ".join(f'"{col}" TEXT' for col in columns)
+        await self.execute(f"CREATE TABLE {staging_table} ({col_defs})")
 
     # ── CSV loading into staging ────────────────────────────────
     async def _load_csv_into_staging(
@@ -237,7 +240,147 @@ class Uploader:
         columns: List[str],
         encoding: str,
     ) -> None:
-        raise NotImplementedError("Subclasses must implement _load_csv_into_staging")
+        if self._backend.backend == Backend.DUCKDB:
+            def _read_pyarrow(enc):
+                read_opts = pcsv.ReadOptions(encoding=enc, use_threads=True)
+                parse_opts = pcsv.ParseOptions(newlines_in_values=True)
+                header_reader = pcsv.open_csv(
+                    file_path,
+                    read_options=read_opts,
+                    parse_options=parse_opts,
+                )
+                orig_names = header_reader.schema.names
+                header_reader.close()
+                convert_opts = pcsv.ConvertOptions(
+                    column_types={name: pa.string() for name in orig_names},
+                    auto_dict_encode=False,
+                )
+                return pcsv.read_csv(
+                    file_path,
+                    read_options=read_opts,
+                    parse_options=parse_opts,
+                    convert_options=convert_opts,
+                )
+
+            for enc in (encoding, "latin-1"):
+                try:
+                    arrow_table = _read_pyarrow(enc)
+                    renamed = arrow_table.rename_columns(columns)
+                    self._backend._conn.register("arrow_temp", renamed)
+                    self._backend._conn.execute(f"INSERT INTO {staging_table} SELECT * FROM arrow_temp")
+                    self._backend._conn.unregister("arrow_temp")
+                    return
+                except Exception as e:
+                    logger.warning(f"PyArrow read with encoding {enc} failed: {e}")
+            logger.info("Falling back to Python CSV reader for DuckDB loading")
+            await self._fallback_load_duckdb_python_csv(staging_table, file_path, columns)
+
+        elif self._backend.backend == Backend.CLICKHOUSE:
+            await self._load_csv_into_staging_clickhouse(staging_table, file_path, columns, encoding)
+            return
+
+        elif self._backend.backend == Backend.POSTGRES:
+            schema_name, raw_table = self._split_qualified_table_name(staging_table)
+
+            original_encoding = await self.fetch_val("SHOW client_encoding")
+            await self.execute("SET client_encoding = 'LATIN1'")
+
+            try:
+                await self._backend._conn.copy_to_table(
+                    raw_table,
+                    source=file_path,
+                    columns=columns,
+                    schema_name=schema_name,
+                    format="csv",
+                    header=True,
+                    encoding="LATIN1",
+                )
+            except Exception as e:
+                logger.warning(f"COPY failed, falling back to row padding: {e}")
+                await self._fallback_load_with_padding(staging_table, file_path, columns, raw_table, schema_name)
+            finally:
+                await self.execute(f"SET client_encoding = '{original_encoding}'")
+
+        else:
+            raise ValueError(f"Unsupported Backend : {self._backend.backend}")
+
+    async def _load_csv_into_staging_clickhouse(
+        self, staging_table: str, file_path: str, columns: List[str], encoding: str
+    ) -> None:
+        def _read_batches():
+            with open(file_path, "r", encoding=encoding, newline="") as f:
+                reader = csv.reader(f)
+                next(reader)
+                batch = []
+                for row in reader:
+                    row = row[: len(columns)]
+                    row += [""] * (len(columns) - len(row))
+                    batch.append(row)
+                    if len(batch) >= 10000:
+                        yield batch
+                        batch = []
+                if batch:
+                    yield batch
+
+        for batch in list(_read_batches()):
+            await self._backend.insert_rows(staging_table, batch, columns)
+
+    async def _fallback_load_duckdb_python_csv(
+        self, staging_table: str, file_path: str, columns: List[str]
+    ) -> None:
+        def _insert():
+            with open(file_path, "r", encoding="latin-1", newline="") as f:
+                reader = csv.reader(f)
+                next(reader)
+                values = []
+                for row in reader:
+                    row = row[: len(columns)]
+                    row += [""] * (len(columns) - len(row))
+                    values.append(row)
+                    if len(values) >= 10000:
+                        self._backend._conn.executemany(
+                            f"INSERT INTO {staging_table} VALUES ({', '.join(['?'] * len(columns))})",
+                            values,
+                        )
+                        values.clear()
+                if values:
+                    self._backend._conn.executemany(
+                        f"INSERT INTO {staging_table} VALUES ({', '.join(['?'] * len(columns))})",
+                        values,
+                    )
+
+        _insert()
+
+    async def _fallback_load_with_padding(
+        self, staging_table: str, file_path: str, columns: List[str],
+        raw_table: str, schema_name: Optional[str]) -> None:
+        expected_cols = len(columns)
+        buffer = io.BytesIO()
+        text_wrapper = io.TextIOWrapper(buffer, encoding="latin-1", write_through=True)
+        writer = csv.writer(text_wrapper, quoting=csv.QUOTE_MINIMAL)
+
+        with open(file_path, "r", encoding="latin-1", newline="") as f:
+            reader = csv.reader(f)
+            next(reader)
+            for row in reader:
+                if len(row) > expected_cols:
+                    row = row[:expected_cols]
+                elif len(row) < expected_cols:
+                    row = row + [''] * (expected_cols - len(row))
+                writer.writerow(row)
+
+        text_wrapper.flush()
+        buffer.seek(0)
+
+        await self._backend._conn.copy_to_table(
+            raw_table,
+            source=buffer,
+            columns=columns,
+            schema_name=schema_name,
+            format="csv",
+            header=False,
+            encoding="LATIN1",
+        )
 
     # ── Final table creation from staging ───────────────────────
     async def _create_final_table_from_staging(
@@ -247,16 +390,83 @@ class Uploader:
         columns: List[str],
         schema: Dict[str, Dict[str, Any]],
     ) -> None:
-        raise NotImplementedError("Subclasses must implement _create_final_table_from_staging")
+        if self._backend.backend == Backend.DUCKDB:
+            await self._create_final_table_duckdb(final_table, staging_table, columns, schema)
+        elif self._backend.backend == Backend.POSTGRES:
+            await self._create_final_table_postgres(final_table, staging_table, columns, schema)
+        elif self._backend.backend == Backend.CLICKHOUSE:
+            await self._create_final_table_clickhouse(final_table, staging_table, columns, schema)
+        else:
+            raise ValueError(f"Unsupported Backend Error : {self._backend.backend}")
 
-    # ── Direct final table creation (for parquet/direct DF) ─────
-    async def _create_final_table_direct(
+    async def _create_final_table_clickhouse(
         self,
         final_table: str,
+        staging_table: str,
         columns: List[str],
         schema: Dict[str, Dict[str, Any]],
     ) -> None:
-        raise NotImplementedError("Subclasses must implement _create_final_table_direct")
+        col_defs = []
+        for col in columns:
+            pg_type = schema.get(col, {}).get("postgres_type", "TEXT")
+            ch_type = self._postgres_type_to_clickhouse(pg_type)
+            col_defs.append(f"`{col}` Nullable({ch_type})")
+
+        await self.execute(
+            f"CREATE TABLE {final_table} ({', '.join(col_defs)}) "
+            f"ENGINE = MergeTree() ORDER BY tuple()"
+        )
+
+        select_parts = []
+        for col in columns:
+            pg_type = schema.get(col, {}).get("postgres_type", "TEXT")
+            select_parts.append(self._build_safe_cast_clickhouse(col, pg_type))
+
+        await self.execute(
+            f"INSERT INTO {final_table} SELECT {', '.join(select_parts)} FROM {staging_table}"
+        )
+
+    async def _create_final_table_duckdb(
+        self,
+        final_table: str,
+        staging_table: str,
+        columns: List[str],
+        schema: Dict[str, Dict[str, Any]],
+    ) -> None:
+        col_defs = []
+        for col in columns:
+            target_type = schema.get(col, {}).get("postgres_type", "TEXT")
+            col_defs.append(f'"{col}" {target_type}')
+        await self.execute(f'CREATE TABLE {final_table} ({", ".join(col_defs)})')
+
+        select_parts = []
+        for col in columns:
+            target_type = schema.get(col, {}).get("postgres_type", "TEXT")
+            select_parts.append(f'TRY_CAST("{col}" AS {target_type}) AS "{col}"')
+        await self.execute(
+            f'INSERT INTO {final_table} SELECT {", ".join(select_parts)} FROM {staging_table}'
+        )
+
+    async def _create_final_table_postgres(
+        self,
+        final_table: str,
+        staging_table: str,
+        columns: List[str],
+        schema: Dict[str, Dict[str, Any]],
+    ) -> None:
+        col_defs = []
+        for col in columns:
+            target_type = schema.get(col, {}).get("postgres_type", "TEXT")
+            col_defs.append(f'"{col}" {target_type}')
+        await self.execute(f'CREATE TABLE {final_table} ({", ".join(col_defs)})')
+
+        select_parts = []
+        for col in columns:
+            target_type = schema.get(col, {}).get("postgres_type", "TEXT")
+            select_parts.append(self._build_safe_cast_postgres(col, target_type))
+        await self.execute(
+            f'INSERT INTO {final_table} SELECT {", ".join(select_parts)} FROM {staging_table}'
+        )
 
     # ── Safe casting for Postgres ──────────────────────────────
     def _build_safe_cast_postgres(self, col: str, target_type: str) -> str:
@@ -305,9 +515,35 @@ class Uploader:
         else:
             return f'{col_quoted} AS "{col}"'
 
+    # ── Direct final table creation (for parquet/direct DF) ─────
+    async def _create_final_table_direct(
+        self, final_table: str, columns: List[str], schema: Dict[str, Dict[str, Any]]
+    ) -> None:
+        if self._backend.backend == Backend.CLICKHOUSE:
+            col_defs = []
+            for col in columns:
+                pg_type = schema.get(col, {}).get("postgres_type", "TEXT")
+                ch_type = self._postgres_type_to_clickhouse(pg_type)
+                col_defs.append(f"`{col}` Nullable({ch_type})")
+            await self.execute(
+                f"CREATE TABLE {final_table} ({', '.join(col_defs)}) "
+                f"ENGINE = MergeTree() ORDER BY tuple()"
+            )
+        elif self._backend.backend == Backend.POSTGRES or self._backend.backend == Backend.DUCKDB:
+            col_defs = []
+            for col in columns:
+                target_type = schema.get(col, {}).get("postgres_type", "TEXT")
+                col_defs.append(f'"{col}" {target_type}')
+            await self.execute(f'CREATE TABLE {final_table} ({", ".join(col_defs)})')
+        else:
+            raise ValueError("Unsupported backend!")
+
     # ── Schema creation ─────────────────────────────────────────
     async def create_schema_if_not_exists(self, schema_name: str) -> None:
-        raise NotImplementedError("Subclasses must implement create_schema_if_not_exists")
+        if self._backend.backend in (Backend.DUCKDB, Backend.POSTGRES):
+            await self.execute(f"CREATE SCHEMA IF NOT EXISTS {schema_name}")
+        elif self._backend.backend == Backend.CLICKHOUSE:
+            await self.execute(f"CREATE DATABASE IF NOT EXISTS `{schema_name}`")
 
     # ── Table operations delegation ─────────────────────────────
     async def execute(self, query: str, *args) -> None:
@@ -330,6 +566,9 @@ class Uploader:
 
     async def table_exists(self, table_name: str) -> bool:
         return await self._backend.table_exists(table_name)
+
+    def _split_qualified_table_name(self, table_name: str) -> Tuple[Optional[str], str]:
+        return self._backend._split_qualified_table_name(table_name)
 
     # ── CSV upload ──────────────────────────────────────────────
     async def _aupload_csv_data_id(
@@ -374,7 +613,6 @@ class Uploader:
         schema_name = self._backend.upload_schema
         base_table = table_name
         await self.create_schema_if_not_exists(schema_name)
-
         if self._backend.backend == Backend.CLICKHOUSE:
             staging_table = f"`{schema_name}`.`{base_table}_staging`"
             final_table = f"`{schema_name}`.`{base_table}`"
@@ -472,7 +710,7 @@ class Uploader:
             if rows:
                 await self._backend.insert_rows(final_table, rows, columns)
         else:
-            raise ValueError(f"Unsupported backend: {self._backend.backend}")
+            raise ValueError(f"Unsupported backend : {self._backend.backend}")
 
         row_count = await self.fetch_val(f"SELECT COUNT(*) FROM {final_table}")
         return row_count

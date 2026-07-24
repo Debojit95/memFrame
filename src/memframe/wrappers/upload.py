@@ -1,18 +1,12 @@
 
 import logging
-import sys
 from pathlib import Path
 from typing import  Optional,Union,TYPE_CHECKING
 
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
-
-
 from memframe.db_manager.context import ContextManager
-from utils.async_sync import async_to_sync
-from memframe.core.ingestion.upload_manager import Uploader
+from memframe.utils.async_sync import async_to_sync
+from memframe.core.ingestion.upload.base import Uploader
 
 if TYPE_CHECKING:
     import pandas as pd

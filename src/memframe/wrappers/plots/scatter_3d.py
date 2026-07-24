@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from memframe.core.orchestrator.plots.scatter_3d import Scatter3DOrchestrator
-from utils.async_sync import async_to_sync
+from memframe.utils.async_sync import async_to_sync
 
 
 class Scatter3DWrapper(Scatter3DOrchestrator):

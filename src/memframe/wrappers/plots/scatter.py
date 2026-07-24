@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import Any
 
 from memframe.core.orchestrator.plots.scatter import ScatterOrchestrator
-from utils.async_sync import async_to_sync
+from memframe.utils.async_sync import async_to_sync
 
 
 class ScatterWrapper(ScatterOrchestrator):

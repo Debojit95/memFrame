@@ -4,7 +4,7 @@ from typing import Any
 import pandas as pd
 
 from memframe.db_manager.adapters.base import DatabaseAdapter
-from utils.helper import SQLIdentifierSanitizer
+from memframe.utils.helper import SQLIdentifierSanitizer
 
 try:
     import plotly.express as px

@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from memframe.db_manager.adapters.base import DatabaseAdapter
 from memframe.db_manager.adapters.postgresql import PostgresAdapter
 from memframe.db_manager.adapters.duckdb import DuckDBAdapter
-from utils.helper import SQLIdentifierSanitizer
+from memframe.utils.helper import SQLIdentifierSanitizer
 
 class GeneralTableOps:
     """

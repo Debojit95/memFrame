@@ -1,16 +1,8 @@
 from memframe.db_manager.ops import OpsManager
-from utils.async_sync import async_to_sync
+from memframe.utils.async_sync import async_to_sync
 
-
-import sys
-from pathlib import Path
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
-    
 import logging
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
-
 
 
 if TYPE_CHECKING:
@@ -23,9 +15,8 @@ if not logger.handlers:
     handler = logging.StreamHandler()
     handler.setFormatter(logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s"))
     logger.addHandler(handler)
-    
-    
-    
+
+
 class OpsWrapper(OpsManager):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

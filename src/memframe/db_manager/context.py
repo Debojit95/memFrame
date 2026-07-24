@@ -1,18 +1,13 @@
-import sys
 import logging
 from pathlib import Path
 from typing import Any, Optional
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent  
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
-    
 from memframe.core.ingestion.datatype_detector import Backend
 from memframe.db_manager.adapters.base import DatabaseAdapter
 from memframe.db_manager.adapters.postgresql import PostgresAdapter
 from memframe.db_manager.adapters.duckdb import DuckDBAdapter
 from memframe.db_manager.adapters.clickhouse import ClickHouseAdapter
-    
+
 
 logger = logging.getLogger("memFrame")
 
@@ -90,7 +85,7 @@ class ContextManager:
     
     @property
     def select(self):
-        from wrappers.analytix.selection import SelectionWrapper
+        from memframe.wrappers.analytix.selection import SelectionWrapper
 
         if self._selection_wrapper is None:
             self._selection_wrapper = SelectionWrapper(self)
@@ -100,7 +95,7 @@ class ContextManager:
      
     @property
     def inspect(self):
-        from wrappers.analytix.inspect import TableOpsWrapper
+        from memframe.wrappers.analytix.inspect import TableOpsWrapper
 
         if self._inspect_wrapper is None:
             self._inspect_wrapper = TableOpsWrapper(self)
@@ -109,7 +104,7 @@ class ContextManager:
     
     @property
     def clean(self):
-        from wrappers.analytix.cleaning import CleaningWrapper
+        from memframe.wrappers.analytix.cleaning import CleaningWrapper
 
         if self._clean_wrapper is None:
             self._clean_wrapper = CleaningWrapper(self)
@@ -118,7 +113,7 @@ class ContextManager:
     
     @property
     def stats(self):
-        from wrappers.analytix.stats import StatsWrapper
+        from memframe.wrappers.analytix.stats import StatsWrapper
         if self._stats_wrapper is None:
             self._stats_wrapper = StatsWrapper(self)
         return self._stats_wrapper
@@ -127,7 +122,7 @@ class ContextManager:
     
     @property
     def bar(self):
-        from wrappers.plots.bar import BarWrapper
+        from memframe.wrappers.plots.bar import BarWrapper
         if self._bar_wrapper is None:
             self._bar_wrapper = BarWrapper(self)
         return self._bar_wrapper
@@ -135,7 +130,7 @@ class ContextManager:
     
     @property
     def bar_polar(self):
-        from wrappers.plots.bar_polar import BarPolarWrapper
+        from memframe.wrappers.plots.bar_polar import BarPolarWrapper
         if self._bar_polar_wrapper is None:
             self._bar_polar_wrapper = BarPolarWrapper(self)
         return self._bar_polar_wrapper
@@ -143,7 +138,7 @@ class ContextManager:
     
     @property
     def pie(self):
-        from wrappers.plots.pie import PieWrapper
+        from memframe.wrappers.plots.pie import PieWrapper
         if self._pie_wrapper is None:
             self._pie_wrapper = PieWrapper(self)
         return self._pie_wrapper
@@ -151,7 +146,7 @@ class ContextManager:
     
     @property
     def line(self):
-        from wrappers.plots.line import LineWrapper
+        from memframe.wrappers.plots.line import LineWrapper
         if self._line_wrapper is None:
             self._line_wrapper = LineWrapper(self)
         return self._line_wrapper
@@ -159,7 +154,7 @@ class ContextManager:
     
     @property
     def scatter(self):
-        from wrappers.plots.scatter import ScatterWrapper
+        from memframe.wrappers.plots.scatter import ScatterWrapper
         if self._scatter_wrapper is None:
             self._scatter_wrapper = ScatterWrapper(self)
         return self._scatter_wrapper
@@ -168,7 +163,7 @@ class ContextManager:
     
     @property
     def scatter3d(self):
-        from wrappers.plots.scatter_3d import Scatter3DWrapper
+        from memframe.wrappers.plots.scatter_3d import Scatter3DWrapper
         if self._scatter3d_wrapper is None:
             self._scatter3d_wrapper = Scatter3DWrapper(self)
         return self._scatter3d_wrapper

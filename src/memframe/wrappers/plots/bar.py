@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from memframe.core.orchestrator.plots.bar import BarOrchestrator
-from utils.async_sync import async_to_sync
+from memframe.utils.async_sync import async_to_sync
 
 
 class BarWrapper(BarOrchestrator):

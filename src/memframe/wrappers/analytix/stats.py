@@ -3,7 +3,7 @@
 from typing import Any, Dict, List
 
 from memframe.core.orchestrator.analytix.stats import StatsOrchestrator
-from utils.async_sync import async_to_sync
+from memframe.utils.async_sync import async_to_sync
 
 
 class StatsWrapper(StatsOrchestrator):
