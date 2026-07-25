@@ -121,6 +121,17 @@ class SelectionOrchestrator:
                 }
             row_selector, columns = row_selector
 
+        # Handle string conditions (WHERE clauses) directly via core loc
+        if isinstance(row_selector, str) and ":" not in row_selector:
+            # This is a SQL WHERE clause, pass directly to core loc
+            return await ops.loc(
+                table=table, schema=schema,
+                row_selector=row_selector,
+                column_selector=columns,
+                index_column=index_column,
+                backend=backend, data_id=data_id, chunk_size=chunk_size,
+            )
+
         row_indexer = self._parse_slice_text(row_selector)
         col_indexer = None
         if columns in (None, "*", ["*"], ("*",)):

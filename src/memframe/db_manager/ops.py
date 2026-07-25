@@ -3,7 +3,7 @@ import logging
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from memframe.db_manager.adapters.factory import resolve_backend_config
-from memframe.db_manager.setup import DatabaseBackend
+from memframe.db_manager.setup import create_backend, Backend
 
 if TYPE_CHECKING:
     pass
@@ -20,10 +20,13 @@ if not logger.handlers:
 class OpsManager:
     async def _aconnect(self) -> None:
         backend, params = resolve_backend_config(self.connection_type, self.conn_params)
-        self._backend = DatabaseBackend(backend, params)
+        self._backend = create_backend(backend, params)
         await self._backend.connect()
-        await self._backend.init_database()
+        await self._backend.initialize()
     
+    def _placeholder(self, i: int) -> str:
+        return self._backend.placeholder(i)
+
     async def _alist_tables(self) -> List[Dict[str, str]]:
         """
         Returns all uploaded tables from registry.csv_registry
@@ -73,7 +76,7 @@ class OpsManager:
         # Step 1: Resolve data_id
         # -------------------------------
         if not data_id:
-            row = await self._backend.fetch_one(
+            row = await self._backend.fetch_row(
                 f"""
                 SELECT data_id
                 FROM {self._backend.csv_registry_table}
@@ -88,7 +91,7 @@ class OpsManager:
         # -------------------------------
         # Step 2: Get upload table name
         # -------------------------------
-        row = await self._backend.fetch_one(
+        row = await self._backend.fetch_row(
             f"""
             SELECT table_name
             FROM {self._backend.csv_registry_table}
@@ -231,7 +234,7 @@ class OpsManager:
         ]
 
     async def _aretrieve_operation(self, data_id: str, opidx: int) -> str:
-        row = await self._backend.fetch_one(
+        row = await self._backend.fetch_row(
             f"SELECT generated_table_name FROM {self._backend.transient_registry_table} WHERE data_id = {self._placeholder(1)} AND opidx = {self._placeholder(2)}",
             data_id,
             opidx,
