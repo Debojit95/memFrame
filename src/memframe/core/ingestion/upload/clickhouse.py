@@ -1,10 +1,7 @@
-import csv
 import logging
-from typing import Any, Dict, List, Optional, Tuple, Union, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
 
 import pyarrow as pa
-import pyarrow.csv as pcsv
-import pyarrow.parquet as pq
 
 from memframe.core.ingestion.upload.base import Uploader
 from memframe.core.ingestion.datatype_detector import Backend
@@ -54,98 +51,47 @@ class ClickHouseUploader(Uploader):
     ) -> str:
         return self._backend._clickhouse_qualified_table_name(table_name, default_database)
 
-    async def _load_csv_into_staging(
-        self,
-        staging_table: str,
-        file_path: str,
-        columns: List[str],
-        encoding: str,
-    ) -> None:
-        await self._load_csv_into_staging_clickhouse(staging_table, file_path, columns, encoding)
+    # ── Table creation: All TEXT ─────────────────────────────────
+    async def _create_final_table_all_text_clickhouse(self, table_name: str, columns: List[str]) -> None:
+        col_defs = ", ".join(f"`{col}` String" for col in columns)
+        await self.execute(
+            f"CREATE TABLE {table_name} ({col_defs}) "
+            f"ENGINE = MergeTree() ORDER BY tuple()"
+        )
 
-    async def _load_csv_into_staging_clickhouse(
-        self, staging_table: str, file_path: str, columns: List[str], encoding: str
-    ) -> None:
-        def _read_batches():
-            with open(file_path, "r", encoding=encoding, newline="") as f:
-                reader = csv.reader(f)
-                next(reader)
-                batch = []
-                for row in reader:
-                    row = row[: len(columns)]
-                    row += [""] * (len(columns) - len(row))
-                    batch.append(row)
-                    if len(batch) >= 10000:
-                        yield batch
-                        batch = []
-                if batch:
-                    yield batch
+    # ── PyArrow Stream Upload ───────────────────────────────────
+    async def _insert_arrow_table_clickhouse(self, table_name: str, arrow_table: pa.Table) -> None:
+        for batch in arrow_table.to_batches(max_chunksize=100000):
+            await self._backend.insert_arrow_table(table_name, pa.Table.from_batches([batch]))
 
-        for batch in list(_read_batches()):
-            await self._backend.insert_rows(staging_table, batch, columns)
-
-    async def _create_final_table_direct(
-        self, final_table: str, columns: List[str], schema: Dict[str, Dict[str, Any]]
-    ) -> None:
+    # ── Sampling ────────────────────────────────────────────────
+    async def _fetch_arrow_sample_clickhouse(self, table_name: str, columns: List[str], limit: int) -> pa.Table:
+        col_str = ", ".join(self._quote_identifier(c) for c in columns)
+        res = await self._conn.query(f"SELECT {col_str} FROM {table_name} LIMIT {limit}")
+        data = {col: [row[i] for row in res.result_rows] for i, col in enumerate(res.column_names)}
+        return pa.Table.from_pydict(data)
+    
+    
+    # ── Table Casting ───────────────────────────────────────────
+    async def _cast_table_in_place_clickhouse(self, final_table: str, columns: List[str], schema: Dict[str, Dict[str, Any]]) -> None:
+        schema_name, raw_table = self._split_qualified_table_name(final_table)
+        tmp_table = f"`{schema_name}`.`{raw_table}_tmp`"
+        
         col_defs = []
         for col in columns:
             pg_type = schema.get(col, {}).get("postgres_type", "TEXT")
             ch_type = self._postgres_type_to_clickhouse(pg_type)
             col_defs.append(f"`{col}` Nullable({ch_type})")
         await self.execute(
-            f"CREATE TABLE {final_table} ({', '.join(col_defs)}) "
+            f"CREATE TABLE {tmp_table} ({', '.join(col_defs)}) "
             f"ENGINE = MergeTree() ORDER BY tuple()"
         )
-
-    async def _create_final_table_clickhouse(
-        self,
-        final_table: str,
-        staging_table: str,
-        columns: List[str],
-        schema: Dict[str, Dict[str, Any]],
-    ) -> None:
-        col_defs = []
-        for col in columns:
-            pg_type = schema.get(col, {}).get("postgres_type", "TEXT")
-            ch_type = self._postgres_type_to_clickhouse(pg_type)
-            col_defs.append(f"`{col}` Nullable({ch_type})")
-
-        await self.execute(
-            f"CREATE TABLE {final_table} ({', '.join(col_defs)}) "
-            f"ENGINE = MergeTree() ORDER BY tuple()"
-        )
-
+        
         select_parts = []
         for col in columns:
             pg_type = schema.get(col, {}).get("postgres_type", "TEXT")
             select_parts.append(self._build_safe_cast_clickhouse(col, pg_type))
-
-        await self.execute(
-            f"INSERT INTO {final_table} SELECT {', '.join(select_parts)} FROM {staging_table}"
-        )
-
-    async def _create_final_table_from_staging(
-        self,
-        final_table: str,
-        staging_table: str,
-        columns: List[str],
-        schema: Dict[str, Dict[str, Any]],
-    ) -> None:
-        await self._create_final_table_clickhouse(final_table, staging_table, columns, schema)
-
-    async def _create_text_staging_table(self, staging_table: str, columns: List[str]) -> None:
-        col_defs = ", ".join(f"`{col}` String" for col in columns)
-        await self.execute(f"CREATE TABLE {staging_table} ({col_defs})")
-
-    async def _insert_arrow_table_postgres(self, final_table: str, arrow_table: pa.Table, columns: List[str]) -> None:
-        full_table = arrow_table.rename_columns(columns)
-        rows = []
-        for batch in full_table.to_batches(max_chunksize=10000):
-            for i in range(batch.num_rows):
-                row = [batch.column(j)[i].as_py() for j in range(batch.num_columns)]
-                rows.append(row)
-                if len(rows) >= 10000:
-                    await self._backend.insert_rows(final_table, rows, columns)
-                    rows = []
-        if rows:
-            await self._backend.insert_rows(final_table, rows, columns)
+        await self.execute(f"INSERT INTO {tmp_table} SELECT {', '.join(select_parts)} FROM {final_table}")
+        
+        await self.drop_table(final_table)
+        await self.execute(f"RENAME TABLE {tmp_table} TO {final_table}")
