@@ -1,10 +1,6 @@
 #!/usr/bin/env bash
 set -uo pipefail
 
-if [ -d ".venv/bin" ]; then
-  PATH="$PWD/.venv/bin:$PATH"
-fi
-
 if [ -f ".env" ]; then
   set -a
   . ./.env
@@ -31,6 +27,8 @@ mkdir -p "$COMMIT_CHECK_TMPDIR"
 DUCKDB_DB_PARAMS="${DUCKDB_DB_PARAMS:-}"
 POSTGRES_DB_PARAMS="${POSTGRES_DB_PARAMS:-$POSTGRES_UPLOAD_DB_PARAMS}"
 CLICKHOUSE_DB_PARAMS="${CLICKHOUSE_DB_PARAMS:-$CLICKHOUSE_UPLOAD_DB_PARAMS}"
+
+UV_RUN="uv run --active"
 
 duckdb_params_for() {
   local label="$1"
@@ -77,7 +75,7 @@ run_upload_test() {
   local db_backend="$3"
   local db_params="$4"
 
-  pytest tests/test_upload.py \
+  $UV_RUN pytest tests/test_upload.py \
     --upload-type "$upload_type" \
     --filepath "$filepath" \
     --db-backend "$db_backend" \
@@ -88,7 +86,7 @@ run_selection_test() {
   local db_backend="$1"
   local db_params="$2"
 
-  pytest tests/test_selection.py \
+  $UV_RUN pytest tests/test_selection.py \
     -v \
     --db-backend "$db_backend" \
     --db-params "$db_params"
@@ -98,7 +96,7 @@ run_inspect_test() {
   local db_backend="$1"
   local db_params="$2"
 
-  pytest tests/test_inspect.py \
+  $UV_RUN pytest tests/test_inspect.py \
     -v \
     --db-backend "$db_backend" \
     --db-params "$db_params"
@@ -108,7 +106,7 @@ run_cleaning_test() {
   local db_backend="$1"
   local db_params="$2"
 
-  pytest tests/test_cleaning.py \
+  $UV_RUN pytest tests/test_cleaning.py \
     -v \
     --db-backend "$db_backend" \
     --db-params "$db_params"
@@ -118,7 +116,7 @@ run_stats_test() {
   local db_backend="$1"
   local db_params="$2"
 
-  pytest tests/test_stats.py \
+  $UV_RUN pytest tests/test_stats.py \
     -v \
     --db-backend "$db_backend" \
     --db-params "$db_params"
@@ -128,7 +126,7 @@ run_bar_test() {
   local db_backend="$1"
   local db_params="$2"
 
-  pytest tests/test_bar.py \
+  $UV_RUN pytest tests/test_bar.py \
     -v \
     --db-backend "$db_backend" \
     --db-params "$db_params"
@@ -138,7 +136,7 @@ run_bar_polar_test() {
   local db_backend="$1"
   local db_params="$2"
 
-  pytest tests/test_bar_polar.py \
+  $UV_RUN pytest tests/test_bar_polar.py \
     -v \
     --db-backend "$db_backend" \
     --db-params "$db_params"
@@ -148,7 +146,7 @@ run_pie_test() {
   local db_backend="$1"
   local db_params="$2"
 
-  pytest tests/test_pie.py \
+  $UV_RUN pytest tests/test_pie.py \
     -v \
     --db-backend "$db_backend" \
     --db-params "$db_params"
