@@ -102,7 +102,7 @@ of fields use a padding/truncation fallback before they are copied.
 
 ## API Reference
 
-::: src.wrappers.upload.UploadWrapper
+::: memframe.wrappers.upload.UploadWrapper
     options:
       show_root_heading: true
       show_root_full_path: true

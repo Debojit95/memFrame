@@ -3,8 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
-from db_manager.context import ContextManager
-from wrappers.base import BaseWrapper
+from memframe.db_manager.context import ContextManager
+from memframe.wrappers.base import BaseWrapper
 
 
 class MemFrame(BaseWrapper):

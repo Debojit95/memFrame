@@ -2,12 +2,17 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from db_manager.adapters.base import DatabaseAdapter
-from wrappers.analytix.inspect import TableOpsWrapper
-from wrappers.analytix.selection import SelectionWrapper
-from wrappers.analytix.cleaning import CleaningWrapper
-from wrappers.analytix.stats import StatsWrapper
-from wrappers.plots.scatter_3d import Scatter3DWrapper
+from memframe.db_manager.adapters.base import DatabaseAdapter
+from memframe.wrappers.analytix.inspect import TableOpsWrapper
+from memframe.wrappers.analytix.selection import SelectionWrapper
+from memframe.wrappers.analytix.cleaning import CleaningWrapper
+from memframe.wrappers.analytix.stats import StatsWrapper
+from memframe.wrappers.plots.bar import BarWrapper
+from memframe.wrappers.plots.bar_polar import BarPolarWrapper
+from memframe.wrappers.plots.pie import PieWrapper
+from memframe.wrappers.plots.line import LineWrapper
+from memframe.wrappers.plots.scatter import ScatterWrapper
+from memframe.wrappers.plots.scatter_3d import Scatter3DWrapper
 
 
 class ContextManager(TableOpsWrapper, SelectionWrapper,CleaningWrapper,StatsWrapper):
@@ -34,8 +39,25 @@ class ContextManager(TableOpsWrapper, SelectionWrapper,CleaningWrapper,StatsWrap
     def stats(self) -> StatsWrapper: ...
     
     @property
-    def scatter3d(self) -> Scatter3DWrapper: ...
+    def bar(self) -> BarWrapper: ...
     
+    @property
+    def bar_polar(self) -> BarPolarWrapper: ...
+        
+    @property
+    def line(self) -> LineWrapper: ...
 
+    @property
+    def pie(self) -> PieWrapper: ...
 
+    @property
+    def scatter(self) -> ScatterWrapper: ...
+    
+    @property
+    def scatter3d(self) -> Scatter3DWrapper: ...    
+    
+    
+    
+    
+    
     async def close(self) -> None: ...

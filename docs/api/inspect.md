@@ -591,7 +591,7 @@ use.
 
 ## API Reference
 
-::: src.wrappers.analytix.inspect.TableOpsWrapper
+::: memframe.wrappers.analytix.inspect.TableOpsWrapper
     options:
       show_root_heading: true
       show_root_full_path: true

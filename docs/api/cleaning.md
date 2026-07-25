@@ -529,7 +529,7 @@ use.
 
 ## API Reference
 
-::: src.wrappers.analytix.cleaning.CleaningWrapper
+::: memframe.wrappers.analytix.cleaning.CleaningWrapper
     options:
       show_root_heading: true
       show_root_full_path: true

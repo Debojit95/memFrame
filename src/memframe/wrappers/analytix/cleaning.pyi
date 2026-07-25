@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Union
 
-from core.orchestrator.analytix.cleaning import CleaningOrchestrator
+from memframe.core.orchestrator.analytix.cleaning import CleaningOrchestrator
 
 
 class CleaningWrapper(CleaningOrchestrator):

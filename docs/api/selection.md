@@ -428,7 +428,7 @@ use.
 
 ## API Reference
 
-::: src.wrappers.analytix.selection.SelectionWrapper
+::: memframe.wrappers.analytix.selection.SelectionWrapper
     options:
       show_root_heading: true
       show_root_full_path: true
