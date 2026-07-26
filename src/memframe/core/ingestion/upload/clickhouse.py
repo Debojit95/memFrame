@@ -2,6 +2,7 @@ import logging
 from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
 
 import pyarrow as pa
+import pyarrow.csv as pcsv
 
 from memframe.core.ingestion.upload.base import Uploader
 from memframe.core.ingestion.datatype_detector import Backend
@@ -51,7 +52,19 @@ class ClickHouseUploader(Uploader):
     ) -> str:
         return self._backend._clickhouse_qualified_table_name(table_name, default_database)
 
-    # ── Table creation: All TEXT ─────────────────────────────────
+    # ── Table creation: Typed ─────────────────────────────────
+    async def _create_final_table_typed_clickhouse(self, table_name: str, columns: List[str], schema: Dict[str, Dict[str, Any]]) -> None:
+        col_defs = []
+        for col in columns:
+            pg_type = schema.get(col, {}).get("postgres_type", "TEXT")
+            ch_type = self._postgres_type_to_clickhouse(pg_type)
+            col_defs.append(f"`{col}` Nullable({ch_type})")
+        await self.execute(
+            f"CREATE TABLE {table_name} ({', '.join(col_defs)}) "
+            f"ENGINE = MergeTree() ORDER BY tuple()"
+        )
+
+    # ── Table creation: All TEXT (Legacy fallback) ────────────
     async def _create_final_table_all_text_clickhouse(self, table_name: str, columns: List[str]) -> None:
         col_defs = ", ".join(f"`{col}` String" for col in columns)
         await self.execute(
@@ -59,10 +72,38 @@ class ClickHouseUploader(Uploader):
             f"ENGINE = MergeTree() ORDER BY tuple()"
         )
 
-    # ── PyArrow Stream Upload ───────────────────────────────────
+    # ── PyArrow Stream Upload (for Parquet/DF) ───────────────
     async def _insert_arrow_table_clickhouse(self, table_name: str, arrow_table: pa.Table) -> None:
         for batch in arrow_table.to_batches(max_chunksize=100000):
             await self._backend.insert_arrow_table(table_name, pa.Table.from_batches([batch]))
+
+    # ── Native CSV Upload (Phase 2: Type-First + Native Format) ───
+    async def _stream_csv_typed_clickhouse(
+        self,
+        table_name: str,
+        file_path: str,
+        columns: List[str],
+        encoding: str,
+        schema: Dict[str, Dict[str, Any]],
+    ) -> None:
+        """
+        Upload CSV to ClickHouse using native CSVWithNames format.
+        Single HTTP request, native C++ parser - fastest possible.
+        """
+        database, table = self._split_qualified_table_name(table_name)
+        database = database or self._backend.upload_schema
+        
+        columns_str = ", ".join(f"`{col}`" for col in columns)
+        
+        # Read file as binary and stream directly
+        with open(file_path, "rb") as f:
+            csv_data = f.read()
+        
+        # Use ClickHouse native CSV format with headers
+        await self._backend._conn._post(
+            f"INSERT INTO `{database}`.`{table}` ({columns_str}) FORMAT CSVWithNames",
+            data=csv_data,
+        )
 
     # ── Sampling ────────────────────────────────────────────────
     async def _fetch_arrow_sample_clickhouse(self, table_name: str, columns: List[str], limit: int) -> pa.Table:
