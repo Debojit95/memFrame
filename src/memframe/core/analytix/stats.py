@@ -4,7 +4,7 @@ Mirrors pandas .describe(), .sum(), .mean(), .corr(), etc.
 """
 
 from typing import Any, Dict, List, Optional
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 import numpy as np
 import traceback
 import pandas as pd
@@ -12,6 +12,7 @@ import pandas as pd
 from memframe.db_manager.adapters.base import DatabaseAdapter
 from memframe.db_manager.adapters.duckdb import DuckDBAdapter
 from memframe.db_manager.adapters.postgresql import PostgresAdapter
+from memframe.db_manager.adapters.clickhouse import ClickHouseAdapter
 from memframe.utils.helper import SQLIdentifierSanitizer
 
 
@@ -42,7 +43,7 @@ class DataStatsOps:
         return f'{self.db.quote_identifier(safe_schema)}.{self.db.quote_identifier(safe_table)}'
 
     
-    async def _fetch_data(self, table: str, schema: str, columns: Any = "*",limit:int = -1) -> pd.DataFrame:
+    async def _fetch_data(self, table: str, schema: str, columns: Any = "*") -> pd.DataFrame:
         """Return a DataFrame sample of the table for the response."""
         qualified = self._qualified_table(table, schema)
 
@@ -61,11 +62,7 @@ class DataStatsOps:
             safe_col = SQLIdentifierSanitizer.sanitize(str(columns), allow_qualified=False)
             column_clause = self.db.quote_identifier(safe_col)
 
-        if limit>0:
-            rows = await self._fetch(f"SELECT {column_clause} FROM {qualified}  LIMIT {limit}" )
-        else:
-            rows = await self._fetch(f"SELECT {column_clause} FROM {qualified}" )
-            
+        rows = await self._fetch(f"SELECT {column_clause} FROM {qualified}")
         records = [dict(row) for row in rows]
         return pd.DataFrame.from_records(records)
 
@@ -137,7 +134,7 @@ class DataStatsOps:
         elif backend is not None and data_id:
             candidate = await self._generate_result_table_name(safe_table, backend, data_id)
         else:
-            candidate = f"{safe_table}__op_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}"
+            candidate = f"{safe_table}__op_{datetime.now(UTC).strftime('%Y%m%d%H%M%S%f')}"
 
         output_table = SQLIdentifierSanitizer.sanitize(candidate)
         dedupe_idx = 1
@@ -148,11 +145,11 @@ class DataStatsOps:
         return output_table
 
     # =========================================================================
-    # NUMERIC STATISTICS (scalars – unchanged, keep as-is)
+    # NUMERIC STATISTICS (scalars)
     # =========================================================================
     async def numeric_count(self, table: str, schema: str, column: str) -> Dict[str, Any]:
         try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
                 q = self._qualified_table(table, schema)
                 c = SQLIdentifierSanitizer.sanitize(column)
                 count = await self._fetchval(f'SELECT COUNT("{c}") FROM {q} WHERE "{c}" IS NOT NULL')
@@ -164,7 +161,7 @@ class DataStatsOps:
 
     async def numeric_sum(self, table: str, schema: str, column: str) -> Dict[str, Any]:
         try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
                 q = self._qualified_table(table, schema)
                 c = SQLIdentifierSanitizer.sanitize(column)
                 sum_res = await self._fetchval(f'SELECT SUM("{c}") FROM {q} WHERE "{c}" IS NOT NULL')
@@ -176,7 +173,7 @@ class DataStatsOps:
 
     async def numeric_min(self, table: str, schema: str, column: str) -> Dict[str, Any]:
         try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
                 q = self._qualified_table(table, schema)
                 c = SQLIdentifierSanitizer.sanitize(column)
                 min_val = await self._fetchval(f'SELECT MIN("{c}") FROM {q} WHERE "{c}" IS NOT NULL')
@@ -188,7 +185,7 @@ class DataStatsOps:
 
     async def numeric_max(self, table: str, schema: str, column: str) -> Dict[str, Any]:
         try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
                 q = self._qualified_table(table, schema)
                 c = SQLIdentifierSanitizer.sanitize(column)
                 max_val = await self._fetchval(f'SELECT MAX("{c}") FROM {q} WHERE "{c}" IS NOT NULL')
@@ -200,7 +197,7 @@ class DataStatsOps:
 
     async def numeric_mean(self, table: str, schema: str, column: str) -> Dict[str, Any]:
         try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
                 q = self._qualified_table(table, schema)
                 c = SQLIdentifierSanitizer.sanitize(column)
                 mean_val = await self._fetchval(
@@ -215,13 +212,15 @@ class DataStatsOps:
 
     async def numeric_median(self, table: str, schema: str, column: str) -> Dict[str, Any]:
         try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
                 q = self._qualified_table(table, schema)
                 c = SQLIdentifierSanitizer.sanitize(column)
                 if isinstance(self.db, PostgresAdapter):
                     median_sql = f'PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY "{c}")'
                 elif isinstance(self.db, DuckDBAdapter):
                     median_sql = f'MEDIAN("{c}")'
+                elif isinstance(self.db, ClickHouseAdapter):
+                    median_sql = f'quantile(0.5)("{c}")'
                 else:
                     raise self._unsupported_backend_error()
                 median_val = await self._fetchval(
@@ -236,7 +235,7 @@ class DataStatsOps:
 
     async def numeric_mode(self, table: str, schema: str, column: str, top_n: int = 1) -> Dict[str, Any]:
         try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
                 q = self._qualified_table(table, schema)
                 c = SQLIdentifierSanitizer.sanitize(column)
                 rows = await self._fetch(
@@ -271,6 +270,11 @@ class DataStatsOps:
                 c = SQLIdentifierSanitizer.sanitize(column)
                 prod_val = await self._fetchval(f'SELECT EXP(SUM(LN("{c}"))) FROM {q} WHERE "{c}" > 0')
                 return self._success_response(f"Product of positive values in '{column}': {prod_val}", result=prod_val)
+            elif isinstance(self.db, ClickHouseAdapter):
+                q = self._qualified_table(table, schema)
+                c = SQLIdentifierSanitizer.sanitize(column)
+                prod_val = await self._fetchval(f'SELECT exp(sum(log("{c}"))) FROM {q} WHERE "{c}" > 0')
+                return self._success_response(f"Product of positive values in '{column}': {prod_val}", result=prod_val)
             else:
                 raise self._unsupported_backend_error()
         except Exception as e:
@@ -278,7 +282,7 @@ class DataStatsOps:
 
     async def numeric_unique(self, table: str, schema: str, column: str) -> Dict[str, Any]:
         try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
                 q = self._qualified_table(table, schema)
                 c = SQLIdentifierSanitizer.sanitize(column)
                 rows = await self._fetch(f'SELECT DISTINCT "{c}" FROM {q} WHERE "{c}" IS NOT NULL ORDER BY "{c}"')
@@ -294,7 +298,7 @@ class DataStatsOps:
 
     async def numeric_nunique(self, table: str, schema: str, column: str) -> Dict[str, Any]:
         try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
                 q = self._qualified_table(table, schema)
                 c = SQLIdentifierSanitizer.sanitize(column)
                 val = await self._fetchval(f'SELECT COUNT(DISTINCT "{c}") FROM {q} WHERE "{c}" IS NOT NULL')
@@ -306,7 +310,7 @@ class DataStatsOps:
 
     async def numeric_value_counts(self, table: str, schema: str, column: str, top_n: int = 10) -> Dict[str, Any]:
         try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
                 q = self._qualified_table(table, schema)
                 c = SQLIdentifierSanitizer.sanitize(column)
                 rows = await self._fetch(
@@ -328,6 +332,12 @@ class DataStatsOps:
                 std_val = await self._fetchval(f'SELECT STDDEV_POP("{c}") FROM {q} WHERE "{c}" IS NOT NULL')
                 msg = f"Standard deviation of '{column}': {std_val:.4f}" if std_val is not None else f"Std of '{column}': N/A"
                 return self._success_response(message=msg, result=std_val)
+            elif isinstance(self.db, ClickHouseAdapter):
+                q = self._qualified_table(table, schema)
+                c = SQLIdentifierSanitizer.sanitize(column)
+                std_val = await self._fetchval(f'SELECT stddevPop("{c}") FROM {q} WHERE "{c}" IS NOT NULL')
+                msg = f"Standard deviation of '{column}': {std_val:.4f}" if std_val is not None else f"Std of '{column}': N/A"
+                return self._success_response(message=msg, result=std_val)
             else:
                 raise self._unsupported_backend_error()
         except Exception as e:
@@ -341,6 +351,12 @@ class DataStatsOps:
                 var_val = await self._fetchval(f'SELECT VAR_POP("{c}") FROM {q} WHERE "{c}" IS NOT NULL')
                 msg = f"Variance of '{column}': {var_val:.4f}" if var_val is not None else f"Variance of '{column}': N/A"
                 return self._success_response(msg, result=var_val)
+            elif isinstance(self.db, ClickHouseAdapter):
+                q = self._qualified_table(table, schema)
+                c = SQLIdentifierSanitizer.sanitize(column)
+                var_val = await self._fetchval(f'SELECT varPop("{c}") FROM {q} WHERE "{c}" IS NOT NULL')
+                msg = f"Variance of '{column}': {var_val:.4f}" if var_val is not None else f"Variance of '{column}': N/A"
+                return self._success_response(msg, result=var_val)
             else:
                 raise self._unsupported_backend_error()
         except Exception as e:
@@ -352,6 +368,12 @@ class DataStatsOps:
                 q = self._qualified_table(table, schema)
                 c = SQLIdentifierSanitizer.sanitize(column)
                 val = await self._fetchval(f'SELECT STDDEV_SAMP("{c}") / SQRT(COUNT("{c}")) FROM {q} WHERE "{c}" IS NOT NULL')
+                msg = f"Standard error of mean for '{column}': {val:.6f}" if val is not None else f"SEM of '{column}': N/A"
+                return self._success_response(msg, result=val)
+            elif isinstance(self.db, ClickHouseAdapter):
+                q = self._qualified_table(table, schema)
+                c = SQLIdentifierSanitizer.sanitize(column)
+                val = await self._fetchval(f'SELECT stddevSamp("{c}") / sqrt(count("{c}")) FROM {q} WHERE "{c}" IS NOT NULL')
                 msg = f"Standard error of mean for '{column}': {val:.6f}" if val is not None else f"SEM of '{column}': N/A"
                 return self._success_response(msg, result=val)
             else:
@@ -371,6 +393,16 @@ class DataStatsOps:
                 )
                 msg = f"Mean Absolute Deviation of '{column}': {val:.4f}" if val is not None else f"MAD of '{column}': N/A"
                 return self._success_response(message=msg, result=val)
+            elif isinstance(self.db, ClickHouseAdapter):
+                q = self._qualified_table(table, schema)
+                c = SQLIdentifierSanitizer.sanitize(column)
+                val = await self._fetchval(
+                    f'SELECT avg(abs("{c}" - sub.avg_val)) FROM {q}, '
+                    f'(SELECT avg("{c}") AS avg_val FROM {q} WHERE "{c}" IS NOT NULL) AS sub '
+                    f'WHERE "{c}" IS NOT NULL'
+                )
+                msg = f"Mean Absolute Deviation of '{column}': {val:.4f}" if val is not None else f"MAD of '{column}': N/A"
+                return self._success_response(message=msg, result=val)
             else:
                 raise self._unsupported_backend_error()
         except Exception as e:
@@ -378,7 +410,7 @@ class DataStatsOps:
 
     async def numeric_iqr(self, table: str, schema: str, column: str) -> Dict[str, Any]:
         try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
                 q = self._qualified_table(table, schema)
                 c = SQLIdentifierSanitizer.sanitize(column)
                 if isinstance(self.db, PostgresAdapter):
@@ -387,6 +419,9 @@ class DataStatsOps:
                 elif isinstance(self.db, DuckDBAdapter):
                     q3_expr = f'QUANTILE_CONT("{c}", 0.75)'
                     q1_expr = f'QUANTILE_CONT("{c}", 0.25)'
+                elif isinstance(self.db, ClickHouseAdapter):
+                    q3_expr = f'quantile(0.75)("{c}")'
+                    q1_expr = f'quantile(0.25)("{c}")'
                 else:
                     raise self._unsupported_backend_error()
                 val = await self._fetchval(
@@ -401,7 +436,7 @@ class DataStatsOps:
 
     async def numeric_range(self, table: str, schema: str, column: str) -> Dict[str, Any]:
         try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
                 q = self._qualified_table(table, schema)
                 c = SQLIdentifierSanitizer.sanitize(column)
                 val = await self._fetchval(f'SELECT MAX("{c}") - MIN("{c}") FROM {q} WHERE "{c}" IS NOT NULL')
@@ -414,10 +449,44 @@ class DataStatsOps:
 
     async def numeric_skew(self, table: str, schema: str, column: str) -> Dict[str, Any]:
         try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+            if isinstance(self.db, PostgresAdapter):
+                q = self._qualified_table(table, schema)
+                c = SQLIdentifierSanitizer.sanitize(column)
+                col = f'"{c}"::DOUBLE PRECISION'
+                sql = f"""
+                    WITH stats AS (
+                        SELECT
+                            AVG({col}) AS mean_val,
+                            STDDEV_POP({col}) AS std_val,
+                            COUNT({col}) AS n
+                        FROM {q}
+                        WHERE "{c}" IS NOT NULL
+                    )
+                    SELECT
+                        CASE
+                            WHEN stats.n = 0 OR stats.std_val = 0 THEN NULL
+                            ELSE AVG(POWER({col} - stats.mean_val, 3))
+                                 / POWER(stats.std_val, 3)
+                        END
+                    FROM {q}
+                    CROSS JOIN stats
+                    WHERE "{c}" IS NOT NULL
+                    GROUP BY stats.n, stats.std_val, stats.mean_val
+                """
+                val = await self._fetchval(sql)
+                msg = f"Skewness of '{column}': {val:.4f}" if val is not None else "N/A"
+                return self._success_response(msg, result=val)
+            elif isinstance(self.db, DuckDBAdapter):
                 q = self._qualified_table(table, schema)
                 c = SQLIdentifierSanitizer.sanitize(column)
                 sql = f'SELECT SKEWNESS("{c}") FROM {q} WHERE "{c}" IS NOT NULL'
+                val = await self._fetchval(sql)
+                msg = f"Skewness of '{column}': {val:.4f}" if val is not None else "N/A"
+                return self._success_response(msg, result=val)
+            elif isinstance(self.db, ClickHouseAdapter):
+                q = self._qualified_table(table, schema)
+                c = SQLIdentifierSanitizer.sanitize(column)
+                sql = f'SELECT skewPop("{c}") FROM {q} WHERE "{c}" IS NOT NULL'
                 val = await self._fetchval(sql)
                 msg = f"Skewness of '{column}': {val:.4f}" if val is not None else "N/A"
                 return self._success_response(msg, result=val)
@@ -428,10 +497,44 @@ class DataStatsOps:
 
     async def numeric_kurtosis(self, table: str, schema: str, column: str) -> Dict[str, Any]:
         try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+            if isinstance(self.db, PostgresAdapter):
+                q = self._qualified_table(table, schema)
+                c = SQLIdentifierSanitizer.sanitize(column)
+                col = f'"{c}"::DOUBLE PRECISION'
+                sql = f"""
+                    WITH stats AS (
+                        SELECT
+                            AVG({col}) AS mean_val,
+                            STDDEV_POP({col}) AS std_val,
+                            COUNT({col}) AS n
+                        FROM {q}
+                        WHERE "{c}" IS NOT NULL
+                    )
+                    SELECT
+                        CASE
+                            WHEN stats.n = 0 OR stats.std_val = 0 THEN NULL
+                            ELSE AVG(POWER({col} - stats.mean_val, 4))
+                                 / POWER(stats.std_val, 4) - 3
+                        END
+                    FROM {q}
+                    CROSS JOIN stats
+                    WHERE "{c}" IS NOT NULL
+                    GROUP BY stats.n, stats.std_val, stats.mean_val
+                """
+                val = await self._fetchval(sql)
+                msg = f"Kurtosis of '{column}': {val:.4f}" if val is not None else "N/A"
+                return self._success_response(msg, result=val)
+            elif isinstance(self.db, DuckDBAdapter):
                 q = self._qualified_table(table, schema)
                 c = SQLIdentifierSanitizer.sanitize(column)
                 sql = f'SELECT KURTOSIS("{c}") FROM {q} WHERE "{c}" IS NOT NULL'
+                val = await self._fetchval(sql)
+                msg = f"Kurtosis of '{column}': {val:.4f}" if val is not None else "N/A"
+                return self._success_response(msg, result=val)
+            elif isinstance(self.db, ClickHouseAdapter):
+                q = self._qualified_table(table, schema)
+                c = SQLIdentifierSanitizer.sanitize(column)
+                sql = f'SELECT kurtPop("{c}") FROM {q} WHERE "{c}" IS NOT NULL'
                 val = await self._fetchval(sql)
                 msg = f"Kurtosis of '{column}': {val:.4f}" if val is not None else "N/A"
                 return self._success_response(msg, result=val)
@@ -453,6 +556,17 @@ class DataStatsOps:
                 val = await self._fetchval(sql)
                 msg = f"Entropy of '{column}': {val:.4f}" if val is not None else "N/A"
                 return self._success_response(msg, result=val)
+            elif isinstance(self.db, ClickHouseAdapter):
+                q = self._qualified_table(table, schema)
+                c = SQLIdentifierSanitizer.sanitize(column)
+                sql = f'''
+                    WITH counts AS (SELECT "{c}", COUNT(*) AS cnt FROM {q} WHERE "{c}" IS NOT NULL GROUP BY "{c}"),
+                         total AS (SELECT SUM(cnt) AS tot FROM counts)
+                    SELECT -sum((1.0 * cnt / tot) * log((1.0 * cnt / tot))) FROM counts, total
+                '''
+                val = await self._fetchval(sql)
+                msg = f"Entropy of '{column}': {val:.4f}" if val is not None else "N/A"
+                return self._success_response(msg, result=val)
             else:
                 raise self._unsupported_backend_error()
         except Exception as e:
@@ -460,7 +574,7 @@ class DataStatsOps:
 
     async def numeric_quantile(self, table: str, schema: str, column: str, quantiles: List[float] = None) -> Dict[str, Any]:
         try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
                 if quantiles is None:
                     quantiles = [0.25, 0.5, 0.75]
                 q = self._qualified_table(table, schema)
@@ -473,6 +587,11 @@ class DataStatsOps:
                 elif isinstance(self.db, DuckDBAdapter):
                     parts = ', '.join(
                         f'QUANTILE_CONT("{c}", {qt}) AS p_{int(qt*100)}'
+                        for qt in quantiles
+                    )
+                elif isinstance(self.db, ClickHouseAdapter):
+                    parts = ', '.join(
+                        f'quantile({qt})("{c}") AS p_{int(qt*100)}'
                         for qt in quantiles
                     )
                 else:
@@ -505,6 +624,19 @@ class DataStatsOps:
                 val = await self._fetchval(sql)
                 msg = f"Autocorrelation (lag={lag}) for '{column}': {val:.4f}" if val is not None else "N/A"
                 return self._success_response(msg, result=val)
+            elif isinstance(self.db, ClickHouseAdapter):
+                q = self._qualified_table(table, schema)
+                c = SQLIdentifierSanitizer.sanitize(column)
+                sql = f'''
+                    WITH lagged AS (
+                        SELECT "{c}" AS cur, lagInFrame("{c}", {lag}) OVER (ORDER BY (SELECT NULL)) AS prev
+                        FROM {q} WHERE "{c}" IS NOT NULL
+                    )
+                    SELECT corr(cur, prev) FROM lagged WHERE cur IS NOT NULL AND prev IS NOT NULL
+                '''
+                val = await self._fetchval(sql)
+                msg = f"Autocorrelation (lag={lag}) for '{column}': {val:.4f}" if val is not None else "N/A"
+                return self._success_response(msg, result=val)
             else:
                 raise self._unsupported_backend_error()
         except Exception as e:
@@ -518,6 +650,12 @@ class DataStatsOps:
                 val = await self._fetchval(f'SELECT STDDEV_POP("{c}") / AVG("{c}") FROM {q} WHERE "{c}" IS NOT NULL')
                 msg = f"Coefficient of variation for '{column}': {val:.4f}" if val is not None else "N/A"
                 return self._success_response(msg, result=val)
+            elif isinstance(self.db, ClickHouseAdapter):
+                q = self._qualified_table(table, schema)
+                c = SQLIdentifierSanitizer.sanitize(column)
+                val = await self._fetchval(f'SELECT stddevPop("{c}") / avg("{c}") FROM {q} WHERE "{c}" IS NOT NULL')
+                msg = f"Coefficient of variation for '{column}': {val:.4f}" if val is not None else "N/A"
+                return self._success_response(msg, result=val)
             else:
                 raise self._unsupported_backend_error()
         except Exception as e:
@@ -525,7 +663,7 @@ class DataStatsOps:
 
     async def numeric_outliers_iqr(self, table: str, schema: str, column: str) -> Dict[str, Any]:
         try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
                 q = self._qualified_table(table, schema)
                 c = SQLIdentifierSanitizer.sanitize(column)
                 if isinstance(self.db, PostgresAdapter):
@@ -534,6 +672,9 @@ class DataStatsOps:
                 elif isinstance(self.db, DuckDBAdapter):
                     q1_expr = f'QUANTILE_CONT("{c}", 0.25)'
                     q3_expr = f'QUANTILE_CONT("{c}", 0.75)'
+                elif isinstance(self.db, ClickHouseAdapter):
+                    q1_expr = f'quantile(0.25)("{c}")'
+                    q3_expr = f'quantile(0.75)("{c}")'
                 else:
                     raise self._unsupported_backend_error()
                 sql = f'''
@@ -575,6 +716,22 @@ class DataStatsOps:
                 vals = [r["outlier_value"] for r in rows]
                 msg = f"Outliers (z-score, threshold={threshold}) for '{column}': {len(vals)}"
                 return self._success_response(msg, result=vals)
+            elif isinstance(self.db, ClickHouseAdapter):
+                q = self._qualified_table(table, schema)
+                c = SQLIdentifierSanitizer.sanitize(column)
+                sql = f'''
+                    WITH stats AS (
+                        SELECT avg("{c}") AS mean, stddevPop("{c}") AS std
+                        FROM {q} WHERE "{c}" IS NOT NULL
+                    )
+                    SELECT "{c}" AS outlier_value
+                    FROM {q}, stats
+                    WHERE "{c}" IS NOT NULL AND abs("{c}" - stats.mean) > {threshold} * stats.std
+                '''
+                rows = await self._fetch(sql)
+                vals = [r["outlier_value"] for r in rows]
+                msg = f"Outliers (z-score, threshold={threshold}) for '{column}': {len(vals)}"
+                return self._success_response(msg, result=vals)
             else:
                 raise self._unsupported_backend_error()
         except Exception as e:
@@ -592,32 +749,27 @@ class DataStatsOps:
         data_id: Optional[str] = None,
         new_table: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """
-        Compute pairwise correlation for every pair of columns and store the
-        matrix (as a long‑format table) in a new transient table.
-        """
         try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
                 q = self._qualified_table(table, schema)
                 qcols = [SQLIdentifierSanitizer.sanitize(c) for c in columns]
                 base_table = table
 
-                # resolve output table name
                 output_table = await self._resolve_output_table_name(
                     base_table, schema, backend=backend, data_id=data_id, new_table=new_table
                 )
 
-                # Build a UNION ALL of all pairs (i <= j) to create the result table
+                corr_fn = "CORR" if isinstance(self.db, (PostgresAdapter, DuckDBAdapter)) else "corr"
+
                 union_parts = []
                 for i, ci in enumerate(qcols):
                     for j in range(i, len(qcols)):
                         cj = qcols[j]
-                        # literal column names for the reference columns
                         col1_str = columns[i]
                         col2_str = columns[j]
                         union_parts.append(
                             f"SELECT '{col1_str}' AS column1, '{col2_str}' AS column2, "
-                            f"CORR(\"{ci}\", \"{cj}\") AS value "
+                            f"{corr_fn}(\"{ci}\", \"{cj}\") AS value "
                             f"FROM {q} WHERE \"{ci}\" IS NOT NULL AND \"{cj}\" IS NOT NULL"
                         )
 
@@ -630,10 +782,8 @@ class DataStatsOps:
                 )
                 await self._exec(create_sql)
 
-                # Fetch the long‑format result to build the in‑memory DataFrame
                 rows = await self._fetch(f"SELECT * FROM {self._qualified_table(output_table, schema)}")
 
-                # Build the matrix
                 mat = {col: {} for col in columns}
                 for row in rows:
                     c1 = row["column1"]
@@ -664,12 +814,8 @@ class DataStatsOps:
         data_id: Optional[str] = None,
         new_table: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """
-        Compute pairwise covariance for every pair of columns and store the
-        matrix (as a long‑format table) in a new transient table.
-        """
         try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
                 q = self._qualified_table(table, schema)
                 qcols = [SQLIdentifierSanitizer.sanitize(c) for c in columns]
                 base_table = table
@@ -677,6 +823,8 @@ class DataStatsOps:
                 output_table = await self._resolve_output_table_name(
                     base_table, schema, backend=backend, data_id=data_id, new_table=new_table
                 )
+
+                covar_fn = "COVAR_SAMP" if isinstance(self.db, (PostgresAdapter, DuckDBAdapter)) else "covarSamp"
 
                 union_parts = []
                 for i, ci in enumerate(qcols):
@@ -686,7 +834,7 @@ class DataStatsOps:
                         col2_str = columns[j]
                         union_parts.append(
                             f"SELECT '{col1_str}' AS column1, '{col2_str}' AS column2, "
-                            f"COVAR_SAMP(\"{ci}\", \"{cj}\") AS value "
+                            f"{covar_fn}(\"{ci}\", \"{cj}\") AS value "
                             f"FROM {q} WHERE \"{ci}\" IS NOT NULL AND \"{cj}\" IS NOT NULL"
                         )
 
@@ -726,26 +874,26 @@ class DataStatsOps:
     # CATEGORICAL STATISTICS (scalars – unchanged)
     # =========================================================================
     async def categorical_count(self, table: str, schema: str, column: str) -> Dict[str, Any]:
-        if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+        if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
             return await self.numeric_count(table, schema, column)
-
         else:
             raise self._unsupported_backend_error()
+            
     async def categorical_unique(self, table: str, schema: str, column: str) -> Dict[str, Any]:
-        if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+        if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
             return await self.numeric_unique(table, schema, column)
-
         else:
             raise self._unsupported_backend_error()
+            
     async def categorical_nunique(self, table: str, schema: str, column: str) -> Dict[str, Any]:
-        if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+        if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
             return await self.numeric_nunique(table, schema, column)
-
         else:
             raise self._unsupported_backend_error()
+            
     async def categorical_value_counts(self, table: str, schema: str, column: str, top_n: int = 10) -> Dict[str, Any]:
         try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
                 q = self._qualified_table(table, schema)
                 c = SQLIdentifierSanitizer.sanitize(column)
                 rows = await self._fetch(
@@ -762,7 +910,7 @@ class DataStatsOps:
 
     async def categorical_proportions(self, table: str, schema: str, column: str) -> Dict[str, Any]:
         try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
                 q = self._qualified_table(table, schema)
                 c = SQLIdentifierSanitizer.sanitize(column)
                 total = await self._fetchval(f'SELECT COUNT(*) FROM {q} WHERE "{c}" IS NOT NULL')
@@ -783,11 +931,11 @@ class DataStatsOps:
             return self._error_response(str(e), [column])
 
     async def categorical_mode(self, table: str, schema: str, column: str, top_n: int = 1) -> Dict[str, Any]:
-        if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+        if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
             return await self.numeric_mode(table, schema, column, top_n)
-
         else:
             raise self._unsupported_backend_error()
+            
     async def categorical_chi_square(self, table: str, schema: str, column1: str, column2: str) -> Dict[str, Any]:
         try:
             if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
@@ -820,6 +968,45 @@ class DataStatsOps:
                 if row and row[0]:
                     vals = dict(row[0])
                     dof = (vals['rows'] - 1) * (vals['cols'] - 1)
+                    result = {"chi2": float(vals["chi2"]), "df": int(dof)}
+                    msg = f"Chi-square '{column1}' × '{column2}'"
+                    return self._success_response(msg, [column1, column2], result=result)
+                return self._success_response(f"No chi-square result for '{column1}' × '{column2}'", [column1, column2], result={"chi2": None, "df": 0})
+            elif isinstance(self.db, ClickHouseAdapter):
+                q = self._qualified_table(table, schema)
+                c1 = SQLIdentifierSanitizer.sanitize(column1)
+                c2 = SQLIdentifierSanitizer.sanitize(column2)
+                c1_q = self.db.quote_identifier(c1)
+                c2_q = self.db.quote_identifier(c2)
+                sql = f'''
+                    WITH observed AS (
+                        SELECT {c1_q} AS x, {c2_q} AS y, COUNT(*) as cnt
+                        FROM {q} WHERE {c1_q} IS NOT NULL AND {c2_q} IS NOT NULL
+                        GROUP BY {c1_q}, {c2_q}
+                    ),
+                    row_totals AS (SELECT x, SUM(cnt) as row_total FROM observed GROUP BY x),
+                    col_totals AS (SELECT y, SUM(cnt) as col_total FROM observed GROUP BY y),
+                    grand_total AS (SELECT SUM(cnt) as total FROM observed),
+                    expected AS (
+                        SELECT o.cnt,
+                               (rt.row_total * ct.col_total / gt.total) as expected_count
+                        FROM observed o
+                        JOIN row_totals rt ON o.x = rt.x
+                        JOIN col_totals ct ON o.y = ct.y
+                        CROSS JOIN grand_total gt
+                    )
+                    SELECT chi.chi2, row_count.n_rows, col_count.n_cols
+                    FROM (
+                        SELECT SUM(pow(cnt - expected_count, 2) / expected_count) as chi2
+                        FROM expected
+                    ) chi
+                    CROSS JOIN (SELECT count() as n_rows FROM row_totals) row_count
+                    CROSS JOIN (SELECT count() as n_cols FROM col_totals) col_count
+                '''
+                row = await self._fetch(sql)
+                if row and row[0]:
+                    vals = dict(row[0])
+                    dof = (vals['n_rows'] - 1) * (vals['n_cols'] - 1)
                     result = {"chi2": float(vals["chi2"]), "df": int(dof)}
                     msg = f"Chi-square '{column1}' × '{column2}'"
                     return self._success_response(msg, [column1, column2], result=result)
@@ -866,6 +1053,46 @@ class DataStatsOps:
                 val = await self._fetchval(sql)
                 msg = f"Cramér's V for '{column1}' × '{column2}': {val:.4f}" if val is not None else "N/A"
                 return self._success_response(msg, [column1, column2], result=val)
+            elif isinstance(self.db, ClickHouseAdapter):
+                q = self._qualified_table(table, schema)
+                c1 = SQLIdentifierSanitizer.sanitize(column1)
+                c2 = SQLIdentifierSanitizer.sanitize(column2)
+                c1_q = self.db.quote_identifier(c1)
+                c2_q = self.db.quote_identifier(c2)
+                sql = f'''
+                    WITH observed AS (
+                        SELECT {c1_q} AS x, {c2_q} AS y, COUNT(*) as cnt
+                        FROM {q} WHERE {c1_q} IS NOT NULL AND {c2_q} IS NOT NULL
+                        GROUP BY {c1_q}, {c2_q}
+                    ),
+                    row_totals AS (SELECT x, SUM(cnt) as row_total FROM observed GROUP BY x),
+                    col_totals AS (SELECT y, SUM(cnt) as col_total FROM observed GROUP BY y),
+                    grand_total AS (SELECT SUM(cnt) as total FROM observed),
+                    expected AS (
+                        SELECT o.cnt,
+                               (rt.row_total * ct.col_total / gt.total) as expected_count
+                        FROM observed o
+                        JOIN row_totals rt ON o.x = rt.x
+                        JOIN col_totals ct ON o.y = ct.y
+                        CROSS JOIN grand_total gt
+                    ),
+                    chi AS (
+                        SELECT chi2_data.chi2, row_count.n_rows, col_count.n_cols, gt.total as n
+                        FROM (
+                            SELECT SUM(pow(cnt - expected_count, 2) / expected_count) as chi2
+                            FROM expected
+                        ) chi2_data
+                        CROSS JOIN (SELECT count() as n_rows FROM row_totals) row_count
+                        CROSS JOIN (SELECT count() as n_cols FROM col_totals) col_count
+                        CROSS JOIN grand_total gt
+                    )
+                    SELECT CASE WHEN n_rows = 1 OR n_cols = 1 THEN 0
+                            ELSE sqrt(chi2 / (n * least(n_rows-1, n_cols-1))) END as V
+                    FROM chi
+                '''
+                val = await self._fetchval(sql)
+                msg = f"Cramér's V for '{column1}' × '{column2}': {val:.4f}" if val is not None else "N/A"
+                return self._success_response(msg, [column1, column2], result=val)
             else:
                 raise self._unsupported_backend_error()
         except Exception as e:
@@ -873,7 +1100,7 @@ class DataStatsOps:
 
     async def categorical_theil_u(self, table: str, schema: str, column1: str, column2: str) -> Dict[str, Any]:
         try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
                 q = self._qualified_table(table, schema)
                 c1 = SQLIdentifierSanitizer.sanitize(column1)
                 c2 = SQLIdentifierSanitizer.sanitize(column2)
@@ -935,11 +1162,98 @@ class DataStatsOps:
                 val = await self._fetchval(sql)
                 msg = f"Mutual Information '{column1}' & '{column2}': {val:.4f}" if val is not None else "N/A"
                 return self._success_response(msg, [column1, column2], result=val)
+            elif isinstance(self.db, ClickHouseAdapter):
+                q = self._qualified_table(table, schema)
+                c1 = SQLIdentifierSanitizer.sanitize(column1)
+                c2 = SQLIdentifierSanitizer.sanitize(column2)
+                sql = f'''
+                    WITH joint AS (
+                        SELECT "{c1}", "{c2}", COUNT(*) as cnt
+                        FROM {q} WHERE "{c1}" IS NOT NULL AND "{c2}" IS NOT NULL
+                        GROUP BY "{c1}", "{c2}"
+                    ), total AS (SELECT SUM(cnt) as n FROM joint),
+                       marg_x AS (SELECT "{c1}", SUM(cnt) as x_cnt FROM joint GROUP BY "{c1}"),
+                       marg_y AS (SELECT "{c2}", SUM(cnt) as y_cnt FROM joint GROUP BY "{c2}")
+                    SELECT sum(
+                        (1.0 * cnt / n) *
+                        log((1.0 * cnt / n) / ((1.0 * x_cnt / n) * (1.0 * y_cnt / n)))
+                    ) as mi
+                    FROM joint
+                    JOIN marg_x ON joint."{c1}" = marg_x."{c1}"
+                    JOIN marg_y ON joint."{c2}" = marg_y."{c2}"
+                    CROSS JOIN total
+                '''
+                val = await self._fetchval(sql)
+                msg = f"Mutual Information '{column1}' & '{column2}': {val:.4f}" if val is not None else "N/A"
+                return self._success_response(msg, [column1, column2], result=val)
             else:
                 raise self._unsupported_backend_error()
         except Exception as e:
             return self._error_response(str(e), [column1, column2])
 
+    # =========================================================================
+    # Multi‑column categorical operations that **create a result table**
+    # =========================================================================
+    async def categorical_multi_column_crosstab(
+        self,
+        table: str,
+        schema: str,
+        columns: List[str],
+        backend=None,
+        data_id: Optional[str] = None,
+        new_table: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        try:
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
+                q = self._qualified_table(table, schema)
+                qcols = [SQLIdentifierSanitizer.sanitize(c) for c in columns]
+                base_table = table
+
+                output_table = await self._resolve_output_table_name(
+                    base_table, schema, backend=backend, data_id=data_id, new_table=new_table
+                )
+
+                concat_fn = " || '|' || " if isinstance(self.db, (PostgresAdapter, DuckDBAdapter)) else " concat('|', "
+                # PG/Duck: "c1" || '|' || "c2" 
+                # Clickhouse: concat("c1", '|', "c2")
+                if isinstance(self.db, ClickHouseAdapter):
+                    combined = ", '|', ".join(f'"{c}"' for c in qcols)
+                    combined = f"concat({combined})"
+                else:
+                    combined = " || '|' || ".join(f'"{c}"' for c in qcols)
+
+                where = " AND ".join(f'"{c}" IS NOT NULL' for c in qcols)
+                create_sql = f"""
+                    CREATE TABLE {self._qualified_table(output_table, schema)} AS
+                    SELECT {combined} AS combined_key, COUNT(*) as cnt
+                    FROM {q}
+                    WHERE {where}
+                    GROUP BY combined_key
+                    ORDER BY cnt DESC
+                """
+                await self._exec(create_sql)
+
+                rows = await self._fetch(f"SELECT * FROM {self._qualified_table(output_table, schema)}")
+                result = {r["combined_key"]: {"values": r["combined_key"].split("|"), "count": r["cnt"]} for r in rows}
+                msg = f"Multi-column crosstab for {len(columns)} columns: {len(result)} combinations, stored in '{output_table}'"
+                return self._success_response(msg, columns, result=result, new_table=output_table)
+            else:
+                raise self._unsupported_backend_error()
+        except Exception as e:
+            return self._error_response(str(e), columns)
+
+    async def categorical_multi_column_association(
+        self, table: str, schema: str, columns: List[str]
+    ) -> Dict[str, Any]:
+        try:
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
+                result = {"columns": columns, "status": "placeholder"}
+                msg = f"Association analysis for {len(columns)} columns"
+                return self._success_response(msg, columns, result=result)
+            else:
+                raise self._unsupported_backend_error()
+        except Exception as e:
+            return self._error_response(str(e), columns)
 
     
     # =========================================================================
@@ -947,7 +1261,7 @@ class DataStatsOps:
     # =========================================================================
     async def datetime_min(self, table: str, schema: str, column: str) -> Dict[str, Any]:
         try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
                 q = self._qualified_table(table, schema)
                 c = SQLIdentifierSanitizer.sanitize(column)
                 min_val = await self._fetchval(f'SELECT MIN("{c}") FROM {q} WHERE "{c}" IS NOT NULL')
@@ -959,7 +1273,7 @@ class DataStatsOps:
 
     async def datetime_max(self, table: str, schema: str, column: str) -> Dict[str, Any]:
         try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
                 q = self._qualified_table(table, schema)
                 c = SQLIdentifierSanitizer.sanitize(column)
                 max_val = await self._fetchval(f'SELECT MAX("{c}") FROM {q} WHERE "{c}" IS NOT NULL')
@@ -971,7 +1285,7 @@ class DataStatsOps:
 
     async def datetime_mean(self, table: str, schema: str, column: str) -> Dict[str, Any]:
         try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
                 q = self._qualified_table(table, schema)
                 c = SQLIdentifierSanitizer.sanitize(column)
 
@@ -982,13 +1296,21 @@ class DataStatsOps:
 
                 if isinstance(self.db, PostgresAdapter):
                     epoch_expr = f'EXTRACT(EPOCH FROM "{c}")'
+                    from_epoch_expr = "TO_TIMESTAMP(value_epoch)"
                 elif isinstance(self.db, DuckDBAdapter):
                     epoch_expr = f'epoch(CAST("{c}" AS TIMESTAMP))'
+                    from_epoch_expr = "TO_TIMESTAMP(value_epoch)"
+                elif isinstance(self.db, ClickHouseAdapter):
+                    epoch_expr = f'toUnixTimestamp("{c}")'
+                    from_epoch_expr = "toDateTime(value_epoch)"
                 else:
                     raise self._unsupported_backend_error()
-                from_epoch_expr = "TO_TIMESTAMP(value_epoch)"
+
                 if is_date_only:
-                    from_epoch_expr = f"CAST({from_epoch_expr} AS DATE)"
+                    if isinstance(self.db, ClickHouseAdapter):
+                        from_epoch_expr = f"toDate(value_epoch)"
+                    else:
+                        from_epoch_expr = f"CAST({from_epoch_expr} AS DATE)"
 
                 val = await self._fetchval(
                     f"""
@@ -1010,7 +1332,7 @@ class DataStatsOps:
 
     async def datetime_median(self, table: str, schema: str, column: str) -> Dict[str, Any]:
         try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
                 q = self._qualified_table(table, schema)
                 c = SQLIdentifierSanitizer.sanitize(column)
 
@@ -1022,14 +1344,23 @@ class DataStatsOps:
                 if isinstance(self.db, PostgresAdapter):
                     epoch_expr = f'EXTRACT(EPOCH FROM "{c}")'
                     median_epoch_expr = f'PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY {epoch_expr})'
+                    from_epoch_expr = "TO_TIMESTAMP(value_epoch)"
                 elif isinstance(self.db, DuckDBAdapter):
                     epoch_expr = f'epoch(CAST("{c}" AS TIMESTAMP))'
                     median_epoch_expr = f"MEDIAN({epoch_expr})"
+                    from_epoch_expr = "TO_TIMESTAMP(value_epoch)"
+                elif isinstance(self.db, ClickHouseAdapter):
+                    epoch_expr = f'toUnixTimestamp("{c}")'
+                    median_epoch_expr = f"quantile(0.5)({epoch_expr})"
+                    from_epoch_expr = "toDateTime(value_epoch)"
                 else:
                     raise self._unsupported_backend_error()
-                from_epoch_expr = "TO_TIMESTAMP(value_epoch)"
+
                 if is_date_only:
-                    from_epoch_expr = f"CAST({from_epoch_expr} AS DATE)"
+                    if isinstance(self.db, ClickHouseAdapter):
+                        from_epoch_expr = f"toDate(value_epoch)"
+                    else:
+                        from_epoch_expr = f"CAST({from_epoch_expr} AS DATE)"
 
                 val = await self._fetchval(
                     f"""
@@ -1050,17 +1381,17 @@ class DataStatsOps:
             return self._error_response(str(e), [column])
 
     async def datetime_count(self, table: str, schema: str, column: str) -> Dict[str, Any]:
-        if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+        if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
             return await self.numeric_count(table, schema, column)
-
         else:
             raise self._unsupported_backend_error()
+            
     async def datetime_nunique(self, table: str, schema: str, column: str) -> Dict[str, Any]:
-        if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+        if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
             return await self.numeric_nunique(table, schema, column)
-
         else:
             raise self._unsupported_backend_error()
+            
     async def datetime_diff(self, table: str, schema: str, column: str) -> Dict[str, Any]:
         try:
             if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
@@ -1081,7 +1412,27 @@ class DataStatsOps:
                         FROM {q} WHERE "{c}" IS NOT NULL
                     )
                     SELECT ({diff_expr}) AS diff_seconds
-                    FROM ordered a JOIN ordered b ON a.rn = b.rn - 1
+                    FROM ordered a JOIN ordered b ON a.rn + 1 = b.rn
+                    ORDER BY a."{c}"
+                '''
+                rows = await self._fetch(sql)
+                diffs = [r["diff_seconds"] for r in rows if r["diff_seconds"] is not None]
+                if not diffs:
+                    return self._success_response(f"No time differences for '{column}'", [column], result=[])
+                msg = (f"Time differences for '{column}': count={len(diffs)}, min={min(diffs):.1f}s, "
+                       f"max={max(diffs):.1f}s")
+                return self._success_response(msg, [column], result=diffs)
+            elif isinstance(self.db, ClickHouseAdapter):
+                q = self._qualified_table(table, schema)
+                c = SQLIdentifierSanitizer.sanitize(column)
+                diff_expr = f'toUnixTimestamp(b."{c}") - toUnixTimestamp(a."{c}")'
+                sql = f'''
+                    WITH ordered AS (
+                        SELECT "{c}", ROW_NUMBER() OVER (ORDER BY "{c}") AS rn
+                        FROM {q} WHERE "{c}" IS NOT NULL
+                    )
+                    SELECT ({diff_expr}) AS diff_seconds
+                    FROM ordered a JOIN ordered b ON a.rn + 1 = b.rn
                     ORDER BY a."{c}"
                 '''
                 rows = await self._fetch(sql)
@@ -1118,11 +1469,40 @@ class DataStatsOps:
                         FROM {q} WHERE "{c}" IS NOT NULL
                     ), diffs AS (
                         SELECT ({diff_expr}) AS d
-                        FROM ordered a JOIN ordered b ON a.rn = b.rn - 1
+                        FROM ordered a JOIN ordered b ON a.rn + 1 = b.rn
                     )
                     SELECT COUNT(d) AS cnt, MIN(d) AS min_d, MAX(d) AS max_d,
                            AVG(d) AS avg_d, {median_expr} AS median_d,
                            STDDEV_POP(d) AS std_d
+                    FROM diffs WHERE d IS NOT NULL
+                '''
+                row = await self._fetch(sql)
+                vals = {}
+                if row and row[0] and row[0]["cnt"] > 0:
+                    vals = dict(row[0])
+                    msg = (f"Delta stats for '{column}': count={vals['cnt']}, "
+                           f"min={vals['min_d']:.1f}s, max={vals['max_d']:.1f}s, "
+                           f"avg={vals['avg_d']:.1f}s, median={vals['median_d']:.1f}s, "
+                           f"std={vals['std_d']:.1f}s")
+                else:
+                    msg = f"No delta stats for '{column}'"
+                return self._success_response(msg, [column],result=vals)
+            elif isinstance(self.db, ClickHouseAdapter):
+                q = self._qualified_table(table, schema)
+                c = SQLIdentifierSanitizer.sanitize(column)
+                diff_expr = f'toUnixTimestamp(b."{c}") - toUnixTimestamp(a."{c}")'
+                median_expr = 'quantile(0.5)(d)'
+                sql = f'''
+                    WITH ordered AS (
+                        SELECT "{c}", ROW_NUMBER() OVER (ORDER BY "{c}") AS rn
+                        FROM {q} WHERE "{c}" IS NOT NULL
+                    ), diffs AS (
+                        SELECT ({diff_expr}) AS d
+                        FROM ordered a JOIN ordered b ON a.rn + 1 = b.rn
+                    )
+                    SELECT COUNT(d) AS cnt, MIN(d) AS min_d, MAX(d) AS max_d,
+                           AVG(d) AS avg_d, {median_expr} AS median_d,
+                           stddevPop(d) AS std_d
                     FROM diffs WHERE d IS NOT NULL
                 '''
                 row = await self._fetch(sql)
@@ -1146,7 +1526,6 @@ class DataStatsOps:
             if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
                 q = self._qualified_table(table, schema)
                 c = SQLIdentifierSanitizer.sanitize(column)
-                # Get range and count
                 row = await self._fetch(f'SELECT MIN("{c}") as min_dt, MAX("{c}") as max_dt FROM {q} WHERE "{c}" IS NOT NULL')
                 if not row or not row[0]["min_dt"]:
                     return self._success_response(f"No valid data for event rate in '{column}'", [column])
@@ -1159,6 +1538,29 @@ class DataStatsOps:
                     rate = total / (seconds / units[unit]) if seconds > 0 else 0
                 else:
                     rate = total / (seconds / 86400)  # default day
+                    unit = "day"
+                msg = f"Event rate for '{column}': {rate:.4f} per {unit}"
+                return self._success_response(msg, [column],result=rate)
+            elif isinstance(self.db, ClickHouseAdapter):
+                q = self._qualified_table(table, schema)
+                c = SQLIdentifierSanitizer.sanitize(column)
+                row = await self._fetch(
+                    f'SELECT COUNT(*) AS total, '
+                    f'dateDiff(\'second\', MIN(dt), MAX(dt)) AS seconds '
+                    f'FROM ('
+                    f'    SELECT parseDateTimeBestEffortOrNull(toString("{c}")) AS dt '
+                    f'    FROM {q} WHERE "{c}" IS NOT NULL'
+                    f') WHERE dt IS NOT NULL'
+                )
+                if not row or not row[0]["total"]:
+                    return self._success_response(f"No valid data for event rate in '{column}'", [column])
+                total = row[0]["total"]
+                seconds = row[0]["seconds"] or 0
+                units = {"second": 1, "minute": 60, "hour": 3600, "day": 86400, "week": 604800}
+                if unit in units:
+                    rate = total / (seconds / units[unit]) if seconds > 0 else 0
+                else:
+                    rate = total / (seconds / 86400) if seconds > 0 else 0
                     unit = "day"
                 msg = f"Event rate for '{column}': {rate:.4f} per {unit}"
                 return self._success_response(msg, [column],result=rate)
@@ -1184,6 +1586,25 @@ class DataStatsOps:
                 result = {r["time_unit"]: r["cnt"] for r in rows}
                 msg = f"Counts by {unit} for '{column}': {len(result)} unique values"
                 return self._success_response(msg, [column], result=result)
+            elif isinstance(self.db, ClickHouseAdapter):
+                q = self._qualified_table(table, schema)
+                c = SQLIdentifierSanitizer.sanitize(column)
+                mapping = {
+                    "hour": "toHour", "day": "toDayOfMonth", "month": "toMonth",
+                    "year": "toYear", "dow": "toDayOfWeek", "quarter": "toQuarter"
+                }
+                sql_unit = mapping.get(unit.lower(), "toDayOfMonth")
+                unit_expr = f"{sql_unit}(dt)"
+                rows = await self._fetch(
+                    f'SELECT {unit_expr} as time_unit, COUNT(*) as cnt '
+                    f'FROM ('
+                    f'    SELECT parseDateTimeBestEffortOrNull(toString("{c}")) AS dt '
+                    f'    FROM {q} WHERE "{c}" IS NOT NULL'
+                    f') WHERE dt IS NOT NULL GROUP BY {unit_expr} ORDER BY time_unit'
+                )
+                result = {r["time_unit"]: r["cnt"] for r in rows}
+                msg = f"Counts by {unit} for '{column}': {len(result)} unique values"
+                return self._success_response(msg, [column], result=result)
             else:
                 raise self._unsupported_backend_error()
         except Exception as e:
@@ -1194,9 +1615,32 @@ class DataStatsOps:
             if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
                 q = self._qualified_table(table, schema)
                 c = SQLIdentifierSanitizer.sanitize(column)
+                bucket_expr = f'CASE WHEN EXTRACT(DOW FROM "{c}") IN (0,6) THEN \'weekend\' ELSE \'weekday\' END'
                 rows = await self._fetch(
-                    f'SELECT CASE WHEN EXTRACT(DOW FROM "{c}") IN (0,6) THEN \'weekend\' ELSE \'weekday\' END AS type, '
-                    f'COUNT(*) as cnt FROM {q} WHERE "{c}" IS NOT NULL GROUP BY type'
+                    f'SELECT {bucket_expr} AS type, '
+                    f'COUNT(*) as cnt FROM {q} WHERE "{c}" IS NOT NULL GROUP BY {bucket_expr}'
+                )
+                counts = {r["type"]: r["cnt"] for r in rows}
+                wday = counts.get("weekday", 0)
+                wend = counts.get("weekend", 0)
+                total = wday + wend
+                if total > 0:
+                    msg = (f"Weekday/weekend for '{column}': weekdays={wday} ({wday/total*100:.1f}%), "
+                           f"weekends={wend} ({wend/total*100:.1f}%)")
+                else:
+                    msg = f"No data for '{column}'"
+                return self._success_response(msg, [column],result={"weekday":wday,"weekend":wend})
+            elif isinstance(self.db, ClickHouseAdapter):
+                q = self._qualified_table(table, schema)
+                c = SQLIdentifierSanitizer.sanitize(column)
+                # ClickHouse toDayOfWeek returns 1 for Monday and 7 for Sunday
+                bucket_expr = "CASE WHEN toDayOfWeek(dt) IN (6,7) THEN 'weekend' ELSE 'weekday' END"
+                rows = await self._fetch(
+                    f'SELECT {bucket_expr} AS type, '
+                    f'COUNT(*) as cnt FROM ('
+                    f'    SELECT parseDateTimeBestEffortOrNull(toString("{c}")) AS dt '
+                    f'    FROM {q} WHERE "{c}" IS NOT NULL'
+                    f') WHERE dt IS NOT NULL GROUP BY {bucket_expr}'
                 )
                 counts = {r["type"]: r["cnt"] for r in rows}
                 wday = counts.get("weekday", 0)
@@ -1229,9 +1673,27 @@ class DataStatsOps:
                 total_holidays = sum(v for k,v in counts.items() if k != "non-holiday")
                 msg = f"Holiday counts for '{column}': total holidays={total_holidays}, New Year={counts.get('New Year',0)}, Christmas={counts.get('Christmas',0)}"
                 return self._success_response(msg, [column],result=counts)
+            elif isinstance(self.db, ClickHouseAdapter):
+                q = self._qualified_table(table, schema)
+                c = SQLIdentifierSanitizer.sanitize(column)
+                holiday_expr = (
+                    "CASE "
+                    "WHEN toMonth(dt) = 1 AND toDayOfMonth(dt) = 1 THEN 'New Year' "
+                    "WHEN toMonth(dt) = 12 AND toDayOfMonth(dt) = 25 THEN 'Christmas' "
+                    "ELSE 'non-holiday' END"
+                )
+                rows = await self._fetch(
+                    f'SELECT {holiday_expr} AS holiday, COUNT(*) as cnt '
+                    f'FROM ('
+                    f'    SELECT parseDateTimeBestEffortOrNull(toString("{c}")) AS dt '
+                    f'    FROM {q} WHERE "{c}" IS NOT NULL'
+                    f') WHERE dt IS NOT NULL GROUP BY {holiday_expr}'
+                )
+                counts = {r["holiday"]: r["cnt"] for r in rows}
+                total_holidays = sum(v for k,v in counts.items() if k != "non-holiday")
+                msg = f"Holiday counts for '{column}': total holidays={total_holidays}, New Year={counts.get('New Year',0)}, Christmas={counts.get('Christmas',0)}"
+                return self._success_response(msg, [column],result=counts)
             else:
                 raise self._unsupported_backend_error()
         except Exception as e:
             return self._error_response(str(e), [column])
-
-    

@@ -31,7 +31,7 @@ class StatsOrchestrator:
         Detect column family for stats routing.
         Returns one of: 'numeric', 'categorical', 'datetime'.
         """
-        sample_df = await ops._fetch_data(table, schema, columns=[column],limit = 10)
+        sample_df = await ops._fetch_data(table, schema, columns=[column])
         if sample_df.empty:
             return "categorical"
         
