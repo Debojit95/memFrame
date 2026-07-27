@@ -2,6 +2,7 @@
 Selection operations (asof, at, iat, loc, get, where, iloc, select_dtypes, take)
 """
 
+from datetime import date, datetime
 from typing import Any, Dict, List, Optional, Union
 from collections.abc import Mapping
 import traceback
@@ -10,6 +11,7 @@ import pandas as pd
 from memframe.db_manager.adapters.base import DatabaseAdapter
 from memframe.db_manager.adapters.duckdb import DuckDBAdapter
 from memframe.db_manager.adapters.postgresql import PostgresAdapter
+from memframe.db_manager.adapters.clickhouse import ClickHouseAdapter
 from memframe.utils.helper import SQLIdentifierSanitizer
 
 
@@ -87,6 +89,8 @@ class DataSelectionOps:
             return True
         elif isinstance(self.db, PostgresAdapter):
             return False
+        elif isinstance(self.db, ClickHouseAdapter):
+            return False
         else:
             raise self._unsupported_backend_error()
 
@@ -158,8 +162,7 @@ class DataSelectionOps:
         candidate = await self._generate_transient_table_name(base_table, backend, data_id)
         output_table = SQLIdentifierSanitizer.sanitize(candidate)
         dedupe_idx = 1
-        transient_schema = getattr(backend, "transient_schema", "transient")
-        while await self.db.table_exists(output_table, transient_schema):
+        while await self.db.table_exists(output_table, "transient"):
             output_table = SQLIdentifierSanitizer.sanitize(f"{candidate}_{dedupe_idx}")
             dedupe_idx += 1
         return output_table
@@ -177,6 +180,13 @@ class DataSelectionOps:
                 table,
             )
             return [self._row_get(c, "column_name", 0) for c in cols]
+        elif isinstance(self.db, ClickHouseAdapter):
+            cols = await self._fetch(
+                f"SELECT name FROM system.columns WHERE database = {self.db.placeholder(1)} AND table = {self.db.placeholder(2)}",
+                schema,
+                table,
+            )
+            return [self._row_get(c, "name", 0) for c in cols]
         else:
             raise self._unsupported_backend_error()
 
@@ -199,23 +209,45 @@ class DataSelectionOps:
                 self._row_get(row, "column_name", 0): self._row_get(row, "data_type", 1)
                 for row in rows
             }
+        elif isinstance(self.db, ClickHouseAdapter):
+            rows = await self._fetch(
+                f"SELECT name, type FROM system.columns WHERE database = {self.db.placeholder(1)} AND table = {self.db.placeholder(2)}",
+                schema,
+                table,
+            )
+            return {
+                self._row_get(row, "name", 0): self._row_get(row, "type", 1)
+                for row in rows
+            }
         else:
             raise self._unsupported_backend_error()
 
     @staticmethod
     def _classify_column_type(sql_type: str) -> str:
-        t = sql_type.lower().split("(")[0].strip()
+        low = sql_type.lower()
+        normalized = low
+        if normalized.startswith("nullable(") and normalized.endswith(")"):
+            normalized = normalized[len("nullable("):-1]
+        t = normalized.split("(")[0].strip()
         numeric_types = {
             "smallint", "integer", "bigint", "int2", "int4", "int8",
             "decimal", "numeric", "real", "float4", "float8", "double precision",
             "double", "float",
+            # ClickHouse numeric types
+            "int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64",
+            "float32", "float64"
         }
         categorical_types = {
             "varchar", "character varying", "char", "character", "text",
             "nchar", "nvarchar", "clob",
+            # ClickHouse string types
+            "string", "fixedstring"
         }
         date_types = {"date"}
-        timestamp_types = {"timestamp", "timestamptz", "datetime"}
+        timestamp_types = {
+            "timestamp", "timestamptz", "datetime", "datetime64",
+            "timestamp with time zone", "timestamp without time zone",
+        }
 
         if t in numeric_types:
             return "numeric"
@@ -223,13 +255,36 @@ class DataSelectionOps:
             return "categorical"
         elif t in date_types:
             return "date"
-        elif t in timestamp_types:
+        elif t in timestamp_types or t.startswith("datetime") or low.startswith("timestamp"):
             return "timestamp"
         else:
             return "other"
 
+    def _normalize_asof_value(self, value: Any, column_kind: str) -> Any:
+        if column_kind in {"date", "timestamp"}:
+            ts = pd.Timestamp(value)
+            if column_kind == "date":
+                return ts.date()
+            return ts.to_pydatetime()
+        if column_kind == "numeric":
+            if isinstance(value, str):
+                parsed = pd.to_numeric(value)
+                if hasattr(parsed, "item"):
+                    return parsed.item()
+                return parsed
+            return value
+        return value
+
+    def _normalize_asof_where_value(self, value: Any, column_kind: str) -> Any:
+        normalized = self._normalize_asof_value(value, column_kind)
+        if isinstance(self.db, PostgresAdapter):
+            return normalized
+        if isinstance(normalized, (datetime, date)):
+            return str(pd.Timestamp(normalized))
+        return normalized
+
     # ------------------------------------------------------------------
-    # Selection methods (original, untouched for scalars)
+    # Selection methods
     # ------------------------------------------------------------------
     async def asof(
         self,
@@ -243,17 +298,27 @@ class DataSelectionOps:
         chunk_size: int = None,
     ) -> Dict[str, Any]:
         try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
                 on_quoted = self._quote(on)
-                if isinstance(where, (str, pd.Timestamp)):
-                    where_vals = [str(pd.Timestamp(where))]
+                column_types = await self._get_column_types(table, schema)
+                safe_on = SQLIdentifierSanitizer.sanitize(on)
+                if safe_on not in column_types:
+                    return self._error_response(f"Column '{on}' does not exist")
+                on_kind = self._classify_column_type(column_types[safe_on])
+
+                if isinstance(where, (str, pd.Timestamp, datetime, date)):
+                    where_vals = [self._normalize_asof_where_value(where, on_kind)]
                     is_scalar = True
                 else:
-                    where_vals = [str(pd.Timestamp(w)) for w in where]
+                    where_vals = [
+                        self._normalize_asof_where_value(w, on_kind)
+                        for w in where
+                    ]
                     is_scalar = False
 
+                all_cols = await self._get_all_columns(table, schema)
                 if subset is None:
-                    subset_cols = await self._get_all_columns(table, schema)
+                    subset_cols = all_cols
                 else:
                     if isinstance(subset, str):
                         subset = [subset]
@@ -273,12 +338,16 @@ class DataSelectionOps:
                     """
                     row = await self._fetch(sql, w)
                     if row:
-                        result_rows.append(row[0])
+                        first_row = row[0]
+                        result_rows.append(
+                            tuple(
+                                self._row_get(first_row, col, idx)
+                                for idx, col in enumerate(all_cols)
+                            )
+                        )
                     else:
-                        cols = await self._get_all_columns(table, schema)
-                        result_rows.append(tuple([None] * len(cols)))
+                        result_rows.append(tuple([None] * len(all_cols)))
 
-                all_cols = await self._get_all_columns(table, schema)
                 df = pd.DataFrame(result_rows, columns=all_cols)
                 if is_scalar and not df.empty:
                     sample = df.iloc[0]
@@ -308,7 +377,7 @@ class DataSelectionOps:
         index_column: Optional[str] = None,
     ) -> Dict[str, Any]:
         try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
                 all_columns = await self._get_all_columns(table, schema)
                 if not all_columns:
                     raise KeyError("No columns available in table.")
@@ -355,7 +424,7 @@ class DataSelectionOps:
         order_by: Union[str, List[str]],
     ) -> Dict[str, Any]:
         try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
                 if isinstance(order_by, str):
                     order_by = [order_by]
                 order_clause = ", ".join(self._quote(c) for c in order_by)
@@ -400,7 +469,7 @@ class DataSelectionOps:
         chunk_size: int = None,
     ) -> Dict[str, Any]:
         try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
                 quoted_cols = "*"
                 if column_selector is not None:
                     if isinstance(column_selector, str):
@@ -487,7 +556,7 @@ class DataSelectionOps:
         default: Any = None,
     ) -> Dict[str, Any]:
         try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
                 if isinstance(keys, str):
                     keys = [keys]
                 all_columns = await self._get_all_columns(table, schema)
@@ -526,7 +595,7 @@ class DataSelectionOps:
         chunk_size: int = None,
     ) -> Dict[str, Any]:
         try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
                 columns = await self._get_all_columns(table, schema)
                 cased = []
                 for col in columns:
@@ -602,7 +671,7 @@ class DataSelectionOps:
         chunk_size: int = None,
     ) -> Dict[str, Any]:
         try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
                 if include is None and exclude is None:
                     return self._error_response("At least one of 'include' or 'exclude' must be specified.")
 
@@ -692,7 +761,7 @@ class DataSelectionOps:
         data_id: str = None,
     ) -> Dict[str, Any]:
         try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
                 total_rows = int(
                     self._first_value_from_rows(
                         await self._fetch(
@@ -755,6 +824,17 @@ class DataSelectionOps:
                     ) v ON t._rn = v.idx
                     ORDER BY v.ord
                     """
+                elif isinstance(self.db, ClickHouseAdapter):
+                    idx_arr = "[" + ", ".join(map(str, row_pos_list)) + "]"
+                    ord_arr = "[" + ", ".join(map(str, ord_list)) + "]"
+                    join_clause = f"""
+                    JOIN (
+                        SELECT idx, ord
+                        FROM (SELECT {idx_arr} AS idx_arr, {ord_arr} AS ord_arr)
+                        ARRAY JOIN idx_arr AS idx, ord_arr AS ord
+                    ) v ON t._rn = v.idx
+                    ORDER BY v.ord
+                    """
                 else:
                     raise self._unsupported_backend_error()
 
@@ -812,15 +892,14 @@ class DataSelectionOps:
         backend,
         data_id: str,
     ) -> Dict[str, Any]:
-        if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+        if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
             if backend and data_id:
                 base_table_name = f"iloc_{len(row_pos)}x{len(col_pos)}"
                 new_table = await self._resolve_transient_table_name(base_table_name, backend, data_id)
-                transient_schema = getattr(backend, "transient_schema", "transient")
-                full_new = f"{self.db.quote_identifier(transient_schema)}.{self._quote(new_table)}"
+                full_new = f"{self.db.quote_identifier('transient')}.{self._quote(new_table)}"
                 create_sql = f"CREATE TABLE {full_new} AS {sql}"
                 await self._exec(create_sql)
-                sample = await self._fetch_sample(new_table, transient_schema, columns=selected_cols)
+                sample = await self._fetch_sample(new_table, "transient", columns=selected_cols)
                 return self._success_response(
                     f"iloc rows {row_pos} cols {col_pos}",
                     sample,
@@ -842,7 +921,7 @@ class DataSelectionOps:
             raise self._unsupported_backend_error()
 
     # ------------------------------------------------------------------
-    # take (new)
+    # take 
     # ------------------------------------------------------------------
     async def take(
         self,
@@ -855,7 +934,7 @@ class DataSelectionOps:
     ) -> Dict[str, Any]:
         """Select rows (axis=0) or columns (axis=1) by integer indices, creating a transient table."""
         try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
                 if axis == 0:
                     # row selection by indices
                     return await self.iloc(

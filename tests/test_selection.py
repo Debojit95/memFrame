@@ -13,16 +13,16 @@ import pytest
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 
-from memframe import MemFrame
-from db_test_utils import default_duckdb_test_path
+from src.memframe.main import MemFrame
 
 # ----------------------------------------------------------------------
-# Backend configuration - set environment variables for PostgreSQL
+# Backend configuration - set environment variables for remote databases
 # ----------------------------------------------------------------------
 LOCAL_DB = "local"
 REMOTE_DB = "remote"
 DUCKDB_BACKEND = "duckdb"
 POSTGRES_BACKEND = "postgres"
+CLICKHOUSE_BACKEND = "clickhouse"
 
 BACKEND_PARAMS = {
     LOCAL_DB: {"connection_type": "local", "params": {}},
@@ -44,6 +44,7 @@ BACKEND_ALIASES = {
     REMOTE_DB: POSTGRES_BACKEND,
     DUCKDB_BACKEND: DUCKDB_BACKEND,
     POSTGRES_BACKEND: POSTGRES_BACKEND,
+    CLICKHOUSE_BACKEND: CLICKHOUSE_BACKEND,
 }
 
 # Choose which backends to run when the CLI does not provide --db-backend.
@@ -104,14 +105,14 @@ def _validate_duckdb_params(params: Dict[str, Any]) -> Dict[str, Any]:
     if unknown:
         raise _usage_error(f"DuckDB does not accept params: {', '.join(unknown)}")
 
-    db_path = params.get("db_path", default_duckdb_test_path("selection"))
+    db_path = params.get("db_path", "memFrame_new.duckdb")
     if not isinstance(db_path, str) or not db_path.strip():
         raise _usage_error("DuckDB param 'db_path' must be a non-empty string")
     return {"db_path": db_path}
 
 
 def _validate_postgres_params(params: Dict[str, Any]) -> Dict[str, Any]:
-    allowed = {"backend", "host", "port", "user", "password", "database", "schema_prefix"}
+    allowed = {"backend", "host", "port", "user", "password", "database"}
     unknown = sorted(set(params) - allowed)
     if unknown:
         raise _usage_error(f"Postgres does not accept params: {', '.join(unknown)}")
@@ -131,6 +132,59 @@ def _validate_postgres_params(params: Dict[str, Any]) -> Dict[str, Any]:
     return merged
 
 
+def _env_bool(name: str, default: bool = False) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _validate_clickhouse_params(params: Dict[str, Any]) -> Dict[str, Any]:
+    allowed = {"backend", "host", "port", "user", "password", "database", "secure", "timeout"}
+    unknown = sorted(set(params) - allowed)
+    if unknown:
+        raise _usage_error(f"ClickHouse does not accept params: {', '.join(unknown)}")
+
+    merged: Dict[str, Any] = {
+        "backend": CLICKHOUSE_BACKEND,
+        "host": os.getenv("CLICKHOUSE_HOST", "localhost"),
+        "port": os.getenv("CLICKHOUSE_PORT", 8123),
+        "user": os.getenv("CLICKHOUSE_USER", "default"),
+        "password": os.getenv("CLICKHOUSE_PASSWORD", ""),
+        "secure": _env_bool("CLICKHOUSE_SECURE", False),
+    }
+    if os.getenv("CLICKHOUSE_DATABASE"):
+        merged["database"] = os.getenv("CLICKHOUSE_DATABASE")
+    if os.getenv("CLICKHOUSE_TIMEOUT"):
+        merged["timeout"] = os.getenv("CLICKHOUSE_TIMEOUT")
+    merged.update(params)
+    merged["backend"] = CLICKHOUSE_BACKEND
+
+    for key in ("host", "user"):
+        value = merged.get(key)
+        if not isinstance(value, str) or not value.strip():
+            raise _usage_error(f"ClickHouse param '{key}' must be a non-empty string")
+    password = merged.get("password")
+    if not isinstance(password, str):
+        raise _usage_error("ClickHouse param 'password' must be a string")
+    database = merged.get("database")
+    if database is not None and (not isinstance(database, str) or not database.strip()):
+        raise _usage_error("ClickHouse param 'database' must be a non-empty string")
+    secure = merged.get("secure", False)
+    if isinstance(secure, str):
+        secure = secure.strip().lower() in {"1", "true", "yes", "on"}
+    if not isinstance(secure, bool):
+        raise _usage_error("ClickHouse param 'secure' must be a boolean")
+    merged["secure"] = secure
+    if "timeout" in merged:
+        try:
+            merged["timeout"] = float(merged["timeout"])
+        except (TypeError, ValueError) as exc:
+            raise _usage_error("ClickHouse param 'timeout' must be a number") from exc
+    merged["port"] = _validate_port(merged.get("port", 8123))
+    return merged
+
+
 def _build_backend_config(backend_name: str, params: Dict[str, Any]) -> Dict[str, Any]:
     backend = _normalize_backend_name(backend_name)
     if backend == DUCKDB_BACKEND:
@@ -139,10 +193,16 @@ def _build_backend_config(backend_name: str, params: Dict[str, Any]) -> Dict[str
             "connection_type": "local",
             "params": _validate_duckdb_params(params),
         }
+    if backend == POSTGRES_BACKEND:
+        return {
+            "backend": POSTGRES_BACKEND,
+            "connection_type": "remote",
+            "params": _validate_postgres_params(params),
+        }
     return {
-        "backend": POSTGRES_BACKEND,
+        "backend": CLICKHOUSE_BACKEND,
         "connection_type": "remote",
-        "params": _validate_postgres_params(params),
+        "params": _validate_clickhouse_params(params),
     }
 
 
