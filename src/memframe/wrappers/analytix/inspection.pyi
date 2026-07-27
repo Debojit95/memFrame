@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-from memframe.core.orchestrator.analytix.table_ops import TableOpsOrchestrator
+from memframe.core.orchestrator.analytix.inspection import TableOpsOrchestrator
 
 
 class TableOpsWrapper(TableOpsOrchestrator):

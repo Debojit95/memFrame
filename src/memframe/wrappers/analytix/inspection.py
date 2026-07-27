@@ -7,7 +7,7 @@ if TYPE_CHECKING:
     pass
 
 from memframe.utils.async_sync import async_to_sync
-from memframe.core.orchestrator.analytix.table_ops import TableOpsOrchestrator
+from memframe.core.orchestrator.analytix.inspection import TableOpsOrchestrator
 
 logger = logging.getLogger("memFrame")
 logger.setLevel(logging.INFO)

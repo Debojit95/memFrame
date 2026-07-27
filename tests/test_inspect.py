@@ -609,7 +609,7 @@ class TestInspectionOperations:
         res_df = get_result_df(result)
         expected = sample_df.head(n).reset_index(drop=True)
         # Normalise datetime to string
-        res_df["hire_date"] = res_df["hire_date"].astype(str)
+        res_df["hire_date"] = pd.to_datetime(res_df["hire_date"]).dt.strftime("%Y-%m-%d")
         expected["hire_date"] = expected["hire_date"].dt.strftime("%Y-%m-%d")
         # Normalise string nulls
         for col in ["name", "department"]:
@@ -629,7 +629,7 @@ class TestInspectionOperations:
         res_df = get_result_df(result)
         expected = sample_df.tail(n).reset_index(drop=True)
         # Normalise datetime to string
-        res_df["hire_date"] = res_df["hire_date"].astype(str)
+        res_df["hire_date"] = pd.to_datetime(res_df["hire_date"]).dt.strftime("%Y-%m-%d")
         expected["hire_date"] = expected["hire_date"].dt.strftime("%Y-%m-%d")
         # Normalise string nulls
         for col in ["name", "department"]:
@@ -677,10 +677,15 @@ class TestInspectionOperations:
         expected = sample_df.describe()  # default numeric
         common_stats = ["count", "mean", "std", "min", "25%", "50%", "75%", "max"]
         # Keep only rows that exist in both
-        res_df = res_df[res_df.index.isin(common_stats)]
+        if "statistic" in res_df.columns:
+            res_df = res_df[res_df["statistic"].isin(common_stats)]
+        else:
+            res_df = res_df[res_df.index.isin(common_stats)]
         expected = expected[expected.index.isin(common_stats)]
         # Align columns (numeric)
         numeric_cols = res_df.columns.intersection(expected.columns)
+        if "statistic" in res_df.columns:
+            res_df = res_df.set_index("statistic")
         res_num = res_df[numeric_cols].astype(float)
         exp_num = expected[numeric_cols].astype(float)
         pd.testing.assert_frame_equal(
@@ -688,6 +693,7 @@ class TestInspectionOperations:
             exp_num.sort_index().sort_index(axis=1),
             check_dtype=False,
             check_exact=False,
+            check_names=False,
             atol=0.1,
         )
 
@@ -757,12 +763,21 @@ class TestInspectionOperations:
         assert str(res_df["salary"].dtype) in ("object", "string", "str")
         # Values should be string representations of original numbers (ignoring NaN)
         exp_vals = sample_df["salary"].astype(str).replace("nan", None)
-        res_vals = res_df["salary"].replace("", None).astype(object)
-        # NaNs are tricky, compare non-null values
+        res_vals = res_df["salary"].astype(str).replace("nan", "").replace("", None)
+        # Normalize decimal format: "50000" should match "50000.0"
+        def _normalize_str(s):
+            if s is None:
+                return None
+            s = str(s)
+            if "." in s:
+                s = s.rstrip("0").rstrip(".")
+            return s if s else "0"
         mask = sample_df["salary"].notna()
+        res_norm = res_vals[mask].apply(_normalize_str).reset_index(drop=True)
+        exp_norm = exp_vals[mask].apply(_normalize_str).reset_index(drop=True)
         pd.testing.assert_series_equal(
-            res_vals[mask].reset_index(drop=True),
-            exp_vals[mask].reset_index(drop=True),
+            res_norm,
+            exp_norm,
             check_dtype=False,
         )
         self._record_result(
@@ -852,6 +867,10 @@ class TestInspectionOperations:
         # Drop extra generated column if present
         if "id_1" in res_df.columns:
             res_df = res_df.drop(columns=["id_1"])
+        # Normalize datetime to string for consistent comparison
+        if "hire_date" in res_df.columns and "hire_date" in expected.columns:
+            res_df["hire_date"] = pd.to_datetime(res_df["hire_date"]).dt.strftime("%Y-%m-%d %H:%M:%S")
+            expected["hire_date"] = expected["hire_date"].dt.strftime("%Y-%m-%d %H:%M:%S")
         pd.testing.assert_frame_equal(
             normalize_frame(res_df).sort_values("id").reset_index(drop=True),
             normalize_frame(expected).sort_values("id").reset_index(drop=True),

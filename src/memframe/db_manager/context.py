@@ -95,7 +95,7 @@ class ContextManager:
      
     @property
     def inspect(self):
-        from memframe.wrappers.analytix.inspect import TableOpsWrapper
+        from memframe.wrappers.analytix.inspection import TableOpsWrapper
 
         if self._inspect_wrapper is None:
             self._inspect_wrapper = TableOpsWrapper(self)

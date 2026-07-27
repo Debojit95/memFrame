@@ -2,12 +2,13 @@ from typing import Dict, List, Any, Optional
 import traceback
 import pandas as pd
 from collections import namedtuple
-from datetime import datetime, timezone
+from datetime import datetime
 
 
 from memframe.db_manager.adapters.base import DatabaseAdapter
 from memframe.db_manager.adapters.postgresql import PostgresAdapter
 from memframe.db_manager.adapters.duckdb import DuckDBAdapter
+from memframe.db_manager.adapters.clickhouse import ClickHouseAdapter
 from memframe.utils.helper import SQLIdentifierSanitizer
 
 class GeneralTableOps:
@@ -100,8 +101,68 @@ class GeneralTableOps:
     def _rows_to_records(self, rows: List[Any]) -> List[Dict[str, Any]]:
         return [dict(row) for row in rows]
 
-    def _records_to_dataframe(self, records: List[Dict[str, Any]]) -> pd.DataFrame:
+    def _records_to_dataframe(self, records: List[Dict[str, Any]], table: Optional[str] = None, schema: Optional[str] = None) -> pd.DataFrame:
+        if table and schema:
+            records = self._normalize_records(records, table, schema)
         return pd.DataFrame.from_records(records)
+
+    def _normalize_records(self, records: List[Dict[str, Any]], table: str, schema: str) -> List[Dict[str, Any]]:
+        """Normalize datetime values based on column types.
+        For DATE columns, convert datetime to date (strip time component).
+        For TIMESTAMP columns, keep as datetime.
+        """
+        if not records:
+            return records
+        
+        # This is a sync method - we need column types from a sync context
+        # We'll do a best-effort normalization based on value types
+        # For true type-based normalization, use the async version below
+        normalized = []
+        for record in records:
+            new_record = {}
+            for col, val in record.items():
+                if val is not None and hasattr(val, 'date') and not hasattr(val, 'time'):
+                    # It's a date object already
+                    new_record[col] = val
+                elif val is not None and hasattr(val, 'date'):
+                    # It's a datetime - check if time component is 00:00:00
+                    # We'll convert to date if it looks like a DATE column (midnight timestamp)
+                    if val.hour == 0 and val.minute == 0 and val.second == 0 and val.microsecond == 0:
+                        new_record[col] = val.date()
+                    else:
+                        new_record[col] = val
+                else:
+                    new_record[col] = val
+            normalized.append(new_record)
+        return normalized
+
+    async def _normalize_records_by_type(self, records: List[Dict[str, Any]], table: str, schema: str) -> List[Dict[str, Any]]:
+        """Normalize datetime values based on actual database column types.
+        For DATE columns, convert datetime to date (strip time component).
+        """
+        if not records:
+            return records
+        
+        column_types = await self._get_column_types(table, schema)
+        # Identify DATE columns (not TIMESTAMP)
+        date_columns = {
+            col for col, dtype in column_types.items() 
+            if dtype.lower() in ('date', 'date32')
+        }
+        
+        if not date_columns:
+            return records
+        
+        normalized = []
+        for record in records:
+            new_record = {}
+            for col, val in record.items():
+                if col in date_columns and val is not None and hasattr(val, 'date'):
+                    new_record[col] = val.date()
+                else:
+                    new_record[col] = val
+            normalized.append(new_record)
+        return normalized
 
     async def _get_table_dataframe(
         self, table: str, schema: str, columns: Optional[List[str]] = None
@@ -122,13 +183,24 @@ class GeneralTableOps:
             column_clause = "*"
 
         rows = await self._fetch(f"SELECT {column_clause} FROM {qualified}")
-        return self._records_to_dataframe(self._rows_to_records(rows))
+        records = self._rows_to_records(rows)
+        records = await self._normalize_records_by_type(records, table, schema)
+        return pd.DataFrame.from_records(records)
 
     async def _generate_transient_table_name(self, base_table: str, backend, data_id: str) -> str:
-        max_op = await backend.fetch_val(
+        fetch_scalar = (
+            backend.fetch_val
+            if hasattr(backend, "fetch_val")
+            else backend.fetchval
+        )
+        transient_registry_table = getattr(
+            backend, "transient_registry_table", "registry.transient_registry"
+        )
+
+        max_op = await fetch_scalar(
             f"""
             SELECT COALESCE(MAX(opidx), 0)
-            FROM {backend.transient_registry_table}
+            FROM {transient_registry_table}
             WHERE data_id = {backend.placeholder(1)}
             """,
             data_id,
@@ -139,6 +211,17 @@ class GeneralTableOps:
 
     def _sql_type_for_series(self, series: pd.Series) -> str:
         dtype = series.dtype
+        if isinstance(self.db, ClickHouseAdapter):
+            if pd.api.types.is_bool_dtype(dtype):
+                return "UInt8"
+            if pd.api.types.is_integer_dtype(dtype):
+                return "Int64"
+            if pd.api.types.is_float_dtype(dtype):
+                return "Float64"
+            if pd.api.types.is_datetime64_any_dtype(dtype):
+                return "DateTime"
+            return "String"
+
         if pd.api.types.is_bool_dtype(dtype):
             return "BOOLEAN"
         if pd.api.types.is_integer_dtype(dtype):
@@ -203,7 +286,7 @@ class GeneralTableOps:
             candidate = await self._generate_transient_table_name(base_table, backend, data_id)
         else:
             safe_base = SQLIdentifierSanitizer.sanitize(base_table)
-            ts = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f")
+            ts = datetime.utcnow().strftime("%Y%m%d%H%M%S%f")
             candidate = f"{safe_base}__op_{ts}"
 
         table_name = SQLIdentifierSanitizer.sanitize(candidate)
@@ -221,16 +304,32 @@ class GeneralTableOps:
             sql_type = self._sql_type_for_series(df_to_store[col])
             col_defs.append(f"{self.db.quote_identifier(col)} {sql_type}")
         create_sql = f"CREATE TABLE {qualified_new} ({', '.join(col_defs)})"
+
+        # ClickHouse requires an ENGINE for CREATE TABLE
+        if isinstance(self.db, ClickHouseAdapter):
+            create_sql += " ENGINE = MergeTree() ORDER BY tuple()"
+
         await self._exec(create_sql)
 
         if not df_to_store.empty:
             quoted_cols = ", ".join(self.db.quote_identifier(c) for c in df_to_store.columns)
-            placeholders = ", ".join(self.db.placeholder(i + 1) for i in range(len(df_to_store.columns)))
-            insert_sql = f"INSERT INTO {qualified_new} ({quoted_cols}) VALUES ({placeholders})"
+            rows = [
+                [self._normalize_cell_value(v) for v in row]
+                for row in df_to_store.itertuples(index=False, name=None)
+            ]
 
-            for row in df_to_store.itertuples(index=False, name=None):
-                values = tuple(self._normalize_cell_value(v) for v in row)
-                await self._exec(insert_sql, *values)
+            if isinstance(self.db, ClickHouseAdapter):
+                await self.db.insert_rows(
+                    qualified_new,
+                    rows,
+                    list(df_to_store.columns),
+                )
+            else:
+                placeholders = ", ".join(self.db.placeholder(i + 1) for i in range(len(df_to_store.columns)))
+                insert_sql = f"INSERT INTO {qualified_new} ({quoted_cols}) VALUES ({placeholders})"
+
+                for values in rows:
+                    await self._exec(insert_sql, *values)
 
         return table_name
 
@@ -251,7 +350,7 @@ class GeneralTableOps:
     # ------------------------------------------------------------------
     async def dataframe_head(self, table: str, schema: str, n: int = 10, columns: Optional[List[str]] = None,**kwargs,) -> Dict[str, Any]:
         try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
                 table = SQLIdentifierSanitizer.sanitize(table)
                 qualified = self._qualified_table(table, schema)
                 column_types = await self._get_column_types(table, schema)
@@ -272,7 +371,8 @@ class GeneralTableOps:
 
                 rows = await self._fetch(f"SELECT {column_clause} FROM {qualified} LIMIT {n}")
                 records = self._rows_to_records(rows)
-                df = self._records_to_dataframe(records)
+                records = await self._normalize_records_by_type(records, table, schema)
+                df = pd.DataFrame.from_records(records)
 
                 msg = f"Returned first {n} rows from '{table}'"
                 if selected and len(selected) < 20:
@@ -289,10 +389,9 @@ class GeneralTableOps:
         except Exception as e:
             return self._error_response(f"dataframe_head error: {str(e)}\n{traceback.format_exc()}")
 
-    async def dataframe_tail(self, table: str, schema: str, n: int = 10, columns: Optional[List[str]] = None,**kwargs,) -> Dict[str, Any]:
-        
+    async def dataframe_tail(self, table: str, schema: str, n: int = 10, columns: Optional[List[str]] = None, **kwargs) -> Dict[str, Any]:
         try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
                 table = SQLIdentifierSanitizer.sanitize(table)
                 qualified = self._qualified_table(table, schema)
 
@@ -315,35 +414,45 @@ class GeneralTableOps:
                     column_clause = "*"
                     selected = list(column_types.keys())
 
-                rows = await self._fetch(f"SELECT {column_clause} FROM {qualified} OFFSET {offset} LIMIT {n}")
+                # ───────────────────────────────────────────────
+                # ClickHouse: LIMIT must come BEFORE OFFSET
+                # Postgres/DuckDB: OFFSET before LIMIT (also works)
+                # ───────────────────────────────────────────────
+                if isinstance(self.db, ClickHouseAdapter):
+                    query = f"SELECT {column_clause} FROM {qualified} LIMIT {n} OFFSET {offset}"
+                else:
+                    query = f"SELECT {column_clause} FROM {qualified} OFFSET {offset} LIMIT {n}"
+
+                rows = await self._fetch(query)
                 records = self._rows_to_records(rows)
+                records = await self._normalize_records_by_type(records, table, schema)
 
                 return self._success_response(
                     involved_cols=selected,
                     message=f"Returned last {n} rows from '{table}'",
-                    result=self._records_to_dataframe(records),
+                    result=pd.DataFrame.from_records(records),
                     result_metadata={"row_count": len(records), "total_rows": total_rows},
                 )
             else:
                 raise self._unsupported_backend_error()
         except Exception as e:
             return self._error_response(f"dataframe_tail error: {str(e)}\n{traceback.format_exc()}")
-
+    
     async def dataframe_sample(self, table: str, schema: str, n: int = 10, columns: Optional[List[str]] = None, random_state: Optional[int] = None,**kwargs,) -> Dict[str, Any]:
-        
+
         try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
                 table = SQLIdentifierSanitizer.sanitize(table)
                 qualified = self._qualified_table(table, schema)
 
                 if random_state is not None:
-                    # PostgreSQL only; DuckDB will ignore or you can implement differently
                     if isinstance(self.db, PostgresAdapter):
                         await self._exec(f"SELECT setseed({random_state})")
                     elif isinstance(self.db, DuckDBAdapter):
                         random_state = random_state
-                    else:
-                        raise self._unsupported_backend_error()
+                    elif isinstance(self.db, ClickHouseAdapter):
+                        # ClickHouse does not support setseed; rand() is non-deterministic
+                        pass
 
                 column_types = await self._get_column_types(table, schema)
 
@@ -361,15 +470,23 @@ class GeneralTableOps:
                     column_clause = "*"
                     selected = list(column_types.keys())
 
-                # Use ORDER BY RANDOM() – works in both PostgreSQL and DuckDB
-                query = f"""
-                    SELECT {column_clause}
-                    FROM {qualified}
-                    ORDER BY RANDOM()
-                    LIMIT {n}
-                """
+                if isinstance(self.db, ClickHouseAdapter):
+                    query = f"""
+                        SELECT {column_clause}
+                        FROM {qualified}
+                        ORDER BY rand()
+                        LIMIT {n}
+                    """
+                else:
+                    query = f"""
+                        SELECT {column_clause}
+                        FROM {qualified}
+                        ORDER BY RANDOM()
+                        LIMIT {n}
+                    """
                 rows = await self._fetch(query)
                 records = self._rows_to_records(rows)
+                records = await self._normalize_records_by_type(records, table, schema)
 
                 msg = f"Returned {n} random samples from '{table}'"
                 if random_state is not None:
@@ -378,7 +495,7 @@ class GeneralTableOps:
                 return self._success_response(
                     involved_cols=selected,
                     message=msg,
-                    result=self._records_to_dataframe(records),
+                    result=pd.DataFrame.from_records(records),
                     result_metadata={"row_count": len(records), "sample_size": n},
                 )
             else:
@@ -386,10 +503,9 @@ class GeneralTableOps:
         except Exception as e:
             return self._error_response(f"dataframe_sample error: {str(e)}\n{traceback.format_exc()}")
 
-    
     async def dataframe_info(self, table: str, schema: str, columns: Optional[List[str]] = None, **kwargs) -> Dict[str, Any]:
         try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
                 backend = kwargs.get("backend")
                 data_id = kwargs.get("data_id")
                 requested_new_table = kwargs.get("new_table")
@@ -402,9 +518,6 @@ class GeneralTableOps:
 
                 column_details = []
 
-                # =========================
-                # EXISTING LOGIC (UNCHANGED)
-                # =========================
                 for col_name, data_type in table_info["columns"].items():
                     null_count = await self._fetchval(
                         f'SELECT COUNT(*) FROM {qualified} WHERE "{col_name}" IS NULL'
@@ -426,9 +539,6 @@ class GeneralTableOps:
                         "distinct_count": distinct_count,
                     })
 
-                # =========================
-                # 🔥 NEW: CONVERT TO DATAFRAME
-                # =========================
                 df = self._records_to_dataframe(column_details)
                 output_table = await self._save_dataframe_as_table(
                     df=df,
@@ -445,7 +555,7 @@ class GeneralTableOps:
                     involved_cols=list(table_info["columns"].keys()),
                     generated_cols=list(df.columns),
                     message=msg,
-                    result=df,   # 👈 DataFrame like head/tail
+                    result=df,
                     new_table=output_table,
                     result_metadata={
                         "row_count": len(column_details),
@@ -464,11 +574,11 @@ class GeneralTableOps:
             return self._error_response(
                 f"dataframe_info error: {str(e)}\n{traceback.format_exc()}"
             )
-    
+
     async def dataframe_describe(self, table: str, schema: str, columns: Optional[List[str]] = None, **kwargs) -> Dict[str, Any]:
-        
+
         try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
                 backend = kwargs.get("backend")
                 data_id = kwargs.get("data_id")
                 requested_new_table = kwargs.get("new_table")
@@ -476,9 +586,11 @@ class GeneralTableOps:
                 qualified = self._qualified_table(table, schema)
 
                 column_types = await self._get_column_types(table, schema)
+
                 numeric_types = [
                     "integer", "bigint", "smallint", "decimal", "numeric",
-                    "real", "double precision", "float", "float8", "float4"
+                    "real", "double", "double precision", "float", "float8", "float4",
+                    "int", "uint"
                 ]
 
                 if not columns:
@@ -493,25 +605,30 @@ class GeneralTableOps:
                 sanitized = [SQLIdentifierSanitizer.sanitize(c) for c in columns]
                 column_stats = {}
 
-                # =========================
-                # EXISTING LOGIC (UNCHANGED)
-                # =========================
                 for col in sanitized:
                     if isinstance(self.db, PostgresAdapter):
                         q25_expr = f'PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY "{col}")'
                         median_expr = f'PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY "{col}")'
                         q75_expr = f'PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY "{col}")'
+                        std_expr = f'STDDEV_SAMP("{col}")'
                     elif isinstance(self.db, DuckDBAdapter):
                         q25_expr = f'QUANTILE_CONT("{col}", 0.25)'
                         median_expr = f'QUANTILE_CONT("{col}", 0.5)'
                         q75_expr = f'QUANTILE_CONT("{col}", 0.75)'
+                        std_expr = f'STDDEV_SAMP("{col}")'
+                    elif isinstance(self.db, ClickHouseAdapter):
+                        q25_expr = f'quantile(0.25)("{col}")'
+                        median_expr = f'quantile(0.5)("{col}")'
+                        q75_expr = f'quantile(0.75)("{col}")'
+                        std_expr = f'stddevSamp("{col}")'
                     else:
                         raise self._unsupported_backend_error()
+
                     stats_sql = f"""
                         SELECT
                             COUNT("{col}") as count,
                             AVG("{col}") as mean,
-                            STDDEV_SAMP("{col}") as std,
+                            {std_expr} as std,
                             MIN("{col}") as min,
                             {q25_expr} as q25,
                             {median_expr} as median,
@@ -551,11 +668,6 @@ class GeneralTableOps:
                             column_stats[col]["max"],
                         ]
 
-                # =========================
-                # 🔥 NEW: CONVERT TO DATAFRAME
-                # =========================
-
-                # Convert column-oriented -> row records
                 records = []
                 num_rows = len(summary_stats["statistic"])
 
@@ -576,9 +688,6 @@ class GeneralTableOps:
                     new_table=requested_new_table,
                 )
 
-                # =========================
-                # RETURN LIKE HEAD/TAIL
-                # =========================
                 return self._success_response(
                     involved_cols=columns,
                     generated_cols=list(df.columns),
@@ -599,10 +708,10 @@ class GeneralTableOps:
             return self._error_response(
                 f"dataframe_describe error: {str(e)}\n{traceback.format_exc()}"
             )
-    
+
     async def dataframe_null_analysis(self, table: str, schema: str, columns: Optional[List[str]] = None, **kwargs) -> Dict[str, Any]:
         try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
                 backend = kwargs.get("backend")
                 data_id = kwargs.get("data_id")
                 requested_new_table = kwargs.get("new_table")
@@ -611,23 +720,28 @@ class GeneralTableOps:
 
                 total_rows = await self._fetchval(f"SELECT COUNT(*) FROM {qualified}") or 0
 
-                #  STEP 1: Get ACTUAL DB columns (single source of truth)
-                actual_cols_rows = await self._fetch(f"""
-                    SELECT column_name
-                    FROM information_schema.columns
-                    WHERE table_name = '{table}'
-                    AND table_schema = '{schema}'
-                """)
-                actual_columns = [row["column_name"] for row in actual_cols_rows]
+                if isinstance(self.db, ClickHouseAdapter):
+                    actual_cols_rows = await self._fetch("""
+                        SELECT name
+                        FROM system.columns
+                        WHERE database = ? AND table = ?
+                    """, schema, table)
+                    actual_columns = [row["name"] for row in actual_cols_rows]
+                else:
+                    actual_cols_rows = await self._fetch(f"""
+                        SELECT column_name
+                        FROM information_schema.columns
+                        WHERE table_name = '{table}'
+                        AND table_schema = '{schema}'
+                    """)
+                    actual_columns = [row["column_name"] for row in actual_cols_rows]
 
                 if not actual_columns:
                     return self._error_response("No columns found in table")
 
-                # 🔥 STEP 2: Resolve columns input
                 if columns is None or columns == "*" or columns == ["*"]:
                     target_columns = actual_columns
                 else:
-                    # keep only valid ones
                     target_columns = [c for c in columns if c in actual_columns]
 
                     if not target_columns:
@@ -637,7 +751,6 @@ class GeneralTableOps:
 
                 sanitized = [SQLIdentifierSanitizer.sanitize(c) for c in target_columns]
 
-                # 🔥 STEP 3: Compute null stats
                 null_rows = []
 
                 for col in sanitized:
@@ -653,7 +766,6 @@ class GeneralTableOps:
                         "percent_missing": round(pct, 2),
                     })
 
-                # 🔥 STEP 4: Pandas-style DataFrame (indexed by column)
                 df = self._records_to_dataframe(null_rows)
 
                 if not df.empty:
@@ -668,7 +780,6 @@ class GeneralTableOps:
                     new_table=requested_new_table,
                 )
 
-                # 🔥 STEP 5: Extra stats
                 cols_with_nulls = df[df["contains_null"]] if not df.empty else []
                 max_pct = df["percent_missing"].max() if not df.empty else 0
                 avg_pct = df["percent_missing"].mean() if not df.empty else 0
@@ -698,10 +809,10 @@ class GeneralTableOps:
             return self._error_response(
                 f"dataframe_null_analysis error: {str(e)}\n{traceback.format_exc()}"
             )
-    
+
     async def dataframe_correlation_analysis(self, table: str, schema: str, columns: Optional[List[str]] = None, method: str = "pearson", **kwargs) -> Dict[str, Any]:
         try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
                 backend = kwargs.get("backend")
                 data_id = kwargs.get("data_id")
                 requested_new_table = kwargs.get("new_table")
@@ -712,8 +823,8 @@ class GeneralTableOps:
 
                 numeric_types = [
                     "integer", "bigint", "smallint", "decimal", "numeric",
-                    "real", "double precision", "float", "float8", "float4",
-                    "int", "int4", "int8"
+                    "real", "double", "double precision", "float", "float8", "float4",
+                    "int", "int4", "int8", "uint"
                 ]
 
                 if columns is None or columns == "*" or columns == ["*"]:
@@ -733,37 +844,86 @@ class GeneralTableOps:
                 sanitized = [SQLIdentifierSanitizer.sanitize(c) for c in target_columns]
 
                 corr_matrix = {col: {} for col in sanitized}
+                for col in sanitized:
+                    corr_matrix[col][col] = 1.0
 
-                for i, c1 in enumerate(sanitized):
-                    for j, c2 in enumerate(sanitized):
-                        if i == j:
-                            corr_matrix[c1][c2] = 1.0
-                        elif i < j:
-                            if isinstance(self.db, PostgresAdapter):
-                                c1_expr = f'"{c1}"::DOUBLE PRECISION'
-                                c2_expr = f'"{c2}"::DOUBLE PRECISION'
-                            elif isinstance(self.db, DuckDBAdapter):
+                # ───────────────────────────────────────────────
+                # BATCHED: Single query for all correlations
+                # ───────────────────────────────────────────────
+                if isinstance(self.db, ClickHouseAdapter):
+                    pairs = []
+                    select_parts = []
+                    for i, c1 in enumerate(sanitized):
+                        for j, c2 in enumerate(sanitized):
+                            if i < j:
+                                alias = f"corr_{i}_{j}"
+                                c1_q = self.db.quote_identifier(c1)
+                                c2_q = self.db.quote_identifier(c2)
+                                select_parts.append(
+                                    f"corr({c1_q}, {c2_q}) FILTER (WHERE {c1_q} IS NOT NULL AND {c2_q} IS NOT NULL) AS {self.db.quote_identifier(alias)}"
+                                )
+                                pairs.append((c1, c2, alias))
+
+                    if pairs:
+                        row = await self._fetchrow(
+                            f"SELECT {', '.join(select_parts)} FROM {qualified}"
+                        )
+                        for c1, c2, alias in pairs:
+                            corr_val = row.get(alias) if row else None
+                            val = float(corr_val) if corr_val is not None else None
+                            corr_matrix[c1][c2] = val
+                            corr_matrix[c2][c1] = val
+
+                elif isinstance(self.db, PostgresAdapter):
+                    # Postgres: Build a single query with all CORR() calls
+                    pairs = []
+                    select_parts = []
+                    for i, c1 in enumerate(sanitized):
+                        for j, c2 in enumerate(sanitized):
+                            if i < j:
+                                alias = f"corr_{i}_{j}"
+                                c1_q = f'"{c1}"'
+                                c2_q = f'"{c2}"'
+                                select_parts.append(
+                                    f"CORR({c1_q}::DOUBLE PRECISION, {c2_q}::DOUBLE PRECISION) FILTER (WHERE {c1_q} IS NOT NULL AND {c2_q} IS NOT NULL) AS {alias}"
+                                )
+                                pairs.append((c1, c2, alias))
+
+                    row = await self._fetchrow(
+                        f"SELECT {', '.join(select_parts)} FROM {qualified}"
+                    )
+                    for c1, c2, alias in pairs:
+                        corr_val = row.get(alias) if row else None
+                        val = float(corr_val) if corr_val is not None else None
+                        corr_matrix[c1][c2] = val
+                        corr_matrix[c2][c1] = val
+
+                elif isinstance(self.db, DuckDBAdapter):
+                    # DuckDB: Keep the original per-pair approach (fast enough in-process)
+                    # OR use batch for consistency
+                    for i, c1 in enumerate(sanitized):
+                        for j, c2 in enumerate(sanitized):
+                            if i < j:
                                 c1_expr = f'CAST("{c1}" AS DOUBLE)'
                                 c2_expr = f'CAST("{c2}" AS DOUBLE)'
-                            else:
-                                raise self._unsupported_backend_error()
-                            corr_sql = f"""
-                                SELECT CORR({c1_expr}, {c2_expr})
-                                FROM {qualified}
-                                WHERE "{c1}" IS NOT NULL AND "{c2}" IS NOT NULL
-                            """
-                            try:
-                                corr_val = await self._fetchval(corr_sql)
-                                val = float(corr_val) if corr_val is not None else None
-                                corr_matrix[c1][c2] = val
-                                corr_matrix[c2][c1] = val
-                            except Exception:
-                                corr_matrix[c1][c2] = None
-                                corr_matrix[c2][c1] = None
+                                corr_sql = f"""
+                                    SELECT CORR({c1_expr}, {c2_expr})
+                                    FROM {qualified}
+                                    WHERE "{c1}" IS NOT NULL AND "{c2}" IS NOT NULL
+                                """
+                                try:
+                                    corr_val = await self._fetchval(corr_sql)
+                                    val = float(corr_val) if corr_val is not None else None
+                                    corr_matrix[c1][c2] = val
+                                    corr_matrix[c2][c1] = val
+                                except Exception:
+                                    corr_matrix[c1][c2] = None
+                                    corr_matrix[c2][c1] = None
+
+                else:
+                    raise self._unsupported_backend_error()
 
                 df = pd.DataFrame(corr_matrix)
-
-                # Ensure correct ordering
                 df = df.loc[sanitized, sanitized]
 
                 output_table = await self._save_dataframe_as_table(
@@ -775,7 +935,6 @@ class GeneralTableOps:
                     new_table=requested_new_table,
                 )
 
-                # 🔥 STEP 5: Optional strong correlations (keep your feature)
                 strong = []
                 for i, c1 in enumerate(sanitized):
                     for j, c2 in enumerate(sanitized):
@@ -815,10 +974,11 @@ class GeneralTableOps:
                 raise self._unsupported_backend_error()
         except Exception as e:
             return self._error_response(f"dataframe_correlation_analysis error: {str(e)}\n{traceback.format_exc()}")
-    
+        
+        
     async def dataframe_full_table(self, table: str, schema: str,columns: Optional[List[str]] = None, chunk_size: Optional[int] = None,**kwargs,) -> Dict[str, Any]:
         try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
                 table = SQLIdentifierSanitizer.sanitize(table)
                 qualified = self._qualified_table(table, schema)
                 column_types = await self._get_column_types(table, schema)
@@ -851,7 +1011,8 @@ class GeneralTableOps:
                                 break
 
                             records = self._rows_to_records(rows)
-                            yield self._records_to_dataframe(records)
+                            records = await self._normalize_records_by_type(records, table, schema)
+                            yield pd.DataFrame.from_records(records)
                             offset += chunk_size
 
                     return {
@@ -865,7 +1026,8 @@ class GeneralTableOps:
 
                 rows = await self._fetch(f"SELECT {column_clause} FROM {qualified}")
                 records = self._rows_to_records(rows)
-                df = self._records_to_dataframe(records)
+                records = await self._normalize_records_by_type(records, table, schema)
+                df = pd.DataFrame.from_records(records)
 
                 msg = f"Returned full table '{table}' with {len(records)} rows"
                 if selected and len(selected) < 20:
@@ -882,14 +1044,14 @@ class GeneralTableOps:
         except Exception as e:
             return self._error_response(f"dataframe_full_table error: {str(e)}\n{traceback.format_exc()}")
 
-    
+
     # ------------------------------------------------------------------
     # Additional DataFrame Operations
     # ------------------------------------------------------------------
-    
+
     async def dataframe_astype(self, table: str, schema: str, dtype_map: Dict[str, str], **kwargs) -> Dict[str, Any]:
         try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
                 table = SQLIdentifierSanitizer.sanitize(table)
                 qualified = self._qualified_table(table, schema)
 
@@ -899,6 +1061,7 @@ class GeneralTableOps:
                 column_types = await self._get_column_types(table, schema)
                 actual_columns = set(column_types.keys())
 
+                # Base translations for Postgres/DuckDB
                 dtype_translation = {
                     "int": "INTEGER", "int8": "INTEGER", "int16": "INTEGER", "int32": "INTEGER",
                     "int64": "BIGINT",
@@ -907,7 +1070,35 @@ class GeneralTableOps:
                     "str": "TEXT", "string": "TEXT", "text": "TEXT"
                 }
 
+                # ClickHouse-safe functions (nullable-friendly)
+                ch_type_translation = {
+                    "int": "Int64",
+                    "int8": "Int8",
+                    "int16": "Int16",
+                    "int32": "Int32",
+                    "int64": "Int64",
+                    "float": "Float64",
+                    "float32": "Float32",
+                    "float64": "Float64",
+                    "double": "Float64",
+                    "str": "String",
+                    "string": "String",
+                    "text": "String",
+                }
+                ch_string_cast_functions = {
+                    "int": "toInt64OrNull",
+                    "int8": "toInt8OrNull",
+                    "int16": "toInt16OrNull",
+                    "int32": "toInt32OrNull",
+                    "int64": "toInt64OrNull",
+                    "float": "toFloat64OrNull",
+                    "float32": "toFloat32OrNull",
+                    "float64": "toFloat64OrNull",
+                    "double": "toFloat64OrNull",
+                }
+
                 normalized_map = {}
+                requested_dtype_map = {}
 
                 for col, dtype in dtype_map.items():
                     if col not in actual_columns:
@@ -918,20 +1109,42 @@ class GeneralTableOps:
                     if dtype_lower not in dtype_translation:
                         return self._error_response(f"Unsupported dtype '{dtype}'")
 
-                    normalized_map[col] = dtype_translation[dtype_lower]
+                    if isinstance(self.db, ClickHouseAdapter):
+                        normalized_map[col] = ch_type_translation[dtype_lower]
+                    else:
+                        normalized_map[col] = dtype_translation[dtype_lower]
+                    requested_dtype_map[col] = dtype_lower
 
-                # 🔥 ONLY CASTED COLUMNS (FIX HERE)
                 select_parts = []
                 for col, dtype in normalized_map.items():
                     col_safe = SQLIdentifierSanitizer.sanitize(col)
-                    select_parts.append(f'CAST("{col_safe}" AS {dtype}) AS "{col_safe}"')
+                    
+                    if isinstance(self.db, ClickHouseAdapter):
+                        col_q = self.db.quote_identifier(col_safe)
+                        dtype_lower = requested_dtype_map[col]
+                        source_type = column_types[col].lower()
+                        source_is_string = "string" in source_type or "text" in source_type
+
+                        if dtype == "String":
+                            expr = f"toString({col_q})"
+                        elif source_is_string:
+                            ch_func = ch_string_cast_functions[dtype_lower]
+                            expr = f"{ch_func}({col_q})"
+                        else:
+                            expr = f"CAST({col_q} AS Nullable({dtype}))"
+
+                        select_parts.append(
+                            f"{expr} AS {self.db.quote_identifier(col_safe)}"
+                        )
+                    else:
+                        select_parts.append(f'CAST("{col_safe}" AS {dtype}) AS "{col_safe}"')
 
                 query = f"SELECT {', '.join(select_parts)} FROM {qualified}"
 
                 rows = await self._fetch(query)
                 records = self._rows_to_records(rows)
-
-                df = self._records_to_dataframe(records)
+                records = await self._normalize_records_by_type(records, table, schema)
+                df = pd.DataFrame.from_records(records)
 
                 return self._success_response(
                     message=f"Returned casted columns from '{table}'",
@@ -956,11 +1169,9 @@ class GeneralTableOps:
                 column = SQLIdentifierSanitizer.sanitize(column)
                 qualified = self._qualified_table(table, schema)
 
-                # 🔥 STEP 1: Validate input type
                 if not isinstance(value, list):
                     return self._error_response("Value must be a list")
 
-                # 🔥 STEP 2: Get row count
                 total_rows = await self._fetchval(f"SELECT COUNT(*) FROM {qualified}") or 0
 
                 if len(value) != total_rows:
@@ -968,10 +1179,19 @@ class GeneralTableOps:
                         f"Length mismatch: Expected {total_rows}, got {len(value)}"
                     )
 
-                # 🔥 STEP 3: Add column
-                await self._exec(f'ALTER TABLE {qualified} ADD COLUMN "{column}" TEXT')
+                # Determine column type from values
+                non_none = [v for v in value if v is not None]
+                if all(isinstance(v, bool) for v in non_none):
+                    col_type = "BOOLEAN"
+                elif all(isinstance(v, int) for v in non_none):
+                    col_type = "BIGINT"
+                elif all(isinstance(v, float) for v in non_none):
+                    col_type = "DOUBLE PRECISION"
+                else:
+                    col_type = "TEXT"
 
-                # 🔥 STEP 4: Row-wise update
+                await self._exec(f'ALTER TABLE {qualified} ADD COLUMN "{column}" {col_type}')
+
                 if isinstance(self.db, PostgresAdapter):
                     id_col = "ctid"
                 elif isinstance(self.db, DuckDBAdapter):
@@ -979,12 +1199,10 @@ class GeneralTableOps:
                 else:
                     raise self._unsupported_backend_error()
 
-                # Create temp mapping table
                 temp_table = f"temp_insert_{column}"
 
-                await self._exec(f"CREATE TEMP TABLE {temp_table} (idx INT, val TEXT)")
+                await self._exec(f"CREATE TEMP TABLE {temp_table} (idx INT, val {col_type})")
 
-                # Insert values with index
                 for i, v in enumerate(value):
                     placeholder1 = self.db.placeholder(1)
                     placeholder2 = self.db.placeholder(2)
@@ -992,10 +1210,9 @@ class GeneralTableOps:
                     await self._exec(
                         f"INSERT INTO {temp_table} VALUES ({placeholder1}, {placeholder2})",
                         i,
-                        str(v)
+                        v
                     )
 
-                # Update main table using join
                 update_sql = f"""
                     UPDATE {qualified}
                     SET "{column}" = t.val
@@ -1009,38 +1226,74 @@ class GeneralTableOps:
 
                 await self._exec(update_sql)
 
-                # Cleanup
                 await self._exec(f"DROP TABLE {temp_table}")
+
+                rows = await self._fetch(f"SELECT * FROM {qualified}")
+                records = self._rows_to_records(rows)
+                records = await self._normalize_records_by_type(records, table, schema)
+                current_df = pd.DataFrame.from_records(records)
 
                 return self._success_response(
                     message=f"Column '{column}' created successfully with {total_rows} values",
                     involved_cols=[],
                     generated_cols=[column],
+                    current_state=current_df,
+                )
+
+            elif isinstance(self.db, ClickHouseAdapter):
+                table = SQLIdentifierSanitizer.sanitize(table)
+                column = SQLIdentifierSanitizer.sanitize(column)
+                qualified = self._qualified_table(table, schema)
+
+                if not isinstance(value, list):
+                    return self._error_response("Value must be a list")
+
+                total_rows = await self._fetchval(f"SELECT count() FROM {qualified}") or 0
+
+                if len(value) != total_rows:
+                    return self._error_response(
+                        f"Length mismatch: Expected {total_rows}, got {len(value)}"
+                    )
+
+                # ClickHouse: get current data, add column, recreate table
+                df = await self._get_table_dataframe(table, schema)
+                df[column] = value
+
+                temp_name = await self._save_dataframe_as_table(
+                    df, schema, table, backend=kwargs.get("backend"), data_id=kwargs.get("data_id")
+                )
+                temp_qualified = self._qualified_table(temp_name, schema)
+
+                await self._exec(f"DROP TABLE IF EXISTS {qualified}")
+                await self._exec(f"RENAME TABLE {temp_qualified} TO {qualified}")
+
+                return self._success_response(
+                    message=f"Column '{column}' created successfully with {total_rows} values",
+                    involved_cols=[],
+                    generated_cols=[column],
+                    current_state=df,
                 )
 
             else:
                 raise self._unsupported_backend_error()
         except Exception as e:
             return self._error_response(str(e))
-    
+
     async def dataframe_map(self,table: str,schema: str,func: str,na_action: Optional[str] = None,columns: Optional[List[str]] = None,datetime_action: str = "skip",**kwargs) -> Dict[str, Any]:
-        
+
         try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
                 table = SQLIdentifierSanitizer.sanitize(table)
                 qualified = self._qualified_table(table, schema)
 
                 if not isinstance(func, str):
                     return self._error_response("func must be a SQL expression string using 'x' as placeholder")
 
-                # =========================
-                # STEP 1: GET COLUMN TYPES
-                # =========================
                 column_types = await self._get_column_types(table, schema)
 
                 numeric_types = [
                     "integer", "bigint", "smallint", "decimal", "numeric",
-                    "real", "double precision", "float", "float8", "float4",
+                    "real", "double", "double precision", "float", "float8", "float4",
                     "int", "int4", "int8"
                 ]
 
@@ -1058,9 +1311,6 @@ class GeneralTableOps:
 
                 boolean_types = ["boolean", "bool"]
 
-                # =========================
-                # STEP 2: RESOLVE COLUMNS
-                # =========================
                 if columns is None or columns == "*" or columns == ["*"]:
                     target_columns = list(column_types.keys())
                 else:
@@ -1069,9 +1319,6 @@ class GeneralTableOps:
                 if not target_columns:
                     return self._error_response("No valid columns selected")
 
-                # =========================
-                # STEP 3: BUILD QUERY
-                # =========================
                 select_parts = []
                 applied_cols = []
                 skipped_cols = []
@@ -1082,15 +1329,9 @@ class GeneralTableOps:
 
                     expr = func.replace("x", f'"{col_safe}"')
 
-                    # -------------------------
-                    # NUMERIC
-                    # -------------------------
                     if any(nt in dtype for nt in numeric_types):
                         final_expr = expr
 
-                    # -------------------------
-                    # STRING
-                    # -------------------------
                     elif any(st in dtype for st in string_types):
                         if any(fn in func.upper() for fn in ["UPPER", "LOWER", "LENGTH", "TRIM"]):
                             final_expr = expr
@@ -1098,11 +1339,7 @@ class GeneralTableOps:
                             skipped_cols.append(col)
                             continue
 
-                    # -------------------------
-                    # BOOLEAN
-                    # -------------------------
                     elif any(bt in dtype for bt in boolean_types):
-                        # Auto-cast boolean → integer for numeric ops
                         if any(op in func for op in ["*", "+", "-", "/", "%"]):
                             expr = func.replace("x", f'CAST("{col_safe}" AS INTEGER)')
                             final_expr = expr
@@ -1110,9 +1347,6 @@ class GeneralTableOps:
                             skipped_cols.append(col)
                             continue
 
-                    # -------------------------
-                    # DATETIME 🔥
-                    # -------------------------
                     elif any(dt in dtype for dt in datetime_types):
 
                         if datetime_action == "skip":
@@ -1142,40 +1376,26 @@ class GeneralTableOps:
                                 f"Invalid datetime_action '{datetime_action}'"
                             )
 
-                    # -------------------------
-                    # OTHER TYPES
-                    # -------------------------
                     else:
                         skipped_cols.append(col)
                         continue
 
-                    # -------------------------
-                    # NA HANDLING
-                    # -------------------------
                     if na_action == "ignore":
                         final_expr = f'CASE WHEN "{col_safe}" IS NULL THEN NULL ELSE {final_expr} END'
 
-                    select_parts.append(f"{final_expr} AS \"{col_safe}\"")
+                    select_parts.append(f'{final_expr} AS "{col_safe}"')
                     applied_cols.append(col)
 
-                # =========================
-                # STEP 4: VALIDATE
-                # =========================
                 if not select_parts:
                     return self._error_response("No columns compatible with the given expression")
 
-                # =========================
-                # STEP 5: EXECUTE
-                # =========================
                 query = f"SELECT {', '.join(select_parts)} FROM {qualified}"
 
                 rows = await self._fetch(query)
                 records = self._rows_to_records(rows)
-                df = self._records_to_dataframe(records)
+                records = await self._normalize_records_by_type(records, table, schema)
+                df = pd.DataFrame.from_records(records)
 
-                # =========================
-                # STEP 6: RESPONSE
-                # =========================
                 return self._success_response(
                     message=f"Applied map on {len(applied_cols)} columns, skipped {len(skipped_cols)}",
                     involved_cols=target_columns,
@@ -1198,11 +1418,11 @@ class GeneralTableOps:
             return self._error_response(
                 f"dataframe_map error: {str(e)}\n{traceback.format_exc()}"
             )
-    
-              
+
+
     async def dataframe_rename(self, table: str, schema: str, columns: Dict[str, str], **kwargs    ) -> Dict[str, Any]:
         try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
                 table = SQLIdentifierSanitizer.sanitize(table)
                 qualified = self._qualified_table(table, schema)
 
@@ -1242,70 +1462,104 @@ class GeneralTableOps:
                 return self._success_response(
                     result="Index set", involved_cols=columns
                 )
+            elif isinstance(self.db, ClickHouseAdapter):
+                table = SQLIdentifierSanitizer.sanitize(table)
+                qualified = self._qualified_table(table, schema)
+
+                # ClickHouse uses ORDER BY for sorting; recreate table with proper ORDER BY
+                df = await self._get_table_dataframe(table, schema)
+
+                temp_name = await self._save_dataframe_as_table(df, schema, table)
+                temp_qualified = self._qualified_table(temp_name, schema)
+
+                await self._exec(f"DROP TABLE IF EXISTS {qualified}")
+                await self._exec(f"RENAME TABLE {temp_qualified} TO {qualified}")
+
+                return self._success_response(
+                    result="Index set (ORDER BY in ClickHouse)", involved_cols=columns
+                )
             else:
                 raise self._unsupported_backend_error()
         except Exception as e:
             return self._error_response(str(e))
 
-    
+
     async def dataframe_reset_index(self, table: str, schema: str, **kwargs) -> Dict[str, Any]:
         try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+            if isinstance(self.db, PostgresAdapter):
+                table = SQLIdentifierSanitizer.sanitize(table)
+                qualified = self._qualified_table(table, schema)
+
+                await self._exec(f"""
+                    DO $$
+                    BEGIN
+                        IF EXISTS (
+                            SELECT 1 FROM information_schema.columns
+                            WHERE table_name = '{table}' AND column_name = 'id'
+                        ) THEN
+                            ALTER TABLE {qualified} DROP COLUMN id;
+                        END IF;
+                    END$$;
+                """)
+
+                await self._exec(f'ALTER TABLE {qualified} ADD COLUMN id SERIAL')
+
+                current_df = await self._get_table_dataframe(table, schema)
+
+                return self._success_response(
+                    message="Index reset with new id column",
+                    generated_cols=["id"],
+                    current_state=current_df,
+                )
+
+            elif isinstance(self.db, DuckDBAdapter):
                 table = SQLIdentifierSanitizer.sanitize(table)
                 qualified = self._qualified_table(table, schema)
 
                 temp_table = f"{table}_temp_reset"
+                qualified_temp = f'{self.db.quote_identifier(schema)}.{self.db.quote_identifier(temp_table)}'
 
-                # =========================
-                # POSTGRES
-                # =========================
-                if isinstance(self.db, PostgresAdapter):
+                await self._exec(f"""
+                    CREATE TABLE {qualified_temp} AS
+                    SELECT 
+                        ROW_NUMBER() OVER () AS id,
+                        *
+                    FROM {qualified}
+                """)
 
-                    # Drop existing id if exists
-                    await self._exec(f"""
-                        DO $$
-                        BEGIN
-                            IF EXISTS (
-                                SELECT 1 FROM information_schema.columns
-                                WHERE table_name = '{table}' AND column_name = 'id'
-                            ) THEN
-                                ALTER TABLE {qualified} DROP COLUMN id;
-                            END IF;
-                        END$$;
-                    """)
+                await self._exec(f"DROP TABLE {qualified}")
 
-                    # Add new serial column
-                    await self._exec(f'ALTER TABLE {qualified} ADD COLUMN id SERIAL')
-
-                # =========================
-                # DUCKDB 🔥
-                # =========================
-                elif isinstance(self.db, DuckDBAdapter):
-                    qualified_temp = f'{self.db.quote_identifier(schema)}.{self.db.quote_identifier(temp_table)}'
-
-                    # Create new table with row_number
-                    await self._exec(f"""
-                        CREATE TABLE {qualified_temp} AS
-                        SELECT 
-                            ROW_NUMBER() OVER () AS id,
-                            *
-                        FROM {qualified}
-                    """)
-
-                    # Drop old table
-                    await self._exec(f"DROP TABLE {qualified}")
-
-                    # Rename new table
-                    await self._exec(f"""
+                await self._exec(f"""
                     ALTER TABLE {qualified_temp}
                     RENAME TO {self.db.quote_identifier(table)}
                 """)
-                else:
-                    raise self._unsupported_backend_error()
 
-                # =========================
-                # RETURN
-                # =========================
+                current_df = await self._get_table_dataframe(table, schema)
+
+                return self._success_response(
+                    message="Index reset with new id column",
+                    generated_cols=["id"],
+                    current_state=current_df,
+                )
+
+            elif isinstance(self.db, ClickHouseAdapter):
+                table = SQLIdentifierSanitizer.sanitize(table)
+                qualified = self._qualified_table(table, schema)
+
+                temp_table = f"{table}_temp_reset"
+                qualified_temp = self._qualified_table(temp_table, schema)
+
+                await self._exec(f"""
+                    CREATE TABLE {qualified_temp} AS
+                    SELECT 
+                        ROW_NUMBER() OVER () AS id,
+                        *
+                    FROM {qualified}
+                """)
+
+                await self._exec(f"DROP TABLE IF EXISTS {qualified}")
+                await self._exec(f"RENAME TABLE {qualified_temp} TO {qualified}")
+
                 current_df = await self._get_table_dataframe(table, schema)
 
                 return self._success_response(
@@ -1318,8 +1572,8 @@ class GeneralTableOps:
                 raise self._unsupported_backend_error()
         except Exception as e:
             return self._error_response(str(e))
-    
-    
+
+
     async def dataframe_update(self,table: str,schema: str,other_table: str,other_schema: str,on: str,    overwrite: bool = True,    errors: str = "ignore",    **kwargs) -> Dict[str, Any]:
         try:
             if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
@@ -1333,7 +1587,6 @@ class GeneralTableOps:
                 if errors not in ["ignore", "raise"]:
                     return self._error_response("errors must be 'ignore' or 'raise'")
 
-                # 🔥 STEP 1: Get columns
                 target_cols = await self._get_column_types(table, schema)
                 source_cols = await self._get_column_types(other_table, other_schema)
 
@@ -1346,7 +1599,6 @@ class GeneralTableOps:
                         generated_cols=[]
                     )
 
-                # 🔥 STEP 2: Error handling (non-null conflict)
                 if errors == "raise":
                     for col in common_cols:
                         conflict = await self._fetchval(f"""
@@ -1360,14 +1612,12 @@ class GeneralTableOps:
                                 f"Conflict detected in column '{col}'"
                             )
 
-                # 🔥 STEP 3: Build assignments
                 assignments = []
 
                 for col in common_cols:
                     col_safe = SQLIdentifierSanitizer.sanitize(col)
 
                     if overwrite:
-                        # pandas default
                         expr = f"""
                         "{col_safe}" = CASE
                             WHEN {t2}."{col_safe}" IS NOT NULL THEN {t2}."{col_safe}"
@@ -1375,7 +1625,6 @@ class GeneralTableOps:
                         END
                         """
                     else:
-                        # only update NULLs in original
                         expr = f"""
                         "{col_safe}" = CASE
                             WHEN {t1}."{col_safe}" IS NULL AND {t2}."{col_safe}" IS NOT NULL
@@ -1388,24 +1637,90 @@ class GeneralTableOps:
 
                 assignment_sql = ", ".join(assignments)
 
-                # 🔥 STEP 4: Execute update
                 await self._exec(f"""
                     UPDATE {t1}
                     SET {assignment_sql}
                     FROM {t2}
                     WHERE {t1}."{on}" = {t2}."{on}"
                 """)
-            
-                # 🔥 STEP 5: FETCH SAMPLE (like head)
+
                 sample_rows = await self._fetch(f"""
                     SELECT *
                     FROM {t1}
                     LIMIT 10
                 """)
 
-                sample_df = self._records_to_dataframe(self._rows_to_records(sample_rows))
+                records = self._rows_to_records(sample_rows)
+                records = await self._normalize_records_by_type(records, table, schema)
+                sample_df = pd.DataFrame.from_records(records)
                 return self._success_response(
                     result = sample_df,
+                    message=f"Table '{table}' updated using '{other_table}'",
+                    involved_cols=[on] + common_cols,
+                    generated_cols=common_cols,
+                    result_metadata={
+                        "updated_columns": common_cols,
+                        "overwrite": overwrite,
+                        "errors": errors
+                    }
+                )
+
+            elif isinstance(self.db, ClickHouseAdapter):
+                table = SQLIdentifierSanitizer.sanitize(table)
+                other_table = SQLIdentifierSanitizer.sanitize(other_table)
+                on = SQLIdentifierSanitizer.sanitize(on)
+
+                t1 = self._qualified_table(table, schema)
+                t2 = self._qualified_table(other_table, other_schema)
+
+                if errors not in ["ignore", "raise"]:
+                    return self._error_response("errors must be 'ignore' or 'raise'")
+
+                target_cols = await self._get_column_types(table, schema)
+                source_cols = await self._get_column_types(other_table, other_schema)
+
+                common_cols = [c for c in target_cols if c in source_cols and c != on]
+
+                if not common_cols:
+                    return self._success_response(
+                        message="No overlapping columns to update",
+                        involved_cols=[],
+                        generated_cols=[]
+                    )
+
+                if errors == "raise":
+                    for col in common_cols:
+                        conflict = await self._fetchval(f"""
+                            SELECT count()
+                            FROM {t1}
+                            JOIN {t2} ON {t1}.`{on}` = {t2}.`{on}`
+                            WHERE {t1}.`{col}` IS NOT NULL AND {t2}.`{col}` IS NOT NULL
+                        """)
+                        if conflict > 0:
+                            return self._error_response(
+                                f"Conflict detected in column '{col}'"
+                            )
+
+                assignments = []
+                for col in common_cols:
+                    col_safe = SQLIdentifierSanitizer.sanitize(col)
+                    if overwrite:
+                        expr = f"`{col_safe}` = (SELECT `{col_safe}` FROM {t2} WHERE `{t2}`.`{on}` = `{t1}`.`{on}` LIMIT 1)"
+                    else:
+                        expr = f"`{col_safe}` = CASE WHEN `{t1}`.`{col_safe}` IS NULL THEN (SELECT `{col_safe}` FROM {t2} WHERE `{t2}`.`{on}` = `{t1}`.`{on}` LIMIT 1) ELSE `{t1}`.`{col_safe}` END"
+                    assignments.append(expr)
+
+                assignment_sql = ", ".join(assignments)
+                update_sql = f"ALTER TABLE {t1} UPDATE {assignment_sql} WHERE 1"
+                await self._exec(update_sql)
+
+                sample_rows = await self._fetch(f"SELECT * FROM {t1} LIMIT 10")
+                records = self._rows_to_records(sample_rows)
+                records = await self._normalize_records_by_type(records, table, schema)
+                sample_df = pd.DataFrame.from_records(records)
+
+                return self._success_response(
+                    result=sample_df,
                     message=f"Table '{table}' updated using '{other_table}'",
                     involved_cols=[on] + common_cols,
                     generated_cols=common_cols,
@@ -1420,26 +1735,23 @@ class GeneralTableOps:
                 raise self._unsupported_backend_error()
         except Exception as e:
             return self._error_response(str(e))
-    
+
     async def dataframe_resample(self,table: str,schema: str,time_column: str,    rule: str,
         agg: str = "COUNT",    value_column: Optional[str] = None,    label: str = "left",
         closed: str = "left",    **kwargs,) -> Dict[str, Any]:
         try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
                 table = SQLIdentifierSanitizer.sanitize(table)
                 time_column = SQLIdentifierSanitizer.sanitize(time_column)
                 qualified = self._qualified_table(table, schema)
 
-                # =========================
-                # STEP 1: VALIDATION
-                # =========================
                 column_types = await self._get_column_types(table, schema)
 
                 if time_column not in column_types:
                     return self._error_response(f"Column '{time_column}' not found")
 
                 dtype = column_types[time_column].lower()
-                if "date" not in dtype and "time" not in dtype:
+                if not any(t in dtype for t in ("date", "time", "timestamp")):
                     return self._error_response(f"Column '{time_column}' must be datetime-like")
 
                 if label not in ["left", "right"]:
@@ -1448,9 +1760,6 @@ class GeneralTableOps:
                 if closed not in ["left", "right"]:
                     return self._error_response("closed must be 'left' or 'right'")
 
-                # =========================
-                # STEP 2: AGG COLUMN
-                # =========================
                 if agg.upper() == "COUNT":
                     agg_expr = "COUNT(*)"
                 else:
@@ -1458,23 +1767,13 @@ class GeneralTableOps:
                         return self._error_response("value_column required for aggregation other than COUNT")
 
                     value_column = SQLIdentifierSanitizer.sanitize(value_column)
-                    agg_expr = f"{agg.upper()}(\"{value_column}\")"
+                    agg_expr = f'{agg.upper()}("{value_column}")'
 
-                # =========================
-                # STEP 3: BASE BUCKET
-                # =========================
-                bucket_expr = f"DATE_TRUNC('{rule}', \"{time_column}\")"
+                bucket_expr = f'DATE_TRUNC(\'{rule}\', "{time_column}")'
 
-                # =========================
-                # STEP 4: LABEL HANDLING
-                # =========================
                 if label == "right":
-                    # shift bucket forward by interval
                     bucket_expr = f"{bucket_expr} + INTERVAL '1 {rule}'"
 
-                # =========================
-                # STEP 5: BUILD QUERY
-                # =========================
                 query = f"""
                     SELECT
                         {bucket_expr} AS bucket,
@@ -1486,7 +1785,9 @@ class GeneralTableOps:
 
                 rows = await self._fetch(query)
                 records = self._rows_to_records(rows)
-                df = self._records_to_dataframe(records)
+                records = await self._normalize_records_by_type(records, table, schema)
+                df = pd.DataFrame.from_records(records)
+                df = df.rename(columns={"bucket": time_column})
 
                 return self._success_response(
                     message=f"Resampled '{table}' using rule='{rule}'",
@@ -1508,19 +1809,19 @@ class GeneralTableOps:
             return self._error_response(
                 f"dataframe_resample error: {str(e)}\n{traceback.format_exc()}"
             )
-    
+
     # ------------------------------------------------------------------
     # Metadata / Info Methods
     # ------------------------------------------------------------------
     async def dataframe_axes(self, table: str, schema: str, **kwargs) -> Dict[str, Any]:
         try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
                 columns = list((await self._get_column_types(table, schema)).keys())
                 count = await self._fetchval(
                     f"SELECT COUNT(*) FROM {self._qualified_table(table, schema)}"
                 )
                 index = list(range(count))
-                return self._success_response(result={"axes": [index, columns]})
+                return self._success_response(result=[index, columns])
             else:
                 raise self._unsupported_backend_error()
         except Exception as e:
@@ -1528,9 +1829,9 @@ class GeneralTableOps:
 
     async def dataframe_columns(self, table: str, schema: str, **kwargs) -> Dict[str, Any]:
         try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
                 cols = list((await self._get_column_types(table, schema)).keys())
-                return self._success_response(result={"columns": cols})
+                return self._success_response(result=cols)
             else:
                 raise self._unsupported_backend_error()
         except Exception as e:
@@ -1538,9 +1839,9 @@ class GeneralTableOps:
 
     async def dataframe_dtypes(self, table: str, schema: str, **kwargs) -> Dict[str, Any]:
         try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
                 col_types = await self._get_column_types(table, schema)
-                return self._success_response(result={"dtypes": col_types})
+                return self._success_response(result=col_types)
             else:
                 raise self._unsupported_backend_error()
         except Exception as e:
@@ -1548,7 +1849,7 @@ class GeneralTableOps:
 
     async def dataframe_first_valid_index(self, table: str, schema: str, **kwargs) -> Dict[str, Any]:
         try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
                 qualified = self._qualified_table(table, schema)
                 cols = await self._get_column_types(table, schema)
                 if not cols:
@@ -1566,17 +1867,19 @@ class GeneralTableOps:
 
     async def dataframe_memory_usage(self, table: str, schema: str, **kwargs) -> Dict[str, Any]:
         try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
-                if isinstance(self.db, PostgresAdapter):
-                    relation = f'"{schema}"."{table}"'
-                    size = await self._fetchval(
-                        f"SELECT pg_total_relation_size('{relation}') as total_bytes"
-                    )
-                elif isinstance(self.db, DuckDBAdapter):
-                    # DuckDB does not expose relation size easily
-                    size = None
-                else:
-                    raise self._unsupported_backend_error()
+            if isinstance(self.db, PostgresAdapter):
+                relation = f'"{schema}"."{table}"'
+                size = await self._fetchval(
+                    f"SELECT pg_total_relation_size('{relation}') as total_bytes"
+                )
+                return self._success_response(result={"memory_bytes": size})
+            elif isinstance(self.db, DuckDBAdapter):
+                size = None
+                return self._success_response(result={"memory_bytes": size})
+            elif isinstance(self.db, ClickHouseAdapter):
+                size = await self._fetchval(
+                    f"SELECT sum(bytes) FROM system.parts WHERE database = '{schema}' AND table = '{table}' AND active = 1"
+                )
                 return self._success_response(result={"memory_bytes": size})
             else:
                 raise self._unsupported_backend_error()
@@ -1584,14 +1887,14 @@ class GeneralTableOps:
             return self._error_response(str(e))
 
     async def dataframe_ndim(self, table: str, schema: str, **kwargs) -> Dict[str, Any]:
-        if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+        if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
             return self._success_response(result={"ndim": 2})
 
         else:
             raise self._unsupported_backend_error()
     async def dataframe_shape(self, table: str, schema: str, **kwargs) -> Dict[str, Any]:
         try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
                 rows = await self._fetchval(
                     f"SELECT COUNT(*) FROM {self._qualified_table(table, schema)}"
                 )
@@ -1604,7 +1907,7 @@ class GeneralTableOps:
 
     async def dataframe_size(self, table: str, schema: str, **kwargs) -> Dict[str, Any]:
         try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
                 shape_res = await self.dataframe_shape(table, schema)
                 shape = shape_res["result"]["shape"]
                 return self._success_response(result={"size": shape[0] * shape[1]})
@@ -1615,7 +1918,7 @@ class GeneralTableOps:
 
     async def dataframe_values(self, table: str, schema: str, **kwargs) -> Dict[str, Any]:
         try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
                 rows = await self._fetch(f"SELECT * FROM {self._qualified_table(table, schema)}")
                 values = [list(row.values()) for row in rows]
                 return self._success_response(result={"values": values})
@@ -1632,7 +1935,7 @@ class GeneralTableOps:
         True streaming version: yields (column, Series-like iterator)
         """
         try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
                 table = SQLIdentifierSanitizer.sanitize(table)
                 qualified = self._qualified_table(table, schema)
 
@@ -1651,12 +1954,14 @@ class GeneralTableOps:
                                     yield row[col]
                                 elif isinstance(self.db, DuckDBAdapter):
                                     yield row[0]
+                                elif isinstance(self.db, ClickHouseAdapter):
+                                    yield row[col]
                                 else:
                                     raise self._unsupported_backend_error()
-                                
+
                         yield col, column_generator()
-                    
-                    
+
+
                 return self._success_response(
                     message="Streaming column-wise generator (no full materialization)",
                     result=item_generator(),
@@ -1670,14 +1975,14 @@ class GeneralTableOps:
                 raise self._unsupported_backend_error()
         except Exception as e:
             return self._error_response(str(e))  
-        
+
     async def dataframe_iterrows(self, table: str, schema: str, chunk_size: int = 1000, **kwargs):
         """
         Streaming async version of pandas iterrows()
         Yields (index, row_dict)
         """
         try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
                 table = SQLIdentifierSanitizer.sanitize(table)
                 qualified = self._qualified_table(table, schema)
 
@@ -1690,12 +1995,12 @@ class GeneralTableOps:
                         f"SELECT * FROM {qualified}",
                         chunk_size=chunk_size
                     ):
-                        # 🔥 Handle DB differences
                         if isinstance(self.db, PostgresAdapter):
-                            row_dict = dict(row)   # asyncpg.Record → dict
+                            row_dict = dict(row)
                         elif isinstance(self.db, DuckDBAdapter):
-                            # DuckDB tuple → map with columns
                             row_dict = dict(zip(columns, row))
+                        elif isinstance(self.db, ClickHouseAdapter):
+                            row_dict = dict(row)
                         else:
                             raise self._unsupported_backend_error()
 
@@ -1704,7 +2009,7 @@ class GeneralTableOps:
 
                 return self._success_response(
                     message="Streaming iterrows generator",
-                    result=row_generator(),   # 🔥 return generator directly
+                    result=row_generator(),
                     result_metadata={
                         "mode": "streaming",
                         "column_count": len(columns)
@@ -1715,21 +2020,19 @@ class GeneralTableOps:
                 raise self._unsupported_backend_error()
         except Exception as e:
             return self._error_response(str(e))
-    
+
     async def dataframe_itertuples(self,table: str,schema: str,index: bool = True,name: Optional[str] = "ITER_TUPLES", chunk_size: int = 1000, **kwargs):
         """
         Streaming version of pandas itertuples()
         Yields namedtuples or tuples per row
         """
         try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
                 table = SQLIdentifierSanitizer.sanitize(table)
                 qualified = self._qualified_table(table, schema)
 
-                # 🔥 Get columns
                 columns = list((await self._get_column_types(table, schema)).keys())
 
-                # 🔥 Handle namedtuple creation
                 if name is not None:
                     fields = ["Index"] + columns if index else columns
                     RowTuple = namedtuple(name, fields)
@@ -1743,19 +2046,18 @@ class GeneralTableOps:
                         f"SELECT * FROM {qualified}",
                         chunk_size=chunk_size
                     ):
-                        # 🔥 Normalize row
                         if isinstance(self.db, PostgresAdapter):
                             values = [row[col] for col in columns]
                         elif isinstance(self.db, DuckDBAdapter):
                             values = list(row)
+                        elif isinstance(self.db, ClickHouseAdapter):
+                            values = [row[col] for col in columns]
                         else:
                             raise self._unsupported_backend_error()
 
-                        # 🔥 Add index if needed
                         if index:
                             values = [idx] + values
 
-                        # 🔥 Namedtuple or plain tuple
                         if RowTuple:
                             yield RowTuple(*values)
                         else:
@@ -1789,5 +2091,3 @@ class GeneralTableOps:
             "group_cols": [SQLIdentifierSanitizer.sanitize(c) for c in group_cols],
             "series_col": SQLIdentifierSanitizer.sanitize(series_col) if series_col else None,
         }
-
-    

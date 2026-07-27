@@ -1,6 +1,6 @@
 from typing import Optional, Dict, Any, List
 from memframe.utils.method_call_logger import record_call
-from memframe.core.analytix.table_ops import GeneralTableOps
+from memframe.core.analytix.inspection import GeneralTableOps
 
 
 class TableOpsOrchestrator:

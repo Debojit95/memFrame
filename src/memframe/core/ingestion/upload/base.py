@@ -643,9 +643,6 @@ class Uploader:
     async def _create_table_from_csv(self, table_name: str, file_path: str) -> int:
         encoding = await self._resolve_encoding(file_path)
         
-        # Phase 1: Infer types from CSV sample (first ~1000 rows)
-        columns, schema = await self._infer_types_from_csv(file_path, encoding)
-        
         schema_name = self._backend.upload_schema
         if self._backend.backend == Backend.CLICKHOUSE:
             final_table = f"`{schema_name}`.`{table_name}`"
@@ -653,14 +650,24 @@ class Uploader:
             final_table = f'{schema_name}."{table_name}"'
 
         await self.create_schema_if_not_exists(schema_name)
-        
-        # Phase 2: Create table with PROPER types (not TEXT)
-        await self._create_final_table_typed(final_table, columns, schema)
-        
-        # Phase 3: Stream CSV with proper type conversion directly into typed table
-        await self._stream_csv_typed(final_table, file_path, columns, encoding, schema)
-        
-        # No casting phase needed! Types are already correct.
+
+        if self._backend.backend == Backend.CLICKHOUSE:
+            # ClickHouse: all-text insert then cast (native CSV parser can't handle typed conversion)
+            columns = self._get_csv_columns(file_path, encoding)
+            await self._create_final_table_all_text(final_table, columns)
+            await self._stream_csv_all_text(final_table, file_path, columns, encoding)
+            sample_table = await self._fetch_arrow_sample(final_table, columns, 50)
+            schema = {}
+            for col in columns:
+                chunked = sample_table.column(col)
+                schema[col] = self._type_detector._infer_column(chunked)
+            await self._cast_table_in_place(final_table, columns, schema)
+        else:
+            # DuckDB/PostgreSQL: type-first optimized path
+            columns, schema = await self._infer_types_from_csv(file_path, encoding)
+            await self._create_final_table_typed(final_table, columns, schema)
+            await self._stream_csv_typed(final_table, file_path, columns, encoding, schema)
+
         row_count = await self.fetch_val(f"SELECT COUNT(*) FROM {final_table}")
         return row_count
 
@@ -790,38 +797,8 @@ class Uploader:
         encoding: str,
         schema: Dict[str, Dict[str, Any]],
     ) -> None:
-        """Stream CSV directly into typed table - dispatches to backend-specific implementation."""
-        if self._backend.backend == Backend.CLICKHOUSE:
-            await self._stream_csv_typed_clickhouse(table_name, file_path, columns, encoding, schema)
-        else:
-            await self._stream_csv_typed_pyarrow(table_name, file_path, columns, encoding, schema)
-
-    async def _stream_csv_typed_clickhouse(
-        self,
-        table_name: str,
-        file_path: str,
-        columns: List[str],
-        encoding: str,
-        schema: Dict[str, Dict[str, Any]],
-    ) -> None:
-        """
-        Upload CSV to ClickHouse using native CSVWithNames format.
-        Single HTTP request, native C++ parser - fastest possible.
-        """
-        database, table = self._split_qualified_table_name(table_name)
-        database = database or self._backend.upload_schema
-        
-        columns_str = ", ".join(f"`{col}`" for col in columns)
-        
-        # Read file as binary and stream directly
-        with open(file_path, "rb") as f:
-            csv_data = f.read()
-        
-        # Use ClickHouse native CSV format with headers
-        await self._backend._conn._post(
-            f"INSERT INTO `{database}`.`{table}` ({columns_str}) FORMAT CSVWithNames",
-            data=csv_data,
-        )
+        """Stream CSV directly into typed table using PyArrow reader (DuckDB/PostgreSQL)."""
+        await self._stream_csv_typed_pyarrow(table_name, file_path, columns, encoding, schema)
 
     async def _stream_csv_typed_pyarrow(
         self,
@@ -1123,29 +1100,44 @@ class Uploader:
             final_table = f'{schema_name}."{table_name}"'
 
         await self.create_schema_if_not_exists(schema_name)
-        await self._create_final_table_all_text(final_table, columns)
 
-        # Cast all columns to string
-        str_arrays = []
-        for col in arrow_table.columns:
-            if not pa.types.is_string(col.type):
-                try:
-                    str_arrays.append(col.cast(pa.string()))
-                except (pa.ArrowInvalid, pa.ArrowNotImplementedError):
-                    str_arrays.append(pa.array([str(x) if x is not None else None for x in col.to_pylist()], type=pa.string()))
-            else:
-                str_arrays.append(col)
-        str_table = pa.Table.from_arrays(str_arrays, names=columns)
-
-        await self._insert_arrow_table(final_table, str_table)
-
-        sample_table = await self._fetch_arrow_sample(final_table, columns, 50)
+        # Infer types directly from Arrow schema (no sampling needed)
         schema = {}
+        for i, col in enumerate(columns):
+            pa_field = arrow_table.schema.field(i)
+            pg_type = self._arrow_type_to_postgres(pa_field.type)
+            schema[col] = {"postgres_type": pg_type, "clickhouse_type": self._postgres_type_to_clickhouse(pg_type), "is_nullable": pa_field.nullable}
+
+        # Create table with proper types directly
+        await self._create_final_table_typed(final_table, columns, schema)
+
+        # Cast Arrow table to target schema and insert directly
+        field_list = []
+        for col in columns:
+            pg_type = schema.get(col, {}).get("postgres_type", "TEXT")
+            arrow_type = self._postgres_type_to_arrow(pg_type)
+            field_list.append(pa.field(col, arrow_type))
+        target_schema = pa.schema(field_list)
+        typed_table = arrow_table.cast(target_schema)
+        await self._insert_arrow_table(final_table, typed_table)
+
+        # Sample and re-infer types to catch string→date/int/float patterns Arrow misses
+        sample_table = await self._fetch_arrow_sample(final_table, columns, 50)
+        schema_changed = False
         for col in columns:
             chunked = sample_table.column(col)
-            schema[col] = self._type_detector._infer_column(chunked)
-
-        await self._cast_table_in_place(final_table, columns, schema)
+            inferred = self._type_detector._infer_column(chunked)
+            inferred_type = inferred.get("postgres_type", "TEXT")
+            current_type = schema[col]["postgres_type"]
+            if inferred_type != current_type and current_type == "TEXT":
+                schema[col] = {
+                    "postgres_type": inferred_type,
+                    "clickhouse_type": self._postgres_type_to_clickhouse(inferred_type),
+                    "is_nullable": True,
+                }
+                schema_changed = True
+        if schema_changed:
+            await self._cast_table_in_place(final_table, columns, schema)
 
         upload_name = filename or f"dataframe_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
         upload_name = Path(upload_name).name
