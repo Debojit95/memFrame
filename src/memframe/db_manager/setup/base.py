@@ -147,6 +147,7 @@ class DatabaseBackend(ABC):
             "method_name": "TEXT",
             "args": "TEXT",
             "kwargs": "TEXT",
+            "is_deep_cache": "BOOLEAN",
         }
 
         for column_name, column_type in required_columns.items():

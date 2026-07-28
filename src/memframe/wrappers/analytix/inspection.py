@@ -154,33 +154,6 @@ class TableOpsWrapper(TableOpsOrchestrator):
         return await self.anull_analysis(columns=columns)
 
     # ==========================================================
-    # CORR
-    # ==========================================================
-
-    async def acorr(
-        self,
-        columns: Optional[List[str]] = None,
-        method: str = "pearson",
-    ) -> Dict[str, Any]:
-        """Asynchronously compute correlation matrix for selected columns."""
-        return await super().corr(
-            columns=columns,
-            method=method,
-        )
-
-    @async_to_sync
-    async def corr(
-        self,
-        columns: Optional[List[str]] = None,
-        method: str = "pearson",
-    ) -> Dict[str, Any]:
-        """Synchronously compute correlation matrix for selected columns."""
-        return await self.acorr(
-            columns=columns,
-            method=method,
-        )
-
-    # ==========================================================
     # FULL TABLE
     # ==========================================================
 

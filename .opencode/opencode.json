@@ -1,6 +1,8 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "plugin": [
-    "opencode-omniroute-auth"
+    "opencode-omniroute-auth",
+    "ponytail",
+    "opencode-ponytail"
   ]
 }

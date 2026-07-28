@@ -151,6 +151,20 @@ class OpsManager:
 
         logger.info(f"Deleted dataset {data_id}")
 
+    async def _aclear_cache(self, data_id: str) -> None:
+        """Drop all cached transient tables and clear registry for a dataset. Keeps upload table intact."""
+        rows = await self._backend.fetch(
+            f"SELECT generated_table_name FROM {self._backend.transient_registry_table} "
+            f"WHERE data_id = {self._placeholder(1)} AND generated_table_name IS NOT NULL",
+            data_id,
+        )
+        for row in rows:
+            await self._backend.drop_table(row[0])
+        await self._backend.execute(
+            f"DELETE FROM {self._backend.transient_registry_table} WHERE data_id = {self._placeholder(1)}",
+            data_id,
+        )
+
     async def _arecord_operation(self, data_id: str, operation_type: str, generated_table_name: str) -> int:
         max_op = await self._backend.fetch_val(
             f"SELECT COALESCE(MAX(opidx), 0) FROM {self._backend.transient_registry_table} WHERE data_id = {self._placeholder(1)}",
@@ -170,7 +184,7 @@ class OpsManager:
         logger.info(f"Recorded operation {opidx} ({operation_type}) for {data_id} -> {generated_table_name}")
         return opidx
 
-    async def _arecord_method_call( self, data_id: str, class_name: str, method_name: str, args: tuple, kwargs: dict, generated_table_name: Optional[str] = None) -> int:
+    async def _arecord_method_call( self, data_id: str, class_name: str, method_name: str, args: tuple, kwargs: dict, generated_table_name: Optional[str] = None, is_deep_cache: bool = False) -> int:
         """
         Log a method call into transient_registry. If the call generates a table,
         pass its name as `generated_table_name`.
@@ -190,12 +204,12 @@ class OpsManager:
             INSERT INTO {self._backend.transient_registry_table}
                 (data_id, opidx, operation_type,
                 class_name, method_name, args, kwargs,
-                generated_table_name)               -- included
+                generated_table_name, is_deep_cache)
             VALUES
                 ({self._placeholder(1)}, {self._placeholder(2)}, {self._placeholder(3)},
                 {self._placeholder(4)}, {self._placeholder(5)},
                 {self._placeholder(6)}, {self._placeholder(7)},
-                {self._placeholder(8)})
+                {self._placeholder(8)}, {self._placeholder(9)})
             """,
             data_id,
             opidx,
@@ -205,11 +219,13 @@ class OpsManager:
             json.dumps(args),
             json.dumps(kwargs),
             generated_table_name,                     # NULL or actual name
+            is_deep_cache,
         )
         logger.debug(
             f"Recorded method call {class_name}.{method_name} "
             f"→ data_id={data_id}, opidx={opidx}"
             + (f", table={generated_table_name}" if generated_table_name else "")
+            + f", deep_cache={is_deep_cache}"
         )
         return opidx
     

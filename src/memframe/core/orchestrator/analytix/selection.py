@@ -183,7 +183,7 @@ class SelectionOrchestrator:
 
         return result
 
-    @record_call
+    @record_call(deep_cache=True)
     async def where(
         self,
         cond: str,
@@ -202,7 +202,7 @@ class SelectionOrchestrator:
         )
         return result
 
-    @record_call
+    @record_call(deep_cache=True)
     async def select_dtypes(
         self,
         include: Optional[Union[str, List[str]]] = None,
@@ -292,7 +292,7 @@ class SelectionOrchestrator:
         )
         return result
 
-    @record_call
+    @record_call(deep_cache=True)
     async def take(
         self,
         indices: List[int],

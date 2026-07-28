@@ -215,7 +215,7 @@ class StatsOrchestrator:
         return await ops.numeric_outliers_zscore(table, schema, column, threshold)
 
     # ── Methods that **return DataFrames** → table creation + call recording ──
-    @record_call
+    @record_call(deep_cache=True)
     async def corr(self, columns: List[str] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
@@ -241,7 +241,7 @@ class StatsOrchestrator:
             backend=backend, data_id=data_id
         )
 
-    @record_call
+    @record_call(deep_cache=True)
     async def cov(self, columns: List[str] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()

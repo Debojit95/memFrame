@@ -69,18 +69,6 @@ class TableOpsWrapper(TableOpsOrchestrator):
         columns: Optional[List[str]] = None,
     ) -> Dict[str, Any]: ...
 
-    async def acorr(
-        self,
-        columns: Optional[List[str]] = None,
-        method: str = "pearson",
-    ) -> Dict[str, Any]: ...
-
-    def corr(
-        self,
-        columns: Optional[List[str]] = None,
-        method: str = "pearson",
-    ) -> Dict[str, Any]: ...
-
     async def afull_table(
         self,
         columns: Optional[List[str]] = None,

@@ -42,19 +42,19 @@ class TableOpsOrchestrator:
             random_state=random_state,
         )
 
-    @record_call
+    @record_call(deep_cache=False)
     async def info(self) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
         return await ops.dataframe_info(table, schema)
 
-    @record_call
+    @record_call(deep_cache=False)
     async def describe(self, columns: Optional[List[str]] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
         return await ops.dataframe_describe(table, schema, columns=columns)
 
-    @record_call
+    @record_call(deep_cache=False)
     async def null_analysis(self, columns: Optional[List[str]] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
@@ -71,16 +71,7 @@ class TableOpsOrchestrator:
 
         return await ops.dataframe_null_analysis(table, schema, columns=columns)
 
-    @record_call
-    async def corr(self, columns: Optional[List[str]] = None, method: str = "pearson",) -> Dict[str, Any]:
-        ops = await self._ensure_ops()
-        table, schema = await self._get_context()
-        return await ops.dataframe_correlation_analysis(
-            table,
-            schema,
-            columns=columns,
-            method=method,
-        )
+    
 
     async def full_table(self,  columns: Optional[List[str]] = None,chunk_size: Optional[int] = None,) -> Dict[str, Any]:    
         ops = await self._ensure_ops()
@@ -142,7 +133,7 @@ class TableOpsOrchestrator:
             value=value,
         )
 
-    @record_call
+    @record_call(deep_cache=True)
     async def map(self, func: str, na_action: Optional[str] = None,columns: Optional[List[str]] = None,datetime_action: str = "skip",):
         
         ops = await self._ensure_ops()
@@ -167,25 +158,25 @@ class TableOpsOrchestrator:
             datetime_action=datetime_action,
         )
 
-    @record_call
+    @record_call(deep_cache=True)
     async def rename(self, columns: Dict[str, str]) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
         return await ops.dataframe_rename(table, schema, columns=columns)
 
-    @record_call
+    @record_call(deep_cache=True)
     async def set_index(self, columns: List[str]) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
         return await ops.dataframe_set_index(table, schema, columns=columns)
 
-    @record_call
+    @record_call(deep_cache=True)
     async def reset_index(self) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
         return await ops.dataframe_reset_index(table, schema)
 
-    @record_call
+    @record_call(deep_cache=True)
     async def update(self, on: str, other_table: str, other_schema: str = "upload",overwrite: bool = True, errors: str = "ignore",) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
@@ -202,7 +193,7 @@ class TableOpsOrchestrator:
             errors=errors,
         )
 
-    @record_call
+    @record_call(deep_cache=True)
     async def resample( self,time_column: str, rule: str,agg: str = "COUNT",  value_column: Optional[str] = None,label: str = "left", closed: str = "left",) -> Dict[str, Any]:
         
         ops = await self._ensure_ops()

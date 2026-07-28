@@ -58,7 +58,7 @@ class CleaningOrchestrator:
     # ------------------------------------------------------------------
     # Public API (pandas‑like names)
     # ------------------------------------------------------------------
-    @record_call
+    @record_call(deep_cache=True)
     async def fillna(self, column: str,value: Optional[Any] = None, method: str = "mean", mapping: Optional[Dict[Any, Any]] = None, dtype: Optional[str] = None,) -> Dict[str, Any]:
         """
         Fill null values in a column using the specified method.
@@ -124,7 +124,7 @@ class CleaningOrchestrator:
 
         return await ops.categorical_fillna(table, schema, column, mode=method_lower.upper(), value=value, mapping=mapping, **persist)
 
-    @record_call
+    @record_call(deep_cache=True)
     async def clip(self, column: str,  lower: int|float = None, upper: int|float = None,) -> Dict[str, Any]:
         """
         Trim values at lower and/or upper bounds. Out‑of‑bounds become NULL.
@@ -144,7 +144,7 @@ class CleaningOrchestrator:
             table, schema, column, lower, upper, **self._persistence_context()
         )
 
-    @record_call
+    @record_call(deep_cache=True)
     async def drop_outliers(self, column: str, z_thresh: float = 3.0,) -> Dict[str, Any]:
         """
         Remove outliers using Z‑score method. Outliers become NULL.
@@ -162,7 +162,7 @@ class CleaningOrchestrator:
             table, schema, column, z_thresh, **self._persistence_context()
         )
 
-    @record_call
+    @record_call(deep_cache=True)
     async def to_numeric(self, column: str, ) -> Dict[str, Any]:
         """
         Convert a text column to numeric, stripping non‑numeric characters.
@@ -177,7 +177,7 @@ class CleaningOrchestrator:
         table, schema = await self._get_context()
         return await ops.numeric_convert_text(table, schema, column, **self._persistence_context())
 
-    @record_call
+    @record_call(deep_cache=True)
     async def map_values(self, column: str, mapping: Dict[Any, Any],) -> Dict[str, Any]:
         """
         Replace categorical values using a mapping dictionary.
@@ -195,7 +195,7 @@ class CleaningOrchestrator:
             table, schema, column, mapping, **self._persistence_context()
         )
 
-    @record_call
+    @record_call(deep_cache=True)
     async def filter_valid( self, column: str, valid_values: List[str]) -> Dict[str, Any]:
         """
         Set values not in `valid_values` to NULL.
@@ -213,7 +213,7 @@ class CleaningOrchestrator:
             table, schema, column, valid_values, **self._persistence_context()
         )
 
-    @record_call
+    @record_call(deep_cache=True)
     async def compress_rare(self, column: str, min_count: int = 10, other_label: str = "other",) -> Dict[str, Any]:
         """
         Replace rare categories (appearing less than `min_count` times)
@@ -233,7 +233,7 @@ class CleaningOrchestrator:
             table, schema, column, min_count, other_label, **self._persistence_context()
         )
 
-    @record_call
+    @record_call(deep_cache=True)
     async def fix_dates(self, column: str,) -> Dict[str, Any]:
         """
         Fix common invalid date strings (e.g., '0000-00-00') by setting to NULL.
@@ -250,7 +250,7 @@ class CleaningOrchestrator:
             table, schema, column, **self._persistence_context()
         )
 
-    @record_call
+    @record_call(deep_cache=True)
     async def clip_dates(self, column: str,min_dt: Optional[str] = None, max_dt: Optional[str] = None,) -> Dict[str, Any]:
         """
         Remove dates outside a specified range (set to NULL).
@@ -269,7 +269,7 @@ class CleaningOrchestrator:
             table, schema, column, min_dt, max_dt, **self._persistence_context()
         )
 
-    @record_call
+    @record_call(deep_cache=True)
     async def groupby_fillna(self, column: str, group_cols: List[str], value: Optional[Any] = None, method: str = "mean", dtype: Optional[str] = None,) -> Dict[str, Any]:
         """
         Groupby-based fillna.
@@ -383,7 +383,7 @@ class CleaningOrchestrator:
             **persist,
         )
          
-    @record_call       
+    @record_call(deep_cache=False)       
     async def dropna(self, axis: int = 0, how: str = "any", thresh: Optional[int] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
@@ -397,7 +397,7 @@ class CleaningOrchestrator:
             **self._persistence_context(),
         )
     
-    @record_call
+    @record_call(deep_cache=False)
     async def drop(self, axis: int = 0, index: Optional[List[int]] = None, columns: Optional[List[str]] = None,) -> Dict[str, Any]:
         """
         Drop rows or columns from the active dataset.
@@ -432,19 +432,19 @@ class CleaningOrchestrator:
             **self._persistence_context(),
         )
     
-    @record_call
+    @record_call(deep_cache=False)
     async def isna(self) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
         return await ops.dataframe_isna(table, schema, **self._persistence_context())
     
-    @record_call    
+    @record_call(deep_cache=False)    
     async def notna(self) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
         return await ops.dataframe_notna(table, schema, **self._persistence_context())
 
-    @record_call
+    @record_call(deep_cache=True)
     async def drop_duplicates(self,  subset: Optional[List[str]] = None,  keep: Union[str, bool] = "first",) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         
@@ -461,26 +461,26 @@ class CleaningOrchestrator:
         
         
     # ── data quality ─────────────────────────────────
-    @record_call
+    @record_call(deep_cache=False)
     async def data_quality_missing_values(self, columns: List[str]) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
         return await ops.data_quality_missing_values(table, schema, columns)
 
-    @record_call
+    @record_call(deep_cache=False)
     async def data_quality_completeness_score(self, columns: List[str]) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
         return await ops.data_quality_completeness_score(table, schema, columns)
 
     # ── comprehensive ────────────────────────────────
-    @record_call
+    @record_call(deep_cache=False)
     async def comprehensive_numeric_summary(self, columns: List[str]) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
         return await ops.comprehensive_numeric_summary(table, schema, columns)
 
-    @record_call
+    @record_call(deep_cache=False)
     async def statistical_profile_report(self, columns: List[str]) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()

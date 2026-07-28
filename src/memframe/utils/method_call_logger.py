@@ -1,250 +1,144 @@
 import asyncio
 import json
 from functools import wraps
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, Optional
 
 import pandas as pd
+import pyarrow as pa
 
 from memframe.core.ingestion.datatype_detector import Backend
-from memframe.utils.helper import SQLIdentifierSanitizer
 
 
 def _json_signature(value: Any) -> str:
-    """
-    Keep signature generation aligned with _arecord_method_call storage.
-    This provides strict byte-level arg/kwarg matching.
-    """
     return json.dumps(value)
 
 
-def _quote_ident(name: str) -> str:
-    return f'"{name}"'
+def _make_writer(mf):
+    async def writer(payload, data_id, generated_table_name=None, is_deep_cache=False):
+        await mf._arecord_method_call(
+            data_id=data_id,
+            class_name=payload["class_name"],
+            method_name=payload["method_name"],
+            args=payload["args"],
+            kwargs=payload["kwargs"],
+            generated_table_name=generated_table_name,
+            is_deep_cache=is_deep_cache,
+        )
+    return writer
 
 
-async def _find_cached_generated_table(
-    memframe_instance,
-    data_id: str,
-    class_name: str,
-    method_name: str,
-    args_sig: str,
-    kwargs_sig: str,
-) -> Optional[str]:
-    backend = getattr(memframe_instance, "_backend", None)
-    if backend is None:
+async def _load_generated_table(backend, qualified: str) -> Optional[pd.DataFrame]:
+    try:
+        rows = await backend.fetch(f"SELECT * FROM {qualified}")
+        if not rows:
+            return None
+        # ponytail: per-backend column name query — real backend difference
+        be = getattr(backend, "backend", None)
+        if be == Backend.POSTGRES:
+            schema, table = qualified.replace('"', "").split(".")
+            col_rows = await backend.fetch(
+                "SELECT column_name FROM information_schema.columns "
+                "WHERE table_schema = $1 AND table_name = $2",
+                schema.strip(), table.strip(),
+            )
+            col_names = [r[0] for r in col_rows]
+        elif be == Backend.CLICKHOUSE:
+            col_rows = await backend.fetch(f"DESCRIBE TABLE {qualified}")
+            col_names = [r[0] for r in col_rows]
+        else:
+            col_rows = await backend.fetch(f"DESCRIBE {qualified}")
+            col_names = [r[0] for r in col_rows]
+        return pd.DataFrame(rows, columns=col_names)
+    except Exception:
         return None
 
-    p1 = backend.placeholder(1)
-    p2 = backend.placeholder(2)
-    p3 = backend.placeholder(3)
-    p4 = backend.placeholder(4)
-    p5 = backend.placeholder(5)
 
-    row = await backend.fetch_one(
-        f"""
-        SELECT generated_table_name
-        FROM {backend.transient_registry_table}
-        WHERE data_id = {p1}
-          AND operation_type = 'method_call'
-          AND class_name = {p2}
-          AND method_name = {p3}
-          AND args = {p4}
-          AND kwargs = {p5}
-          AND generated_table_name IS NOT NULL
-        ORDER BY opidx DESC
-        LIMIT 1
-        """,
-        data_id,
-        class_name,
-        method_name,
-        args_sig,
-        kwargs_sig,
+async def _create_deep_cache_table(mf, backend, data_id: str, df: pd.DataFrame) -> str:
+    op = await backend.fetch_val(
+        f"SELECT COALESCE(MAX(opidx), 0) FROM {backend.transient_registry_table} "
+        f"WHERE data_id = {backend.placeholder(1)}", data_id,
     )
-    if not row:
-        return None
-    table_name = row[0]
-    return table_name or None
+    op = (op or 0) + 1
+    qualified = backend.get_transient_table_name(data_id, op)
+    arrow = pa.Table.from_pandas(df, preserve_index=False)
+    await mf._create_final_table_all_text(qualified, arrow.schema.names)
+    await mf._insert_arrow_table(qualified, arrow)
+    return qualified
 
 
-async def _load_generated_table(memframe_instance, generated_table_name: str) -> Optional[pd.DataFrame]:
-    backend = getattr(memframe_instance, "_backend", None)
-    if backend is None:
-        return None
-
-    if "." in generated_table_name:
-        schema_part, table_part = generated_table_name.split(".", 1)
-        candidates = [(schema_part, table_part)]
-    else:
-        candidates = [
-            ("upload", generated_table_name),
-            ("transient", generated_table_name),
-            ("main", generated_table_name),
-        ]
-
-    for schema_name, table_name in candidates:
-        safe_schema = SQLIdentifierSanitizer.sanitize(schema_name)
-        safe_table = SQLIdentifierSanitizer.sanitize(table_name)
-        qualified = f"{_quote_ident(safe_schema)}.{_quote_ident(safe_table)}"
-        query = f"SELECT * FROM {qualified}"
-
-        try:
-            if backend.backend == Backend.POSTGRES:
-                await backend._ensure_postgres_connection()
-                rows = await backend._conn.fetch(query)
-                return pd.DataFrame([dict(r) for r in rows])
-
-            if backend.backend == Backend.DUCKDB:
-                loop = asyncio.get_running_loop()
-
-                def _fetch_df():
-                    cur = backend._conn.execute(query)
-                    cols = [d[0] for d in (cur.description or [])]
-                    rows = cur.fetchall()
-                    return pd.DataFrame(rows, columns=cols)
-
-                return await loop.run_in_executor(None, _fetch_df)
-
-            if backend.backend == Backend.CLICKHOUSE:
-                result = await backend._conn.query(query)
-                return pd.DataFrame(
-                    result.result_rows,
-                    columns=result.column_names,
-                )
-        except Exception:
-            continue
-
-    return None
-
-
-
-
-async def _close_postgres_operation_adapter(self_instance) -> None:
-    mf = getattr(self_instance, "_memframe", None)
-    if mf is None or getattr(mf, "connection_type", None) != "remote":
-        return
-
-    ops_parent = getattr(self_instance, "_ops_parent", None)
-    if ops_parent is None or not hasattr(ops_parent, "close"):
-        return
-
-    await ops_parent.close()
-
-
-async def _get_cached_method_result(
-    self_instance,
-    data_id: str,
-    class_name: str,
-    method_name: str,
-    args: tuple,
-    kwargs: dict,
-) -> Optional[Dict[str, Any]]:
-    mf = getattr(self_instance, "_memframe", None)
-    if mf is None:
-        return None
-
-    args_sig = _json_signature(args)
-    kwargs_sig = _json_signature(kwargs)
-
-    generated_table_name = await _find_cached_generated_table(
-        memframe_instance=mf,
-        data_id=data_id,
-        class_name=class_name,
-        method_name=method_name,
-        args_sig=args_sig,
-        kwargs_sig=kwargs_sig,
-    )
-    if not generated_table_name:
-        return None
-
-    cached_df = await _load_generated_table(mf, generated_table_name)
-    if cached_df is None:
-        return None
-
+def _make_hit_response(payload, cached, table_name):
     return {
         "is_error": False,
-        "message": f"Cache hit for {class_name}.{method_name}; reused generated table '{generated_table_name}'",
+        "message": (
+            f"Cache hit for {payload['class_name']}."
+            f"{payload['method_name']}; "
+            f"reused generated table '{table_name}'"
+        ),
         "error_message": None,
         "involved_cols": [],
-        "generated_cols": list(cached_df.columns),
-        "result": cached_df,
-        "new_table": generated_table_name,
+        "generated_cols": list(cached.columns),
+        "result": cached,
+        "new_table": table_name,
         "result_metadata": {
             "from_cache": True,
-            "saved_table": generated_table_name,
-            "row_count": len(cached_df),
-            "column_count": len(cached_df.columns),
+            "saved_table": table_name,
+            "row_count": len(cached),
+            "column_count": len(cached.columns),
             "strict_args_kwargs_match": True,
         },
     }
 
 
-# ----------------------------------------------------------------------
-# Async writer factories (accept payload, data_id, generated_table_name)
-# ----------------------------------------------------------------------
-def _pg_writer_async(memframe_instance):
-    """Returns an async callable with signature (payload, data_id, generated_table_name)."""
-    async def pg_record(payload, data_id, generated_table_name=None):
-        await memframe_instance._arecord_method_call(
-            data_id=data_id,
-            class_name=payload["class_name"],
-            method_name=payload["method_name"],
-            args=payload["args"],
-            kwargs=payload["kwargs"],
-            generated_table_name=generated_table_name,
-        )
-    return pg_record
-
-
-def _duckdb_writer_async(memframe_instance):
-    """Returns an async callable with signature (payload, data_id, generated_table_name)."""
-    async def duckdb_record(payload, data_id, generated_table_name=None):
-        await memframe_instance._arecord_method_call(
-            data_id=data_id,
-            class_name=payload["class_name"],
-            method_name=payload["method_name"],
-            args=payload["args"],
-            kwargs=payload["kwargs"],
-            generated_table_name=generated_table_name,
-        )
-    return duckdb_record
-
-
-# ----------------------------------------------------------------------
-# The decorator (async‑aware, determines data_id automatically)
-# ----------------------------------------------------------------------
-def record_call(func):
+def record_call(func=None, deep_cache=None):
+    """Two-level cache decorator.
+    Level 1 (default, deep_cache=False): record arg/kwarg signatures only.
+    On repeat call with same args → re-execute (no table to load).
+    Level 2 (deep, deep_cache=True): saves result DataFrames as transient tables.
+    On repeat call with same args → load table directly, skip execution.
+    Resolution order: decorator arg → MemFrame.deep_cache → False.
+    Usage:
+        @record_call
+        @record_call()
+        @record_call(deep_cache=True)
+        @record_call(deep_cache=False)
     """
-    Decorator that logs method calls automatically.
-    Works with both sync and async methods.
-    """
+    if func is not None:
+        return _make_decorator(func, deep_cache)
+    return lambda f: _make_decorator(f, deep_cache)
+
+
+def _make_decorator(func, decorator_deep_cache):
     if asyncio.iscoroutinefunction(func):
         @wraps(func)
         async def async_wrapper(self, *args, **kwargs):
-            writer = getattr(self, "_call_writer", None)
-            if writer is None:
-                mf = getattr(self, "_memframe", None)
-                if mf is None:
-                    raise RuntimeError(
-                        f"Cannot log call for {func.__qualname__}: "
-                        "instance lacks `_call_writer` or `_memframe`. "
-                        "Inherit from LoggableMixin or set `self._memframe`."
-                    )
-                # Build async writer and cache it
-                if mf.connection_type == "local":
-                    writer = _duckdb_writer_async(mf)
-                else:
-                    writer = _pg_writer_async(mf)
-                self._call_writer = writer
+            mf = getattr(self, "_memframe", None)
+            if mf is None:
+                raise RuntimeError(
+                    f"Cannot cache {func.__qualname__}: instance lacks `_memframe`. "
+                    "Inherit from LoggableMixin or set `self._memframe`."
+                )
 
-            # Determine data_id
-            data_id = getattr(self, "_data_id", None) or (
-                mf._active_id if (mf := getattr(self, "_memframe", None)) else None
-            )
+            data_id = getattr(self, "_data_id", None) or mf._active_id
             if not data_id:
                 raise RuntimeError(
-                    f"Cannot log call for {func.__qualname__}: "
-                    "no data_id available. Set an active dataset on MemFrame "
-                    "or provide a data_id to the context."
+                    f"Cannot cache {func.__qualname__}: no data_id available."
                 )
+
+            # ponytail: master switch — MemFrame(deep_cache=False) overrides all
+            mf_deep = getattr(mf, "deep_cache", None)
+            is_deep = False
+            if decorator_deep_cache is not None:
+                is_deep = decorator_deep_cache
+            elif mf_deep is True:
+                is_deep = True
+            if mf_deep is False:
+                is_deep = False
+            backend = getattr(mf, "_backend", None)
+
+            writer = getattr(self, "_call_writer", None)
+            if writer is None:
+                writer = _make_writer(mf)
+                self._call_writer = writer
 
             payload = {
                 "class_name": self.__class__.__name__,
@@ -253,38 +147,80 @@ def record_call(func):
                 "kwargs": kwargs,
             }
 
-            generated_table_name = None
-            should_record_call = True
-            try:
-                cached_result = await _get_cached_method_result(
-                    self_instance=self,
-                    data_id=data_id,
-                    class_name=payload["class_name"],
-                    method_name=payload["method_name"],
-                    args=args,
-                    kwargs=kwargs,
+            # --- Lookup: only for deep cache entries ---
+            if is_deep and backend:
+                args_sig = _json_signature(args)
+                kwargs_sig = _json_signature(kwargs)
+                row = await backend.fetch_row(
+                    f"""
+                    SELECT generated_table_name
+                    FROM {backend.transient_registry_table}
+                    WHERE data_id = {backend.placeholder(1)}
+                      AND operation_type = 'method_call'
+                      AND class_name = {backend.placeholder(2)}
+                      AND method_name = {backend.placeholder(3)}
+                      AND args = {backend.placeholder(4)}
+                      AND kwargs = {backend.placeholder(5)}
+                      AND is_deep_cache = TRUE
+                      AND generated_table_name IS NOT NULL
+                    ORDER BY opidx DESC LIMIT 1
+                    """,
+                    data_id,
+                    payload["class_name"],
+                    payload["method_name"],
+                    args_sig,
+                    kwargs_sig,
                 )
-                if cached_result is not None:
-                    should_record_call = False
-                    generated_table_name = cached_result.get("new_table")
-                    return cached_result
+                if row:
+                    cached = await _load_generated_table(backend, row[0])
+                    if cached is not None:
+                        return _make_hit_response(payload, cached, row[0])
 
-                result = await func(self, *args, **kwargs)
+            # --- Execute ---
+            result = await func(self, *args, **kwargs)
+            generated_table_name = None
 
-                if isinstance(result, dict) and not result.get("is_error", False):
-                    generated_table_name = (
-                        result.get("new_table")
-                        or result.get("generated_table_name")
-                    )
+            def _qual(sch):
+                bare = result.get("new_table") or result.get("generated_table_name")
+                return (
+                    f"`{sch}`.`{bare}`"
+                    if getattr(backend, "backend", None) == Backend.CLICKHOUSE
+                    else f'{sch}."{bare}"'
+                ) if bare else None
 
-                return result
-            finally:
-                try:
-                    # Do not write a new operation row for cache hits.
-                    if should_record_call:
-                        await writer(payload, data_id, generated_table_name)
-                finally:
-                    await _close_postgres_operation_adapter(self)
+            if is_deep and isinstance(result, dict) and not result.get("is_error", False):
+                bare_table = result.get("new_table") or result.get("generated_table_name")
+                if bare_table and backend:
+                    if await backend.table_exists(_qual(backend.transient_schema)):
+                        generated_table_name = _qual(backend.transient_schema)
+                    elif await backend.table_exists(_qual("transient")):
+                        generated_table_name = _qual("transient")
+                    elif await backend.table_exists(_qual(backend.upload_schema)):
+                        op = await backend.fetch_val(
+                            f"SELECT COALESCE(MAX(opidx), 0) FROM {backend.transient_registry_table} "
+                            f"WHERE data_id = {backend.placeholder(1)}", data_id,
+                        )
+                        op = (op or 0) + 1
+                        new_q = backend.get_transient_table_name(data_id, op)
+                        await backend.execute(f"CREATE TABLE {new_q} AS SELECT * FROM {_qual(backend.upload_schema)}")
+                        generated_table_name = new_q
+                elif "result" in result:
+                    df = result["result"]
+                    if isinstance(df, pd.DataFrame) and not df.empty and backend:
+                        generated_table_name = await _create_deep_cache_table(
+                            mf, backend, data_id, df
+                        )
+            elif not is_deep and isinstance(result, dict) and not result.get("is_error", False):
+                # ponytail: drop any table the method created — deep_cache=False means no tables
+                if result.get("new_table") and backend:
+                    for sch in (backend.transient_schema, "transient", backend.upload_schema):
+                        q = _qual(sch)
+                        if q and await backend.table_exists(q):
+                            await backend.drop_table(q)
+                            break
+
+            await writer(payload, data_id, generated_table_name, is_deep_cache=is_deep)
+            return result
         return async_wrapper
     else:
         @wraps(func)
