@@ -112,6 +112,16 @@ run_cleaning_test() {
     --db-params "$db_params"
 }
 
+run_arithmetic_test() {
+  local db_backend="$1"
+  local db_params="$2"
+
+  $UV_RUN pytest tests/test_arithmetic.py \
+    -v \
+    --db-backend "$db_backend" \
+    --db-params "$db_params"
+}
+
 run_stats_test() {
   local db_backend="$1"
   local db_params="$2"
@@ -203,6 +213,9 @@ run_check "cleaning postgres" run_cleaning_test postgres "$(params_with_schema_p
 run_check "cleaning clickhouse" run_cleaning_test clickhouse "$CLICKHOUSE_DB_PARAMS"
 run_check "stats duckdb" run_stats_test duckdb "$(duckdb_params_for stats)"
 run_check "stats postgres" run_stats_test postgres "$(params_with_schema_prefix "$POSTGRES_DB_PARAMS" "stats_postgres")"
+run_check "arithmetic duckdb" run_arithmetic_test duckdb "$(duckdb_params_for arithmetic)"
+run_check "arithmetic postgres" run_arithmetic_test postgres "$(params_with_schema_prefix "$POSTGRES_DB_PARAMS" "arithmetic_postgres")"
+run_check "arithmetic clickhouse" run_arithmetic_test clickhouse "$CLICKHOUSE_DB_PARAMS"
 run_check "bar duckdb" run_bar_test duckdb "$(duckdb_params_for bar)"
 run_check "bar postgres" run_bar_test postgres "$POSTGRES_DB_PARAMS"
 run_check "bar clickhouse" run_bar_test clickhouse "$CLICKHOUSE_DB_PARAMS"

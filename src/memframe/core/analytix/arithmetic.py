@@ -498,7 +498,10 @@ class ArithmeticOps:
                     new_table: Optional[str] = None):
         if isinstance(self.db, (PostgresAdapter, DuckDBAdapter, ClickHouseAdapter)):
             (col,) = await self._numeric_exprs(table, schema, column)
-            expr = f"ROUND({col}, {digits})"
+            if isinstance(self.db, PostgresAdapter):
+                expr = f"ROUND(CAST({col} AS NUMERIC), {digits})"
+            else:
+                expr = f"ROUND({col}, {digits})"
             involved = [column]
             return await self._apply_expression(
                 table, schema, involved, expr,
@@ -791,7 +794,7 @@ class ArithmeticOps:
                                 new_table: Optional[str] = None):
         if isinstance(self.db, (PostgresAdapter, DuckDBAdapter, ClickHouseAdapter)):
             old, new = await self._numeric_exprs(table, schema, old_col, new_col)
-            expr = f"(({new} - {old}) / NULLIF(ABS({old}), 0)) * 100"
+            expr = f"((1.0 * {new} - 1.0 * {old}) / NULLIF(ABS(1.0 * {old}), 0)) * 100"
             involved = [old_col, new_col]
             return await self._apply_expression(
                 table, schema, involved, expr,
@@ -813,7 +816,7 @@ class ArithmeticOps:
                 (col,) = await self._numeric_exprs(table, schema, column)
                 min_val = await self._fetchval(f"SELECT MIN({col}) FROM {source_qualified}")
                 max_val = await self._fetchval(f"SELECT MAX({col}) FROM {source_qualified}")
-                expr = f"({col} - {min_val}) / NULLIF(({max_val} - {min_val}), 0)"
+                expr = f"(1.0 * {col} - {min_val}) / NULLIF(({max_val} - {min_val}), 0)"
                 involved = [column]
                 return await self._apply_expression(
                     table, schema, involved, expr,

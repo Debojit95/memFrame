@@ -132,7 +132,18 @@ class ArithmeticOrchestrator:
         table, schema = await self._get_context()
         return await ops.log(table, schema, column, target_col)
 
-   
+    @record_call
+    async def log10(self, column: str, target_col: Optional[str] = None) -> Dict[str, Any]:
+        ops = await self._ensure_ops()
+        table, schema = await self._get_context()
+        return await ops.log10(table, schema, column, target_col)
+
+    @record_call
+    async def sqrt(self, column: str, target_col: Optional[str] = None) -> Dict[str, Any]:
+        ops = await self._ensure_ops()
+        table, schema = await self._get_context()
+        return await ops.sqrt(table, schema, column, target_col)
+
     # ------------------------------------------------------------------
     #  Trigonometric
     # ------------------------------------------------------------------
