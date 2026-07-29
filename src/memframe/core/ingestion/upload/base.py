@@ -75,24 +75,26 @@ class Uploader:
         col_q = f"`{col}`"
         if ch_type == "String":
             return f"{col_q} AS `{col}`"
+        # to*OrNull functions only accept String arguments; wrap with toString
+        # to handle columns that ClickHouse native ingestion already typed.
         if ch_type == "Int32":
-            return f"toInt32OrNull({col_q}) AS `{col}`"
+            return f"toInt32OrNull(toString({col_q})) AS `{col}`"
         if ch_type == "Int64":
-            return f"toInt64OrNull({col_q}) AS `{col}`"
+            return f"toInt64OrNull(toString({col_q})) AS `{col}`"
         if ch_type == "Int16":
-            return f"toInt16OrNull({col_q}) AS `{col}`"
+            return f"toInt16OrNull(toString({col_q})) AS `{col}`"
         if ch_type == "Float32":
-            return f"toFloat32OrNull({col_q}) AS `{col}`"
+            return f"toFloat32OrNull(toString({col_q})) AS `{col}`"
         if ch_type == "Float64":
-            return f"toFloat64OrNull({col_q}) AS `{col}`"
+            return f"toFloat64OrNull(toString({col_q})) AS `{col}`"
         if ch_type == "UInt8":
-            return f"toUInt8OrNull({col_q}) AS `{col}`"
+            return f"toUInt8OrNull(toString({col_q})) AS `{col}`"
         if ch_type == "Date":
-            return f"toDateOrNull({col_q}) AS `{col}`"
+            return f"toDateOrNull(toString({col_q})) AS `{col}`"
         if ch_type == "DateTime":
-            return f"toDateTimeOrNull({col_q}) AS `{col}`"
+            return f"toDateTimeOrNull(toString({col_q})) AS `{col}`"
         if "Decimal" in ch_type:
-            return f"toDecimal64OrNull({col_q}, 10) AS `{col}`"
+            return f"toDecimal64OrNull(toString({col_q}), 10) AS `{col}`"
         return f"toString({col_q}) AS `{col}`"
 
     def _clean_column_name(self, name: str, index: int) -> str:
@@ -523,6 +525,8 @@ class Uploader:
     def _build_safe_cast_postgres(self, col: str, target_type: str) -> str:
         base = target_type.split("(")[0].upper()
         col_quoted = f'"{col}"'
+        # Cast to TEXT first so TRIM works on both text and already-typed columns
+        txt = f"{col_quoted}::TEXT"
         if base in ("SMALLINT", "INTEGER", "BIGINT"):
             bounds = {
                 "SMALLINT": (-32768, 32767),
@@ -532,40 +536,40 @@ class Uploader:
             min_val, max_val = bounds[base]
             return f"""
                 CASE
-                    WHEN TRIM({col_quoted}) ~ '^-?[0-9]+$' AND TRIM({col_quoted})::NUMERIC BETWEEN {min_val} AND {max_val} THEN
-                        TRIM({col_quoted})::{target_type}
+                    WHEN TRIM({txt}) ~ '^-?[0-9]+$' AND TRIM({txt})::NUMERIC BETWEEN {min_val} AND {max_val} THEN
+                        TRIM({txt})::{target_type}
                     ELSE NULL
                 END AS "{col}"
             """
         elif base in ("NUMERIC", "DECIMAL", "REAL", "FLOAT", "DOUBLE PRECISION"):
             return f"""
                 CASE
-                    WHEN TRIM({col_quoted}) ~ '^-?[0-9]*\\.?[0-9]+$' THEN
-                        REPLACE(TRIM({col_quoted}), ',', '')::{target_type}
+                    WHEN TRIM({txt}) ~ '^-?[0-9]*\\.?[0-9]+$' THEN
+                        REPLACE(TRIM({txt}), ',', '')::{target_type}
                     ELSE NULL
                 END AS "{col}"
             """
         elif base == "BOOLEAN":
             return f"""
                 CASE
-                    WHEN UPPER(TRIM({col_quoted})) IN ('TRUE','T','YES','Y','1','ON') THEN TRUE
-                    WHEN UPPER(TRIM({col_quoted})) IN ('FALSE','F','NO','N','0','OFF','') THEN FALSE
+                    WHEN UPPER(TRIM({txt})) IN ('TRUE','T','YES','Y','1','ON') THEN TRUE
+                    WHEN UPPER(TRIM({txt})) IN ('FALSE','F','NO','N','0','OFF','') THEN FALSE
                     ELSE NULL
                 END AS "{col}"
             """
         elif base == "DATE":
             return f"""
                 CASE
-                    WHEN TRIM({col_quoted}) ~ '^[0-9]{{4}}-[0-9]{{1,2}}-[0-9]{{1,2}}' THEN
-                        TRIM({col_quoted})::DATE
+                    WHEN TRIM({txt}) ~ '^[0-9]{{4}}-[0-9]{{1,2}}-[0-9]{{1,2}}' THEN
+                        TRIM({txt})::DATE
                     ELSE NULL
                 END AS "{col}"
             """
         elif base in ("TIMESTAMP", "TIMESTAMPTZ", "TIMESTAMP WITH TIME ZONE"):
             return f"""
                 CASE
-                    WHEN TRIM({col_quoted}) ~ '^[0-9]{{4}}-[0-9]{{1,2}}-[0-9]{{1,2}}[ T][0-9]{{1,2}}:[0-9]{{1,2}}' THEN
-                        TRIM({col_quoted})::{target_type}
+                    WHEN TRIM({txt}) ~ '^[0-9]{{4}}-[0-9]{{1,2}}-[0-9]{{1,2}}[ T][0-9]{{1,2}}:[0-9]{{1,2}}' THEN
+                        TRIM({txt})::{target_type}
                     ELSE NULL
                 END AS "{col}"
             """
