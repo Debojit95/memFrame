@@ -27,6 +27,7 @@ class ContextManager:
         self._inspect_wrapper = None
         self._clean_wrapper = None
         self._stats_wrapper = None
+        self._arithmetic_wrapper=None
         
         
         # PLOTS
@@ -57,7 +58,7 @@ class ContextManager:
             ops.mean("A")
         """
         
-        for wrapper in (self.inspect, self.select, self.clean,self.stats,
+        for wrapper in (self.inspection, self.select, self.clean,self.stats,self.arithmetic,
                         self.bar,self.bar_polar, self.pie,self.line,self.scatter,self.scatter3d):
             
             if hasattr(wrapper, name):
@@ -68,9 +69,11 @@ class ContextManager:
         return sorted(
             set(super().__dir__())
             | set(dir(self.select))
-            | set(dir(self.inspect))
+            | set(dir(self.inspection))
             | set(dir(self.clean))
             | set(dir(self.stats))
+            | set(dir(self.arithmetic))
+            
             | set(dir(self.bar))
             | set(dir(self.bar_polar))
             | set(dir(self.pie))
@@ -94,7 +97,7 @@ class ContextManager:
 
      
     @property
-    def inspect(self):
+    def inspection(self):
         from memframe.wrappers.analytix.inspection import TableOpsWrapper
 
         if self._inspect_wrapper is None:
@@ -117,6 +120,16 @@ class ContextManager:
         if self._stats_wrapper is None:
             self._stats_wrapper = StatsWrapper(self)
         return self._stats_wrapper
+    
+    @property
+    def arithmetic(self):
+        from memframe.wrappers.analytix.arithmetic import ArithmeticWrapper
+        if self._arithmetic_wrapper is None:
+            self._arithmetic_wrapper = ArithmeticWrapper(self)
+        return self._arithmetic_wrapper
+    
+    
+    
     
     # PLOTTING-------
     

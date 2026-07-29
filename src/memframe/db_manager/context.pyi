@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any, Optional
 
 from memframe.db_manager.adapters.base import DatabaseAdapter
-from memframe.wrappers.analytix.inspect import TableOpsWrapper
+from memframe.wrappers.analytix.inspection import TableOpsWrapper
 from memframe.wrappers.analytix.selection import SelectionWrapper
 from memframe.wrappers.analytix.cleaning import CleaningWrapper
 from memframe.wrappers.analytix.stats import StatsWrapper
@@ -27,7 +27,7 @@ class ContextManager(TableOpsWrapper, SelectionWrapper,CleaningWrapper,StatsWrap
     def __init__(self, memframe_instance: Any, data_id: Optional[str] = None) -> None: ...
 
     @property
-    def inspect(self) -> TableOpsWrapper: ...
+    def inspection(self) -> TableOpsWrapper: ...
 
     @property
     def select(self) -> SelectionWrapper: ...
