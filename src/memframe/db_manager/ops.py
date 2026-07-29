@@ -184,7 +184,7 @@ class OpsManager:
         logger.info(f"Recorded operation {opidx} ({operation_type}) for {data_id} -> {generated_table_name}")
         return opidx
 
-    async def _arecord_method_call( self, data_id: str, class_name: str, method_name: str, args: tuple, kwargs: dict, generated_table_name: Optional[str] = None, is_deep_cache: bool = False) -> int:
+    async def _arecord_method_call( self, data_id: str, class_name: str, method_name: str, args: tuple, kwargs: dict, generated_table_name: Optional[str] = None, is_deep_cache: bool = False, schema: Optional[str] = None) -> int:
         """
         Log a method call into transient_registry. If the call generates a table,
         pass its name as `generated_table_name`.
@@ -204,12 +204,12 @@ class OpsManager:
             INSERT INTO {self._backend.transient_registry_table}
                 (data_id, opidx, operation_type,
                 class_name, method_name, args, kwargs,
-                generated_table_name, is_deep_cache)
+                generated_table_name, is_deep_cache, schema)
             VALUES
                 ({self._placeholder(1)}, {self._placeholder(2)}, {self._placeholder(3)},
                 {self._placeholder(4)}, {self._placeholder(5)},
                 {self._placeholder(6)}, {self._placeholder(7)},
-                {self._placeholder(8)}, {self._placeholder(9)})
+                {self._placeholder(8)}, {self._placeholder(9)}, {self._placeholder(10)})
             """,
             data_id,
             opidx,
@@ -220,6 +220,7 @@ class OpsManager:
             json.dumps(kwargs),
             generated_table_name,                     # NULL or actual name
             is_deep_cache,
+            schema,
         )
         logger.debug(
             f"Recorded method call {class_name}.{method_name} "

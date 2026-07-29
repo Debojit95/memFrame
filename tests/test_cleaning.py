@@ -328,8 +328,13 @@ def get_materialized_table_columns(ctx: Any, result: Dict[str, Any]) -> List[str
 
     async def _get_columns() -> List[str]:
         await ctx._ensure_adapter()
-        schema = ctx.memframe._backend.upload_schema
-        return list((await ctx._adapter.get_column_types(table, schema)).keys())
+        backend = ctx.memframe._backend
+        for sch in (backend.transient_schema, "transient", backend.upload_schema):
+            try:
+                return list((await ctx._adapter.get_column_types(table, sch)).keys())
+            except Exception:
+                continue
+        raise AssertionError(f"Table {table} not found in any known schema")
 
     return asyncio.run(_get_columns())
 

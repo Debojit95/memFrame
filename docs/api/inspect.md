@@ -1,6 +1,6 @@
 # Inspect
 
-Source: `src/wrappers/analytix/inspect.py`
+Source: `src/memframe/wrappers/analytix/inspection.py`
 
 `TableOpsWrapper` is the public inspection and table-utility interface exposed
 through a `ContextManager`. It provides pandas-like methods for previewing
@@ -591,7 +591,7 @@ use.
 
 ## API Reference
 
-::: memframe.wrappers.analytix.inspect.TableOpsWrapper
+::: memframe.wrappers.analytix.inspection.TableOpsWrapper
     options:
       show_root_heading: true
       show_root_full_path: true
