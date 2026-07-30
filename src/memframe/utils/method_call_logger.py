@@ -168,8 +168,8 @@ def _make_decorator(func, decorator_deep_cache):
                       AND method_name = {backend.placeholder(3)}
                       AND args = {backend.placeholder(4)}
                       AND kwargs = {backend.placeholder(5)}
-                      AND is_deep_cache = TRUE
-                      AND generated_table_name IS NOT NULL
+                       AND {backend.backend == "clickhouse" and "CAST(is_deep_cache AS String) = '1'" or "is_deep_cache = TRUE"}
+                       AND generated_table_name IS NOT NULL
                     ORDER BY opidx DESC LIMIT 1
                     """,
                     data_id,

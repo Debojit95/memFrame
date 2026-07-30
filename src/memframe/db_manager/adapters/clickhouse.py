@@ -238,30 +238,9 @@ class HttpxClickHouseClient:
 
 
 class ClickHouseAdapter(DatabaseAdapter):
-    """
-    Async ClickHouse adapter using ClickHouse's HTTP API via httpx.
-    """
-
-    def __init__(
-        self,
-        host: str,
-        port: int,
-        user: str,
-        password: str,
-        database: Optional[str] = None,
-        secure: bool = False,
-        timeout: float = 10.0,
-        schema_prefix: Optional[str] = None,
-    ):
-        self.host = host
-        self.port = port or 8123
-        self.user = user
-        self.password = password
-        self.database = database
-        self.secure = secure
-        self.timeout = timeout
-        self.schema_prefix = schema_prefix
-        self.client: Optional[Any] = None
+    def __init__(self, pool):
+        super().__init__(pool)
+        self._ch_pool = pool
 
     @classmethod
     def connection_params(cls, conn_params: Dict[str, Any]) -> Dict[str, Any]:
@@ -276,66 +255,42 @@ class ClickHouseAdapter(DatabaseAdapter):
                 params[optional_key] = conn_params[optional_key]
         return params
 
-    async def connect(self) -> None:
-        self.client = HttpxClickHouseClient(
-            host=self.host,
-            port=self.port,
-            username=self.user,
-            password=self.password,
-            database=self.database,
-            secure=self.secure,
-            timeout=self.timeout,
-        )
-        logger.info(
-            f"ClickHouse adapter connected to {self.host}:{self.port}"
-        )
-
-    async def close(self) -> None:
-        if self.client:
-            await self.client.close()
-            self.client = None
-
-    async def _ensure_client(self) -> None:
-        if self.client is None:
-            await self.connect()
+    async def _ensure(self):
+        if self._ch_pool.client is None:
+            await self._ch_pool.connect()
 
     async def execute(self, sql: str, *args) -> Any:
-        await self._ensure_client()
-        await self.client.command(sql, parameters=args if args else None)
+        await self._ensure()
+        await self._ch_pool.client.command(sql, parameters=args if args else None)
 
     async def fetch(self, sql: str, *args) -> List[Any]:
-        await self._ensure_client()
-        result = await self.client.query(sql, parameters=args if args else None)
+        await self._ensure()
+        result = await self._ch_pool.client.query(sql, parameters=args if args else None)
         return self._rows_to_dicts(result)
 
     async def fetchval(self, sql: str, *args) -> Any:
-        await self._ensure_client()
-        result = await self.client.query(sql, parameters=args if args else None)
+        await self._ensure()
+        result = await self._ch_pool.client.query(sql, parameters=args if args else None)
         return result.first_item
 
     async def fetchrow(self, sql: str, *args) -> Any:
-        await self._ensure_client()
-        result = await self.client.query(sql, parameters=args if args else None)
+        await self._ensure()
+        result = await self._ch_pool.client.query(sql, parameters=args if args else None)
         rows = self._rows_to_dicts(result)
         return rows[0] if rows else None
 
     def _rows_to_dicts(self, result: ClickHouseQueryResult) -> List[Dict[str, Any]]:
         return [dict(zip(result.column_names, row)) for row in result.result_rows]
 
-    async def insert_rows(
-        self,
-        table_name: str,
-        rows: List[List[Any]],
-        columns: List[str],
-    ) -> None:
-        await self._ensure_client()
+    async def insert_rows(self, table_name: str, rows: List[List[Any]], columns: List[str]) -> None:
+        await self._ensure()
         clean = table_name.replace("`", "").replace('"', "")
         if "." in clean:
             database, table = clean.split(".", 1)
         else:
-            database = self.database
+            database = self._ch_pool.database
             table = clean
-        await self.client.insert(table, rows, database=database, column_names=columns)
+        await self._ch_pool.client.insert(table, rows, database=database, column_names=columns)
 
     async def get_column_types(self, table: str, schema: str) -> Dict[str, str]:
         rows = await self.fetch(
@@ -353,7 +308,6 @@ class ClickHouseAdapter(DatabaseAdapter):
     async def get_table_info(self, table: str, schema: str) -> Dict[str, Any]:
         count_sql = f"SELECT count() FROM `{schema}`.`{table}`"
         row_count = await self.fetchval(count_sql)
-
         columns = await self.get_column_types(table, schema)
         return {
             "table_name": table,
@@ -379,9 +333,6 @@ class ClickHouseAdapter(DatabaseAdapter):
         return f"`{name}`"
 
     async def fetch_iter(self, sql: str, *args, chunk_size: int = 1000):
-        """
-        Async streaming iterator over query results using LIMIT/OFFSET pagination.
-        """
         offset = 0
         while True:
             paginated_sql = f"{sql.rstrip().rstrip(';')} LIMIT {chunk_size} OFFSET {offset}"
@@ -391,3 +342,5 @@ class ClickHouseAdapter(DatabaseAdapter):
             for row in rows:
                 yield row
             offset += chunk_size
+
+

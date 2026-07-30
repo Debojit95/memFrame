@@ -1,8 +1,7 @@
 import logging
 from typing import Any, List, Optional, Tuple
 
-from memframe.core.ingestion.datatype_detector import DatatypeDetector, Backend
-from memframe.db_manager.adapters.clickhouse import HttpxClickHouseClient
+from memframe.core.ingestion.datatype_detector import Backend
 from memframe.db_manager.setup.base import DatabaseBackend
 
 logger = logging.getLogger(__name__)
@@ -42,64 +41,35 @@ class ClickHouseBackend(DatabaseBackend):
     def placeholder(self) -> str:
         return lambda i: "?"
 
-    async def _create_connection(self) -> Any:
-        return HttpxClickHouseClient(
-            host=self.conn_params["host"],
-            port=self.conn_params.get("port", 8123),
-            username=self.conn_params["user"],
-            password=self.conn_params["password"],
-            database=self.conn_params.get("database"),
-            secure=self.conn_params.get("secure", False),
-            timeout=self.conn_params.get("timeout", 10.0),
-        )
+    async def insert_rows(self, table_name: str, rows: List[List[Any]], columns: List[str]) -> None:
+        if self.pool is None:
+            raise RuntimeError("Backend pool not set.")
+        from memframe.db_manager.pool import ClickHousePool
+        if isinstance(self.pool, ClickHousePool):
+            clean = table_name.replace("`", "").replace('"', "")
+            if "." in clean:
+                database, table = clean.split(".", 1)
+            else:
+                database = self.conn_params.get("database")
+                if not database:
+                    raise ValueError("ClickHouse inserts require a database-qualified table")
+                table = clean
+            await self.pool.insert(table, rows, database=database, column_names=columns)
 
-    async def connect(self) -> None:
-        try:
-            self._conn = await self._create_connection()
-            logger.info(f"Connected to ClickHouse: {self.conn_params['host']}:{self.conn_params.get('port', 8123)}")
-        except Exception as e:
-            logger.error(f"Connection failed: {e}")
-            raise
-
-    async def disconnect(self) -> None:
-        try:
-            if self._conn:
-                await self._conn.close()
-                self._conn = None
-            logger.info("ClickHouse connection closed")
-        except Exception as e:
-            logger.error(f"Error during close: {e}")
-    
-    async def close(self) -> None:
-        await self.disconnect()
-
-    async def execute(self, query: str, *params) -> None:
-        try:
-            await self._conn.command(query, parameters=params if params else None)
-            logger.debug(f"Executed: {query[:100]}...")
-        except Exception as e:
-            logger.error(f"Query failed: {query[:200]}\nError: {e}")
-            raise
-
-    async def fetch(self, query: str, *params) -> List[Tuple]:
-        try:
-            result = await self._conn.query(query, parameters=params if params else None)
-            return result.result_rows
-        except Exception as e:
-            logger.error(f"Fetch failed: {e}")
-            raise
-
-    async def fetch_row(self, query: str, *params) -> Optional[Tuple]:
-        try:
-            result = await self._conn.query(query, parameters=params if params else None)
-            return result.first_row
-        except Exception as e:
-            logger.error(f"Fetch one failed: {e}")
-            raise
-
-    async def fetch_val(self, query: str, *params) -> Any:
-        row = await self.fetch_row(query, *params)
-        return row[0] if row else None
+    async def insert_arrow_table(self, table_name: str, arrow_table: Any) -> None:
+        if self.pool is None:
+            raise RuntimeError("Backend pool not set.")
+        from memframe.db_manager.pool import ClickHousePool
+        if isinstance(self.pool, ClickHousePool):
+            clean = table_name.replace("`", "").replace('"', "")
+            if "." in clean:
+                database, table = clean.split(".", 1)
+            else:
+                database = self.conn_params.get("database")
+                if not database:
+                    raise ValueError("ClickHouse inserts require a database-qualified table")
+                table = clean
+            await self.pool.insert_arrow(table, arrow_table, database=database)
 
     def _clickhouse_qualified_table_name(self, table_name: str, default_database: Optional[str] = None) -> str:
         database, table = self._split_qualified_table_name(table_name)
@@ -146,7 +116,9 @@ class ClickHouseBackend(DatabaseBackend):
                 method_name Nullable(String),
                 args Nullable(String),
                 kwargs Nullable(String),
-                created_at DateTime DEFAULT now()
+                created_at DateTime DEFAULT now(),
+                is_deep_cache Bool,
+                schema Nullable(String)
             ) ENGINE = MergeTree()
             ORDER BY (data_id, opidx)
         """)
@@ -165,28 +137,6 @@ class ClickHouseBackend(DatabaseBackend):
     @property
     def csv_registry_table(self) -> str:
         return f"`{self.registry_schema}`.csv_registry"
-
-    async def insert_rows(self, table_name: str, rows: List[List[Any]], columns: List[str]) -> None:
-        clean = table_name.replace("`", "").replace('"', "")
-        if "." in clean:
-            database, table = clean.split(".", 1)
-        else:
-            database = self.conn_params.get("database")
-            if not database:
-                raise ValueError("ClickHouse inserts require a database-qualified table")
-            table = clean
-        await self._conn.insert(table, rows, database=database, column_names=columns)
-
-    async def insert_arrow_table(self, table_name: str, arrow_table: Any) -> None:
-        clean = table_name.replace("`", "").replace('"', "")
-        if "." in clean:
-            database, table = clean.split(".", 1)
-        else:
-            database = self.conn_params.get("database")
-            if not database:
-                raise ValueError("ClickHouse inserts require a database-qualified table")
-            table = clean
-        await self._conn.insert_arrow(table, arrow_table, database=database)
 
     async def drop_table(self, table_name: str) -> None:
         qualified = self._clickhouse_qualified_table_name(table_name)

@@ -1,8 +1,6 @@
-import duckdb
 import logging
 from typing import Any, List, Optional, Tuple
 
-from memframe.core.ingestion.datatype_detector import DatatypeDetector
 from memframe.db_manager.setup.base import DatabaseBackend
 
 logger = logging.getLogger(__name__)
@@ -38,58 +36,6 @@ class DuckDBBackend(DatabaseBackend):
 
     def _sanitize_schema_name(self, name: str) -> str:
         return _sanitize_schema_name(name)
-
-    async def _create_connection(self) -> Any:
-        db_path = self.conn_params.get("db_path", "memframe_new.duckdb")
-        return duckdb.connect(db_path)
-
-    async def connect(self) -> None:
-        try:
-            self._conn = await self._create_connection()
-            logger.info(f"Connected to DuckDB: {self.conn_params.get('db_path', 'memframe_new.duckdb')}")
-        except Exception as e:
-            logger.error(f"Connection failed: {e}")
-            raise
-
-    async def disconnect(self) -> None:
-        try:
-            if self._conn:
-                self._conn.close()
-                self._conn = None
-            logger.info("DuckDB connection closed")
-        except Exception as e:
-            logger.error(f"Error during close: {e}")
-    
-    async def close(self) -> None:
-        await self.disconnect()
-
-    async def execute(self, query: str, *params) -> None:
-        try:
-            self._conn.execute(query, list(params))
-            logger.debug(f"Executed: {query[:100]}...")
-        except Exception as e:
-            logger.error(f"Query failed: {query[:200]}\nError: {e}")
-            raise
-
-    async def fetch(self, query: str, *params) -> List[Tuple]:
-        try:
-            result = self._conn.execute(query, list(params)).fetchall()
-            return [tuple(r) for r in result]
-        except Exception as e:
-            logger.error(f"Fetch failed: {e}")
-            raise
-
-    async def fetch_row(self, query: str, *params) -> Optional[Tuple]:
-        try:
-            row = self._conn.execute(query, list(params)).fetchone()
-            return tuple(row) if row else None
-        except Exception as e:
-            logger.error(f"Fetch one failed: {e}")
-            raise
-
-    async def fetch_val(self, query: str, *params) -> Any:
-        row = await self.fetch_row(query, *params)
-        return row[0] if row else None
 
     async def _setup_database(self) -> None:
         for schema in (self.upload_schema, self.transient_schema, self.registry_schema):

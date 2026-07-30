@@ -17,8 +17,13 @@ from memframe.core.ingestion.datatype_detector import Backend
 if TYPE_CHECKING:
     import pandas as pd
 
-logger = logging.getLogger("memFrame")
 
+logger = logging.getLogger("memFrame")
+logger.setLevel(logging.INFO)
+if not logger.handlers:
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s"))
+    logger.addHandler(handler)
 
 class DuckDBUploader(Uploader):
     """DuckDB-specific upload implementation."""
@@ -26,7 +31,7 @@ class DuckDBUploader(Uploader):
     def __init__(self, backend):
         self._backend = backend
         self._type_detector = backend._type_detector
-        self._conn = backend._conn
+        self._conn = backend.pool.conn
 
     async def create_schema_if_not_exists(self, schema_name: str) -> None:
         await self.execute(f"CREATE SCHEMA IF NOT EXISTS {schema_name}")

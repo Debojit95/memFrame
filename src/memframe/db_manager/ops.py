@@ -3,6 +3,7 @@ import logging
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from memframe.db_manager.adapters.factory import resolve_backend_config
+from memframe.db_manager.pool import create_pool
 from memframe.db_manager.setup import create_backend, Backend
 
 if TYPE_CHECKING:
@@ -19,9 +20,11 @@ if not logger.handlers:
 
 class OpsManager:
     async def _aconnect(self) -> None:
-        backend, params = resolve_backend_config(self.connection_type, self.conn_params)
-        self._backend = create_backend(backend, params)
-        await self._backend.connect()
+        backend_type, params = resolve_backend_config(self.connection_type, self.conn_params)
+        self._pool = create_pool(backend_type, params)
+        await self._pool.connect()
+        self._backend = create_backend(backend_type, params)
+        self._backend.pool = self._pool
         await self._backend.initialize()
     
     def _placeholder(self, i: int) -> str:

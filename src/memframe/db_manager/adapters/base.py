@@ -1,19 +1,17 @@
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List
 
+from memframe.db_manager.pool import BasePool
+
 
 class DatabaseAdapter(ABC):
-    """Abstract interface for database‑specific operations."""
+    """Abstract interface for database‑specific operations.
+    Connection lifecycle is managed by the pool — adapters only
+    execute queries and return metadata.
+    """
 
-    @abstractmethod
-    async def connect(self) -> None:
-        """Establish connection / pool."""
-        pass
-
-    @abstractmethod
-    async def close(self) -> None:
-        """Close connection / pool."""
-        pass
+    def __init__(self, pool: BasePool):
+        self._pool = pool
 
     @abstractmethod
     async def execute(self, sql: str, *args) -> Any:

@@ -36,45 +36,11 @@ class DatabaseBackend(ABC):
         self.registry_table = registry_table
         self.registry_table_full = f"{registry_schema}.{registry_table}"
         self._type_detector = DatatypeDetector()
-        self._conn = None
+        self.pool = None
 
     @property
     @abstractmethod
     def placeholder(self) -> str:
-        pass
-
-    @abstractmethod
-    async def _create_connection(self) -> Any:
-        pass
-
-    @abstractmethod
-    async def connect(self) -> None:
-        pass
-
-    @abstractmethod
-    async def disconnect(self) -> None:
-        pass
-
-    async def close(self) -> None:
-        await self.disconnect()
-
-    @abstractmethod
-    async def execute(self, query: str, *params) -> None:
-        pass
-
-    @abstractmethod
-    async def fetch(self, query: str, *params) -> List[Tuple]:
-        pass
-
-    @abstractmethod
-    async def fetch_row(self, query: str, *params) -> Optional[Tuple]:
-        pass
-
-    async def fetch_one(self, query: str, *params) -> Optional[Tuple]:
-        return await self.fetch_row(query, *params)
-
-    @abstractmethod
-    async def fetch_val(self, query: str, *params) -> Any:
         pass
 
     @abstractmethod
@@ -89,28 +55,30 @@ class DatabaseBackend(ABC):
     async def _create_transient_schema(self) -> None:
         pass
 
-    @property
-    def conn(self) -> Any:
-        return self._conn
+    async def execute(self, query: str, *params) -> None:
+        if self.pool is None:
+            raise RuntimeError("Backend pool not set. Call aconnect() first.")
+        await self.pool.execute(query, *params)
 
-    @conn.setter
-    def conn(self, value: Any) -> None:
-        self._conn = value
+    async def fetch(self, query: str, *params) -> List[Tuple]:
+        if self.pool is None:
+            raise RuntimeError("Backend pool not set. Call aconnect() first.")
+        return await self.pool.fetch(query, *params)
 
-    
+    async def fetch_row(self, query: str, *params) -> Optional[Tuple]:
+        if self.pool is None:
+            raise RuntimeError("Backend pool not set. Call aconnect() first.")
+        return await self.pool.fetchrow(query, *params)
 
-    def _loop_is_running(self) -> bool:
-        try:
-            loop = asyncio.get_running_loop()
-            return loop.is_running()
-        except RuntimeError:
-            return False
+    async def fetch_one(self, query: str, *params) -> Optional[Tuple]:
+        return await self.fetch_row(query, *params)
 
-    async def _terminate_postgres_connection(self) -> None:
-        pass
+    async def fetch_val(self, query: str, *params) -> Any:
+        if self.pool is None:
+            raise RuntimeError("Backend pool not set. Call aconnect() first.")
+        return await self.pool.fetchval(query, *params)
 
     async def initialize(self) -> None:
-        await self.connect()
         await self._setup_database()
         await self._create_transient_schema()
 
@@ -153,14 +121,32 @@ class DatabaseBackend(ABC):
 
         for column_name, column_type in required_columns.items():
             if not await self._column_exists(schema_name, table_name, column_name):
-                ch_type = (
-                    "Nullable(String)"
-                    if self.backend == "clickhouse"
-                    else column_type
-                )
+                if self.backend == "clickhouse":
+                    if column_name == "is_deep_cache":
+                        ch_type = "Bool"
+                    else:
+                        ch_type = "Nullable(String)"
+                else:
+                    ch_type = column_type
                 await self.execute(
                     f"ALTER TABLE {fq_table_name} ADD COLUMN {column_name} {ch_type}"
                 )
+
+        if self.backend == "clickhouse":
+            try:
+                await self.execute(
+                    f"ALTER TABLE {fq_table_name} "
+                    f"UPDATE is_deep_cache = false WHERE is_deep_cache IS NULL"
+                )
+            except Exception:
+                pass
+            try:
+                await self.execute(
+                    f"ALTER TABLE {fq_table_name} "
+                    f"MODIFY COLUMN is_deep_cache Bool"
+                )
+            except Exception:
+                pass
 
         if self.backend != "clickhouse":
             try:

@@ -2,16 +2,18 @@ import logging
 from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
 
 import pyarrow as pa
-import pyarrow.csv as pcsv
-
 from memframe.core.ingestion.upload.base import Uploader
-from memframe.core.ingestion.datatype_detector import Backend
 
 if TYPE_CHECKING:
     import pandas as pd
 
-logger = logging.getLogger("memFrame")
 
+logger = logging.getLogger("memFrame")
+logger.setLevel(logging.INFO)
+if not logger.handlers:
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s"))
+    logger.addHandler(handler)
 
 class ClickHouseUploader(Uploader):
     """ClickHouse-specific upload implementation."""
@@ -19,7 +21,7 @@ class ClickHouseUploader(Uploader):
     def __init__(self, backend):
         self._backend = backend
         self._type_detector = backend._type_detector
-        self._conn = backend._conn
+        self._conn = backend.pool.client
 
     async def create_schema_if_not_exists(self, schema_name: str) -> None:
         await self.execute(f"CREATE DATABASE IF NOT EXISTS `{schema_name}`")
@@ -100,7 +102,7 @@ class ClickHouseUploader(Uploader):
             csv_data = f.read()
         
         # Use ClickHouse native CSV format with headers
-        await self._backend._conn._post(
+        await self._backend.pool.client._post(
             f"INSERT INTO `{database}`.`{table}` ({columns_str}) FORMAT CSVWithNames",
             data=csv_data,
         )

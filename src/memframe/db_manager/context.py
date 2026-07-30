@@ -182,48 +182,26 @@ class ContextManager:
         return self._scatter3d_wrapper
     
     async def _ensure_adapter(self):
-        """Create the appropriate adapter from memframe's backend."""
+        """Create the appropriate adapter from memframe's backend and pool."""
         if self._adapter is not None:
             return
 
         backend = self.memframe._backend
-        if backend is None:
+        pool = getattr(self.memframe, "_pool", None)
+        if backend is None or pool is None:
             raise RuntimeError("Not connected. Call await connect() first.")
 
         if backend.backend == Backend.DUCKDB:
-            self._adapter = DuckDBAdapter(
-                backend.conn_params.get("db_path", ":memory:"),
-                existing_conn=getattr(backend, "_conn", None),
-            )
+            self._adapter = DuckDBAdapter(pool)
         elif backend.backend == Backend.POSTGRES:
-            params = backend.conn_params
-            self._adapter = PostgresAdapter(
-                host=params["host"],
-                port=params["port"],
-                user=params["user"],
-                password=params["password"],
-                database=params["database"],
-            )
-        elif backend.backend == Backend.CLICKHOUSE:           
-            params = backend.conn_params
-            self._adapter = ClickHouseAdapter(
-                host=params["host"],
-                port=params.get("port", 8123),
-                user=params["user"],
-                password=params["password"],
-                database=params.get("database"),
-                secure=params.get("secure", False),
-                timeout=params.get("timeout", 10.0),
-            )
+            self._adapter = PostgresAdapter(pool)
+        elif backend.backend == Backend.CLICKHOUSE:
+            self._adapter = ClickHouseAdapter(pool)
         else:
             raise RuntimeError("Unsupported backend")
 
-        await self._adapter.connect()
-
     async def close(self):
-        if self._adapter:
-            await self._adapter.close()
-            self._adapter = None
+        self._adapter = None
 
     async def _get_active_context(self):
         # Use explicit data_id if provided, otherwise fall back to global active

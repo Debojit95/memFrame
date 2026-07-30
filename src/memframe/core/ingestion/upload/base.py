@@ -1,20 +1,15 @@
 import csv
 import logging
-import os
-import tempfile
 import io
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union, TYPE_CHECKING
 
-import numpy as np
 import pyarrow as pa
 import pyarrow.csv as pcsv
 import pyarrow.parquet as pq
 
-import asyncio
 
-from memframe.utils.async_sync import async_to_sync
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -339,9 +334,9 @@ class Uploader:
             await self._insert_arrow_table_clickhouse(table_name, arrow_table)
 
     async def _insert_arrow_table_duckdb(self, table_name: str, arrow_table: pa.Table) -> None:
-        self._backend._conn.register("arrow_temp", arrow_table)
-        self._backend._conn.execute(f"INSERT INTO {table_name} SELECT * FROM arrow_temp")
-        self._backend._conn.unregister("arrow_temp")
+        self._backend.pool.conn.register("arrow_temp", arrow_table)
+        self._backend.pool.conn.execute(f"INSERT INTO {table_name} SELECT * FROM arrow_temp")
+        self._backend.pool.conn.unregister("arrow_temp")
 
     async def _insert_arrow_table_postgres(self, table_name: str, arrow_table: pa.Table) -> None:
         await self._insert_arrow_table_postgres_impl(table_name, arrow_table, arrow_table.schema.names)
@@ -360,7 +355,7 @@ class Uploader:
             text_writer.detach()
             buf.seek(0)
             schema_name, raw_table = self._split_qualified_table_name(final_table)
-            await self._backend._conn.copy_to_table(
+            await self._backend.pool.copy_to_table(
                 raw_table,
                 source=buf,
                 columns=columns,
@@ -436,18 +431,18 @@ class Uploader:
 
     async def _fetch_arrow_sample_duckdb(self, table_name: str, columns: List[str], limit: int) -> pa.Table:
         col_str = ", ".join(self._quote_identifier(c) for c in columns)
-        res = self._backend._conn.execute(f"SELECT {col_str} FROM {table_name} LIMIT {limit}").fetch_arrow_table()
+        res = self._backend.pool.conn.execute(f"SELECT {col_str} FROM {table_name} LIMIT {limit}").fetch_arrow_table()
         return res
 
     async def _fetch_arrow_sample_postgres(self, table_name: str, columns: List[str], limit: int) -> pa.Table:
         col_str = ", ".join(self._quote_identifier(c) for c in columns)
-        rows = await self._backend._conn.fetch(f"SELECT {col_str} FROM {table_name} LIMIT {limit}")
+        rows = await self._backend.pool.fetch(f"SELECT {col_str} FROM {table_name} LIMIT {limit}")
         data = {col: [row[i] for row in rows] for i, col in enumerate(columns)}
         return pa.Table.from_pydict(data)
 
     async def _fetch_arrow_sample_clickhouse(self, table_name: str, columns: List[str], limit: int) -> pa.Table:
         col_str = ", ".join(self._quote_identifier(c) for c in columns)
-        res = await self._backend._conn.query(f"SELECT {col_str} FROM {table_name} LIMIT {limit}")
+        res = await self._backend.pool.client.query(f"SELECT {col_str} FROM {table_name} LIMIT {limit}")
         data = {col: [row[i] for row in res.result_rows] for i, col in enumerate(res.column_names)}
         return pa.Table.from_pydict(data)
 
