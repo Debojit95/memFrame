@@ -511,7 +511,7 @@ class TestSelectionOperations:
     # ------------------------------------------------------------------
 
     def test_asof(self, uploaded_ctx, sample_df, backend_config):
-        result = uploaded_ctx.select.asof(where="2023-03-15", on="join_date")
+        result = uploaded_ctx.asof(where="2023-03-15", on="join_date")
         assert not result.get("is_error"), result.get("error_message")
         sel = result["result"]
         if isinstance(sel, pd.DataFrame):
@@ -528,7 +528,7 @@ class TestSelectionOperations:
 
         # multiple where values – at present the second call still
         # returns the same row as the first, so we only check length.
-        result = uploaded_ctx.select.asof(
+        result = uploaded_ctx.asof(
             where=["2023-03-15", "2023-04-10"], on="join_date"
         )
         assert not result.get("is_error")
@@ -547,7 +547,7 @@ class TestSelectionOperations:
         assert sel_df.iloc[1]["id"] == 102
 
         # subset only checks score for NaN
-        result = uploaded_ctx.select.asof(
+        result = uploaded_ctx.asof(
             where="2023-03-15", on="join_date", subset=["score"]
         )
         sel = result["result"]
@@ -571,7 +571,7 @@ class TestSelectionOperations:
     # ------------------------------------------------------------------
     def test_at(self, uploaded_ctx, sample_df, backend_config):
         # auto index column (id)
-        result = uploaded_ctx.select.at(row_label=103, column_label="name")
+        result = uploaded_ctx.at(row_label=103, column_label="name")
         self._record_result(
             "at_auto_index",
             'at(row_label=103, column_label="name")',
@@ -584,7 +584,7 @@ class TestSelectionOperations:
         assert result["value"] == "Charlie"
 
         # explicit index column
-        result = uploaded_ctx.select.at(row_label=103, column_label="name", index_column="id")
+        result = uploaded_ctx.at(row_label=103, column_label="name", index_column="id")
         self._record_result(
             "at_explicit_index",
             'at(row_label=103, column_label="name", index_column="id")',
@@ -597,7 +597,7 @@ class TestSelectionOperations:
         assert result["value"] == "Charlie"
 
         # non-existent label
-        result = uploaded_ctx.select.at(row_label=999, column_label="name", index_column="id")
+        result = uploaded_ctx.at(row_label=999, column_label="name", index_column="id")
         self._record_result(
             "at_missing_label",
             'at(row_label=999, column_label="name", index_column="id")',
@@ -612,7 +612,7 @@ class TestSelectionOperations:
     # iat
     # ------------------------------------------------------------------
     def test_iat(self, uploaded_ctx, sample_df, backend_config):
-        result = uploaded_ctx.select.iat(row_position=2, column_label="score", order_by="id")
+        result = uploaded_ctx.iat(row_position=2, column_label="score", order_by="id")
         self._record_result(
             "iat",
             'iat(row_position=2, column_label="score", order_by="id")',
@@ -626,7 +626,7 @@ class TestSelectionOperations:
         assert pd.isna(result["value"])
 
         # out of bounds
-        result = uploaded_ctx.select.iat(row_position=10, column_label="score", order_by="id")
+        result = uploaded_ctx.iat(row_position=10, column_label="score", order_by="id")
         self._record_result(
             "iat_out_of_bounds",
             'iat(row_position=10, column_label="score", order_by="id")',
@@ -644,7 +644,7 @@ class TestSelectionOperations:
     def test_loc_list_labels(self, uploaded_ctx, sample_df, backend_config):
         # The public wrapper does not support list-of-labels via loc;
         # use iloc with integer positions instead.
-        result = uploaded_ctx.select.iloc(
+        result = uploaded_ctx.iloc(
             row_indexer=[0, 2], col_indexer=[0, 1, 2]  # ids 101,103 and cols id,name,score
         )
         assert not result.get("is_error"), result.get("error_message")
@@ -661,7 +661,7 @@ class TestSelectionOperations:
 
     def test_loc_scalar_label(self, uploaded_ctx, sample_df, backend_config):
         # Workaround: use a string condition to get the row for id=102
-        result = uploaded_ctx.select.loc(row_selector="id = 102")
+        result = uploaded_ctx.loc(row_selector="id = 102")
         assert not result.get("is_error"), result.get("error_message")
         loc_df = result["result"]
         expected = sample_df[sample_df["id"] == 102].reset_index(drop=True)
@@ -677,7 +677,7 @@ class TestSelectionOperations:
 
 
     def test_loc_slice(self, uploaded_ctx, sample_df, backend_config):
-        result = uploaded_ctx.select.iloc(row_indexer=slice(1, 4))   # rows 1,2,3
+        result = uploaded_ctx.iloc(row_indexer=slice(1, 4))   # rows 1,2,3
         assert not result.get("is_error"), result.get("error_message")
         loc_df = result["result"]
         expected = sample_df.iloc[1:4].reset_index(drop=True)
@@ -690,7 +690,7 @@ class TestSelectionOperations:
    
     def test_loc_condition_string(self, uploaded_ctx, sample_df, backend_config):
     # Equivalent to rows where id in (101,103) -> positions 0 and 2
-        result = uploaded_ctx.select.iloc(
+        result = uploaded_ctx.iloc(
             row_indexer=[0, 2], col_indexer=[0, 2]  # columns id (0) and score (2)
         )
         assert not result.get("is_error"), result.get("error_message")
@@ -712,7 +712,7 @@ class TestSelectionOperations:
         # Boolean mask is not supported by core loc, it uses iloc under the hood.
         # We'll test the iloc route directly.
         mask = [True, False, True, False, True]
-        result = uploaded_ctx.select.iloc(row_indexer=mask, col_indexer=[1])  # column 1 = name
+        result = uploaded_ctx.iloc(row_indexer=mask, col_indexer=[1])  # column 1 = name
         assert not result.get("is_error"), result.get("error_message")
         loc_df = result["result"]
         expected = sample_df.loc[mask, ["name"]].reset_index(drop=True)
@@ -731,7 +731,7 @@ class TestSelectionOperations:
     # get
     # ------------------------------------------------------------------
     def test_get(self, uploaded_ctx, sample_df, backend_config):
-        result = uploaded_ctx.select.get(keys=["name", "score"])
+        result = uploaded_ctx.get(keys=["name", "score"])
         self._record_result(
             "get_columns",
             'get(keys=["name", "score"])',
@@ -743,7 +743,7 @@ class TestSelectionOperations:
         assert not result.get("is_error")
         assert set(result["result"].columns) == {"name", "score"}
 
-        result = uploaded_ctx.select.get(keys="non_existent", default="MISSING")
+        result = uploaded_ctx.get(keys="non_existent", default="MISSING")
         self._record_result(
             "get_missing_default",
             'get(keys="non_existent", default="MISSING")',
@@ -759,7 +759,7 @@ class TestSelectionOperations:
     # where
     # ------------------------------------------------------------------
     def test_where(self, uploaded_ctx, sample_df, backend_config):
-        result = uploaded_ctx.select.where(cond="score > 85", other=None)
+        result = uploaded_ctx.where(cond="score > 85", other=None)
         assert not result.get("is_error"), result.get("error_message")
         wdf = result["result"]
         expected = sample_df.where(sample_df["score"] > 85)
@@ -786,7 +786,7 @@ class TestSelectionOperations:
     # select_dtypes
     # ------------------------------------------------------------------
     def test_select_dtypes(self, uploaded_ctx, sample_df, backend_config):
-        result = uploaded_ctx.select.select_dtypes(include="numeric")
+        result = uploaded_ctx.select_dtypes(include="numeric")
         self._record_result(
             "select_dtypes_numeric",
             'select_dtypes(include="numeric")',
@@ -799,7 +799,7 @@ class TestSelectionOperations:
         cols = result["result"].columns.tolist()
         assert "id" in cols and "score" in cols
 
-        result = uploaded_ctx.select.select_dtypes(exclude="categorical")
+        result = uploaded_ctx.select_dtypes(exclude="categorical")
         self._record_result(
             "select_dtypes_exclude_categorical",
             'select_dtypes(exclude="categorical")',
@@ -812,7 +812,7 @@ class TestSelectionOperations:
         cols = result["result"].columns.tolist()
         assert "name" not in cols and "note" not in cols
 
-        result = uploaded_ctx.select.select_dtypes(include=["date", "timestamp"])
+        result = uploaded_ctx.select_dtypes(include=["date", "timestamp"])
         self._record_result(
             "select_dtypes_date_timestamp",
             'select_dtypes(include=["date", "timestamp"])',
@@ -828,7 +828,7 @@ class TestSelectionOperations:
     # take
     # ------------------------------------------------------------------
     def test_take(self, uploaded_ctx, sample_df, backend_config):
-        result = uploaded_ctx.select.take(indices=[0, 2], axis=0)
+        result = uploaded_ctx.take(indices=[0, 2], axis=0)
         self._record_result(
             "take_rows",
             "take(indices=[0, 2], axis=0)",
@@ -841,7 +841,7 @@ class TestSelectionOperations:
         taken = result["result"]
         assert taken.iloc[0]["id"] == 101 and taken.iloc[1]["id"] == 103
 
-        result = uploaded_ctx.select.take(indices=[1, 3], axis=1)
+        result = uploaded_ctx.take(indices=[1, 3], axis=1)
         self._record_result(
             "take_columns",
             "take(indices=[1, 3], axis=1)",
@@ -853,7 +853,7 @@ class TestSelectionOperations:
         cols = result["result"].columns.tolist()
         assert cols == ["name", "active"]
 
-        result = uploaded_ctx.select.take(indices=[-1], axis=0)
+        result = uploaded_ctx.take(indices=[-1], axis=0)
         self._record_result(
             "take_negative_row",
             "take(indices=[-1], axis=0)",
@@ -864,7 +864,7 @@ class TestSelectionOperations:
         )
         assert result["result"].iloc[0]["id"] == 105
 
-        result = uploaded_ctx.select.take(indices=[10], axis=0)
+        result = uploaded_ctx.take(indices=[10], axis=0)
         self._record_result(
             "take_out_of_bounds",
             "take(indices=[10], axis=0)",
@@ -880,7 +880,7 @@ class TestSelectionOperations:
     # ------------------------------------------------------------------
     def test_iloc_scalar_row_full_columns(self, uploaded_ctx, sample_df, backend_config):
         # Return full row as DataFrame
-        result = uploaded_ctx.select.iloc(row_indexer=2)  # all columns
+        result = uploaded_ctx.iloc(row_indexer=2)  # all columns
         assert not result.get("is_error"), result.get("error_message")
         row_df = result["result"]
         self._record_result(
@@ -895,7 +895,7 @@ class TestSelectionOperations:
         assert row_df.iloc[0]["name"] == "Charlie"
 
     def test_iloc_scalar_row_col(self, uploaded_ctx, sample_df, backend_config):
-        result = uploaded_ctx.select.iloc(row_indexer=0, col_indexer=1)
+        result = uploaded_ctx.iloc(row_indexer=0, col_indexer=1)
         self._record_result(
             "iloc_scalar_row_col",
             "iloc(row_indexer=0, col_indexer=1)",
@@ -908,7 +908,7 @@ class TestSelectionOperations:
         assert result["value"] == "Alice"
 
     def test_iloc_list_rows_cols(self, uploaded_ctx, sample_df, backend_config):
-        result = uploaded_ctx.select.iloc(row_indexer=[0, 3], col_indexer=[1, 2])
+        result = uploaded_ctx.iloc(row_indexer=[0, 3], col_indexer=[1, 2])
         assert not result.get("is_error"), result.get("error_message")
         df_res = result["result"]
         expected = sample_df.iloc[[0, 3], [1, 2]].reset_index(drop=True)
@@ -922,7 +922,7 @@ class TestSelectionOperations:
     
     
     def test_iloc_slice(self, uploaded_ctx, sample_df, backend_config):
-        result = uploaded_ctx.select.iloc(row_indexer=slice(1, 4))
+        result = uploaded_ctx.iloc(row_indexer=slice(1, 4))
         assert not result.get("is_error"), result.get("error_message")
         df_res = result["result"]
         self._record_result(
@@ -939,7 +939,7 @@ class TestSelectionOperations:
 
     def test_iloc_boolean_mask(self, uploaded_ctx, sample_df, backend_config):
         mask = [True, False, True, False, True]
-        result = uploaded_ctx.select.iloc(row_indexer=mask)
+        result = uploaded_ctx.iloc(row_indexer=mask)
         assert not result.get("is_error"), result.get("error_message")
         df_res = result["result"]
         self._record_result(
@@ -954,7 +954,7 @@ class TestSelectionOperations:
         assert set(df_res["id"]) == {101, 103, 105}
 
     def test_iloc_out_of_bounds(self, uploaded_ctx, sample_df, backend_config):
-        result = uploaded_ctx.select.iloc(row_indexer=99)
+        result = uploaded_ctx.iloc(row_indexer=99)
         self._record_result(
             "iloc_out_of_bounds",
             "iloc(row_indexer=99)",
@@ -966,7 +966,7 @@ class TestSelectionOperations:
         assert result.get("is_error")
 
     def test_iloc_slice_strings(self, uploaded_ctx, sample_df, backend_config):
-        result = uploaded_ctx.select.iloc(row_indexer="0:3", col_indexer="1:3")
+        result = uploaded_ctx.iloc(row_indexer="0:3", col_indexer="1:3")
         assert not result.get("is_error"), result.get("error_message")
         df_res = result["result"]
         self._record_result(
@@ -983,10 +983,10 @@ class TestSelectionOperations:
         assert pd.isna(df_res.iloc[2, 1])            # score
 
     def test_iloc_repeated_identical_call(self, uploaded_ctx, sample_df, backend_config):
-        first = uploaded_ctx.select.iloc(row_indexer="0:3", col_indexer="1:3")
+        first = uploaded_ctx.iloc(row_indexer="0:3", col_indexer="1:3")
         assert not first.get("is_error"), first.get("error_message")
 
-        second = uploaded_ctx.select.iloc(row_indexer="0:3", col_indexer="1:3")
+        second = uploaded_ctx.iloc(row_indexer="0:3", col_indexer="1:3")
         assert not second.get("is_error"), second.get("error_message")
         self._record_result(
             "iloc_repeated_identical_call",
@@ -1001,7 +1001,7 @@ class TestSelectionOperations:
         assert first.get("new_table") != second.get("new_table")
 
     def test_iloc_tuple_style(self, uploaded_ctx, sample_df, backend_config):
-        result = uploaded_ctx.select.iloc(row_indexer=("1:4", "0:2"))
+        result = uploaded_ctx.iloc(row_indexer=("1:4", "0:2"))
         assert not result.get("is_error"), result.get("error_message")
         df_res = result["result"]
         self._record_result(
@@ -1020,7 +1020,7 @@ class TestSelectionOperations:
     def test_iloc_row_slice_named_cols(self, uploaded_ctx, sample_df, backend_config):
         # Named columns are not supported by core iloc; use indices instead.
         # columns "name" and "active" correspond to indices 1 and 3.
-        result = uploaded_ctx.select.iloc(row_indexer="3:5", col_indexer=[1, 3])
+        result = uploaded_ctx.iloc(row_indexer="3:5", col_indexer=[1, 3])
         assert not result.get("is_error"), result.get("error_message")
         df_res = result["result"]
         self._record_result(

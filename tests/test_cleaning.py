@@ -749,7 +749,7 @@ class TestCleaningOperations:
     # 6. clip (numeric_enforce_range)
     # ----------------------------------------------------
     def test_clip_basic(self, uploaded_ctx, sample_df, backend_config):
-        result = uploaded_ctx.clean.clip(column="salary", lower=1000, upper=5000)
+        result = uploaded_ctx.clip(column="salary", lower=1000, upper=5000)
         res_df = get_result_df(result)
         out_col = get_generated_col(result, "salary")
 
@@ -757,7 +757,7 @@ class TestCleaningOperations:
         assert_series_equal_loose(res_df[out_col], expected)
         self._record_result(
             test_name="clip_basic",
-            method_call='uploaded_ctx.clean.clip(column="salary", lower=1000, upper=5000)',
+            method_call='uploaded_ctx.clip(column="salary", lower=1000, upper=5000)',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -765,7 +765,7 @@ class TestCleaningOperations:
         )
 
     def test_clip_lower_only(self, uploaded_ctx, sample_df, backend_config):
-        result = uploaded_ctx.clean.clip(column="salary", lower=2000, upper=None)
+        result = uploaded_ctx.clip(column="salary", lower=2000, upper=None)
         res_df = get_result_df(result)
         out_col = get_generated_col(result, "salary")
 
@@ -773,7 +773,7 @@ class TestCleaningOperations:
         assert_series_equal_loose(res_df[out_col], expected)
         self._record_result(
             test_name="clip_lower_only",
-            method_call='uploaded_ctx.clean.clip(column="salary", lower=2000, upper=None)',
+            method_call='uploaded_ctx.clip(column="salary", lower=2000, upper=None)',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -781,7 +781,7 @@ class TestCleaningOperations:
         )
 
     def test_clip_upper_only(self, uploaded_ctx, sample_df, backend_config):
-        result = uploaded_ctx.clean.clip(column="salary", lower=None, upper=8000)
+        result = uploaded_ctx.clip(column="salary", lower=None, upper=8000)
         res_df = get_result_df(result)
         out_col = get_generated_col(result, "salary")
 
@@ -789,7 +789,7 @@ class TestCleaningOperations:
         assert_series_equal_loose(res_df[out_col], expected)
         self._record_result(
             test_name="clip_upper_only",
-            method_call='uploaded_ctx.clean.clip(column="salary", lower=None, upper=8000)',
+            method_call='uploaded_ctx.clip(column="salary", lower=None, upper=8000)',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
