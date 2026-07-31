@@ -4,6 +4,7 @@ from memframe.core.ingestion.upload.base import Uploader
 
 import asyncio
 import json
+import os
 from pathlib import Path
 from typing import Any, Dict
 import pandas as pd
@@ -162,3 +163,96 @@ class TestUploadOperations:
                 connection_params=connection_params,
             )
         )
+
+
+async def _upload_and_column_types(
+    connection_params: Dict[str, Any],
+    df: pd.DataFrame | None = None,
+    dtypes: Dict[str, str] | None = None,
+    csv_content: str | None = None,
+) -> Dict[str, str]:
+    import tempfile
+
+    mf = MemFrame(connection_type="local", connection_params=connection_params)
+    await mf.aconnect()
+    try:
+        if csv_content is not None:
+            with tempfile.NamedTemporaryFile("w", suffix=".csv", delete=False) as f:
+                f.write(csv_content)
+                path = Path(f.name)
+            ctx = await mf.aupload_csv(path, dtypes=dtypes)
+        else:
+            assert df is not None
+            ctx = await mf.aupload_df(df, dtypes=dtypes)
+
+        rows = mf._pool.conn.execute(
+            "SELECT column_name, data_type FROM information_schema.columns "
+            "WHERE table_schema=? AND table_name=? ORDER BY ordinal_position",
+            [mf._backend.upload_schema, ctx._data_id],
+        ).fetchall()
+        return {name: dtype for name, dtype in rows}
+    finally:
+        await mf.close()
+
+
+def _memory_params() -> Dict[str, Any]:
+    return {"backend": "duckdb", "db_path": f"memframe_test_{os.getpid()}.duckdb"}
+
+
+class TestTypeInference:
+    def test_csv_native_first(self):
+        types = asyncio.run(
+            _upload_and_column_types(
+                _memory_params(),
+                csv_content="id,name,score,dt\n1,alice,9.5,2024-01-01\n2,bob,8.0,2024-02-01\n",
+            )
+        )
+        assert types["id"] == "BIGINT"
+        assert types["score"] == "DOUBLE"
+        assert types["dt"] == "DATE"
+
+    def test_csv_override(self):
+        types = asyncio.run(
+            _upload_and_column_types(
+                _memory_params(),
+                csv_content="id,name,score\n1,alice,9.5\n2,bob,8.0\n",
+                dtypes={"id": "TEXT", "score": "DOUBLE PRECISION"},
+            )
+        )
+        assert types["id"] == "VARCHAR"
+        assert types["score"] == "DOUBLE"
+
+    def test_csv_incompatible_override_raises(self):
+        from memframe.exceptions import ConfigurationError
+
+        with pytest.raises(ConfigurationError):
+            asyncio.run(
+                _upload_and_column_types(
+                    _memory_params(),
+                    csv_content="score\n9.5\n8.0\n",
+                    dtypes={"score": "int64"},
+                )
+            )
+
+    def test_df_override(self):
+        df = pd.DataFrame({"A": [1, 2, 3], "B": [1.5, 2.5, 3.5]})
+        types = asyncio.run(
+            _upload_and_column_types(_memory_params(), df=df, dtypes={"A": "int64", "B": "float32"})
+        )
+        assert types["A"] == "BIGINT"
+        assert types["B"] == "FLOAT"
+
+    def test_df_mixed_column_falls_back(self):
+        df = pd.DataFrame({"A": [1, 2, "x"], "B": ["y", "z", "w"]})
+        types = asyncio.run(_upload_and_column_types(_memory_params(), df=df))
+        assert types["A"] == "VARCHAR"
+        assert types["B"] == "VARCHAR"
+
+    def test_normalize_dtype_override(self):
+        u = Uploader()
+        assert u._normalize_dtype_override({"a": "int64"}) == {"a": "BIGINT"}
+        assert u._normalize_dtype_override({"a": "BIGINT"}) == {"a": "BIGINT"}
+        assert u._normalize_dtype_override({"a": "datetime64[ns, UTC]"}) == {"a": "TIMESTAMPTZ"}
+        assert u._normalize_dtype_override({"a": "NUMERIC(10,2)"}) == {"a": "NUMERIC(10,2)"}
+        with pytest.raises(Exception):
+            u._normalize_dtype_override({"a": "BOGUS"})

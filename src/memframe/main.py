@@ -240,26 +240,52 @@ class MemFrame(ContextManager):
     def _placeholder(self, index: int) -> str:
         return self._backend.placeholder(index)
 
-    async def aupload_csv(self, file_path: str | Path) -> ContextManager:
-        return await self._uploader._aupload_csv(file_path)
+    async def aupload_csv(
+        self,
+        file_path: str | Path,
+        dtypes: Optional[Dict[str, str]] = None,
+    ) -> ContextManager:
+        return await self._uploader._aupload_csv(file_path, dtypes=dtypes)
 
     @async_to_sync
-    async def upload_csv(self, file_path: str | Path) -> ContextManager:
-        return await self.aupload_csv(file_path)
+    async def upload_csv(
+        self,
+        file_path: str | Path,
+        dtypes: Optional[Dict[str, str]] = None,
+    ) -> ContextManager:
+        return await self.aupload_csv(file_path, dtypes=dtypes)
 
-    async def aupload_parquet(self, file_path: str | Path) -> ContextManager:
-        return await self._uploader._aupload_parquet(file_path)
+    async def aupload_parquet(
+        self,
+        file_path: str | Path,
+        dtypes: Optional[Dict[str, str]] = None,
+    ) -> ContextManager:
+        return await self._uploader._aupload_parquet(file_path, dtypes=dtypes)
 
     @async_to_sync
-    async def upload_parquet(self, file_path: str | Path) -> ContextManager:
-        return await self.aupload_parquet(file_path)
+    async def upload_parquet(
+        self,
+        file_path: str | Path,
+        dtypes: Optional[Dict[str, str]] = None,
+    ) -> ContextManager:
+        return await self.aupload_parquet(file_path, dtypes=dtypes)
 
-    async def aupload_df(self, df: "pd.DataFrame", filename: Optional[str] = None) -> ContextManager:
-        return await self._uploader._aupload_df(df, filename)
+    async def aupload_df(
+        self,
+        df: "pd.DataFrame",
+        filename: Optional[str] = None,
+        dtypes: Optional[Dict[str, str]] = None,
+    ) -> ContextManager:
+        return await self._uploader._aupload_df(df, filename, dtypes=dtypes)
 
     @async_to_sync
-    async def upload_df(self, df: "pd.DataFrame", filename: Optional[str] = None) -> ContextManager:
-        return await self.aupload_df(df, filename=filename)
+    async def upload_df(
+        self,
+        df: "pd.DataFrame",
+        filename: Optional[str] = None,
+        dtypes: Optional[Dict[str, str]] = None,
+    ) -> ContextManager:
+        return await self.aupload_df(df, filename=filename, dtypes=dtypes)
 
     # ── ops / context helpers ────────────────────────────────────
 
@@ -313,9 +339,6 @@ class MemFrame(ContextManager):
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self.close()
-
-
-
 
 
 

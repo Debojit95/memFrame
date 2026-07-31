@@ -151,14 +151,19 @@ class Uploader:
         def _validate(enc):
             try:
                 with open(file_path, "rb") as f:
-                    raw = f.read(65536)
+                    raw = f.read(4 * 1024 * 1024)
                 raw.decode(enc)
                 return True
             except (UnicodeDecodeError, LookupError):
                 return False
 
-        for enc in (detected, "utf-8", "latin-1", "cp1252"):
-            if _validate(enc):
+        # ascii is a strict subset of utf-8; chardet may call a file with a
+        # single non-ascii byte past its sample window "ascii" and pyarrow will
+        # then fail mid-file. Prefer utf-8 whenever it decodes.
+        candidates = ["utf-8" if detected and detected.lower() == "ascii" else detected]
+        candidates += ["utf-8", "latin-1", "cp1252"]
+        for enc in candidates:
+            if enc and _validate(enc):
                 return enc
         return "latin-1"
 
@@ -609,6 +614,7 @@ class Uploader:
         self,
         file_path: Union[str, Path],
         registry_filename: Optional[str] = None,
+        dtypes: Optional[Dict[str, str]] = None,
     ) -> str:
         if not self._backend:
             raise ConnectionNotReady("Not connected. Call await connect() first.")
@@ -624,7 +630,7 @@ class Uploader:
                 break
 
         logger.info(f"Uploading {file_path.name} as {data_id}...")
-        row_count = await self._create_table_from_csv(table_name, str(file_path))
+        row_count = await self._create_table_from_csv(table_name, str(file_path), dtypes)
 
         await self._backend.execute(
             f"""
@@ -640,7 +646,9 @@ class Uploader:
         logger.info(f"Uploaded {file_path.name} -> {data_id} ({row_count} rows)")
         return data_id
 
-    async def _create_table_from_csv(self, table_name: str, file_path: str) -> int:
+    async def _create_table_from_csv(
+        self, table_name: str, file_path: str, dtypes: Optional[Dict[str, str]] = None
+    ) -> int:
         encoding = await self._resolve_encoding(file_path)
         
         schema_name = self._backend.upload_schema
@@ -661,12 +669,17 @@ class Uploader:
             for col in columns:
                 chunked = sample_table.column(col)
                 schema[col] = self._type_detector._infer_column(chunked)
+            schema = self._apply_dtype_override(schema, columns, dtypes)
             await self._cast_table_in_place(final_table, columns, schema)
         else:
             # DuckDB/PostgreSQL: type-first optimized path
             columns, schema = await self._infer_types_from_csv(file_path, encoding)
+            schema = self._apply_dtype_override(schema, columns, dtypes)
             await self._create_final_table_typed(final_table, columns, schema)
-            await self._stream_csv_typed(final_table, file_path, columns, encoding, schema)
+            await self._stream_csv_typed(
+                final_table, file_path, columns, encoding, schema,
+                locked_cols=set(dtypes or {}),
+            )
 
         row_count = await self.fetch_val(f"SELECT COUNT(*) FROM {final_table}")
         return row_count
@@ -675,7 +688,11 @@ class Uploader:
     async def _infer_types_from_csv(
         self, file_path: str, encoding: str, sample_rows: int = 5000
     ) -> Tuple[List[str], Dict[str, Dict[str, Any]]]:
-        """Read first N rows of CSV with PyArrow to infer column types."""
+        """Read first N rows of CSV.
+
+        Native PyArrow inference is the initial choice; columns PyArrow
+        leaves as strings fall back to sampling + heuristic detection.
+        """
         read_opts = pcsv.ReadOptions(encoding=encoding, use_threads=True, block_size=1 << 20)
         parse_opts = pcsv.ParseOptions(newlines_in_values=True)
         
@@ -686,9 +703,9 @@ class Uploader:
         
         columns = self._make_unique_column_names(original_names)
         
-        # Now read sample with all columns as string to analyze
+        # Native inference (no forced string types) so PyArrow resolves
+        # int/float/date columns itself.
         convert_opts = pcsv.ConvertOptions(
-            column_types={name: pa.string() for name in original_names},
             auto_dict_encode=False,
             include_columns=original_names,
             strings_can_be_null=True,
@@ -720,16 +737,102 @@ class Uploader:
         # Rename to clean column names
         sample_table = sample_table.rename_columns(columns)
         
-        # Infer types using existing detector
         schema = {}
-        for col in columns:
-            chunked = sample_table.column(col)
-            schema[col] = self._type_detector._infer_column(chunked)
+        heuristic_cols = []
+        for i, col in enumerate(columns):
+            field = sample_table.schema.field(i)
+            if pa.types.is_string(field.type) or pa.types.is_large_string(field.type):
+                # PyArrow gave up (mixed values, yes/no bools, ...); fall back to
+                # sampling + heuristic detection.
+                schema[col] = self._type_detector._infer_column(sample_table.column(col))
+                heuristic_cols.append(col)
+            else:
+                pg_type = self._arrow_type_to_postgres(field.type)
+                schema[col] = {
+                    "postgres_type": pg_type,
+                    "clickhouse_type": self._postgres_type_to_clickhouse(pg_type),
+                    "is_nullable": field.nullable,
+                }
         
-        # Make types more conservative to handle outliers in full dataset
-        schema = self._make_types_conservative(schema)
+        # Only heuristic columns need conservative widening (native int64 is widest already)
+        if heuristic_cols:
+            heuristic_schema = {col: schema[col] for col in heuristic_cols}
+            heuristic_schema = self._make_types_conservative(heuristic_schema)
+            schema.update(heuristic_schema)
         
         return columns, schema
+
+    _PANDAS_DTYPE_TO_POSTGRES = {
+        "int8": "SMALLINT",
+        "int16": "SMALLINT",
+        "int32": "INTEGER",
+        "int64": "BIGINT",
+        "uint8": "SMALLINT",
+        "uint16": "INTEGER",
+        "uint32": "BIGINT",
+        "uint64": "BIGINT",
+        "float32": "REAL",
+        "float64": "DOUBLE PRECISION",
+        "bool": "BOOLEAN",
+        "datetime64": "TIMESTAMP",
+        "str": "TEXT",
+        "object": "TEXT",
+        "string": "TEXT",
+        "category": "TEXT",
+    }
+
+    def _normalize_dtype_override(self, dtypes: Dict[str, str]) -> Dict[str, str]:
+        """Validate and normalize a user dtype override to postgres_type strings.
+
+        Accepts both SQL type names (BIGINT, TIMESTAMP, ...) and pandas dtype
+        names (int64, float64, bool, ...).
+        """
+        known_sql = {
+            "TEXT", "VARCHAR", "CHAR", "INTEGER", "INT", "BIGINT", "SMALLINT",
+            "NUMERIC", "DECIMAL", "REAL", "FLOAT", "FLOAT4", "DOUBLE", "FLOAT8",
+            "DOUBLE PRECISION", "BOOLEAN", "BOOL", "DATE", "TIMESTAMP",
+            "TIMESTAMPTZ", "DATETIME", "BYTEA",
+        }
+        normalized = {}
+        for col, raw in dtypes.items():
+            if not isinstance(raw, str) or not raw.strip():
+                raise ConfigurationError(f"dtypes value for '{col}' must be a non-empty string")
+            spec = raw.strip()
+            base = spec.split("(")[0].split("[")[0].strip().lower()
+            if base in self._PANDAS_DTYPE_TO_POSTGRES:
+                pg_type = self._PANDAS_DTYPE_TO_POSTGRES[base]
+                if base == "datetime64" and any(x in spec.lower() for x in ("utc", "tz=")):
+                    pg_type = "TIMESTAMPTZ"
+                normalized[col] = pg_type
+            elif base.upper() in known_sql:
+                normalized[col] = spec.upper()
+            else:
+                raise ConfigurationError(
+                    f"Unknown dtype '{raw}' for column '{col}'. Use a SQL type "
+                    f"(e.g. BIGINT, TIMESTAMP, TEXT) or pandas dtype (e.g. int64, float64)."
+                )
+        return normalized
+
+    def _apply_dtype_override(
+        self,
+        schema: Dict[str, Dict[str, Any]],
+        columns: List[str],
+        dtypes: Optional[Dict[str, str]],
+    ) -> Dict[str, Dict[str, Any]]:
+        """Overlay a user dtype override on an inferred schema (highest precedence)."""
+        if not dtypes:
+            return schema
+        normalized = self._normalize_dtype_override(dtypes)
+        unknown = sorted(set(normalized) - set(columns))
+        if unknown:
+            raise ConfigurationError(f"dtypes references unknown column(s): {', '.join(unknown)}")
+        for col, pg_type in normalized.items():
+            schema[col] = {
+                "postgres_type": pg_type,
+                "clickhouse_type": self._postgres_type_to_clickhouse(pg_type),
+                "is_nullable": schema.get(col, {}).get("is_nullable", True),
+            }
+        return schema
 
     def _make_types_conservative(self, schema: Dict[str, Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
         """Upgrade integer types to next level to handle potential outliers."""
@@ -796,9 +899,12 @@ class Uploader:
         columns: List[str],
         encoding: str,
         schema: Dict[str, Dict[str, Any]],
+        locked_cols: Optional[set] = None,
     ) -> None:
         """Stream CSV directly into typed table using PyArrow reader (DuckDB/PostgreSQL)."""
-        await self._stream_csv_typed_pyarrow(table_name, file_path, columns, encoding, schema)
+        await self._stream_csv_typed_pyarrow(
+            table_name, file_path, columns, encoding, schema, locked_cols=locked_cols
+        )
 
     async def _stream_csv_typed_pyarrow(
         self,
@@ -807,6 +913,7 @@ class Uploader:
         columns: List[str],
         encoding: str,
         schema: Dict[str, Dict[str, Any]],
+        locked_cols: Optional[set] = None,
     ) -> None:
         """Default implementation using PyArrow CSV reader + Arrow insert (DuckDB/PostgreSQL)."""
         # Build PyArrow type mapping from schema
@@ -832,6 +939,7 @@ class Uploader:
         # Track columns that need fallback to wider types
         col_types = {col: target_schema.field(col).type for col in columns}
         col_fallback_count = {col: 0 for col in columns}
+        locked_cols = locked_cols or set()
         
         def get_convert_opts():
             return pcsv.ConvertOptions(
@@ -846,6 +954,10 @@ class Uploader:
         while True:
             try:
                 convert_opts = get_convert_opts()
+                # Cast schema must track widened col_types, else a column
+                # upgraded to string is cast back to its original type and fails
+                # (e.g. 'Failed to parse value: No' for a BOOLEAN target).
+                cast_schema = pa.schema([pa.field(col, col_types[col]) for col in columns])
                 reader = pcsv.open_csv(file_path, read_options=read_opts, parse_options=parse_opts, convert_options=convert_opts)
                 
                 batches = []
@@ -860,7 +972,7 @@ class Uploader:
                         # Rename to target column names
                         batch = batch.rename_columns(columns)
                         # Cast to target schema
-                        batch = batch.cast(target_schema)
+                        batch = batch.cast(cast_schema)
                         batches.append(batch)
                         rows_accumulated += batch.num_rows
                         
@@ -879,32 +991,59 @@ class Uploader:
                 
             except pa.ArrowInvalid as e:
                 error_msg = str(e)
-                if "CSV conversion error" in error_msg and any(fallback < max_fallbacks for fallback in col_fallback_count.values()):
-                    # Find which column failed and upgrade its type
-                    for col in columns:
-                        if col in error_msg:
-                            col_fallback_count[col] += 1
-                            current_type = col_types[col]
-                            # Upgrade to wider type
-                            if pa.types.is_int16(current_type):
-                                col_types[col] = pa.int32()
-                            elif pa.types.is_int32(current_type):
-                                col_types[col] = pa.int64()
-                            elif pa.types.is_int64(current_type):
-                                col_types[col] = pa.string()
-                            elif pa.types.is_float32(current_type):
-                                col_types[col] = pa.float64()
-                            elif pa.types.is_date32(current_type):
-                                col_types[col] = pa.timestamp("us")
-                            else:
-                                col_types[col] = pa.string()
-                            
-                            logger.warning(f"Column '{col}' type conversion failed, upgrading to {col_types[col]}")
-                            break
-                    continue
-                else:
-                    # Too many fallbacks or unknown error - re-raise
+                if "CSV conversion error" not in error_msg:
                     raise
+                # Identify the failing column. PyArrow reports it either by
+                # name ("...column 'score'...") or by zero-based index
+                # ("...In CSV column #2:..."), where the index refers to the
+                # original CSV column order.
+                col = self._failing_csv_column(error_msg, original_names, columns)
+                if col is None:
+                    raise
+                if col in locked_cols:
+                    raise ConfigurationError(
+                        f"Column '{col}' cannot be cast to the requested dtype "
+                        f"({schema.get(col, {}).get('postgres_type', 'TEXT')}): {error_msg}"
+                    ) from e
+                col_fallback_count[col] += 1
+                if col_fallback_count[col] > max_fallbacks:
+                    raise
+                current_type = col_types[col]
+                # Upgrade to wider type
+                if pa.types.is_int16(current_type):
+                    col_types[col] = pa.int32()
+                elif pa.types.is_int32(current_type):
+                    col_types[col] = pa.int64()
+                elif pa.types.is_int64(current_type):
+                    col_types[col] = pa.string()
+                elif pa.types.is_float32(current_type):
+                    col_types[col] = pa.float64()
+                elif pa.types.is_date32(current_type):
+                    col_types[col] = pa.timestamp("us")
+                else:
+                    col_types[col] = pa.string()
+                
+                logger.warning(f"Column '{col}' type conversion failed, upgrading to {col_types[col]}")
+                continue
+
+    def _failing_csv_column(
+        self,
+        error_msg: str,
+        original_names: List[str],
+        columns: List[str],
+    ) -> Optional[str]:
+        """Map a pyarrow CSV conversion error to the failing cleaned column name."""
+        import re
+
+        m = re.search(r"column\s*#?(\d+)", error_msg)
+        if m:
+            idx = int(m.group(1))
+            if 0 <= idx < len(original_names):
+                return columns[idx]
+        for name in original_names:
+            if name in error_msg:
+                return columns[original_names.index(name)]
+        return None
 
     def _postgres_type_to_arrow(self, pg_type: str) -> pa.DataType:
         """Convert PostgreSQL type string to PyArrow type."""
@@ -934,12 +1073,16 @@ class Uploader:
         }
         return mapping.get(base, pa.string())
 
-    async def _aupload_csv(self, file_path: Union[str, Path]) -> ContextManager:
-        data_id = await self._aupload_csv_data_id(file_path)
+    async def _aupload_csv(
+        self, file_path: Union[str, Path], dtypes: Optional[Dict[str, str]] = None
+    ) -> ContextManager:
+        data_id = await self._aupload_csv_data_id(file_path, dtypes=dtypes)
         return self._memframe_from_data_id(data_id)
 
     # ── Parquet upload ──────────────────────────────────────────
-    async def _aupload_parquet_data_id(self, file_path: Union[str, Path]) -> str:
+    async def _aupload_parquet_data_id(
+        self, file_path: Union[str, Path], dtypes: Optional[Dict[str, str]] = None
+    ) -> str:
         if not self._backend:
             raise ConnectionNotReady("Not connected. Call await connect() first.")
         file_path = Path(file_path)
@@ -953,7 +1096,7 @@ class Uploader:
                 break
 
         logger.info(f"Uploading {file_path.name} as {data_id}...")
-        row_count = await self._create_table_from_parquet(table_name, str(file_path))
+        row_count = await self._create_table_from_parquet(table_name, str(file_path), dtypes)
 
         await self._backend.execute(
             f"""
@@ -969,13 +1112,18 @@ class Uploader:
         logger.info(f"Uploaded {file_path.name} -> {data_id} ({row_count} rows)")
         return data_id
 
-    async def _create_table_from_parquet(self, table_name: str, file_path: str) -> int:
+    async def _create_table_from_parquet(
+        self, table_name: str, file_path: str, dtypes: Optional[Dict[str, str]] = None
+    ) -> int:
         arrow_table = pq.read_table(file_path)
         original_names = arrow_table.schema.names
         columns = self._make_unique_column_names(original_names)
         
         # Phase 1: Infer types directly from Parquet schema (no sampling needed!)
         schema = self._infer_types_from_parquet(arrow_table, columns)
+        
+        # User override wins over the native Parquet schema
+        schema = self._apply_dtype_override(schema, columns, dtypes)
         
         schema_name = self._backend.upload_schema
         if self._backend.backend == Backend.CLICKHOUSE:
@@ -1066,12 +1214,19 @@ class Uploader:
         
         await self._insert_arrow_table(table_name, full_table)
 
-    async def _aupload_parquet(self, file_path: Union[str, Path]) -> ContextManager:
-        data_id = await self._aupload_parquet_data_id(file_path)
+    async def _aupload_parquet(
+        self, file_path: Union[str, Path], dtypes: Optional[Dict[str, str]] = None
+    ) -> ContextManager:
+        data_id = await self._aupload_parquet_data_id(file_path, dtypes=dtypes)
         return self._memframe_from_data_id(data_id)
 
     # ── DataFrame upload ────────────────────────────────────────
-    async def _aupload_df_data_id(self, df: "pd.DataFrame", filename: Optional[str] = None) -> str:
+    async def _aupload_df_data_id(
+        self,
+        df: "pd.DataFrame",
+        filename: Optional[str] = None,
+        dtypes: Optional[Dict[str, str]] = None,
+    ) -> str:
         if not self._backend:
             raise ConnectionNotReady("Not connected. Call await connect() first.")
         try:
@@ -1090,7 +1245,16 @@ class Uploader:
                 break
 
         columns = self._make_unique_column_names([str(col) for col in df.columns])
-        arrow_table = pa.Table.from_pandas(df, preserve_index=False)
+        # Native Arrow inference first; fall back to an all-string table (whose
+        # types are fixed by the heuristic detector after insert) if pandas
+        # holds mixed-type columns Arrow cannot convert.
+        try:
+            arrow_table = pa.Table.from_pandas(df, preserve_index=False)
+        except (pa.ArrowInvalid, pa.ArrowTypeError, TypeError, ValueError):
+            logger.warning("Native Arrow conversion failed; falling back to heuristic type detection")
+            arrow_table = pa.Table.from_pandas(
+                df.astype(str), preserve_index=False
+            )
         arrow_table = arrow_table.rename_columns(columns)
 
         schema_name = self._backend.upload_schema
@@ -1107,6 +1271,9 @@ class Uploader:
             pa_field = arrow_table.schema.field(i)
             pg_type = self._arrow_type_to_postgres(pa_field.type)
             schema[col] = {"postgres_type": pg_type, "clickhouse_type": self._postgres_type_to_clickhouse(pg_type), "is_nullable": pa_field.nullable}
+
+        # User override wins over inferred types
+        schema = self._apply_dtype_override(schema, columns, dtypes)
 
         # Create table with proper types directly
         await self._create_final_table_typed(final_table, columns, schema)
@@ -1125,6 +1292,8 @@ class Uploader:
         sample_table = await self._fetch_arrow_sample(final_table, columns, 50)
         schema_changed = False
         for col in columns:
+            if dtypes and col in dtypes:
+                continue
             chunked = sample_table.column(col)
             inferred = self._type_detector._infer_column(chunked)
             inferred_type = inferred.get("postgres_type", "TEXT")
@@ -1160,6 +1329,11 @@ class Uploader:
         logger.info(f"Uploaded DataFrame -> {data_id} ({row_count} rows)")
         return data_id
 
-    async def _aupload_df(self, df: "pd.DataFrame", filename: Optional[str] = None) -> ContextManager:
-        data_id = await self._aupload_df_data_id(df, filename)
+    async def _aupload_df(
+        self,
+        df: "pd.DataFrame",
+        filename: Optional[str] = None,
+        dtypes: Optional[Dict[str, str]] = None,
+    ) -> ContextManager:
+        data_id = await self._aupload_df_data_id(df, filename, dtypes=dtypes)
         return self._memframe_from_data_id(data_id)
