@@ -3,6 +3,7 @@ from memframe.db_manager.setup.duckdb import DuckDBBackend
 from memframe.db_manager.setup.postgres import PostgresBackend
 from memframe.db_manager.setup.clickhouse import ClickHouseBackend
 from memframe.core.ingestion.datatype_detector import Backend
+from memframe.exceptions import BackendNotSupported
 
 __all__ = [
     "DatabaseBackend",
@@ -22,4 +23,4 @@ def create_backend(backend: Backend, conn_params: dict) -> DatabaseBackend:
     elif backend == Backend.CLICKHOUSE:
         return ClickHouseBackend(conn_params)
     else:
-        raise ValueError(f"Unsupported backend: {backend}")
+        raise BackendNotSupported(f"Unsupported backend: {backend}")

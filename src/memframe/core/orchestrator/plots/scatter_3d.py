@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from memframe.core.plots.scatter_3d import Scatter3DPlotCore
+from memframe.exceptions import OperationError
 
 
 class Scatter3DOrchestrator:
@@ -17,7 +18,7 @@ class Scatter3DOrchestrator:
 
     async def _ensure_ops(self) -> Scatter3DPlotCore:
         if self._ops_parent is None:
-            raise RuntimeError(
+            raise OperationError(
                 "Scatter3DOrchestrator is not bound to a ContextManager instance."
             )
         if self._scatter_3d_ops is None:

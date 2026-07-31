@@ -1,5 +1,6 @@
 from typing import Any, List, Optional, Tuple, Union
 from memframe.core.analytix.selection import DataSelectionOps
+from memframe.exceptions import OperationError
 from memframe.utils.method_call_logger import record_call
 
 
@@ -317,7 +318,7 @@ class SelectionOrchestrator:
             return indexer
         parts = indexer.split(":")
         if len(parts) > 3:
-            raise ValueError(f"Invalid slice expression: '{indexer}'")
+            raise OperationError(f"Invalid slice expression: '{indexer}'")
         parsed = []
         for p in parts:
             p = p.strip()
@@ -339,7 +340,7 @@ class SelectionOrchestrator:
         pos_map = {c: i for i, c in enumerate(all_cols)}
         missing = [c for c in columns if c not in pos_map]
         if missing:
-            raise ValueError(f"Unknown column(s): {missing}")
+            raise OperationError(f"Unknown column(s): {missing}")
         return [pos_map[c] for c in columns]
 
 

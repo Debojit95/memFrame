@@ -3,6 +3,7 @@ from typing import Any, List, Optional, Tuple
 
 from memframe.core.ingestion.datatype_detector import Backend
 from memframe.db_manager.setup.base import DatabaseBackend
+from memframe.exceptions import ConfigurationError, ConnectionNotReady
 
 logger = logging.getLogger(__name__)
 
@@ -12,7 +13,7 @@ def _sanitize_schema_name(value: str) -> str:
     name = re.sub(r"[^A-Za-z0-9_]", "_", value.strip())
     name = re.sub(r"_+", "_", name).strip("_")
     if not name:
-        raise ValueError("schema_prefix must contain at least one alphanumeric character")
+        raise ConfigurationError("schema_prefix must contain at least one alphanumeric character")
     if name[0].isdigit():
         name = f"mf_{name}"
     return name.lower()
@@ -43,7 +44,7 @@ class ClickHouseBackend(DatabaseBackend):
 
     async def insert_rows(self, table_name: str, rows: List[List[Any]], columns: List[str]) -> None:
         if self.pool is None:
-            raise RuntimeError("Backend pool not set.")
+            raise ConnectionNotReady("Backend pool not set.")
         from memframe.db_manager.pool import ClickHousePool
         if isinstance(self.pool, ClickHousePool):
             clean = table_name.replace("`", "").replace('"', "")
@@ -52,13 +53,13 @@ class ClickHouseBackend(DatabaseBackend):
             else:
                 database = self.conn_params.get("database")
                 if not database:
-                    raise ValueError("ClickHouse inserts require a database-qualified table")
+                    raise ConfigurationError("ClickHouse inserts require a database-qualified table")
                 table = clean
             await self.pool.insert(table, rows, database=database, column_names=columns)
 
     async def insert_arrow_table(self, table_name: str, arrow_table: Any) -> None:
         if self.pool is None:
-            raise RuntimeError("Backend pool not set.")
+            raise ConnectionNotReady("Backend pool not set.")
         from memframe.db_manager.pool import ClickHousePool
         if isinstance(self.pool, ClickHousePool):
             clean = table_name.replace("`", "").replace('"', "")
@@ -67,7 +68,7 @@ class ClickHouseBackend(DatabaseBackend):
             else:
                 database = self.conn_params.get("database")
                 if not database:
-                    raise ValueError("ClickHouse inserts require a database-qualified table")
+                    raise ConfigurationError("ClickHouse inserts require a database-qualified table")
                 table = clean
             await self.pool.insert_arrow(table, arrow_table, database=database)
 

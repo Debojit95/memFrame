@@ -13,6 +13,7 @@ from memframe.db_manager.adapters.duckdb import DuckDBAdapter
 from memframe.db_manager.adapters.postgresql import PostgresAdapter
 from memframe.db_manager.adapters.clickhouse import ClickHouseAdapter
 from memframe.utils.helper import SQLIdentifierSanitizer
+from memframe.exceptions import DataNotFound, OperationError
 
 
 class DataSelectionOps:
@@ -81,7 +82,7 @@ class DataSelectionOps:
 
     def _first_value_from_rows(self, rows: List[Any]):
         if not rows:
-            raise IndexError("Query returned no rows")
+            raise DataNotFound("Query returned no rows")
         return self._first_value_from_row(rows[0])
 
     def _is_duckdb_backend(self) -> bool:
@@ -380,14 +381,14 @@ class DataSelectionOps:
             if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
                 all_columns = await self._get_all_columns(table, schema)
                 if not all_columns:
-                    raise KeyError("No columns available in table.")
+                    raise DataNotFound("No columns available in table.")
                 if column_label not in all_columns:
-                    raise KeyError(f"Column '{column_label}' not found")
+                    raise DataNotFound(f"Column '{column_label}' not found")
                 resolved_index_column = index_column
                 if resolved_index_column is None:
                     resolved_index_column = "id" if "id" in all_columns else all_columns[0]
                 elif resolved_index_column not in all_columns:
-                    raise KeyError(f"Index column '{resolved_index_column}' not found")
+                    raise DataNotFound(f"Index column '{resolved_index_column}' not found")
 
                 quoted_index = self._quote(resolved_index_column)
                 quoted_col = self._quote(column_label)
@@ -401,7 +402,7 @@ class DataSelectionOps:
                 if row:
                     scalar = self._first_value_from_rows(row)
                 else:
-                    raise KeyError(f"Label '{row_label}' not found in index column '{resolved_index_column}'")
+                    raise DataNotFound(f"Label '{row_label}' not found in index column '{resolved_index_column}'")
                 return self._success_response(
                     f"at[{row_label}, {column_label}]",
                     sample_df=None,
@@ -441,7 +442,7 @@ class DataSelectionOps:
                 if row:
                     scalar = self._first_value_from_rows(row)
                 else:
-                    raise IndexError(f"Position {row_position} out of bounds")
+                    raise OperationError(f"Position {row_position} out of bounds")
                 return self._success_response(
                     f"iat[{row_position}, {column_label}]",
                     sample_df=None,
@@ -484,22 +485,22 @@ class DataSelectionOps:
                     where_clause = f"WHERE {row_selector}"
                 elif isinstance(row_selector, (list, tuple)):
                     if not index_column:
-                        raise ValueError("list row_selector requires index_column")
+                        raise OperationError("list row_selector requires index_column")
                     placeholder_list = ", ".join(self.db.placeholder(i+1) for i in range(len(row_selector)))
                     where_clause = f"WHERE {self._quote(index_column)} IN ({placeholder_list})"
                     params = list(row_selector)
                 elif isinstance(row_selector, slice):
                     if not index_column:
-                        raise ValueError("slice row_selector requires index_column")
+                        raise OperationError("slice row_selector requires index_column")
                     start = row_selector.start
                     stop = row_selector.stop
                     if start is None or stop is None:
-                        raise ValueError("Slice must have start and stop for label-based range")
+                        raise OperationError("Slice must have start and stop for label-based range")
                     where_clause = f"WHERE {self._quote(index_column)} BETWEEN {self.db.placeholder(1)} AND {self.db.placeholder(2)}"
                     params = [start, stop]
                 else:
                     if not index_column:
-                        raise ValueError("scalar row_selector requires index_column")
+                        raise OperationError("scalar row_selector requires index_column")
                     where_clause = f"WHERE {self._quote(index_column)} = {self.db.placeholder(1)}"
                     params = [row_selector]
 
@@ -794,7 +795,7 @@ class DataSelectionOps:
                     if row:
                         scalar = self._first_value_from_rows(row)
                     else:
-                        raise IndexError(f"Row index {row_idx} out of bounds")
+                        raise OperationError(f"Row index {row_idx} out of bounds")
                     return self._success_response(
                         f"iloc[{row_idx}, {col_pos[0]}]",
                         sample_df=None,
@@ -861,7 +862,7 @@ class DataSelectionOps:
             if indexer < 0:
                 indexer += total_length
             if indexer < 0 or indexer >= total_length:
-                raise IndexError(f"{axis_name} index {indexer} out of bounds")
+                raise OperationError(f"{axis_name} index {indexer} out of bounds")
             return [indexer]
         if isinstance(indexer, slice):
             start, stop, step = indexer.indices(total_length)
@@ -869,7 +870,7 @@ class DataSelectionOps:
         if isinstance(indexer, (list, tuple)):
             if all(isinstance(i, bool) for i in indexer):
                 if len(indexer) != total_length:
-                    raise IndexError(
+                    raise OperationError(
                         f"Boolean indexer length ({len(indexer)}) must match {axis_name} length ({total_length})"
                     )
                 return [i for i, val in enumerate(indexer) if val]
@@ -878,10 +879,10 @@ class DataSelectionOps:
                 if i < 0:
                     i += total_length
                 if i < 0 or i >= total_length:
-                    raise IndexError(f"{axis_name} index {i} out of bounds")
+                    raise OperationError(f"{axis_name} index {i} out of bounds")
                 result.append(i)
             return result
-        raise TypeError(f"Unsupported indexer type: {type(indexer)}")
+        raise OperationError(f"Unsupported indexer type: {type(indexer)}")
 
     async def _build_iloc_result(
         self,

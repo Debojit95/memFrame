@@ -110,7 +110,7 @@ create generated tables.
 
 <div class="compact-api" markdown="1">
 
-::: memframe.wrappers.ops.OpsWrapper
+::: memframe.main.MemFrame
     options:
       show_root_heading: true
       show_root_full_path: true

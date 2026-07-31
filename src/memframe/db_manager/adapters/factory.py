@@ -1,6 +1,7 @@
 from typing import Any, Dict, Tuple
 
 from memframe.core.ingestion.datatype_detector import Backend
+from memframe.exceptions import ConfigurationError
 
 from .clickhouse import ClickHouseAdapter
 from .duckdb import DuckDBAdapter
@@ -15,7 +16,7 @@ def resolve_backend_config(
         return Backend.DUCKDB, DuckDBAdapter.connection_params(connection_params)
 
     if connection_type != "remote":
-        raise ValueError("connection_type must be 'local' or 'remote'")
+        raise ConfigurationError("connection_type must be 'local' or 'remote'")
 
     backend_type = connection_params.get("backend")
     if backend_type == "postgres":
@@ -23,4 +24,4 @@ def resolve_backend_config(
     if backend_type == "clickhouse":
         return Backend.CLICKHOUSE, ClickHouseAdapter.connection_params(connection_params)
 
-    raise ValueError("Remote backend must be 'postgres' or 'clickhouse'")
+    raise ConfigurationError("Remote backend must be 'postgres' or 'clickhouse'")

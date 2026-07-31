@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from typing import Any, List, Optional, Tuple
 
 from memframe.core.ingestion.datatype_detector import DatatypeDetector
+from memframe.exceptions import ConfigurationError, ConnectionNotReady
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +14,7 @@ def _sanitize_schema_name(value: str) -> str:
     name = re.sub(r"[^A-Za-z0-9_]", "_", value.strip())
     name = re.sub(r"_+", "_", name).strip("_")
     if not name:
-        raise ValueError("schema_prefix must contain at least one alphanumeric character")
+        raise ConfigurationError("schema_prefix must contain at least one alphanumeric character")
     if name[0].isdigit():
         name = f"mf_{name}"
     return name.lower()
@@ -57,17 +58,17 @@ class DatabaseBackend(ABC):
 
     async def execute(self, query: str, *params) -> None:
         if self.pool is None:
-            raise RuntimeError("Backend pool not set. Call aconnect() first.")
+            raise ConnectionNotReady("Backend pool not set. Call aconnect() first.")
         await self.pool.execute(query, *params)
 
     async def fetch(self, query: str, *params) -> List[Tuple]:
         if self.pool is None:
-            raise RuntimeError("Backend pool not set. Call aconnect() first.")
+            raise ConnectionNotReady("Backend pool not set. Call aconnect() first.")
         return await self.pool.fetch(query, *params)
 
     async def fetch_row(self, query: str, *params) -> Optional[Tuple]:
         if self.pool is None:
-            raise RuntimeError("Backend pool not set. Call aconnect() first.")
+            raise ConnectionNotReady("Backend pool not set. Call aconnect() first.")
         return await self.pool.fetchrow(query, *params)
 
     async def fetch_one(self, query: str, *params) -> Optional[Tuple]:
@@ -75,7 +76,7 @@ class DatabaseBackend(ABC):
 
     async def fetch_val(self, query: str, *params) -> Any:
         if self.pool is None:
-            raise RuntimeError("Backend pool not set. Call aconnect() first.")
+            raise ConnectionNotReady("Backend pool not set. Call aconnect() first.")
         return await self.pool.fetchval(query, *params)
 
     async def initialize(self) -> None:

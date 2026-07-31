@@ -7,6 +7,7 @@ import pandas as pd
 import pyarrow as pa
 
 from memframe.core.ingestion.datatype_detector import Backend
+from memframe.exceptions import OperationError
 
 
 def _json_signature(value: Any) -> str:
@@ -120,14 +121,14 @@ def _make_decorator(func, decorator_deep_cache):
         async def async_wrapper(self, *args, **kwargs):
             mf = getattr(self, "_memframe", None)
             if mf is None:
-                raise RuntimeError(
+                raise OperationError(
                     f"Cannot cache {func.__qualname__}: instance lacks `_memframe`. "
                     "Inherit from LoggableMixin or set `self._memframe`."
                 )
 
             data_id = getattr(self, "_data_id", None) or mf._active_id
             if not data_id:
-                raise RuntimeError(
+                raise OperationError(
                     f"Cannot cache {func.__qualname__}: no data_id available."
                 )
 

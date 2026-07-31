@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from memframe.core.plots.line import LinePlotCore
+from memframe.exceptions import OperationError
 
 
 class LineOrchestrator:
@@ -18,7 +19,7 @@ class LineOrchestrator:
 
     async def _ensure_ops(self) -> LinePlotCore:
         if self._ops_parent is None:
-            raise RuntimeError(
+            raise OperationError(
                 "LineOrchestrator is not bound to a ContextManager instance."
             )
         if self._line_ops is None:

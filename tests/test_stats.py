@@ -114,7 +114,7 @@ def _validate_duckdb_params(params: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _validate_postgres_params(params: Dict[str, Any]) -> Dict[str, Any]:
-    allowed = {"backend", "host", "port", "user", "password", "database"}
+    allowed = {"backend", "host", "port", "user", "password", "database", "schema_prefix"}
     unknown = sorted(set(params) - allowed)
     if unknown:
         raise _usage_error(f"Postgres does not accept params: {', '.join(unknown)}")

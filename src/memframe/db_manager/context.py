@@ -6,6 +6,7 @@ from memframe.db_manager.adapters.base import DatabaseAdapter
 from memframe.db_manager.adapters.postgresql import PostgresAdapter
 from memframe.db_manager.adapters.duckdb import DuckDBAdapter
 from memframe.db_manager.adapters.clickhouse import ClickHouseAdapter
+from memframe.exceptions import BackendNotSupported, ConnectionNotReady, DataNotFound
 
 
 logger = logging.getLogger("memFrame")
@@ -31,7 +32,7 @@ class ContextManager:
         from memframe.wrappers.plots.pie import PieWrapper
         from memframe.wrappers.plots.line import LineWrapper
         from memframe.wrappers.plots.scatter import ScatterWrapper
-        from memframe.wrappers.plots.scatter_3d import Scatter3DWrapper
+        from memframe.wrappers.plots.scatter3d import Scatter3DWrapper
 
         self._wrappers = [
             SelectionWrapper(self),
@@ -67,7 +68,7 @@ class ContextManager:
         backend = self.memframe._backend
         pool = getattr(self.memframe, "_pool", None)
         if backend is None or pool is None:
-            raise RuntimeError("Not connected. Call await connect() first.")
+            raise ConnectionNotReady("Not connected. Call await connect() first.")
         if backend.backend == Backend.DUCKDB:
             self._adapter = DuckDBAdapter(pool)
         elif backend.backend == Backend.POSTGRES:
@@ -75,7 +76,7 @@ class ContextManager:
         elif backend.backend == Backend.CLICKHOUSE:
             self._adapter = ClickHouseAdapter(pool)
         else:
-            raise RuntimeError("Unsupported backend")
+            raise BackendNotSupported("Unsupported backend")
 
     async def close(self):
         self._adapter = None
@@ -83,14 +84,14 @@ class ContextManager:
     async def _get_active_context(self):
         data_id = self._data_id or self.memframe._active_id
         if not data_id:
-            raise ValueError("No active dataset and no explicit data_id provided.")
+            raise DataNotFound("No active dataset and no explicit data_id provided.")
         backend = self.memframe._backend
         rows = await backend.fetch(
             f"SELECT table_name FROM {backend.csv_registry_table} WHERE data_id = {backend.placeholder(1)}",
             data_id,
         )
         if not rows:
-            raise ValueError(f"No registry entry for {data_id}")
+            raise DataNotFound(f"No registry entry for {data_id}")
         table_name = rows[0][0]
         schema = backend.upload_schema
         return table_name, schema

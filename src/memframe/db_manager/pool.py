@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from typing import Any, List, Optional, Tuple
 
 from memframe.core.ingestion.datatype_detector import Backend
+from memframe.exceptions import BackendNotSupported
 
 
 logger = logging.getLogger("memFrame")
@@ -259,4 +260,4 @@ def create_pool(backend: Backend, params: dict) -> BasePool:
             timeout=params.get("timeout", 300.0),
         )
     else:
-        raise ValueError(f"Unsupported backend: {backend}")
+        raise BackendNotSupported(f"Unsupported backend: {backend}")

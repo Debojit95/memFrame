@@ -8,6 +8,7 @@ from memframe.db_manager.adapters.duckdb import DuckDBAdapter
 from memframe.db_manager.adapters.postgresql import PostgresAdapter
 from memframe.db_manager.adapters.clickhouse import ClickHouseAdapter
 from memframe.utils.helper import SQLIdentifierSanitizer
+from memframe.exceptions import OperationError
 
 
 class DataCleaningOps:
@@ -158,7 +159,7 @@ class DataCleaningOps:
                 seen_cols.add(safe_col)
 
         if not sanitized_cols:
-            raise ValueError("At least one column is required for a column operation table")
+            raise OperationError("At least one column is required for a column operation table")
 
         column_clause = ", ".join(self.db.quote_identifier(col) for col in sanitized_cols)
         qualified_source = self._qualified_table(source_table, safe_schema)

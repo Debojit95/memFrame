@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional, Sequence
 import httpx
 
 from .base import DatabaseAdapter
+from memframe.exceptions import ConfigurationError, ConnectionNotReady
 
 logger = logging.getLogger("memFrame")
 
@@ -79,11 +80,11 @@ class HttpxClickHouseClient:
         if not rows:
             return
         if not column_names:
-            raise ValueError("column_names are required for ClickHouse inserts")
+            raise ConfigurationError("column_names are required for ClickHouse inserts")
 
         target_database = database or self.database
         if not target_database:
-            raise ValueError("ClickHouse inserts require a database-qualified table")
+            raise ConfigurationError("ClickHouse inserts require a database-qualified table")
 
         qualified_table = self._quote_qualified_table(target_database, table)
         columns = ", ".join(self._quote_identifier(column) for column in column_names)
@@ -110,7 +111,7 @@ class HttpxClickHouseClient:
 
         target_database = database or self.database
         if not target_database:
-            raise ValueError("ClickHouse inserts require a database-qualified table")
+            raise ConfigurationError("ClickHouse inserts require a database-qualified table")
 
         import pyarrow.ipc as ipc
 
@@ -157,9 +158,9 @@ class HttpxClickHouseClient:
             message = f"ClickHouse HTTP {exc.response.status_code}"
             if detail:
                 message = f"{message}: {detail}"
-            raise RuntimeError(message) from exc
+            raise ConnectionNotReady(message) from exc
         except httpx.HTTPError as exc:
-            raise RuntimeError(f"ClickHouse HTTP request failed: {exc!r}") from exc
+            raise ConnectionNotReady(f"ClickHouse HTTP request failed: {exc!r}") from exc
         return response
 
     def _with_json_format(self, query: str) -> str:
@@ -184,14 +185,14 @@ class HttpxClickHouseClient:
         for value in parameters:
             placeholder_index = rendered.find("?")
             if placeholder_index == -1:
-                raise ValueError("Too many parameters for ClickHouse query")
+                raise ConfigurationError("Too many parameters for ClickHouse query")
             rendered = (
                 rendered[:placeholder_index]
                 + self._to_clickhouse_literal(value)
                 + rendered[placeholder_index + 1 :]
             )
         if "?" in rendered:
-            raise ValueError("Not enough parameters for ClickHouse query")
+            raise ConfigurationError("Not enough parameters for ClickHouse query")
         return rendered
 
     def _to_clickhouse_literal(self, value: Any) -> str:
@@ -234,7 +235,7 @@ class HttpxClickHouseClient:
         if isinstance(value, Decimal):
             return str(value)
         type_name = type(value).__name__
-        raise TypeError(f"Object of type {type_name} is not JSON serializable")
+        raise ConfigurationError(f"Object of type {type_name} is not JSON serializable")
 
 
 class ClickHouseAdapter(DatabaseAdapter):

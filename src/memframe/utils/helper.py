@@ -1,6 +1,8 @@
 import re
 from typing import Dict
 
+from memframe.exceptions import ConfigurationError
+
 
 _DATETIME_DIRECT_METHODS = {
         "aextract",
@@ -179,27 +181,26 @@ class SQLIdentifierSanitizer:
             The cleaned identifier if valid
             
         Raises:
-            ValueError: If identifier contains unsafe characters or invalid format
-            TypeError: If identifier is not a string
+            ConfigurationError: If identifier is invalid or not a string
         """
         if not isinstance(identifier, str):
-            raise TypeError(f"Identifier must be a string, got {type(identifier).__name__}")
+            raise ConfigurationError(f"Identifier must be a string, got {type(identifier).__name__}")
         
         identifier = identifier.strip()
         
         if not identifier:
-            raise ValueError("Identifier cannot be empty")
+            raise ConfigurationError("Identifier cannot be empty")
         
         if allow_qualified:
             if not cls._VALID_QUALIFIED.match(identifier):
-                raise ValueError(
+                raise ConfigurationError(
                     f"Invalid SQL identifier: '{identifier}'. "
                     "Must contain only letters, digits, underscores, and dots (for schema.table). "
                     "Must start with letter or underscore."
                 )
         else:
             if not cls._VALID_SEGMENT.match(identifier):
-                raise ValueError(
+                raise ConfigurationError(
                     f"Invalid SQL identifier: '{identifier}'. "
                     "Must contain only letters, digits, underscores. "
                     "Must start with letter or underscore. No dots allowed."

@@ -6,6 +6,7 @@ import pandas as pd
 
 from memframe.db_manager.adapters.base import DatabaseAdapter
 from memframe.utils.helper import SQLIdentifierSanitizer
+from memframe.exceptions import OperationError
 
 try:
     import plotly.express as px
@@ -139,7 +140,7 @@ class BarPolarPlotCore:
         self._ensure_plotly()
 
         if "data_frame" in kwargs:
-            raise ValueError(
+            raise OperationError(
                 "Do not pass 'data_frame' to ops.bar_polar(); it is derived from the active context."
             )
 

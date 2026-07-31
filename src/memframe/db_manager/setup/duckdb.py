@@ -2,6 +2,7 @@ import logging
 from typing import Any, List, Optional, Tuple
 
 from memframe.db_manager.setup.base import DatabaseBackend
+from memframe.exceptions import ConfigurationError
 
 logger = logging.getLogger(__name__)
 
@@ -11,7 +12,7 @@ def _sanitize_schema_name(value: str) -> str:
     name = re.sub(r"[^A-Za-z0-9_]", "_", value.strip())
     name = re.sub(r"_+", "_", name).strip("_")
     if not name:
-        raise ValueError("schema_prefix must contain at least one alphanumeric character")
+        raise ConfigurationError("schema_prefix must contain at least one alphanumeric character")
     if name[0].isdigit():
         name = f"mf_{name}"
     return name.lower()

@@ -16,6 +16,7 @@ if TYPE_CHECKING:
 
 from memframe.core.ingestion.datatype_detector import Backend, _generate_6char_id
 from memframe.db_manager.context import ContextManager
+from memframe.exceptions import ConfigurationError, ConnectionNotReady
 
 
 logger = logging.getLogger("memFrame")
@@ -610,7 +611,7 @@ class Uploader:
         registry_filename: Optional[str] = None,
     ) -> str:
         if not self._backend:
-            raise RuntimeError("Not connected. Call await connect() first.")
+            raise ConnectionNotReady("Not connected. Call await connect() first.")
         file_path = Path(file_path)
         if not file_path.exists():
             raise FileNotFoundError(f"File not found: {file_path}")
@@ -940,7 +941,7 @@ class Uploader:
     # ── Parquet upload ──────────────────────────────────────────
     async def _aupload_parquet_data_id(self, file_path: Union[str, Path]) -> str:
         if not self._backend:
-            raise RuntimeError("Not connected. Call await connect() first.")
+            raise ConnectionNotReady("Not connected. Call await connect() first.")
         file_path = Path(file_path)
         if not file_path.exists():
             raise FileNotFoundError(f"File not found: {file_path}")
@@ -1072,15 +1073,15 @@ class Uploader:
     # ── DataFrame upload ────────────────────────────────────────
     async def _aupload_df_data_id(self, df: "pd.DataFrame", filename: Optional[str] = None) -> str:
         if not self._backend:
-            raise RuntimeError("Not connected. Call await connect() first.")
+            raise ConnectionNotReady("Not connected. Call await connect() first.")
         try:
             import pandas as pd
         except ImportError as exc:
             raise ImportError("upload_df requires pandas. Please install pandas to use this method.") from exc
         if not isinstance(df, pd.DataFrame):
-            raise TypeError("upload_df expects a pandas DataFrame.")
+            raise ConfigurationError("upload_df expects a pandas DataFrame.")
         if len(df.columns) == 0:
-            raise ValueError("DataFrame must have at least one column.")
+            raise ConfigurationError("DataFrame must have at least one column.")
 
         while True:
             data_id = _generate_6char_id()

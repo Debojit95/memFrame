@@ -11,6 +11,7 @@ from memframe.db_manager.setup import DatabaseBackend, create_backend
 from memframe.db_manager.context import ContextManager
 from memframe.db_manager.adapters.factory import resolve_backend_config
 from memframe.db_manager.pool import create_pool
+from memframe.exceptions import ConnectionNotReady, ConfigurationError, DataNotFound
 from memframe.utils.async_sync import async_to_sync
 
 logger = logging.getLogger("memFrame")
@@ -64,7 +65,7 @@ class MemFrame(ContextManager):
 
     async def alist_tables(self) -> List[Dict[str, str]]:
         if not self._backend:
-            raise RuntimeError("Not connected.")
+            raise ConnectionNotReady("Not connected.")
         rows = await self._backend.fetch(
             f"SELECT data_id, filename FROM {self._backend.csv_registry_table} "
             f"WHERE is_upload_success = TRUE ORDER BY uploaded_at DESC"
@@ -78,7 +79,7 @@ class MemFrame(ContextManager):
     async def aset_active(self, data_id: str) -> str:
         table_name = self._backend.get_upload_table_name(data_id)
         if not await self._backend.table_exists(table_name):
-            raise ValueError(f"Table for data_id '{data_id}' does not exist")
+            raise DataNotFound(f"Table for data_id '{data_id}' does not exist")
         self._active_id = data_id
         logger.info(f"Active CSV set to {data_id}")
         return data_id
@@ -98,9 +99,9 @@ class MemFrame(ContextManager):
 
     async def adelete_table(self, data_id: Optional[str] = None, filename: Optional[str] = None) -> None:
         if not self._backend:
-            raise RuntimeError("Not connected.")
+            raise ConnectionNotReady("Not connected.")
         if not data_id and not filename:
-            raise ValueError("Provide either data_id or filename")
+            raise ConfigurationError("Provide either data_id or filename")
         if not data_id:
             row = await self._backend.fetch_row(
                 f"SELECT data_id FROM {self._backend.csv_registry_table} "
@@ -108,7 +109,7 @@ class MemFrame(ContextManager):
                 filename,
             )
             if not row:
-                raise ValueError(f"No table found for filename: {filename}")
+                raise DataNotFound(f"No table found for filename: {filename}")
             data_id = row[0]
         row = await self._backend.fetch_row(
             f"SELECT table_name FROM {self._backend.csv_registry_table} "
@@ -116,7 +117,7 @@ class MemFrame(ContextManager):
             data_id,
         )
         if not row:
-            raise ValueError(f"No table found for data_id: {data_id}")
+            raise DataNotFound(f"No table found for data_id: {data_id}")
         upload_table = row[0]
         transient_rows = await self._backend.fetch(
             f"SELECT generated_table_name FROM {self._backend.transient_registry_table} "
@@ -178,7 +179,7 @@ class MemFrame(ContextManager):
         is_deep_cache: bool = False, schema: Optional[str] = None,
     ) -> int:
         if not self._backend:
-            raise RuntimeError("Not connected.")
+            raise ConnectionNotReady("Not connected.")
         max_op = await self._backend.fetch_val(
             f"SELECT COALESCE(MAX(opidx), 0) FROM {self._backend.transient_registry_table} "
             f"WHERE data_id = {self._placeholder(1)}",
@@ -204,7 +205,7 @@ class MemFrame(ContextManager):
         if data_id is None:
             data_id = self._active_id
             if data_id is None:
-                raise ValueError("No data_id provided and no active CSV set.")
+                raise DataNotFound("No data_id provided and no active CSV set.")
         rows = await self._backend.fetch(
             f"SELECT opidx, operation_type, generated_table_name, created_at "
             f"FROM {self._backend.transient_registry_table} "
@@ -227,7 +228,7 @@ class MemFrame(ContextManager):
             data_id, opidx,
         )
         if not row:
-            raise ValueError(f"Operation {opidx} not found for data_id {data_id}")
+            raise DataNotFound(f"Operation {opidx} not found for data_id {data_id}")
         return row[0]
 
     @async_to_sync
@@ -269,7 +270,7 @@ class MemFrame(ContextManager):
         columns: Optional[List[str]] = None,
     ):
         if data_id is not None and data is not None:
-            raise ValueError("Pass either `data_id` or `data`, not both.")
+            raise ConfigurationError("Pass either `data_id` or `data`, not both.")
         if data is None and data_id is not None and not isinstance(data_id, str):
             data = data_id
             data_id = None
@@ -292,7 +293,7 @@ class MemFrame(ContextManager):
 
     def _local_db_path(self) -> Optional[Path]:
         if not self._backend or self._backend.backend != Backend.DUCKDB:
-            raise RuntimeError("Local DuckDB connection is not active.")
+            raise ConnectionNotReady("Local DuckDB connection is not active.")
         db_path = self._backend.conn_params.get("db_path", "memframe_new.duckdb")
         if db_path == ":memory:":
             return None
@@ -312,5 +313,9 @@ class MemFrame(ContextManager):
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self.close()
+
+
+
+
 
 

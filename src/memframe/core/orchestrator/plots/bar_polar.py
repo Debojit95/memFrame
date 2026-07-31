@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from memframe.core.plots.bar_polar import BarPolarPlotCore
+from memframe.exceptions import OperationError
 
 
 class BarPolarOrchestrator:
@@ -18,7 +19,7 @@ class BarPolarOrchestrator:
     
     async def _ensure_ops(self) -> BarPolarPlotCore:
         if self._ops_parent is None:
-            raise RuntimeError(
+            raise OperationError(
                 "BarPolarOrchestrator is not bound to a ContextManager instance."
             )
         if self._bar_polar_ops is None:
