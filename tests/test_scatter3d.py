@@ -405,10 +405,10 @@ class TestScatter3DPlotOperations:
     # ------------------------------------------------------------------
     def test_scatter3d_basic(self, uploaded_ctx, backend_config):
         """Test basic scatter3d plot (x, y, and z)."""
-        fig = uploaded_ctx.scatter3d(x="score", y="salary", z="count_all")
-        self._record_result("scatter3d_basic", 'scatter3d(x="score", y="salary", z="count_all")', fig, backend_config["connection_type"])
+        fig = uploaded_ctx.scatter_3d(x="score", y="salary", z="count_all")
 
+        self._record_result("scatter3d_basic", 'scatter3d(x="score", y="salary", z="count_all")', fig, backend_config["connection_type"])
     def test_scatter3d_with_hue(self, uploaded_ctx, backend_config):
         """Test scatter3d plot with hue grouping."""
-        fig = uploaded_ctx.scatter3d(x="score", y="salary", z="count_all", color="category")
+        fig = uploaded_ctx.scatter_3d(x="score", y="salary", z="count_all", color="category")
         self._record_result("scatter3d_with_color", 'scatter3d(x="score", y="salary", z="count_all",color="category")', fig, backend_config["connection_type"])
