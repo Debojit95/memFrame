@@ -1,4 +1,3 @@
-import json
 import logging
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
@@ -187,7 +186,7 @@ class OpsManager:
         logger.info(f"Recorded operation {opidx} ({operation_type}) for {data_id} -> {generated_table_name}")
         return opidx
 
-    async def _arecord_method_call( self, data_id: str, class_name: str, method_name: str, args: tuple, kwargs: dict, generated_table_name: Optional[str] = None, is_deep_cache: bool = False, schema: Optional[str] = None) -> int:
+    async def _arecord_method_call( self, data_id: str, class_name: str, method_name: str, args_sig: str, kwargs_sig: str, generated_table_name: Optional[str] = None, is_deep_cache: bool = False, schema: Optional[str] = None) -> int:
         """
         Log a method call into transient_registry. If the call generates a table,
         pass its name as `generated_table_name`.
@@ -219,8 +218,8 @@ class OpsManager:
             "method_call",
             class_name,
             method_name,
-            json.dumps(args),
-            json.dumps(kwargs),
+            args_sig,
+            kwargs_sig,
             generated_table_name,                     # NULL or actual name
             is_deep_cache,
             schema,

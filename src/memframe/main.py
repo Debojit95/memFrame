@@ -1,4 +1,3 @@
-import json
 import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
@@ -174,7 +173,7 @@ class MemFrame(ContextManager):
 
     async def _arecord_method_call(
         self, data_id: str, class_name: str, method_name: str,
-        args: tuple, kwargs: dict,
+        args_sig: str, kwargs_sig: str,
         generated_table_name: Optional[str] = None,
         is_deep_cache: bool = False, schema: Optional[str] = None,
     ) -> int:
@@ -194,7 +193,7 @@ class MemFrame(ContextManager):
             f"{self._placeholder(4)}, {self._placeholder(5)}, {self._placeholder(6)}, "
             f"{self._placeholder(7)}, {self._placeholder(8)}, {self._placeholder(9)}, {self._placeholder(10)})",
             data_id, opidx, "method_call", class_name, method_name,
-            json.dumps(args), json.dumps(kwargs),
+            args_sig, kwargs_sig,
             generated_table_name, is_deep_cache, schema,
         )
         return opidx

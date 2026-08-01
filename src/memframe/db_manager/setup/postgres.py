@@ -75,6 +75,10 @@ class PostgresBackend(DatabaseBackend):
             )
         """)
         await self._migrate_transient_registry_schema()
+        await self.execute(
+            f"CREATE INDEX IF NOT EXISTS idx_transient_registry_lookup "
+            f"ON {self.registry_schema}.transient_registry (data_id, class_name, method_name)"
+        )
 
     def get_upload_table_name(self, data_id: str) -> str:
         return data_id

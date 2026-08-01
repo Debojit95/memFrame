@@ -4,7 +4,7 @@ import numpy as np
 
 from memframe.core.ingestion.datatype_detector import DatatypeDetector
 from memframe.core.analytix.cleaning import DataCleaningOps
-from memframe.utils.method_call_logger import record_call
+from memframe.cache import record_call
 
 
 class CleaningOrchestrator:

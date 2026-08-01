@@ -1,7 +1,7 @@
 from typing import Any, Dict, Optional, Union
 
 from memframe.core.analytix.arithmetic import ArithmeticOps
-from memframe.utils.method_call_logger import record_call
+from memframe.cache import record_call
 
 
 class ArithmeticOrchestrator:

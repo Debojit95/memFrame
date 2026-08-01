@@ -38,6 +38,7 @@ nav:
   - Home: index.md
   - Getting Started: getting-started.md
   - API:
+      - Caching: api/caching.md
       - DB Manager:
           - Connector: api/connector.md
           - Upload Manager: api/upload-manager.md
