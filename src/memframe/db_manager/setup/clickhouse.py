@@ -45,7 +45,7 @@ class ClickHouseBackend(DatabaseBackend):
     async def insert_rows(self, table_name: str, rows: List[List[Any]], columns: List[str]) -> None:
         if self.pool is None:
             raise ConnectionNotReady("Backend pool not set.")
-        from memframe.db_manager.pool import ClickHousePool
+        from memframe.db_manager.connection import ClickHousePool
         if isinstance(self.pool, ClickHousePool):
             clean = table_name.replace("`", "").replace('"', "")
             if "." in clean:
@@ -60,7 +60,7 @@ class ClickHouseBackend(DatabaseBackend):
     async def insert_arrow_table(self, table_name: str, arrow_table: Any) -> None:
         if self.pool is None:
             raise ConnectionNotReady("Backend pool not set.")
-        from memframe.db_manager.pool import ClickHousePool
+        from memframe.db_manager.connection import ClickHousePool
         if isinstance(self.pool, ClickHousePool):
             clean = table_name.replace("`", "").replace('"', "")
             if "." in clean:

@@ -5,11 +5,9 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 if TYPE_CHECKING:
     import pandas as pd
 
-from memframe.core.ingestion.datatype_detector import Backend
-from memframe.db_manager.setup import DatabaseBackend, create_backend
+from memframe.db_manager.connection import ConnectorManager
 from memframe.db_manager.context import ContextManager
-from memframe.db_manager.adapters.factory import resolve_backend_config
-from memframe.db_manager.pool import create_pool
+from memframe.db_manager.setup import DatabaseBackend
 from memframe.exceptions import ConnectionNotReady, ConfigurationError, DataNotFound
 from memframe.utils.async_sync import async_to_sync
 
@@ -24,37 +22,30 @@ if not logger.handlers:
 class MemFrame(ContextManager):
     def __init__(self, connection_type: str = "local", connection_params: Optional[Dict[str, Any]] = None, deep_cache: Optional[bool] = None):
         super().__init__(self)
-        self.connection_type = connection_type
-        self.conn_params = connection_params or {}
-        self._backend: Optional[DatabaseBackend] = None
-        self._active_id: Optional[str] = None
         self.deep_cache = deep_cache
-        self.__uploader = None
+        self._active_id: Optional[str] = None
+        self._connector = ConnectorManager(
+            connection_type,
+            connection_params,
+            context_factory=lambda data_id: ContextManager(self, data_id=data_id),
+        )
+
+    @property
+    def _backend(self) -> Optional[DatabaseBackend]:
+        return self._connector._backend
+
+    @property
+    def _pool(self):
+        return self._connector.pool
 
     @property
     def _uploader(self):
-        if self.__uploader is None:
-            from memframe.core.ingestion.upload.base import Uploader
-
-            u = Uploader()
-            u._backend = self._backend
-            u._type_detector = self._backend._type_detector if self._backend else None
-            u._memframe_from_data_id = lambda data_id: ContextManager(self, data_id=data_id)
-            self.__uploader = u
-        return self.__uploader
+        return self._connector._uploader
 
     # ── connect ─────────────────────────────────────────────────────
 
     async def aconnect(self) -> None:
-        backend_type, params = resolve_backend_config(self.connection_type, self.conn_params)
-        self._pool = create_pool(backend_type, params)
-        await self._pool.connect()
-        self._backend = create_backend(backend_type, params)
-        self._backend.pool = self._pool
-        await self._backend.initialize()
-        if self.__uploader:
-            self.__uploader._backend = self._backend
-            self.__uploader._type_detector = self._backend._type_detector
+        await self._connector.aconnect()
 
     @async_to_sync
     async def connect(self) -> None:
@@ -237,7 +228,7 @@ class MemFrame(ContextManager):
     # ── upload ──────────────────────────────────────────────────
 
     def _placeholder(self, index: int) -> str:
-        return self._backend.placeholder(index)
+        return self._connector._placeholder(index)
 
     async def aupload_csv(
         self,
@@ -317,7 +308,7 @@ class MemFrame(ContextManager):
         return ContextManager(self, data_id=data_id)
 
     def _local_db_path(self) -> Optional[Path]:
-        if not self._backend or self._backend.backend != Backend.DUCKDB:
+        if not self._connector.is_duckdb():
             raise ConnectionNotReady("Local DuckDB connection is not active.")
         db_path = self._backend.conn_params.get("db_path", "memframe_new.duckdb")
         if db_path == ":memory:":
@@ -326,8 +317,7 @@ class MemFrame(ContextManager):
 
     async def close(self) -> None:
         await super().close()
-        if hasattr(self, "_pool") and self._pool:
-            await self._pool.close()
+        await self._connector.close()
 
     def memFrame(self, data_id: Optional[str] = None, data: Any = None, columns: Optional[List[str]] = None):
         return self._ops(data_id, data, columns)

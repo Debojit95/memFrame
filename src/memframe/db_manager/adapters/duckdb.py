@@ -1,7 +1,7 @@
 import logging
 from typing import Any, Dict, Optional
 
-from memframe.db_manager.pool import BasePool, DuckDBPool
+from memframe.db_manager.connection import BasePool, DuckDBPool
 
 from .base import DatabaseAdapter
 

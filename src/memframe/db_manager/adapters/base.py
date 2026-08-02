@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List
 
-from memframe.db_manager.pool import BasePool
+from memframe.db_manager.connection import BasePool
 
 
 class DatabaseAdapter(ABC):

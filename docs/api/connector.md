@@ -1,9 +1,11 @@
 # Connector
 
-Source: `src/main.py`
+Source: `src/memframe/db_manager/connection/connector.py`
 
-The connector configuration is passed to `MemFrame` when you create an
-instance. memFrame supports three database backends:
+The connection lifecycle (pool, backend and uploader) is owned by a
+`ConnectorManager` instance; `MemFrame` holds one and delegates to it. The
+connector configuration is passed to `MemFrame` when you create an instance.
+memFrame supports three database backends:
 
 - DuckDB through `connection_type="local"`.
 - PostgreSQL through `connection_type="remote"` and `backend="postgres"`.
@@ -142,6 +144,7 @@ async with MemFrame(
     connection_type="local",
     connection_params={"db_path": "memframe.duckdb"},
 ) as mf:
+    await mf.aconnect()
     dataset = await mf.aupload_csv("data/sales.csv")
 ```
 
@@ -150,7 +153,7 @@ Or connect and close explicitly:
 ```python
 mf = MemFrame(connection_type="local")
 
-await mf.connect()
+await mf.aconnect()
 try:
     dataset = await mf.aupload_csv("data/sales.csv")
 finally:

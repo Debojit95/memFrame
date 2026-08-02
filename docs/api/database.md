@@ -1,13 +1,12 @@
 # Dataset Operations
 
-Source: `src/wrappers/ops.py`
+Source: `src/memframe/main.py`
 
 `OpsWrapper` is the public dataset-operation interface exposed through
 `MemFrame`. It manages uploaded datasets, tracks the active dataset, and reads
 or records operation history. Each public method has an asynchronous
-`a`-prefixed form and a synchronous form.
-
-The lower-level implementations in `src/db_manager/ops.py` remain internal.
+`a`-prefixed form and a synchronous form. The implementations live on
+`MemFrame` and its `ConnectorManager`.
 
 ## Public API
 
