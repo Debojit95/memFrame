@@ -14,12 +14,15 @@ Supported backends:
 
 ```bash
 pip install memframe
+or 
+uv add memframe
 ```
 
 For local development from this repository:
 
 ```bash
-pip install -e .
+git clone https://github.com/Debojit95/memFrame.git
+uv build
 ```
 
 ## Quick Start
@@ -44,6 +47,7 @@ async def main():
         connection_type="local",
         connection_params={"db_path": "memframe.duckdb"},
     ) as mf:
+        await mf.aconnect()
         dataset = await mf.aupload_df(frame, filename="customers")
 
         preview = await dataset.ahead(n=5)
@@ -127,26 +131,28 @@ parameters.
 
 ## Sync Usage
 
-Synchronous methods are available for scripts and notebooks. Connect and close
-with `asyncio.run`, then use the sync wrappers:
+Synchronous methods are available for scripts and notebooks. Connect with
+`asyncio.run`, then use the sync wrappers (`connect`, `close`, and every
+dataset operation):
 
 ```python
 import asyncio
 
 from memframe import MemFrame
+try:
+        
+    mf = MemFrame(
+        connection_type="local",
+        connection_params={"db_path": "memframe.duckdb"},
+    )
 
-mf = MemFrame(
-    connection_type="local",
-    connection_params={"db_path": "memframe.duckdb"},
-)
+    mf.connect()
 
-asyncio.run(mf.connect())
-
-dataset = mf.upload_csv("data/sales.csv")
-print(dataset.head(n=5)["result"])
-print(mf.list_tables())
-
-asyncio.run(mf.close())
+    dataset = mf.upload_csv("data/sales.csv")
+    print(dataset.head(n=5)["result"])
+    print(mf.list_tables())
+finally:
+    mf.close()
 ```
 
 ## Upload Data

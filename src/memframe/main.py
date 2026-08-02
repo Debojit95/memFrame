@@ -142,9 +142,13 @@ class MemFrame(ContextManager, OpsMixin):
             return None
         return Path(db_path)
 
+    async def aclose(self) -> None:
+        await super().aclose()
+        await self._connector.aclose()
+
+    @async_to_sync
     async def close(self) -> None:
-        await super().close()
-        await self._connector.close()
+        return await self.aclose()
 
     def memFrame(self, data_id: Optional[str] = None, data: Any = None, columns: Optional[List[str]] = None):
         return self._ops(data_id, data, columns)
@@ -154,7 +158,7 @@ class MemFrame(ContextManager, OpsMixin):
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self.close()
+        await self.aclose()
 
 
 

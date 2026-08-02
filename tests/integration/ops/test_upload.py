@@ -143,7 +143,7 @@ async def _run_upload_test(
         )
         assert int(row_count) == _expected_row_count(upload_type, path)
     finally:
-        await mf.close()
+        await mf.aclose()
 
 
 class TestUploadOperations:
@@ -192,7 +192,7 @@ async def _upload_and_column_types(
         ).fetchall()
         return {name: dtype for name, dtype in rows}
     finally:
-        await mf.close()
+        await mf.aclose()
 
 
 def _memory_params() -> Dict[str, Any]:

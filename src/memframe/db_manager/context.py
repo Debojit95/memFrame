@@ -78,7 +78,7 @@ class ContextManager:
         else:
             raise BackendNotSupported("Unsupported backend")
 
-    async def close(self):
+    async def aclose(self):
         self._adapter = None
 
     async def _get_active_context(self):

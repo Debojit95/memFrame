@@ -157,7 +157,7 @@ await mf.aconnect()
 try:
     dataset = await mf.aupload_csv("data/sales.csv")
 finally:
-    await mf.close()
+    await mf.aclose()
 ```
 
 Upload and dataset-management APIs raise `RuntimeError` if they are called

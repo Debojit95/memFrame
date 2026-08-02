@@ -3,6 +3,7 @@ from typing import Any, Callable, Dict, Optional
 
 from memframe.core.ingestion.datatype_detector import Backend
 from memframe.db_manager.adapters.factory import resolve_backend_config
+from memframe.utils.async_sync import async_to_sync
 from .pool import create_pool
 from memframe.db_manager.setup import DatabaseBackend, create_backend
 
@@ -67,11 +68,15 @@ class ConnectorManager:
             self.__uploader._backend = self._backend
             self.__uploader._type_detector = self._backend._type_detector
 
-    async def close(self) -> None:
+    async def aclose(self) -> None:
         if self._pool is not None:
             await self._pool.close()
             self._pool = None
             self._backend = None
+
+    @async_to_sync
+    async def close(self) -> None:
+        return await self.aclose()
 
     def is_duckdb(self) -> bool:
         return self._backend is not None and self._backend.backend == Backend.DUCKDB

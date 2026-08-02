@@ -276,7 +276,7 @@ def connected_memframe(backend_config) -> MemFrame:
     try:
         yield mf
     finally:
-        asyncio.run(mf.close())
+        asyncio.run(mf.aclose())
 
 
 @pytest.fixture(scope="function")

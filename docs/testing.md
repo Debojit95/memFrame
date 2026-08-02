@@ -1,7 +1,7 @@
 # Testing
 
 memFrame uses `pytest`. All tests live under `tests/` and run through a single
-entry point: [`tests/run_tests.py`](../tests/run_tests.py).
+entry point: `tests/run_tests.py`.
 
 ## Test layout
 
@@ -144,7 +144,7 @@ python tests/run_tests.py --backend postgres
 python tests/run_tests.py --backend postgres,clickhouse --schema-prefix mf_dev
 ```
 
-The [commit-checks workflow](../.github/workflows/commit-checks.yml) starts
+The commit-checks workflow (`.github/workflows/commit-checks.yml`) starts
 Postgres and ClickHouse services and exports the connection details as env vars.
 
 ## Pre-commit / CI

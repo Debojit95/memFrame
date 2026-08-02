@@ -26,26 +26,26 @@ class TestConnectorLifecycle:
         assert conn.backend is not None
         assert conn.backend.backend == "duckdb"
         assert conn.pool is not None
-        asyncio.run(conn.close())
+        asyncio.run(conn.aclose())
 
     def test_close_resets_state(self):
         conn = _make_connector()
         asyncio.run(conn.aconnect())
-        asyncio.run(conn.close())
+        asyncio.run(conn.aclose())
         assert conn.backend is None
         assert conn.pool is None
 
     def test_close_idempotent(self):
         conn = _make_connector()
         asyncio.run(conn.aconnect())
-        asyncio.run(conn.close())
-        asyncio.run(conn.close())
+        asyncio.run(conn.aclose())
+        asyncio.run(conn.aclose())
 
     def test_is_duckdb_after_connect(self):
         conn = _make_connector()
         asyncio.run(conn.aconnect())
         assert conn.is_duckdb() is True
-        asyncio.run(conn.close())
+        asyncio.run(conn.aclose())
 
     def test_is_duckdb_before_connect(self):
         assert _make_connector().is_duckdb() is False
@@ -61,7 +61,7 @@ class TestConnectorPlaceholder:
         conn = _make_connector()
         asyncio.run(conn.aconnect())
         assert conn._placeholder(1) == "?"
-        asyncio.run(conn.close())
+        asyncio.run(conn.aclose())
 
 
 class TestConnectorUploader:
@@ -72,4 +72,4 @@ class TestConnectorUploader:
         assert uploader._backend is conn.backend
         assert uploader._type_detector is conn.backend._type_detector
         assert uploader._memframe_from_data_id is not None
-        asyncio.run(conn.close())
+        asyncio.run(conn.aclose())

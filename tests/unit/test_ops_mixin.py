@@ -13,7 +13,7 @@ def mf():
     try:
         yield m
     finally:
-        asyncio.run(m.close())
+        asyncio.run(m.aclose())
 
 
 @pytest.fixture
