@@ -6,7 +6,8 @@ Source: `src/memframe/main.py`
 `MemFrame`. It manages uploaded datasets, tracks the active dataset, and reads
 or records operation history. Each public method has an asynchronous
 `a`-prefixed form and a synchronous form. The implementations live on
-`MemFrame` and its `ConnectorManager`.
+`OpsMixin` (`src/memframe/db_manager/ops.py`), which `MemFrame` inherits, and
+the connection lifecycle lives on its `ConnectorManager`.
 
 ## Public API
 
