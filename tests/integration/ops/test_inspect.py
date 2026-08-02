@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 
 from memframe import MemFrame
-from db_test_utils import default_duckdb_test_path
+from tests.db_test_utils import default_duckdb_test_path
 
 # ----------------------------------------------------------------------
 # Backend configuration - set environment variables for PostgreSQL

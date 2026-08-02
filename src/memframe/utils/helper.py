@@ -264,7 +264,7 @@ class SQLIdentifierSanitizer:
         try:
             cls.validate(identifier, allow_qualified)
             return True
-        except (ValueError, TypeError):
+        except (ConfigurationError, ValueError, TypeError):
             return False
 
     @classmethod

@@ -37,6 +37,7 @@ plugins:
 nav:
   - Home: index.md
   - Getting Started: getting-started.md
+  - Testing: testing.md
   - API:
       - Caching: api/caching.md
       - DB Manager:

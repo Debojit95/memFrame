@@ -51,7 +51,8 @@ site/
 
 # Local environment and secrets
 .env
-!.env.template
+.env.test
+!.env.test.example
 
 # Local databases and generated runtime state
 *.duckdb

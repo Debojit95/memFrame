@@ -176,3 +176,41 @@ or deleting datasets.
 - [Dataset Operations](api/database.md): list, activate, and delete datasets.
 - [Inspect](api/inspect.md), [Cleaning](api/cleaning.md), [Selection](api/selection.md), and [Stats](api/stats.md): work with uploaded data.
 - [Bar Plots](api/bar.md): create Plotly-backed bar charts.
+
+## Developer Setup
+
+Clone and install for local development:
+
+```bash
+git clone https://github.com/Debojit95/memFrame
+cd memFrame
+uv sync --extra dev
+```
+
+### Running the test suite
+
+All tests run through a single entry point grouped by database backend:
+
+```bash
+# Unit tests (fast, no database)
+python tests/run_tests.py --scope unit
+
+# Everything against DuckDB (no external services needed)
+python tests/run_tests.py --backend duckdb
+
+# Everything against all configured backends, plus tox
+python tests/run_tests.py --backend all --tox
+
+# See what would run
+python tests/run_tests.py --backend all --dry-run
+```
+
+Integration tests need real backends. DuckDB works out of the box; Postgres
+and ClickHouse need connection params (see [Testing](testing.md)).
+
+### Before you commit
+
+Local commits run `scripts/run-commit-checks.sh` (full suite + tox). It reports
+failures but does not block the commit; bypass it with `git commit --no-verify`.
+To prepare `.env.test` for those checks, see the required variables in
+[Testing](testing.md).

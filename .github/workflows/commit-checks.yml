@@ -127,7 +127,7 @@ jobs:
             echo "CLICKHOUSE_UPLOAD_DB_BACKEND=$CLICKHOUSE_UPLOAD_DB_BACKEND"
             echo "CLICKHOUSE_UPLOAD_DB_PARAMS='$CLICKHOUSE_UPLOAD_DB_PARAMS'"
             echo "CLICKHOUSE_DB_PARAMS='$CLICKHOUSE_DB_PARAMS'"
-          } > .env
+          } > .env.test
 
       - name: Run commit checks
         run: bash scripts/run-commit-checks.sh

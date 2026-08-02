@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -uo pipefail
 
-if [ -f ".env" ]; then
+if [ -f ".env.test" ]; then
   set -a
-  . ./.env
+  . ./.env.test
   set +a
 fi
 
@@ -12,241 +12,28 @@ export UV_LINK_MODE="${UV_LINK_MODE:-copy}"
 export MPLCONFIGDIR="${MPLCONFIGDIR:-$PWD/.matplotlib-cache}"
 mkdir -p "$MPLCONFIGDIR"
 
-: "${UPLOAD_CSV_FILEPATH:?Set UPLOAD_CSV_FILEPATH in .env}"
-: "${UPLOAD_PARQUET_FILEPATH:?Set UPLOAD_PARQUET_FILEPATH in .env}"
-: "${DUCKDB_UPLOAD_DB_BACKEND:?Set DUCKDB_UPLOAD_DB_BACKEND in .env}"
-: "${DUCKDB_UPLOAD_DB_PARAMS:?Set DUCKDB_UPLOAD_DB_PARAMS in .env}"
-: "${POSTGRES_UPLOAD_DB_BACKEND:?Set POSTGRES_UPLOAD_DB_BACKEND in .env}"
-: "${POSTGRES_UPLOAD_DB_PARAMS:?Set POSTGRES_UPLOAD_DB_PARAMS in .env}"
-: "${CLICKHOUSE_UPLOAD_DB_BACKEND:?Set CLICKHOUSE_UPLOAD_DB_BACKEND in .env}"
-: "${CLICKHOUSE_UPLOAD_DB_PARAMS:?Set CLICKHOUSE_UPLOAD_DB_PARAMS in .env}"
+: "${UPLOAD_CSV_FILEPATH:?Set UPLOAD_CSV_FILEPATH in .env.test}"
+: "${UPLOAD_PARQUET_FILEPATH:?Set UPLOAD_PARQUET_FILEPATH in .env.test}"
+: "${DUCKDB_UPLOAD_DB_BACKEND:?Set DUCKDB_UPLOAD_DB_BACKEND in .env.test}"
+: "${DUCKDB_UPLOAD_DB_PARAMS:?Set DUCKDB_UPLOAD_DB_PARAMS in .env.test}"
+: "${POSTGRES_UPLOAD_DB_BACKEND:?Set POSTGRES_UPLOAD_DB_BACKEND in .env.test}"
+: "${POSTGRES_UPLOAD_DB_PARAMS:?Set POSTGRES_UPLOAD_DB_PARAMS in .env.test}"
+: "${CLICKHOUSE_UPLOAD_DB_BACKEND:?Set CLICKHOUSE_UPLOAD_DB_BACKEND in .env.test}"
+: "${CLICKHOUSE_UPLOAD_DB_PARAMS:?Set CLICKHOUSE_UPLOAD_DB_PARAMS in .env.test}"
 
 COMMIT_CHECK_TMPDIR="${COMMIT_CHECK_TMPDIR:-${TMPDIR:-/tmp}/memframe-commit-checks}"
 mkdir -p "$COMMIT_CHECK_TMPDIR"
 
-DUCKDB_DB_PARAMS="${DUCKDB_DB_PARAMS:-}"
-POSTGRES_DB_PARAMS="${POSTGRES_DB_PARAMS:-$POSTGRES_UPLOAD_DB_PARAMS}"
-CLICKHOUSE_DB_PARAMS="${CLICKHOUSE_DB_PARAMS:-$CLICKHOUSE_UPLOAD_DB_PARAMS}"
-
-UV_RUN="uv run --active"
-
-duckdb_params_for() {
-  local label="$1"
-  local sanitized_label="${label//[^[:alnum:]_]/_}"
-
-  if [ -n "$DUCKDB_DB_PARAMS" ]; then
-    printf '%s\n' "$DUCKDB_DB_PARAMS"
-  else
-    printf '{"db_path":"%s/%s-%s.duckdb"}\n' "$COMMIT_CHECK_TMPDIR" "$$" "$sanitized_label"
-  fi
-}
-
-params_with_schema_prefix() {
-  local raw_params="$1"
-  local label="$2"
-  local sanitized_label="${label//[^[:alnum:]_]/_}"
-  local schema_prefix="mf_$$_${sanitized_label}"
-
-  python -c 'import json, sys; params=json.loads(sys.argv[1]); params["schema_prefix"]=sys.argv[2]; print(json.dumps(params, separators=(",", ":")))' \
-    "$raw_params" "$schema_prefix"
-}
-
 find . \( -path "./src/*" -o -path "./tests/*" \) -name "__pycache__" -type d -exec rm -rf {} +
 
-failures=()
+echo "==> Running commit checks via tests/run_tests.py"
 
-run_check() {
-  local label="$1"
-  shift
+python tests/run_tests.py \
+  --backend duckdb,postgres,clickhouse \
+  --upload-type csv,parquet \
+  --schema-prefix "mf_$$_commit" \
+  --require-upload-file \
+  --tox
 
-  echo "==> Running ${label}"
-  if "$@"; then
-    echo "==> Passed ${label}"
-  else
-    local status=$?
-    echo "==> Failed ${label} (exit ${status}); continuing commit checks" >&2
-    failures+=("${label} (exit ${status})")
-  fi
-}
-
-run_upload_test() {
-  local upload_type="$1"
-  local filepath="$2"
-  local db_backend="$3"
-  local db_params="$4"
-
-  $UV_RUN pytest tests/test_upload.py \
-    --upload-type "$upload_type" \
-    --filepath "$filepath" \
-    --db-backend "$db_backend" \
-    --db-params "$db_params"
-}
-
-run_selection_test() {
-  local db_backend="$1"
-  local db_params="$2"
-
-  $UV_RUN pytest tests/test_selection.py \
-    -v \
-    --db-backend "$db_backend" \
-    --db-params "$db_params"
-}
-
-run_inspect_test() {
-  local db_backend="$1"
-  local db_params="$2"
-
-  $UV_RUN pytest tests/test_inspect.py \
-    -v \
-    --db-backend "$db_backend" \
-    --db-params "$db_params"
-}
-
-run_cleaning_test() {
-  local db_backend="$1"
-  local db_params="$2"
-
-  $UV_RUN pytest tests/test_cleaning.py \
-    -v \
-    --db-backend "$db_backend" \
-    --db-params "$db_params"
-}
-
-run_arithmetic_test() {
-  local db_backend="$1"
-  local db_params="$2"
-
-  $UV_RUN pytest tests/test_arithmetic.py \
-    -v \
-    --db-backend "$db_backend" \
-    --db-params "$db_params"
-}
-
-run_stats_test() {
-  local db_backend="$1"
-  local db_params="$2"
-
-  $UV_RUN pytest tests/test_stats.py \
-    -v \
-    --db-backend "$db_backend" \
-    --db-params "$db_params"
-}
-
-run_bar_test() {
-  local db_backend="$1"
-  local db_params="$2"
-
-  $UV_RUN pytest tests/test_bar.py \
-    -v \
-    --db-backend "$db_backend" \
-    --db-params "$db_params"
-}
-
-run_bar_polar_test() {
-  local db_backend="$1"
-  local db_params="$2"
-
-  $UV_RUN pytest tests/test_bar_polar.py \
-    -v \
-    --db-backend "$db_backend" \
-    --db-params "$db_params"
-}
-
-run_pie_test() {
-  local db_backend="$1"
-  local db_params="$2"
-
-  $UV_RUN pytest tests/test_pie.py \
-    -v \
-    --db-backend "$db_backend" \
-    --db-params "$db_params"
-}
-
-run_line_test() {
-  local db_backend="$1"
-  local db_params="$2"
-
-  pytest tests/test_line.py \
-    -v \
-    --db-backend "$db_backend" \
-    --db-params "$db_params"
-}
-
-run_scatter_test() {
-  local db_backend="$1"
-  local db_params="$2"
-
-  pytest tests/test_scatter.py \
-    -v \
-    --db-backend "$db_backend" \
-    --db-params "$db_params"
-}
-
-run_scatter3d_test() {
-  local db_backend="$1"
-  local db_params="$2"
-
-  pytest tests/test_scatter3d.py \
-    -v \
-    --db-backend "$db_backend" \
-    --db-params "$db_params"
-}
-
-for upload_type in csv parquet; do
-  filepath_var="UPLOAD_${upload_type^^}_FILEPATH"
-  run_check "upload ${upload_type} duckdb" \
-    run_upload_test "$upload_type" "${!filepath_var}" "$DUCKDB_UPLOAD_DB_BACKEND" "$(duckdb_params_for "upload_${upload_type}")"
-  run_check "upload ${upload_type} postgres" \
-    run_upload_test "$upload_type" "${!filepath_var}" "$POSTGRES_UPLOAD_DB_BACKEND" "$(params_with_schema_prefix "$POSTGRES_UPLOAD_DB_PARAMS" "upload_${upload_type}_postgres")"
-  if [ -n "${CLICKHOUSE_UPLOAD_DB_BACKEND:-}" ] && [ -n "${CLICKHOUSE_UPLOAD_DB_PARAMS:-}" ]; then
-    run_check "upload ${upload_type} clickhouse" \
-      run_upload_test "$upload_type" "${!filepath_var}" "$CLICKHOUSE_UPLOAD_DB_BACKEND" "$(params_with_schema_prefix "$CLICKHOUSE_UPLOAD_DB_PARAMS" "upload_${upload_type}_clickhouse")"
-  fi
-done
-
-run_check "selection duckdb" run_selection_test duckdb "$(duckdb_params_for selection)"
-run_check "selection postgres" run_selection_test postgres "$(params_with_schema_prefix "$POSTGRES_DB_PARAMS" "selection_postgres")"
-run_check "inspect duckdb" run_inspect_test duckdb "$(duckdb_params_for inspect)"
-run_check "inspect postgres" run_inspect_test postgres "$(params_with_schema_prefix "$POSTGRES_DB_PARAMS" "inspect_postgres")"
-run_check "cleaning duckdb" run_cleaning_test duckdb "$(duckdb_params_for cleaning)"
-run_check "cleaning postgres" run_cleaning_test postgres "$(params_with_schema_prefix "$POSTGRES_DB_PARAMS" "cleaning_postgres")"
-run_check "cleaning clickhouse" run_cleaning_test clickhouse "$CLICKHOUSE_DB_PARAMS"
-run_check "stats duckdb" run_stats_test duckdb "$(duckdb_params_for stats)"
-run_check "stats postgres" run_stats_test postgres "$(params_with_schema_prefix "$POSTGRES_DB_PARAMS" "stats_postgres")"
-run_check "arithmetic duckdb" run_arithmetic_test duckdb "$(duckdb_params_for arithmetic)"
-run_check "arithmetic postgres" run_arithmetic_test postgres "$(params_with_schema_prefix "$POSTGRES_DB_PARAMS" "arithmetic_postgres")"
-run_check "arithmetic clickhouse" run_arithmetic_test clickhouse "$CLICKHOUSE_DB_PARAMS"
-run_check "bar duckdb" run_bar_test duckdb "$(duckdb_params_for bar)"
-run_check "bar postgres" run_bar_test postgres "$POSTGRES_DB_PARAMS"
-run_check "bar clickhouse" run_bar_test clickhouse "$CLICKHOUSE_DB_PARAMS"
-run_check "bar polar duckdb" run_bar_polar_test duckdb "$(duckdb_params_for bar_polar)"
-run_check "bar polar postgres" run_bar_polar_test postgres "$POSTGRES_DB_PARAMS"
-run_check "bar polar clickhouse" run_bar_polar_test clickhouse "$CLICKHOUSE_DB_PARAMS"
-run_check "pie duckdb" run_pie_test duckdb "$(duckdb_params_for pie)"
-run_check "pie postgres" run_pie_test postgres "$POSTGRES_DB_PARAMS"
-run_check "pie clickhouse" run_pie_test clickhouse "$CLICKHOUSE_DB_PARAMS"
-run_check "line duckdb" run_line_test duckdb "$(duckdb_params_for line)"
-run_check "line postgres" run_line_test postgres "$POSTGRES_DB_PARAMS"
-run_check "line clickhouse" run_line_test clickhouse "$CLICKHOUSE_DB_PARAMS"
-run_check "scatter duckdb" run_scatter_test duckdb "$(duckdb_params_for scatter)"
-run_check "scatter postgres" run_scatter_test postgres "$POSTGRES_DB_PARAMS"
-run_check "scatter clickhouse" run_scatter_test clickhouse "$CLICKHOUSE_DB_PARAMS"
-run_check "scatter3d duckdb" run_scatter3d_test duckdb "$(duckdb_params_for scatter3d)"
-run_check "scatter3d postgres" run_scatter3d_test postgres "$POSTGRES_DB_PARAMS"
-run_check "scatter3d clickhouse" run_scatter3d_test clickhouse "$CLICKHOUSE_DB_PARAMS"
-tox_args=(-p auto -e py310,py311,py312,py313)
-if [ "${TOX_RECREATE:-0}" = "1" ]; then
-  tox_args=(-r "${tox_args[@]}")
-fi
-run_check "tox py310 py311 py312 py313" tox "${tox_args[@]}"
-
-if [ "${#failures[@]}" -gt 0 ]; then
-  echo ""
-  echo "Commit checks completed with failures, but the pre-commit hook will not block this commit:" >&2
-  printf ' - %s\n' "${failures[@]}" >&2
-else
-  echo ""
-  echo "Commit checks completed successfully."
-fi
-
+echo "==> Commit checks completed."
 exit 0

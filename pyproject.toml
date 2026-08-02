@@ -34,6 +34,7 @@ dependencies = [
 dev = [
     "matplotlib>=3.10.9",
     "pytest>=8.0",
+    "pytest-cov>=5.0",
     "tox>=4.0",
     "mkdocs-material>=9.7.6",
     "mkdocstrings[python]>=1.0.4",
@@ -49,6 +50,11 @@ Issues = "https://github.com/Debojit95/memFrame/issues"
 addopts = "-ra"
 pythonpath = ["."]
 testpaths = ["tests"]
+markers = [
+    "unit: fast, dependency-free unit tests",
+    "cache: cache manager and two-level cache behavior",
+    "integration: tests requiring a real database backend",
+]
 
 [build-system]
 requires = ["hatchling"]
