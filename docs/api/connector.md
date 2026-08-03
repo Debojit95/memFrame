@@ -35,11 +35,11 @@ Parameters:
 
 | Parameter | Required | Default | Description |
 | --- | --- | --- | --- |
-| `db_path` | No | `memFrame_new.duckdb` | File path for the DuckDB database. |
+| `db_path` | No | `memFrame_new.duckdb` | File path for the DuckDB database. Use `:memory:` for a temporary in-memory database (nothing is persisted to disk). |
 
 !!! note
-    memFrame disables in-memory DuckDB for local mode. If `db_path=":memory:"`
-    is supplied, memFrame falls back to a file-backed database.
+    For a temporary in-memory database, pass `db_path=":memory:"`. The database
+    lives and dies with the connection; data is not persisted to disk.
 
 ## PostgreSQL
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Tuple
 
 from memframe.core.ingestion.datatype_detector import _generate_6char_id
 from memframe.exceptions import ConnectionNotReady

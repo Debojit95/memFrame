@@ -1,4 +1,3 @@
-import asyncio
 import logging
 from abc import ABC, abstractmethod
 from typing import Any, List, Optional, Tuple
@@ -74,7 +73,7 @@ class DatabaseBackend(ABC):
     async def fetch_one(self, query: str, *params) -> Optional[Tuple]:
         return await self.fetch_row(query, *params)
 
-    async def fetch_val(self, query: str, *params) -> Any:
+    async def fetchval(self, query: str, *params) -> Any:
         if self.pool is None:
             raise ConnectionNotReady("Backend pool not set. Call aconnect() first.")
         return await self.pool.fetchval(query, *params)
@@ -103,7 +102,7 @@ class DatabaseBackend(ABC):
                   AND table_name = {p2}
                   AND column_name = {p3}
             """
-        count = await self.fetch_val(query, schema, table, column)
+        count = await self.fetchval(query, schema, table, column)
         return bool(count and count > 0)
 
     async def _migrate_transient_registry_schema(self) -> None:

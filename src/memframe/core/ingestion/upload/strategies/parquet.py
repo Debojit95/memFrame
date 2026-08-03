@@ -68,7 +68,7 @@ class ParquetUploadStrategy(UploadStrategy):
         await self._insert_parquet_typed(final_table, arrow_table, columns, schema)
 
         # No casting phase needed! Types are already correct.
-        row_count = await self._uploader.fetch_val(f"SELECT COUNT(*) FROM {final_table}")
+        row_count = await self._uploader.fetchval(f"SELECT COUNT(*) FROM {final_table}")
         return row_count
 
     def _infer_types_from_parquet(

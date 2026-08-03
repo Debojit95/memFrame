@@ -188,16 +188,11 @@ class GeneralTableOps:
         return pd.DataFrame.from_records(records)
 
     async def _generate_transient_table_name(self, base_table: str, backend, data_id: str) -> str:
-        fetch_scalar = (
-            backend.fetch_val
-            if hasattr(backend, "fetch_val")
-            else backend.fetchval
-        )
         transient_registry_table = getattr(
             backend, "transient_registry_table", "registry.transient_registry"
         )
 
-        max_op = await fetch_scalar(
+        max_op = await backend.fetchval(
             f"""
             SELECT COALESCE(MAX(opidx), 0)
             FROM {transient_registry_table}

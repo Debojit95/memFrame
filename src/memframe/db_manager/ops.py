@@ -112,7 +112,7 @@ class OpsMixin:
     # ── operation recording (used by ContextManager / wrappers) ──
 
     async def _arecord_operation(self, data_id: str, operation_type: str, generated_table_name: str) -> int:
-        max_op = await self._backend.fetch_val(
+        max_op = await self._backend.fetchval(
             f"SELECT COALESCE(MAX(opidx), 0) FROM {self._backend.transient_registry_table} WHERE data_id = {self._placeholder(1)}",
             data_id,
         )
@@ -133,7 +133,7 @@ class OpsMixin:
     ) -> int:
         if not self._backend:
             raise ConnectionNotReady("Not connected.")
-        max_op = await self._backend.fetch_val(
+        max_op = await self._backend.fetchval(
             f"SELECT COALESCE(MAX(opidx), 0) FROM {self._backend.transient_registry_table} "
             f"WHERE data_id = {self._placeholder(1)}",
             data_id,

@@ -87,8 +87,9 @@ mf = MemFrame(
 ```
 
 Local mode uses DuckDB. If `db_path` is omitted, memFrame uses
-`memFrame_new.duckdb`. In-memory DuckDB is disabled for local mode; passing
-`:memory:` falls back to a file-backed database.
+`memFrame_new.duckdb`. For a throwaway, in-memory database, pass
+`db_path=":memory:"`; note that an in-memory database lives and dies with the
+connection, so nothing is persisted to disk.
 
 ### PostgreSQL
 

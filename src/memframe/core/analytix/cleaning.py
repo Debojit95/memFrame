@@ -63,14 +63,8 @@ class DataCleaningOps:
         types = await self.db.get_column_types(table, schema)
         return types.get(column, "TEXT")
 
-    async def _backend_fetch_val(self, backend, sql: str, *args):
-        if hasattr(backend, "fetch_val"):
-            return await backend.fetch_val(sql, *args)
-        return await backend.fetchval(sql, *args)
-
     async def _generate_transient_table_name(self, base_table: str, backend, data_id: str) -> str:
-        max_op = await self._backend_fetch_val(
-            backend,
+        max_op = await backend.fetchval(
             f"""
             SELECT COALESCE(MAX(opidx), 0)
             FROM {backend.transient_registry_table}

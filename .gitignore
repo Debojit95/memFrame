@@ -23,7 +23,6 @@ ENV/
 # Existing local repository artifacts
 .git
 .gitignore
-!.gitignore
 tests/result
 tests/result/
 tests/result/*
@@ -78,3 +77,4 @@ Thumbs.db
 
 .codex
 
+!.agents

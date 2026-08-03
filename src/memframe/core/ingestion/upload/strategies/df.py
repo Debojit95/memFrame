@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from typing import TYPE_CHECKING, Dict, Optional
 
 import pyarrow as pa
 
@@ -115,7 +115,7 @@ class DfUploadStrategy(UploadStrategy):
         if not upload_name.lower().endswith(".csv"):
             upload_name = f"{upload_name}.csv"
 
-        row_count = await self._uploader.fetch_val(f"SELECT COUNT(*) FROM {final_table}")
+        row_count = await self._uploader.fetchval(f"SELECT COUNT(*) FROM {final_table}")
 
         await self._register(data_id, upload_name, table_name, row_count)
         logger.info(f"Uploaded DataFrame -> {data_id} ({row_count} rows)")

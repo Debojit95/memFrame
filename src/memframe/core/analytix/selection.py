@@ -142,7 +142,7 @@ class DataSelectionOps:
         backend,
         data_id: str,
     ) -> str:
-        max_op = await backend.fetch_val(
+        max_op = await backend.fetchval(
             f"""
             SELECT COALESCE(MAX(opidx), 0)
             FROM {backend.transient_registry_table}

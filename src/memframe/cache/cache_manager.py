@@ -3,7 +3,7 @@ import json
 import logging
 import time
 from functools import wraps
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, Optional
 
 import numpy as np
 import pandas as pd
@@ -86,7 +86,7 @@ class CacheManager:
 
     async def _create_deep_cache_table(self, mf, backend, data_id: str, df: pd.DataFrame) -> str:
         """Persist a DataFrame as a typed transient table (deep-cache payload)."""
-        op = await backend.fetch_val(
+        op = await backend.fetchval(
             f"SELECT COALESCE(MAX(opidx), 0) FROM {backend.transient_registry_table} "
             f"WHERE data_id = {backend.placeholder(1)}", data_id,
         )

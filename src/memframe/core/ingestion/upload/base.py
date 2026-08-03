@@ -11,7 +11,7 @@ if TYPE_CHECKING:
 
 from memframe.core.ingestion.datatype_detector import Backend
 from memframe.db_manager.context import ContextManager
-from memframe.exceptions import ConfigurationError, ConnectionNotReady
+from memframe.exceptions import ConfigurationError
 
 
 logger = logging.getLogger("memFrame")
@@ -434,8 +434,8 @@ class Uploader:
     async def fetch_one(self, query: str, *args) -> Optional[Tuple]:
         return await self._backend.fetch_one(query, *args)
 
-    async def fetch_val(self, query: str, *args) -> Any:
-        return await self._backend.fetch_val(query, *args)
+    async def fetchval(self, query: str, *args) -> Any:
+        return await self._backend.fetchval(query, *args)
 
     def _placeholder(self, index: int) -> str:
         return self._backend.placeholder(index)

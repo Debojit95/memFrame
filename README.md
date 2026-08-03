@@ -81,6 +81,8 @@ mf = MemFrame(
 )
 ```
 
+For a temporary in-memory database, pass `"db_path": ":memory:"`; nothing is persisted to disk.
+
 ### Remote PostgreSQL
 
 ```python

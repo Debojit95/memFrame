@@ -133,7 +133,7 @@ async def _run_upload_test(
         assert registry_entry["filename"] == expected_filename
         assert await mf._backend.table_exists(f'{mf._backend.upload_schema}."{data_id}"')
 
-        row_count = await mf._backend.fetch_val(
+        row_count = await mf._backend.fetchval(
             f"""
             SELECT row_count
             FROM {mf._backend.csv_registry_table}

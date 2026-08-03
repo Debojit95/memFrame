@@ -77,7 +77,7 @@ class CsvUploadStrategy(UploadStrategy):
                 locked_cols=set(dtypes or {}),
             )
 
-        row_count = await self._uploader.fetch_val(f"SELECT COUNT(*) FROM {final_table}")
+        row_count = await self._uploader.fetchval(f"SELECT COUNT(*) FROM {final_table}")
         return row_count
 
     def _get_csv_columns(self, file_path: str, encoding: str) -> List[str]:
