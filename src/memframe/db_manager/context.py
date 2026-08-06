@@ -7,6 +7,7 @@ from memframe.db_manager.adapters.postgresql import PostgresAdapter
 from memframe.db_manager.adapters.duckdb import DuckDBAdapter
 from memframe.db_manager.adapters.clickhouse import ClickHouseAdapter
 from memframe.exceptions import BackendNotSupported, ConnectionNotReady, DataNotFound
+from memframe.utils.async_sync import async_to_sync
 
 
 logger = logging.getLogger("memFrame")
@@ -80,6 +81,32 @@ class ContextManager:
 
     async def aclose(self):
         self._adapter = None
+
+    # ── AI agent entrypoints (delegate to memframe_ai) ──────────
+
+    async def achat(self, prompt: str, session_id: Optional[str] = None) -> dict:
+        from memframe_ai.entrypoints import achat as _achat
+
+        return await _achat(self, prompt, session_id)
+
+    @async_to_sync
+    async def chat(self, prompt: str, session_id: Optional[str] = None) -> dict:
+        return await self.achat(prompt, session_id)
+
+    async def aenable_agent(
+        self,
+        api_key: str,
+        provider: Optional[str] = None,
+        model: Optional[str] = None,
+        **overrides,
+    ) -> Any:
+        from memframe_ai.entrypoints import aenable_agent as _aenable
+
+        return await _aenable(self.memframe, api_key, provider, model, **overrides)
+
+    @async_to_sync
+    async def enable_agent(self, api_key: str, provider: Optional[str] = None, model: Optional[str] = None, **overrides):
+        return await self.aenable_agent(api_key, provider, model, **overrides)
 
     async def _get_active_context(self):
         data_id = self._data_id or self.memframe._active_id

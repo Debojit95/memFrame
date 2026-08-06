@@ -15,6 +15,8 @@ from memframe.exceptions import ConfigurationError
 
 logger = logging.getLogger("memFrame")
 
+_FALLBACK_SAMPLE_ROWS = 5000
+
 
 class CsvUploadStrategy(UploadStrategy):
     """Upload pipeline for CSV files.
@@ -68,14 +70,35 @@ class CsvUploadStrategy(UploadStrategy):
             schema = self._uploader._apply_dtype_override(schema, columns, dtypes)
             await self._uploader._cast_table_in_place(final_table, columns, schema)
         else:
-            # DuckDB/PostgreSQL: type-first optimized path
-            columns, schema = await self._infer_types_from_csv(file_path, encoding)
-            schema = self._uploader._apply_dtype_override(schema, columns, dtypes)
-            await self._uploader._create_final_table_typed(final_table, columns, schema)
-            await self._stream_csv_typed(
-                final_table, file_path, columns, encoding, schema,
-                locked_cols=set(dtypes or {}),
-            )
+            # DuckDB/PostgreSQL: type-first optimized path.
+            try:
+                columns, schema = await self._infer_types_from_csv(file_path, encoding)
+                schema = self._uploader._apply_dtype_override(schema, columns, dtypes)
+                await self._uploader._create_final_table_typed(final_table, columns, schema)
+                await self._stream_csv_typed(
+                    final_table, file_path, columns, encoding, schema,
+                    locked_cols=set(dtypes or {}),
+                )
+            except Exception as exc:
+                logger.warning(
+                    f"Typed CSV upload failed ({type(exc).__name__}: {exc}); "
+                    "retrying as all-text then casting."
+                )
+                await self._uploader.drop_table(final_table)
+                columns = self._get_csv_columns(file_path, encoding)
+                await self._uploader._create_final_table_all_text(final_table, columns)
+                await self._stream_csv_all_text(final_table, file_path, columns, encoding)
+                sample_table = await self._uploader._fetch_arrow_sample(
+                    final_table, columns, _FALLBACK_SAMPLE_ROWS
+                )
+                schema = {}
+                for col in columns:
+                    schema[col] = self._uploader._type_detector._infer_column(
+                        sample_table.column(col)
+                    )
+                schema = self._uploader._apply_dtype_override(schema, columns, dtypes)
+                schema = self._uploader._make_types_conservative(schema)
+                await self._uploader._cast_table_in_place(final_table, columns, schema)
 
         row_count = await self._uploader.fetchval(f"SELECT COUNT(*) FROM {final_table}")
         return row_count
