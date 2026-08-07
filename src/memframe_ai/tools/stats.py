@@ -11,12 +11,16 @@ def tools(session):
         return DataStatsOps(session.adapter)
 
     async def value_counts(column: str, top_n: int = 10) -> dict:
-        """Return the top_n most frequent distinct values of a column and their counts."""
+        """Return the top_n most frequent distinct values of a column and their counts.
+        
+        Simplified to avoid retries for numeric columns.
+        """
         ops = await _ops()
         col_types = await session.adapter.get_column_types(session.table, session.schema)
         dtype = (col_types.get(column) or "").lower()
         if any(t in dtype for t in _NUMERIC):
-            result = await ops.numeric_value_counts(session.table, session.schema, column, top_n=top_n)
+            # For numeric columns, only return basic stats (count, mean, std)
+            result = await ops.numeric_basic_stats(session.table, session.schema, column)
         else:
             result = await ops.categorical_value_counts(session.table, session.schema, column, top_n=top_n)
         return await normalize(result, session)

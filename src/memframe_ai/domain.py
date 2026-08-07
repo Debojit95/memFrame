@@ -22,8 +22,14 @@ async def _qualified(adapter: DatabaseAdapter, table: str, schema: str) -> str:
     return f"{adapter.quote_identifier(schema)}.{adapter.quote_identifier(table)}"
 
 
-async def build_domain_context(session) -> str:
-    """Build a per-table domain context block for the analytics agents."""
+async def build_domain_context(session, lightweight: bool = False) -> str:
+    """Build a per-table domain context block for the analytics agents.
+    
+    Args:
+        session: The session object containing adapter, table, schema info
+        lightweight: If True, returns minimal context (column names + types only).
+                    If False, returns full context with profiles and sample data.
+    """
     await session.ensure()
     adapter = session.adapter
     table = SQLIdentifierSanitizer.sanitize(session.table)
@@ -36,7 +42,11 @@ async def build_domain_context(session) -> str:
     cols = info.get("column_count", len(col_types))
 
     lines = [f"ACTIVE TABLE CONTEXT: {table} ({rows} rows x {cols} columns)"]
-    lines.append("Columns: " + ", ".join(col_types.keys()))
+    lines.append("Columns: " + ", ".join(f"{col} [{_dtype_family(dtype)}]" for col, dtype in col_types.items()))
+    
+    if lightweight:
+        return "\n".join(lines)
+
     lines.append("")
     lines.append("Column profiles:")
 

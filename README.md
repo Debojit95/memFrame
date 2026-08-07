@@ -11,7 +11,7 @@ The package is designed for workflows where data may be larger than what you wan
 ## Features
 
 - Local DuckDB and remote PostgreSQL/Clickhouse backends.
-- Asynchronous(first) and synchronous APIs.
+- Async(first) and Sync APIs.
 - csv, parquet, and pandas DataFrame upload.
 - Persistent Caching Layer.
 - Transaction audit trail.

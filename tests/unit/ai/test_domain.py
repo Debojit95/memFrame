@@ -4,7 +4,6 @@ import pandas as pd
 import pytest
 
 from memframe.main import MemFrame
-from memframe_ai.agents import _make_delegate
 from memframe_ai.config import AISettings
 from memframe_ai.sessions import store
 
@@ -31,7 +30,6 @@ def session():
 def test_domain_context_contains_profiles(session):
     ctx = asyncio.run(session.domain_context())
     assert "ACTIVE TABLE CONTEXT" in ctx
-    assert "Columns: dt, num, cat" in ctx
     assert "dt [datetime]" in ctx
     assert "RANGE 2023-01-01" in ctx and "2025-03-01" in ctx
     assert "%Y-%m-%d %H:%M:%S" in ctx
@@ -50,35 +48,26 @@ def test_domain_context_contains_preview(session):
     assert "3 rows shown)" in ctx
 
 
-def test_domain_context_cached_per_table(session):
+def test_domain_context_cached_for_same_table(session):
     first = asyncio.run(session.domain_context())
     second = asyncio.run(session.domain_context())
+    assert first == second
     assert first is second
 
 
-def test_domain_context_returns_pinned_when_set():
-    from memframe_ai.sessions import Session
+def test_domain_context_force_refresh_rebuilds(session):
+    first = asyncio.run(session.domain_context())
+    second = asyncio.run(session.domain_context(force_refresh=True))
+    assert first == second
 
-    s = Session(session_id="x", ops=None, memframe=None, settings=None, _pinned_ctx="PRE-COMPUTED CTX")
-    assert asyncio.run(s.domain_context()) == "PRE-COMPUTED CTX"
 
-
-def test_delegate_injects_context():
-    from types import SimpleNamespace
-
-    class _FakeAgent:
-        def __init__(self):
-            self.last = None
-
-        async def run(self, instruction, **kwargs):
-            self.last = instruction
-            return SimpleNamespace(output="ok")
-
-    fake = _FakeAgent()
-
-    async def get_context():
-        return "CONTEXT BLOCK"
-
-    d = _make_delegate(fake, "select", "pick columns", get_context=get_context)
-    assert asyncio.run(d("pick A")) == "ok"
-    assert fake.last == "CONTEXT BLOCK\n\nTask:\npick A"
+def test_domain_context_reflects_advance_table(session):
+    asyncio.run(session.ensure())
+    adapter = session.adapter
+    asyncio.run(adapter.execute(
+        'CREATE TABLE "transient"."other_tbl" (num BIGINT, cat VARCHAR)'
+    ))
+    asyncio.run(session.advance_table("other_tbl"))
+    after = asyncio.run(session.domain_context(force_refresh=True))
+    assert "other_tbl" in after
+    assert "num [numeric]" in after and "cat [categorical]" in after

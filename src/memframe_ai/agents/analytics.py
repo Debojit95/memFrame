@@ -1,5 +1,6 @@
 import functools
 import time
+import asyncio
 from typing import Any, Optional
 
 from pydantic_ai import Agent
@@ -9,6 +10,7 @@ from pydantic_ai_harness import CodeMode
 
 from memframe.utils.async_sync import async_to_sync
 
+from memframe_ai.agents.planning import SubQuery
 from memframe_ai.config import AISettings
 from memframe_ai.format import classify_block, render_blocks
 from memframe_ai.gateway import ModelGateway
@@ -55,7 +57,6 @@ _PLOT_DOC = {
 }
 
 _CTX_SHORT = 120
-_ORCHESTRATOR_MAX_REQUESTS = 15
 _SPECIALIST_MAX_REQUESTS = 8
 
 
@@ -66,7 +67,7 @@ def _code_mode() -> CodeMode:
 def _specialist_prompt(name: str) -> str:
     return (
         f"You are the '{name}' analytics specialist. The active dataset is ALREADY "
-        "LOADED \u2014 never claim data is missing.\n"
+        "LOADED — never claim data is missing.\n"
         "To complete the task you MUST actually call the data functions. They are "
         "available inside the `run_code` sandbox as async functions, for example:\n"
         "    result = await fillna(column='C', mode='median')\n"
@@ -81,26 +82,6 @@ def _specialist_prompt(name: str) -> str:
         "actually used/observe. Do not invent placeholder operations (e.g. dividing "
         "by 1 to copy a column, or 'COALESCE(...) AS x') and never embed SQL "
         "expressions into column arguments."
-    )
-
-
-def _orchestrator_prompt(table: str, schema: str) -> str:
-    return (
-        "You orchestrate data-analytics agents over one active dataset. "
-        f"The active dataset is ALREADY loaded: table '{table}' "
-        f"in schema '{schema}'. Never claim no data is loaded \u2014 "
-        "the table above is active and usable. Delegate to the specialist "
-        "agents via the run_* tools (run_context, run_inspect, run_select, "
-        "run_clean, run_stats, run_arithmetic, run_plot_*) and compose their "
-        "answers. Never invent data: call the tools to get real values.\n"
-        "Perform each requested operation EXACTLY ONCE via the run_* "
-        "delegates. Do not re-run an operation you have already executed. "
-        "To confirm the final state, make a single read-only inspection "
-        "(run_select or run_inspect) at the end rather than repeating "
-        "mutations.\n"
-        "Do not drop or omit columns you were not asked to remove. When a "
-        "request has multiple steps, order them so no step depends on a "
-        "column a prior step may not carry."
     )
 
 
@@ -123,36 +104,6 @@ def _plot_tool(session, plot_type: str):
     return make_plot
 
 
-def _make_delegate(agent: Agent, name: str, help_text: str, get_context=None):
-    async def delegate(instruction: str) -> str:
-        t0 = time.perf_counter()
-        ctx = (await get_context()) if get_context is not None else ""
-        full = f"{ctx}\n\nTask:\n{instruction}" if ctx else instruction
-        logger.info("delegate run_%s ctx_len=%d task='%s'", name, len(ctx), instruction[:_CTX_SHORT])
-        try:
-            result = await agent.run(
-                full, usage_limits=UsageLimits(request_limit=_SPECIALIST_MAX_REQUESTS)
-            )
-            logger.info(
-                "delegate run_%s done %.1fs usage=requests=%s",
-                name, time.perf_counter() - t0,
-                getattr(getattr(result, "usage", None), "requests", "?"),
-            )
-            return str(result.output)
-        except Exception as exc:
-            logger.warning(
-                "delegate run_%s failed %.1fs %s: %s",
-                name, time.perf_counter() - t0, type(exc).__name__, exc,
-            )
-            return f"{name} agent failed: {type(exc).__name__}: {exc}"
-
-    delegate.__name__ = f"run_{name}"
-    delegate.__doc__ = (
-        f"Delegate to the {name} agent to {help_text}. Returns its answer as text."
-    )
-    return delegate
-
-
 def _arg_summary(args: tuple, kwargs: dict) -> str:
     parts = [repr(a) for a in args] + [f"{k}={v!r}" for k, v in kwargs.items()]
     text = ", ".join(parts)
@@ -160,8 +111,6 @@ def _arg_summary(args: tuple, kwargs: dict) -> str:
 
 
 def _recorded(session, fn):
-    """Wrap a specialist tool to record each execution as a response block."""
-
     @functools.wraps(fn)
     async def wrapped(*args, **kwargs):
         label = f"{fn.__name__}({_arg_summary(args, kwargs)})"
@@ -171,11 +120,7 @@ def _recorded(session, fn):
         except Exception as exc:
             logger.warning("[tool] %s FAILED %.1fs %s: %s", label, time.perf_counter() - t0, type(exc).__name__, exc)
             session.record_block(
-                {
-                    "query": label,
-                    "type": "error",
-                    "message": f"{type(exc).__name__}: {exc}",
-                }
+                {"query": label, "type": "error", "message": f"{type(exc).__name__}: {exc}"}
             )
             raise
         ok = result.get("ok") if isinstance(result, dict) else None
@@ -187,22 +132,19 @@ def _recorded(session, fn):
 
 
 class AnalyticsAgent:
-    """Specialist agents + delegating orchestrator; all built lazily per session."""
 
     def __init__(self, session, settings: AISettings):
         self._session = session
         self._settings = settings
         self._gateway = ModelGateway(settings)
         self._specialists: dict[str, Agent] = {}
-        self._orchestrator: Optional[Agent] = None
-        self._classifier = None
+        self._planner = None
 
-    def _classifier_agent(self):
-        from memframe_ai.agents.intent import IntentClassifier
-
-        if self._classifier is None:
-            self._classifier = IntentClassifier(self._settings)
-        return self._classifier
+    def _planner_agent(self):
+        from memframe_ai.agents.planning import PlannerAgent
+        if self._planner is None:
+            self._planner = PlannerAgent(self._settings)
+        return self._planner
 
     def specialist_agents(self) -> dict[str, Agent]:
         if self._specialists:
@@ -224,96 +166,96 @@ class AnalyticsAgent:
             )
         return self._specialists
 
-    def orchestrator(self) -> Agent:
-        if self._orchestrator is None:
-            specialists = self.specialist_agents()
-            delegates = [
-                _make_delegate(
-                    specialists[name],
-                    name,
-                    help_text,
-                    get_context=self._session.domain_context,
-                )
-                for name, help_text in _DELEGATE_HELP.items()
-            ]
-            self._orchestrator = Agent(
-                self._gateway.model(),
-                name="orchestrator",
-                system_prompt=_orchestrator_prompt(self._session.table, self._session.schema),
-                toolsets=[FunctionToolset(tools=delegates).with_metadata(code_mode=True)],
-                capabilities=[make_hooks("orchestrator"), _code_mode()],
-            )
-        return self._orchestrator
-
-    async def achat(self, prompt: str) -> dict:
+    async def achat(self, prompt: str, return_blocks: bool = False) -> dict:
         t0 = time.perf_counter()
         await self._session.ensure()
         logger.info(
             "chat start session=%s table=%s.%s prompt='%s'",
             self._session.session_id, self._session.schema, self._session.table, prompt,
         )
-        intent = await self._classifier_agent().classify(prompt)
-        ctx = await self._session.domain_context()
-        logger.info("chat ctx_len=%d intent=%s", len(ctx), _render_intent(intent))
-        agent = self.orchestrator()
-        # ponytail: per-session lock, serializes concurrent chats on one conversation
-        async with self._session.lock:
-            self._session.reset_blocks()
-            self._session._pinned_ctx = ctx
-            try:
-                result = await agent.run(
-                    f"{ctx}\n\n{_render_intent(intent)}",
-                    usage_limits=UsageLimits(request_limit=_ORCHESTRATOR_MAX_REQUESTS),
-                )
-            except Exception as exc:
-                logger.warning("chat orchestrator FAILED %.1fs %s: %s", time.perf_counter() - t0, type(exc).__name__, exc)
-                return {
-                    "session_id": self._session.session_id,
-                    "answer": "",
-                    "blocks": [],
-                    "plots": [],
-                    "table": self._session.table,
-                    "schema": self._session.schema,
-                    "error": f"{type(exc).__name__}: {exc}",
-                }
-            finally:
-                self._session._pinned_ctx = None
-        logger.info("chat done %.1fs", time.perf_counter() - t0)
-        return self._package(result)
 
-    def _package(self, result: Any) -> dict:
+        # Capture the BASE context once — every sub-query sees this same table
+        base_ctx = await self._session.domain_context(lightweight=False)
+
+        # Planner: one structured-output model call
+        subquery_head = await self._planner_agent().plan_with_dependencies(prompt, base_ctx)
+
+        # Execute sub-queries (base_ctx stays constant for all of them)
+        if subquery_head:
+            # Pin the table so transform tools never drift the session's
+            # active table — dependent sub-queries see the ctx.chat() table.
+            self._session.pin_table()
+            try:
+                await self._execute_subqueries(subquery_head, base_ctx)
+            finally:
+                self._session.unpin_table()
+        else:
+            logger.info("No sub-queries produced — nothing to execute")
+
+        logger.info("chat done %.1fs", time.perf_counter() - t0)
+        return self._package(return_blocks=return_blocks)
+
+    async def _execute_subqueries(self, head: SubQuery, base_ctx: str) -> None:
+        """Walk the linked list: run independent queries in parallel,
+        dependent ones sequentially. base_ctx is NEVER refreshed — it
+        always reflects the original table from ctx.chat()."""
+        # Collect into two buckets: the first independent run, then dependents in order
+        independent: list[SubQuery] = []
+        dependent: list[SubQuery] = []
+        cur = head
+        while cur:
+            if cur.prev_depends:
+                dependent.append(cur)
+            else:
+                independent.append(cur)
+            cur = cur.next
+
+        if independent:
+            logger.info("Executing %d independent sub-queries in parallel", len(independent))
+            await asyncio.gather(
+                *[self._execute_one(q, base_ctx) for q in independent]
+            )
+
+        for q in dependent:
+            logger.info("Executing dependent sub-query: %s", q.query[:120])
+            await self._execute_one(q, base_ctx)
+
+    async def _execute_one(self, sq: SubQuery, base_ctx: str) -> None:
+        """Run one sub-query on its specialist agent with the fixed base_ctx."""
+        specialist = self.specialist_agents().get(sq.agent)
+        if specialist is None:
+            logger.warning("No specialist agent for '%s' — skipping", sq.agent)
+            return
+        try:
+            await specialist.run(
+                f"{base_ctx}\n\nTask:\n{sq.query}",
+                usage_limits=UsageLimits(request_limit=_SPECIALIST_MAX_REQUESTS),
+            )
+        except Exception as exc:
+            logger.warning("Sub-query failed (%s): %s", sq.agent, exc)
+
+    def _package(self, return_blocks: bool = False) -> dict:
         blocks = list(self._session.blocks)
-        output = result.output if isinstance(result.output, str) else str(result.output)
-        return {
+        answer = render_blocks(blocks) if blocks else ""
+        resp = {
             "session_id": self._session.session_id,
-            "answer": render_blocks(blocks) if blocks else output,
-            "blocks": blocks,
+            "answer": answer,
+            "table": self._session.table,
+            "schema": self._session.schema,
             "plots": [
                 {"id": pid, "title": p["title"], "spec": p["spec"]}
                 for pid, p in self._session.plots.items()
             ],
-            "table": self._session.table,
-            "schema": self._session.schema,
             "error": None,
         }
+        if return_blocks:
+            resp["blocks"] = blocks
+        return resp
 
     chat = async_to_sync(achat)
 
 
-def _render_intent(intent) -> str:
-    parts = [f"Primary task: {intent.primary_task}"]
-    if intent.targets:
-        parts.append("Target specialists: " + ", ".join(intent.targets))
-    if intent.focus_columns:
-        parts.append("Focus columns: " + ", ".join(intent.focus_columns))
-    if intent.plot_type:
-        parts.append(f"Plot type: {intent.plot_type}")
-    parts.append(f"User goal: {intent.user_goal}")
-    return "\n".join(parts)
-
-
 def agent_for(session) -> AnalyticsAgent:
-    """Get (or lazily build) the agent fleet bound to a session."""
     agent = getattr(session, "_agent", None)
     if agent is None:
         agent = AnalyticsAgent(session, session.settings)

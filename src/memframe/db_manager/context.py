@@ -84,10 +84,10 @@ class ContextManager:
 
     # ── AI agent entrypoints (delegate to memframe_ai) ──────────
 
-    async def achat(self, prompt: str, session_id: Optional[str] = None) -> dict:
+    async def achat(self, prompt: str, session_id: Optional[str] = None, return_blocks: bool = False) -> dict:
         from memframe_ai.entrypoints import achat as _achat
 
-        return await _achat(self, prompt, session_id)
+        return await _achat(self, prompt, session_id, return_blocks)
 
     @async_to_sync
     async def chat(self, prompt: str, session_id: Optional[str] = None) -> dict:
@@ -100,9 +100,18 @@ class ContextManager:
         model: Optional[str] = None,
         **overrides,
     ) -> Any:
-        from memframe_ai.entrypoints import aenable_agent as _aenable
+        from memframe_ai.config import AISettings
 
-        return await _aenable(self.memframe, api_key, provider, model, **overrides)
+        # Store settings; the agent fleet is built lazily on first achat.
+        kwargs = {"api_key": api_key}
+        if provider is not None:
+            kwargs["provider"] = provider
+        if model is not None:
+            kwargs["model"] = model
+        kwargs.update(overrides)
+        settings = AISettings(**kwargs)
+        self.memframe._ai_settings = settings
+        return settings
 
     @async_to_sync
     async def enable_agent(self, api_key: str, provider: Optional[str] = None, model: Optional[str] = None, **overrides):

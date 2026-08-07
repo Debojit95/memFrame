@@ -5,6 +5,9 @@ import pandas as pd
 
 def _jsonable(value):
     if isinstance(value, (dict, list, str, int, float, bool)) or value is None:
+        # Handle float keys in dictionaries by converting them to strings
+        if isinstance(value, dict):
+            return {str(k): _jsonable(v) for k, v in value.items()}
         return value
     try:
         json.dumps(value)

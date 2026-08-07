@@ -28,9 +28,10 @@ class Session:
     _schema: Optional[str] = None
     plots: dict = field(default_factory=dict)
     lock: Any = field(default_factory=asyncio.Lock)
-    _context_cache: dict = field(default_factory=dict)
     _blocks: list = field(default_factory=list)
-    _pinned_ctx: Optional[str] = None
+    _context_cache: Optional[str] = None
+    _context_version: int = 0
+    _pinned: Optional[tuple] = None
 
     @property
     def blocks(self) -> list:
@@ -87,31 +88,56 @@ class Session:
 
     def invalidate(self) -> None:
         self._table = None
+        self._context_cache = None
+        self._context_version += 1
 
-    async def domain_context(self) -> str:
-        """Return the domain context for the active table, computed once per chat.
+    async def domain_context(self, force_refresh: bool = False, lightweight: bool = False) -> str:
+        """Return the domain context for the current active table.
 
-        If a context was pinned for the current chat (:attr:`_pinned_ctx`), that
-        precomputed string is returned so every agent in the chat sees the same
-        context regardless of intermediate transient-table changes.
+        The context is cached and reused unless the table changes or force_refresh is True.
+        This avoids regenerating the same context for unchanged tables.
+        
+        Args:
+            force_refresh: If True, rebuilds the context even if cached.
+            lightweight: If True, returns minimal context (column names + types only).
         """
-        if self._pinned_ctx is not None:
-            return self._pinned_ctx
         await self.ensure()
-        key = (self._table, self._schema)
-        ctx = self._context_cache.get(key)
-        if ctx is None:
-            ctx = await build_domain_context(self)
-            self._context_cache[key] = ctx
-            logger.info("domain_context built table=%s.%s chars=%d", self._schema, self._table, len(ctx))
+        
+        # Check if we have a cached context and it's still valid
+        cache_key = f"{'light' if lightweight else 'full'}_context"
+        if not force_refresh and hasattr(self, cache_key) and getattr(self, cache_key) is not None:
+            return getattr(self, cache_key)
+        
+        # Build fresh context
+        ctx = await build_domain_context(self, lightweight=lightweight)
+        setattr(self, cache_key, ctx)
+        logger.info("domain_context built table=%s.%s chars=%d lightweight=%s", self._schema, self._table, len(ctx), lightweight)
         return ctx
 
     async def advance_table(self, new_table: str) -> None:
-        """Move the active table to a transform result's transient table."""
+        """Move the active table to a transform result's transient table.
+
+        When the session is pinned (during chat sub-query execution), the
+        active table stays constant — the one from ctx.chat(). Transform
+        results still land in persistent transient tables, but the session
+        reference never drifts, so every specialist sees the same schema.
+        """
+        if self._pinned is not None:
+            return
         schema = self._schema or "transient"
         if self._adapter is not None and await self._adapter.table_exists(new_table, "transient"):
             schema = "transient"
         self._table, self._schema = new_table, schema
+        # Invalidate context cache when table changes
+        self._context_cache = None
+
+    def pin_table(self) -> None:
+        """Pin the active table so advance_table becomes a no-op."""
+        self._pinned = (self._table, self._schema)
+
+    def unpin_table(self) -> None:
+        """Restore advance_table behavior."""
+        self._pinned = None
 
     def add_plot(self, plot_id: str, title: str, spec: dict, png: bytes) -> None:
         self.plots[plot_id] = {"id": plot_id, "title": title, "spec": spec, "png": png}
