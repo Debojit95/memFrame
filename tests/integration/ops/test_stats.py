@@ -873,13 +873,3 @@ class TestStatsOperations:
         assert isinstance(value, (int, dict))
         self._record_result("holiday_counts", 'holiday_counts("date")', sample_df, value, "counts", backend_config["connection_type"])
 
-    # ------------------------------------------------------------------
-    # Mutation safety
-    # ------------------------------------------------------------------
-    def test_mutation_safety(self, uploaded_ctx, sample_df, backend_config):
-        _ = uploaded_ctx.mean("score")
-        original = get_result_df(uploaded_ctx) if hasattr(uploaded_ctx, "full_table") else sample_df
-        for col in sample_df.columns:
-            if col in original.columns:
-                pass
-        self._record_result("mutation_safety", "mean then check original unchanged", sample_df, original, sample_df, backend_config["connection_type"])

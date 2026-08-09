@@ -336,7 +336,19 @@ class ArithmeticOps:
                 f'UPDATE {qualified} SET {self.db.quote_identifier(tgt_safe)} = {expression}'
             )
 
-        # 4. Fetch a sample of the changed columns
+        # 4. Mirror the new column onto the original table (in-place mutation)
+        await self._add_column_if_not_exists(table, schema, tgt_safe)
+        original_qualified = self._qualified_table(table, schema)
+        if isinstance(self.db, ClickHouseAdapter):
+            await self._exec(
+                f'ALTER TABLE {original_qualified} UPDATE {self.db.quote_identifier(tgt_safe)} = {expression} WHERE 1'
+            )
+        else:
+            await self._exec(
+                f'UPDATE {original_qualified} SET {self.db.quote_identifier(tgt_safe)} = {expression}'
+            )
+
+        # 5. Fetch a sample of the changed columns
         cols_to_fetch = list(set(involved_cols)) + [target_col]
         sample = await self._fetch_data(working_table, schema, cols_to_fetch)
 

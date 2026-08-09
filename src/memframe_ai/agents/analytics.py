@@ -174,16 +174,19 @@ class AnalyticsAgent:
             self._session.session_id, self._session.schema, self._session.table, prompt,
         )
 
-        # Capture the BASE context once — every sub-query sees this same table
-        base_ctx = await self._session.domain_context(lightweight=False)
+        # Capture the BASE context for this chat. Forced refresh: every achat
+        # call rebuilds context so it reflects current table state, and the
+        # result becomes this chat's frozen base_ctx.
+        base_ctx = await self._session.domain_context(lightweight=False, force_refresh=True)
 
         # Planner: one structured-output model call
         subquery_head = await self._planner_agent().plan_with_dependencies(prompt, base_ctx)
 
-        # Execute sub-queries (base_ctx stays constant for all of them)
+        # Execute sub-queries. The session table stays pinned to the original
+        # ctx table for the whole chat; dependent steps force-refresh the
+        # domain context on that original table, which now carries any new
+        # columns produced by earlier steps.
         if subquery_head:
-            # Pin the table so transform tools never drift the session's
-            # active table — dependent sub-queries see the ctx.chat() table.
             self._session.pin_table()
             try:
                 await self._execute_subqueries(subquery_head, base_ctx)
@@ -196,10 +199,15 @@ class AnalyticsAgent:
         return self._package(return_blocks=return_blocks)
 
     async def _execute_subqueries(self, head: SubQuery, base_ctx: str) -> None:
-        """Walk the linked list: run independent queries in parallel,
-        dependent ones sequentially. base_ctx is NEVER refreshed — it
-        always reflects the original table from ctx.chat()."""
-        # Collect into two buckets: the first independent run, then dependents in order
+        """Walk the linked list.
+
+        The session table is pinned to the original ctx table (set in achat), so
+        tools never advance it to transient tables. Independent sub-queries run
+        in parallel against the frozen base context. Dependent sub-queries run
+        sequentially and force-refresh the domain context, which is computed on
+        the same original table — now including any columns created by prior
+        steps.
+        """
         independent: list[SubQuery] = []
         dependent: list[SubQuery] = []
         cur = head
@@ -218,7 +226,8 @@ class AnalyticsAgent:
 
         for q in dependent:
             logger.info("Executing dependent sub-query: %s", q.query[:120])
-            await self._execute_one(q, base_ctx)
+            fresh_ctx = await self._session.domain_context(force_refresh=True)
+            await self._execute_one(q, fresh_ctx)
 
     async def _execute_one(self, sq: SubQuery, base_ctx: str) -> None:
         """Run one sub-query on its specialist agent with the fixed base_ctx."""

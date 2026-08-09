@@ -1049,28 +1049,3 @@ class TestArithmeticOperations:
             backend=backend_config["connection_type"],
         )
 
-    # ----------------------------------------------------
-    # Mutation safety and chaining
-    # ----------------------------------------------------
-    def test_mutation_safety(self, uploaded_ctx, sample_df, backend_config):
-        """Ensure original DataFrame is not modified by arithmetic operations."""
-        result = uploaded_ctx.add("salary", "bonus", "total_income")
-        original_df = get_result_df(uploaded_ctx)
-
-        # Original must not contain the new column
-        assert "total_income" not in original_df.columns
-
-        # Original values unchanged
-        pd.testing.assert_frame_equal(
-            normalize_frame(original_df),
-            normalize_frame(sample_df),
-            check_dtype=False,
-        )
-        self._record_result(
-            test_name="mutation_safety",
-            method_call='uploaded_ctx.add("salary", "bonus", "total_income") → original checked',
-            original_df=sample_df,
-            memframe_df=original_df,
-            pandas_df=sample_df,
-            backend=backend_config["connection_type"],
-        )

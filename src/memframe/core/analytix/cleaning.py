@@ -204,6 +204,12 @@ class DataCleaningOps:
             f"ALTER TABLE {qualified} ADD COLUMN {self.db.quote_identifier(safe_col)} {col_type}"
         )
 
+    async def _add_new_column_if_not_exists(self, table: str, schema: str, col_name: str, col_type: str):
+        safe_col = SQLIdentifierSanitizer.sanitize(col_name, allow_qualified=False)
+        types = await self.db.get_column_types(table, schema)
+        if safe_col not in types:
+            await self._add_new_column(table, schema, col_name, col_type)
+
     def _success_response(
         self,
         message: str,
@@ -251,6 +257,7 @@ class DataCleaningOps:
         new_table: Optional[str] = None,
     ) -> Dict[str, Any]:
         try:
+            original = table
             table = await self._prepare_column_operation_table(
                 table,
                 schema,
@@ -288,150 +295,157 @@ class DataCleaningOps:
             safe_col = SQLIdentifierSanitizer.sanitize(column)
             safe_new = SQLIdentifierSanitizer.sanitize(new_col)
 
-            if mode == "CONSTANT":
-                if value is None:
-                    return self._error_response("Value must be provided for CONSTANT mode")
+            if mode == "CONSTANT" and value is None:
+                return self._error_response("Value must be provided for CONSTANT mode")
 
-                converted = f"'{value}'" if isinstance(value, str) else str(value)
+            async def _apply(tq):
+                if mode == "CONSTANT":
+                    converted = f"'{value}'" if isinstance(value, str) else str(value)
 
-                if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
-                    await self._exec(
-                        f'UPDATE {qualified} SET "{safe_new}" = COALESCE("{safe_col}", {converted})'
-                    )
-                elif isinstance(self.db, ClickHouseAdapter):
-                    await self._exec(
-                        f'ALTER TABLE {qualified} UPDATE "{safe_new}" = COALESCE("{safe_col}", {converted}) WHERE 1'
-                    )
-                else:
-                    raise self._unsupported_backend_error()
-
-                fill_value = value
-
-            elif mode in ["FFILL", "BFILL"]:
-
-                if isinstance(self.db, PostgresAdapter):
-                    row_id = "ctid"
-                elif isinstance(self.db, DuckDBAdapter):
-                    row_id = "rowid"
-                else:
-                    raise self._unsupported_backend_error()
-
-                if isinstance(self.db, PostgresAdapter):
-                    if mode == "FFILL":
-                        window_expr = f'''
-                            MAX("{safe_col}") OVER (
-                                ORDER BY __idx
-                                ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-                            )
-                        '''
-                    else:
-                        window_expr = f'''
-                            MIN("{safe_col}") OVER (
-                                ORDER BY __idx
-                                ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING
-                            )
-                        '''
-                elif isinstance(self.db, DuckDBAdapter):
-                    if mode == "FFILL":
-                        window_expr = f'''
-                            LAST_VALUE("{safe_col}" IGNORE NULLS)
-                            OVER (
-                                ORDER BY __idx
-                                ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-                            )
-                        '''
-                    else:
-                        window_expr = f'''
-                            FIRST_VALUE("{safe_col}" IGNORE NULLS)
-                            OVER (
-                                ORDER BY __idx
-                                ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING
-                            )
-                        '''
-                else:
-                    raise self._unsupported_backend_error()
-
-                await self._exec(f"""
-                    WITH base AS (
-                        SELECT *,
-                            ROW_NUMBER() OVER () AS __idx,
-                            {row_id} AS __rid
-                        FROM {qualified}
-                    ),
-                    filled AS (
-                        SELECT *,
-                            {window_expr} AS filled_val
-                        FROM base
-                    )
-                    UPDATE {qualified} t
-                    SET "{safe_new}" = COALESCE(t."{safe_col}", f.filled_val)
-                    FROM filled f
-                    WHERE t.{row_id} = f.__rid
-                """)
-
-                fill_value = mode
-
-            else:
-                if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
-                    stat_map = {
-                        "MEAN": f'AVG("{safe_col}")',
-                        "AVG": f'AVG("{safe_col}")',
-                        "AVERAGE": f'AVG("{safe_col}")',
-                        "MEDIAN": f'PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY "{safe_col}")',
-                        "MODE": f"""
-                            (SELECT "{safe_col}"
-                            FROM {qualified}
-                            WHERE "{safe_col}" IS NOT NULL
-                            GROUP BY "{safe_col}"
-                            ORDER BY COUNT(*) DESC
-                            LIMIT 1)
-                        """,
-                        "STD": f'STDDEV_POP("{safe_col}")',
-                        "VAR": f'VAR_POP("{safe_col}")',
-                        "VARIANCE": f'VAR_POP("{safe_col}")',
-                        "MIN": f'MIN("{safe_col}")',
-                        "MAX": f'MAX("{safe_col}")',
-                    }
-                elif isinstance(self.db, ClickHouseAdapter):
-                    stat_map = {
-                        "MEAN": f'AVG("{safe_col}")',
-                        "AVG": f'AVG("{safe_col}")',
-                        "AVERAGE": f'AVG("{safe_col}")',
-                        "MEDIAN": f'quantile(0.5)("{safe_col}")',
-                        "MODE": f'(SELECT "{safe_col}" FROM {qualified} WHERE "{safe_col}" IS NOT NULL GROUP BY "{safe_col}" ORDER BY COUNT(*) DESC LIMIT 1)',
-                        "STD": f'stddevPop("{safe_col}")',
-                        "VAR": f'varPop("{safe_col}")',
-                        "VARIANCE": f'varPop("{safe_col}")',
-                        "MIN": f'min("{safe_col}")',
-                        "MAX": f'max("{safe_col}")',
-                    }
-                else:
-                    raise self._unsupported_backend_error()
-
-                stat_expr = stat_map[mode]
-
-                if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
-                    await self._exec(f"""
-                        WITH stat_val AS (
-                            SELECT COALESCE({stat_expr}, 0) AS val
-                            FROM {qualified}
-                            WHERE "{safe_col}" IS NOT NULL
+                    if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+                        await self._exec(
+                            f'UPDATE {tq} SET "{safe_new}" = COALESCE("{safe_col}", {converted})'
                         )
-                        UPDATE {qualified}
-                        SET "{safe_new}" = COALESCE("{safe_col}", (SELECT val FROM stat_val))
-                    """)
-                elif isinstance(self.db, ClickHouseAdapter):
+                    elif isinstance(self.db, ClickHouseAdapter):
+                        await self._exec(
+                            f'ALTER TABLE {tq} UPDATE "{safe_new}" = COALESCE("{safe_col}", {converted}) WHERE 1'
+                        )
+                    else:
+                        raise self._unsupported_backend_error()
+
+                    return value
+
+                elif mode in ["FFILL", "BFILL"]:
+
+                    if isinstance(self.db, PostgresAdapter):
+                        row_id = "ctid"
+                    elif isinstance(self.db, DuckDBAdapter):
+                        row_id = "rowid"
+                    else:
+                        raise self._unsupported_backend_error()
+
+                    if isinstance(self.db, PostgresAdapter):
+                        if mode == "FFILL":
+                            window_expr = f'''
+                                MAX("{safe_col}") OVER (
+                                    ORDER BY __idx
+                                    ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                                )
+                            '''
+                        else:
+                            window_expr = f'''
+                                MIN("{safe_col}") OVER (
+                                    ORDER BY __idx
+                                    ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING
+                                )
+                            '''
+                    elif isinstance(self.db, DuckDBAdapter):
+                        if mode == "FFILL":
+                            window_expr = f'''
+                                LAST_VALUE("{safe_col}" IGNORE NULLS)
+                                OVER (
+                                    ORDER BY __idx
+                                    ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                                )
+                            '''
+                        else:
+                            window_expr = f'''
+                                FIRST_VALUE("{safe_col}" IGNORE NULLS)
+                                OVER (
+                                    ORDER BY __idx
+                                    ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING
+                                )
+                            '''
+                    else:
+                        raise self._unsupported_backend_error()
+
                     await self._exec(f"""
-                        ALTER TABLE {qualified} 
-                        UPDATE "{safe_new}" = COALESCE("{safe_col}", (SELECT COALESCE({stat_expr}, 0) FROM {qualified} WHERE "{safe_col}" IS NOT NULL))
-                        WHERE 1
+                        WITH base AS (
+                            SELECT *,
+                                ROW_NUMBER() OVER () AS __idx,
+                                {row_id} AS __rid
+                            FROM {tq}
+                        ),
+                        filled AS (
+                            SELECT *,
+                                {window_expr} AS filled_val
+                            FROM base
+                        )
+                        UPDATE {tq} t
+                        SET "{safe_new}" = COALESCE(t."{safe_col}", f.filled_val)
+                        FROM filled f
+                        WHERE t.{row_id} = f.__rid
                     """)
 
-                fill_value = await self._fetchval(f"""
-                    SELECT {stat_expr}
-                    FROM {qualified}
-                    WHERE "{safe_col}" IS NOT NULL
-                """)
+                    return mode
+
+                else:
+                    if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+                        stat_map = {
+                            "MEAN": f'AVG("{safe_col}")',
+                            "AVG": f'AVG("{safe_col}")',
+                            "AVERAGE": f'AVG("{safe_col}")',
+                            "MEDIAN": f'PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY "{safe_col}")',
+                            "MODE": f"""
+                                (SELECT "{safe_col}"
+                                FROM {tq}
+                                WHERE "{safe_col}" IS NOT NULL
+                                GROUP BY "{safe_col}"
+                                ORDER BY COUNT(*) DESC
+                                LIMIT 1)
+                            """,
+                            "STD": f'STDDEV_POP("{safe_col}")',
+                            "VAR": f'VAR_POP("{safe_col}")',
+                            "VARIANCE": f'VAR_POP("{safe_col}")',
+                            "MIN": f'MIN("{safe_col}")',
+                            "MAX": f'MAX("{safe_col}")',
+                        }
+                    elif isinstance(self.db, ClickHouseAdapter):
+                        stat_map = {
+                            "MEAN": f'AVG("{safe_col}")',
+                            "AVG": f'AVG("{safe_col}")',
+                            "AVERAGE": f'AVG("{safe_col}")',
+                            "MEDIAN": f'quantile(0.5)("{safe_col}")',
+                            "MODE": f'(SELECT "{safe_col}" FROM {tq} WHERE "{safe_col}" IS NOT NULL GROUP BY "{safe_col}" ORDER BY COUNT(*) DESC LIMIT 1)',
+                            "STD": f'stddevPop("{safe_col}")',
+                            "VAR": f'varPop("{safe_col}")',
+                            "VARIANCE": f'varPop("{safe_col}")',
+                            "MIN": f'min("{safe_col}")',
+                            "MAX": f'max("{safe_col}")',
+                        }
+                    else:
+                        raise self._unsupported_backend_error()
+
+                    stat_expr = stat_map[mode]
+
+                    if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+                        await self._exec(f"""
+                            WITH stat_val AS (
+                                SELECT COALESCE({stat_expr}, 0) AS val
+                                FROM {tq}
+                                WHERE "{safe_col}" IS NOT NULL
+                            )
+                            UPDATE {tq}
+                            SET "{safe_new}" = COALESCE("{safe_col}", (SELECT val FROM stat_val))
+                        """)
+                    elif isinstance(self.db, ClickHouseAdapter):
+                        await self._exec(f"""
+                            ALTER TABLE {tq} 
+                            UPDATE "{safe_new}" = COALESCE("{safe_col}", (SELECT COALESCE({stat_expr}, 0) FROM {tq} WHERE "{safe_col}" IS NOT NULL))
+                            WHERE 1
+                        """)
+
+                    return await self._fetchval(f"""
+                        SELECT {stat_expr}
+                        FROM {tq}
+                        WHERE "{safe_col}" IS NOT NULL
+                    """)
+
+            fill_value = await _apply(qualified)
+
+            # Mirror the new column onto the original table (in-place mutation)
+            await self._add_new_column_if_not_exists(original, schema, new_col, col_type)
+            await _apply(self._qualified_table(original, schema))
 
             null_count = await self._fetchval(
                 f'SELECT COUNT(*) FROM {qualified} WHERE "{safe_col}" IS NULL'
@@ -461,6 +475,7 @@ class DataCleaningOps:
         new_table: Optional[str] = None,
     ) -> Dict[str, Any]:
         try:
+            original = table
             table = await self._prepare_operation_table(
                 table, schema, backend=backend, data_id=data_id, new_table=new_table,
             )
@@ -479,12 +494,19 @@ class DataCleaningOps:
                 case_parts.append(f'WHEN "{safe_col}" > {max_value} THEN NULL')
             case_expr = f"CASE {' '.join(case_parts)} ELSE \"{safe_col}\" END" if case_parts else f'"{safe_col}"'
 
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
-                await self._exec(f'UPDATE {qualified} SET "{safe_new}" = {case_expr}')
-            elif isinstance(self.db, ClickHouseAdapter):
-                await self._exec(f'ALTER TABLE {qualified} UPDATE "{safe_new}" = {case_expr} WHERE 1')
-            else:
-                raise self._unsupported_backend_error()
+            async def _apply(tq):
+                if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+                    await self._exec(f'UPDATE {tq} SET "{safe_new}" = {case_expr}')
+                elif isinstance(self.db, ClickHouseAdapter):
+                    await self._exec(f'ALTER TABLE {tq} UPDATE "{safe_new}" = {case_expr} WHERE 1')
+                else:
+                    raise self._unsupported_backend_error()
+
+            await _apply(qualified)
+
+            # Mirror the new column onto the original table (in-place mutation)
+            await self._add_new_column_if_not_exists(original, schema, new_col, col_type)
+            await _apply(self._qualified_table(original, schema))
 
             affected = 0
             if min_value is not None or max_value is not None:
@@ -524,6 +546,7 @@ class DataCleaningOps:
         new_table: Optional[str] = None,
     ) -> Dict[str, Any]:
         try:
+            original = table
             table = await self._prepare_operation_table(
                 table, schema, backend=backend, data_id=data_id, new_table=new_table,
             )
@@ -535,21 +558,41 @@ class DataCleaningOps:
             safe_col = SQLIdentifierSanitizer.sanitize(column)
             safe_new = SQLIdentifierSanitizer.sanitize(new_col)
 
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
-                await self._exec(f"""
-                    WITH stats AS (
-                        SELECT AVG("{safe_col}") AS mean, STDDEV_POP("{safe_col}") AS sd
-                        FROM {qualified}
-                        WHERE "{safe_col}" IS NOT NULL
-                    )
-                    UPDATE {qualified}
-                    SET "{safe_new}" = CASE
-                        WHEN ABS(("{safe_col}" - stats.mean) / NULLIF(stats.sd, 0)) > {z_thresh} THEN NULL
-                        ELSE "{safe_col}"
-                    END
-                    FROM stats
-                """)
+            async def _apply(tq):
+                if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+                    await self._exec(f"""
+                        WITH stats AS (
+                            SELECT AVG("{safe_col}") AS mean, STDDEV_POP("{safe_col}") AS sd
+                            FROM {tq}
+                            WHERE "{safe_col}" IS NOT NULL
+                        )
+                        UPDATE {tq}
+                        SET "{safe_new}" = CASE
+                            WHEN ABS(("{safe_col}" - stats.mean) / NULLIF(stats.sd, 0)) > {z_thresh} THEN NULL
+                            ELSE "{safe_col}"
+                        END
+                        FROM stats
+                    """)
+                elif isinstance(self.db, ClickHouseAdapter):
+                    await self._exec(f"""
+                        ALTER TABLE {tq} 
+                        UPDATE "{safe_new}" = CASE
+                            WHEN ABS(("{safe_col}" - (SELECT AVG("{safe_col}") FROM {tq} WHERE "{safe_col}" IS NOT NULL)) / 
+                                 NULLIF((SELECT stddevPop("{safe_col}") FROM {tq} WHERE "{safe_col}" IS NOT NULL), 0)) > {z_thresh} THEN NULL
+                            ELSE "{safe_col}"
+                        END
+                        WHERE 1
+                    """)
+                else:
+                    raise self._unsupported_backend_error()
 
+            await _apply(qualified)
+
+            # Mirror the new column onto the original table (in-place mutation)
+            await self._add_new_column_if_not_exists(original, schema, new_col, col_type)
+            await _apply(self._qualified_table(original, schema))
+
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
                 outlier_count = await self._fetchval(f"""
                     WITH stats AS (
                         SELECT AVG("{safe_col}") AS mean, STDDEV_POP("{safe_col}") AS sd
@@ -563,16 +606,6 @@ class DataCleaningOps:
                 """) or 0
 
             elif isinstance(self.db, ClickHouseAdapter):
-                await self._exec(f"""
-                    ALTER TABLE {qualified} 
-                    UPDATE "{safe_new}" = CASE
-                        WHEN ABS(("{safe_col}" - (SELECT AVG("{safe_col}") FROM {qualified} WHERE "{safe_col}" IS NOT NULL)) / 
-                             NULLIF((SELECT stddevPop("{safe_col}") FROM {qualified} WHERE "{safe_col}" IS NOT NULL), 0)) > {z_thresh} THEN NULL
-                        ELSE "{safe_col}"
-                    END
-                    WHERE 1
-                """)
-
                 outlier_count = await self._fetchval(f"""
                     SELECT COUNT(*)
                     FROM {qualified}
@@ -600,6 +633,7 @@ class DataCleaningOps:
         new_table: Optional[str] = None,
     ) -> Dict[str, Any]:
         try:
+            original = table
             table = await self._prepare_operation_table(
                 table, schema, backend=backend, data_id=data_id, new_table=new_table,
             )
@@ -628,27 +662,34 @@ class DataCleaningOps:
             else:
                 raise self._unsupported_backend_error()
 
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
-                await self._exec(f"""
-                    UPDATE {qualified}
-                    SET "{safe_new}" = CASE
-                        WHEN {numeric_check}
-                            THEN CAST({cleaned_expr} AS NUMERIC)
-                        ELSE NULL
-                    END
-                """)
-            elif isinstance(self.db, ClickHouseAdapter):
-                await self._exec(f"""
-                    ALTER TABLE {qualified} 
-                    UPDATE "{safe_new}" = CASE
-                        WHEN {numeric_check}
-                            THEN CAST({cleaned_expr} AS Decimal(18, 6))
-                        ELSE NULL
-                    END
-                    WHERE 1
-                """)
-            else:
-                raise self._unsupported_backend_error()
+            async def _apply(tq):
+                if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+                    await self._exec(f"""
+                        UPDATE {tq}
+                        SET "{safe_new}" = CASE
+                            WHEN {numeric_check}
+                                THEN CAST({cleaned_expr} AS NUMERIC)
+                            ELSE NULL
+                        END
+                    """)
+                elif isinstance(self.db, ClickHouseAdapter):
+                    await self._exec(f"""
+                        ALTER TABLE {tq} 
+                        UPDATE "{safe_new}" = CASE
+                            WHEN {numeric_check}
+                                THEN CAST({cleaned_expr} AS Decimal(18, 6))
+                            ELSE NULL
+                        END
+                        WHERE 1
+                    """)
+                else:
+                    raise self._unsupported_backend_error()
+
+            await _apply(qualified)
+
+            # Mirror the new column onto the original table (in-place mutation)
+            await self._add_new_column_if_not_exists(original, schema, new_col, "NUMERIC")
+            await _apply(self._qualified_table(original, schema))
 
             converted = await self._fetchval(
                 f'SELECT COUNT(*) FROM {qualified} WHERE "{safe_new}" IS NOT NULL'
@@ -677,6 +718,7 @@ class DataCleaningOps:
         new_table: Optional[str] = None,
     ) -> Dict[str, Any]:
         try:
+            original = table
             table = await self._prepare_column_operation_table(
                 table, schema, [column], backend=backend, data_id=data_id, new_table=new_table,
             )
@@ -704,150 +746,156 @@ class DataCleaningOps:
 
             fill_value = None
 
-            if mode == "CONSTANT":
-                if value is None:
-                    return self._error_response("Value must be provided for CONSTANT mode")
+            if mode == "CONSTANT" and value is None:
+                return self._error_response("Value must be provided for CONSTANT mode")
+            if mode == "MAP" and not mapping:
+                return self._error_response("Mapping must be provided for MAP mode")
 
-                val_str = str(value).replace("'", "''")
+            async def _apply(tq):
+                if mode == "CONSTANT":
+                    val_str = str(value).replace("'", "''")
 
-                if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
-                    await self._exec(
-                        f'UPDATE {qualified} SET "{safe_new}" = COALESCE("{safe_col}", \'{val_str}\')'
-                    )
-                elif isinstance(self.db, ClickHouseAdapter):
-                    await self._exec(
-                        f'ALTER TABLE {qualified} UPDATE "{safe_new}" = COALESCE("{safe_col}", \'{val_str}\') WHERE 1'
-                    )
-                else:
-                    raise self._unsupported_backend_error()
-
-                fill_value = value
-
-            elif mode in ["FFILL", "BFILL"]:
-
-                if isinstance(self.db, PostgresAdapter):
-                    row_id = "ctid"
-                elif isinstance(self.db, DuckDBAdapter):
-                    row_id = "rowid"
-                else:
-                    raise self._unsupported_backend_error()
-
-                if isinstance(self.db, PostgresAdapter):
-                    if mode == "FFILL":
-                        window_expr = f'''
-                            MAX("{safe_col}") OVER (
-                                ORDER BY __idx
-                                ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-                            )
-                        '''
-                    else:
-                        window_expr = f'''
-                            MIN("{safe_col}") OVER (
-                                ORDER BY __idx
-                                ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING
-                            )
-                        '''
-                elif isinstance(self.db, DuckDBAdapter):
-                    if mode == "FFILL":
-                        window_expr = f'''
-                            LAST_VALUE("{safe_col}" IGNORE NULLS)
-                            OVER (
-                                ORDER BY __idx
-                                ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-                            )
-                        '''
-                    else:
-                        window_expr = f'''
-                            FIRST_VALUE("{safe_col}" IGNORE NULLS)
-                            OVER (
-                                ORDER BY __idx
-                                ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING
-                            )
-                        '''
-                else:
-                    raise self._unsupported_backend_error()
-
-                await self._exec(f"""
-                    WITH base AS (
-                        SELECT *,
-                            ROW_NUMBER() OVER () AS __idx,
-                            {row_id} AS __rid
-                        FROM {qualified}
-                    ),
-                    filled AS (
-                        SELECT *,
-                            {window_expr} AS filled_val
-                        FROM base
-                    )
-                    UPDATE {qualified} t
-                    SET "{safe_new}" = COALESCE(t."{safe_col}", f.filled_val)
-                    FROM filled f
-                    WHERE t.{row_id} = f.__rid
-                """)
-
-                fill_value = mode
-
-            elif mode == "MODE":
-                if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
-                    await self._exec(f"""
-                        WITH mode_val AS (
-                            SELECT "{safe_col}" AS mode_value
-                            FROM {qualified}
-                            WHERE "{safe_col}" IS NOT NULL
-                            GROUP BY "{safe_col}"
-                            ORDER BY COUNT(*) DESC
-                            LIMIT 1
+                    if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+                        await self._exec(
+                            f'UPDATE {tq} SET "{safe_new}" = COALESCE("{safe_col}", \'{val_str}\')'
                         )
-                        UPDATE {qualified}
-                        SET "{safe_new}" = COALESCE("{safe_col}", (SELECT mode_value FROM mode_val))
-                    """)
-                elif isinstance(self.db, ClickHouseAdapter):
+                    elif isinstance(self.db, ClickHouseAdapter):
+                        await self._exec(
+                            f'ALTER TABLE {tq} UPDATE "{safe_new}" = COALESCE("{safe_col}", \'{val_str}\') WHERE 1'
+                        )
+                    else:
+                        raise self._unsupported_backend_error()
+
+                    return value
+
+                elif mode in ["FFILL", "BFILL"]:
+
+                    if isinstance(self.db, PostgresAdapter):
+                        row_id = "ctid"
+                    elif isinstance(self.db, DuckDBAdapter):
+                        row_id = "rowid"
+                    else:
+                        raise self._unsupported_backend_error()
+
+                    if isinstance(self.db, PostgresAdapter):
+                        if mode == "FFILL":
+                            window_expr = f'''
+                                MAX("{safe_col}") OVER (
+                                    ORDER BY __idx
+                                    ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                                )
+                            '''
+                        else:
+                            window_expr = f'''
+                                MIN("{safe_col}") OVER (
+                                    ORDER BY __idx
+                                    ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING
+                                )
+                            '''
+                    elif isinstance(self.db, DuckDBAdapter):
+                        if mode == "FFILL":
+                            window_expr = f'''
+                                LAST_VALUE("{safe_col}" IGNORE NULLS)
+                                OVER (
+                                    ORDER BY __idx
+                                    ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                                )
+                            '''
+                        else:
+                            window_expr = f'''
+                                FIRST_VALUE("{safe_col}" IGNORE NULLS)
+                                OVER (
+                                    ORDER BY __idx
+                                    ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING
+                                )
+                            '''
+                    else:
+                        raise self._unsupported_backend_error()
+
                     await self._exec(f"""
-                        ALTER TABLE {qualified} 
-                        UPDATE "{safe_new}" = COALESCE(
-                            "{safe_col}", 
-                            (SELECT "{safe_col}" FROM {qualified} WHERE "{safe_col}" IS NOT NULL GROUP BY "{safe_col}" ORDER BY COUNT(*) DESC LIMIT 1)
-                        ) WHERE 1
+                        WITH base AS (
+                            SELECT *,
+                                ROW_NUMBER() OVER () AS __idx,
+                                {row_id} AS __rid
+                            FROM {tq}
+                        ),
+                        filled AS (
+                            SELECT *,
+                                {window_expr} AS filled_val
+                            FROM base
+                        )
+                        UPDATE {tq} t
+                        SET "{safe_new}" = COALESCE(t."{safe_col}", f.filled_val)
+                        FROM filled f
+                        WHERE t.{row_id} = f.__rid
                     """)
-                else:
-                    raise self._unsupported_backend_error()
 
-                fill_value = await self._fetchval(f"""
-                    SELECT "{safe_col}" AS mode_value
-                    FROM {qualified}
-                    WHERE "{safe_col}" IS NOT NULL
-                    GROUP BY "{safe_col}"
-                    ORDER BY COUNT(*) DESC
-                    LIMIT 1
-                """)
+                    return mode
 
-            elif mode == "MAP":
-                if not mapping:
-                    return self._error_response("Mapping must be provided for MAP mode")
+                elif mode == "MODE":
+                    if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+                        await self._exec(f"""
+                            WITH mode_val AS (
+                                SELECT "{safe_col}" AS mode_value
+                                FROM {tq}
+                                WHERE "{safe_col}" IS NOT NULL
+                                GROUP BY "{safe_col}"
+                                ORDER BY COUNT(*) DESC
+                                LIMIT 1
+                            )
+                            UPDATE {tq}
+                            SET "{safe_new}" = COALESCE("{safe_col}", (SELECT mode_value FROM mode_val))
+                        """)
+                    elif isinstance(self.db, ClickHouseAdapter):
+                        await self._exec(f"""
+                            ALTER TABLE {tq} 
+                            UPDATE "{safe_new}" = COALESCE(
+                                "{safe_col}", 
+                                (SELECT "{safe_col}" FROM {tq} WHERE "{safe_col}" IS NOT NULL GROUP BY "{safe_col}" ORDER BY COUNT(*) DESC LIMIT 1)
+                            ) WHERE 1
+                        """)
+                    else:
+                        raise self._unsupported_backend_error()
 
-                case_parts = []
-                for old, new in mapping.items():
-                    old_esc = str(old).replace("'", "''")
-                    new_esc = str(new).replace("'", "''")
-                    case_parts.append(f'WHEN "{safe_col}" = \'{old_esc}\' THEN \'{new_esc}\'')
-
-                case_expr = f"CASE {' '.join(case_parts)} ELSE \"{safe_col}\" END"
-
-                if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
-                    await self._exec(f"""
-                        UPDATE {qualified}
-                        SET "{safe_new}" = COALESCE({case_expr}, "{safe_col}")
+                    return await self._fetchval(f"""
+                        SELECT "{safe_col}" AS mode_value
+                        FROM {tq}
+                        WHERE "{safe_col}" IS NOT NULL
+                        GROUP BY "{safe_col}"
+                        ORDER BY COUNT(*) DESC
+                        LIMIT 1
                     """)
-                elif isinstance(self.db, ClickHouseAdapter):
-                    await self._exec(f"""
-                        ALTER TABLE {qualified} 
-                        UPDATE "{safe_new}" = COALESCE({case_expr}, "{safe_col}") 
-                        WHERE 1
-                    """)
-                else:
-                    raise self._unsupported_backend_error()
 
-                fill_value = f"{len(mapping)} mappings applied"
+                else:  # MAP
+                    case_parts = []
+                    for old, new in mapping.items():
+                        old_esc = str(old).replace("'", "''")
+                        new_esc = str(new).replace("'", "''")
+                        case_parts.append(f'WHEN "{safe_col}" = \'{old_esc}\' THEN \'{new_esc}\'')
+
+                    case_expr = f"CASE {' '.join(case_parts)} ELSE \"{safe_col}\" END"
+
+                    if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+                        await self._exec(f"""
+                            UPDATE {tq}
+                            SET "{safe_new}" = COALESCE({case_expr}, "{safe_col}")
+                        """)
+                    elif isinstance(self.db, ClickHouseAdapter):
+                        await self._exec(f"""
+                            ALTER TABLE {tq} 
+                            UPDATE "{safe_new}" = COALESCE({case_expr}, "{safe_col}") 
+                            WHERE 1
+                        """)
+                    else:
+                        raise self._unsupported_backend_error()
+
+                    return f"{len(mapping)} mappings applied"
+
+            fill_value = await _apply(qualified)
+
+            # Mirror the new column onto the original table (in-place mutation)
+            await self._add_new_column_if_not_exists(original, schema, new_col, col_type)
+            await _apply(self._qualified_table(original, schema))
 
             null_count = await self._fetchval(
                 f'SELECT COUNT(*) FROM {qualified} WHERE "{safe_col}" IS NULL'
@@ -876,6 +924,7 @@ class DataCleaningOps:
         new_table: Optional[str] = None,
     ) -> Dict[str, Any]:
         try:
+            original = table
             table = await self._prepare_operation_table(
                 table, schema, backend=backend, data_id=data_id, new_table=new_table,
             )
@@ -897,12 +946,19 @@ class DataCleaningOps:
                 case_parts.append(f'WHEN "{safe_col}" = \'{old_esc}\' THEN \'{new_esc}\'')
             case_expr = f"CASE {' '.join(case_parts)} ELSE \"{safe_col}\" END"
 
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
-                await self._exec(f'UPDATE {qualified} SET "{safe_new}" = {case_expr}')
-            elif isinstance(self.db, ClickHouseAdapter):
-                await self._exec(f'ALTER TABLE {qualified} UPDATE "{safe_new}" = {case_expr} WHERE 1')
-            else:
-                raise self._unsupported_backend_error()
+            async def _apply(tq):
+                if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+                    await self._exec(f'UPDATE {tq} SET "{safe_new}" = {case_expr}')
+                elif isinstance(self.db, ClickHouseAdapter):
+                    await self._exec(f'ALTER TABLE {tq} UPDATE "{safe_new}" = {case_expr} WHERE 1')
+                else:
+                    raise self._unsupported_backend_error()
+
+            await _apply(qualified)
+
+            # Mirror the new column onto the original table (in-place mutation)
+            await self._add_new_column_if_not_exists(original, schema, new_col, col_type)
+            await _apply(self._qualified_table(original, schema))
 
             sample = await self._fetch_data(table, schema, columns=[safe_col,safe_new])
             msg = f"Mapped {len(mapping)} value categories in '{column}'"
@@ -922,6 +978,7 @@ class DataCleaningOps:
         new_table: Optional[str] = None,
     ) -> Dict[str, Any]:
         try:
+            original = table
             table = await self._prepare_operation_table(
                 table, schema, backend=backend, data_id=data_id, new_table=new_table,
             )
@@ -939,27 +996,31 @@ class DataCleaningOps:
             escaped = [f"'{str(v).replace(chr(39), chr(39)+chr(39))}'" for v in valid_values]
             in_list = ",".join(escaped)
 
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
-                await self._exec(f"""
-                    UPDATE {qualified}
-                    SET "{safe_new}" = CASE WHEN "{safe_col}" IN ({in_list}) THEN "{safe_col}" ELSE NULL END
-                """)
-                invalid = await self._fetchval(f"""
-                    SELECT COUNT(*) FROM {qualified}
-                    WHERE "{safe_col}" IS NOT NULL AND "{safe_col}" NOT IN ({in_list})
-                """) or 0
-            elif isinstance(self.db, ClickHouseAdapter):
-                await self._exec(f"""
-                    ALTER TABLE {qualified}
-                    UPDATE "{safe_new}" = CASE WHEN "{safe_col}" IN ({in_list}) THEN "{safe_col}" ELSE NULL END
-                    WHERE 1
-                """)
-                invalid = await self._fetchval(f"""
-                    SELECT COUNT(*) FROM {qualified}
-                    WHERE "{safe_col}" IS NOT NULL AND "{safe_col}" NOT IN ({in_list})
-                """) or 0
-            else:
-                raise self._unsupported_backend_error()
+            async def _apply(tq):
+                if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+                    await self._exec(f"""
+                        UPDATE {tq}
+                        SET "{safe_new}" = CASE WHEN "{safe_col}" IN ({in_list}) THEN "{safe_col}" ELSE NULL END
+                    """)
+                elif isinstance(self.db, ClickHouseAdapter):
+                    await self._exec(f"""
+                        ALTER TABLE {tq}
+                        UPDATE "{safe_new}" = CASE WHEN "{safe_col}" IN ({in_list}) THEN "{safe_col}" ELSE NULL END
+                        WHERE 1
+                    """)
+                else:
+                    raise self._unsupported_backend_error()
+
+            await _apply(qualified)
+
+            # Mirror the new column onto the original table (in-place mutation)
+            await self._add_new_column_if_not_exists(original, schema, new_col, col_type)
+            await _apply(self._qualified_table(original, schema))
+
+            invalid = await self._fetchval(f"""
+                SELECT COUNT(*) FROM {qualified}
+                WHERE "{safe_col}" IS NOT NULL AND "{safe_col}" NOT IN ({in_list})
+            """) or 0
 
             sample = await self._fetch_data(table, schema, columns=[safe_col,safe_new])
             msg = f"Set {invalid} invalid values in '{column}' to NULL. Valid values: {valid_values[:10]}..."
@@ -980,6 +1041,7 @@ class DataCleaningOps:
         new_table: Optional[str] = None,
     ) -> Dict[str, Any]:
         try:
+            original = table
             table = await self._prepare_operation_table(
                 table, schema, backend=backend, data_id=data_id, new_table=new_table,
             )
@@ -993,33 +1055,40 @@ class DataCleaningOps:
 
             other_esc = other_label.replace("'", "''")
 
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
-                await self._exec(f"""
-                    WITH freq AS (
-                        SELECT "{safe_col}", COUNT(*) AS cnt
-                        FROM {qualified}
-                        WHERE "{safe_col}" IS NOT NULL
-                        GROUP BY "{safe_col}"
-                    )
-                    UPDATE {qualified} AS tgt
-                    SET "{safe_new}" = CASE
-                        WHEN freq.cnt < {min_count} THEN '{other_esc}'
-                        ELSE tgt."{safe_col}"
-                    END
-                    FROM freq
-                    WHERE tgt."{safe_col}" = freq."{safe_col}"
-                """)
-            elif isinstance(self.db, ClickHouseAdapter):
-                await self._exec(f"""
-                    ALTER TABLE {qualified}
-                    UPDATE "{safe_new}" = CASE
-                        WHEN (SELECT COUNT(*) FROM {qualified} freq WHERE freq."{safe_col}" = {qualified}."{safe_col}") < {min_count} THEN '{other_esc}'
-                        ELSE "{safe_col}"
-                    END
-                    WHERE 1
-                """)
-            else:
-                raise self._unsupported_backend_error()
+            async def _apply(tq):
+                if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+                    await self._exec(f"""
+                        WITH freq AS (
+                            SELECT "{safe_col}", COUNT(*) AS cnt
+                            FROM {tq}
+                            WHERE "{safe_col}" IS NOT NULL
+                            GROUP BY "{safe_col}"
+                        )
+                        UPDATE {tq} AS tgt
+                        SET "{safe_new}" = CASE
+                            WHEN freq.cnt < {min_count} THEN '{other_esc}'
+                            ELSE tgt."{safe_col}"
+                        END
+                        FROM freq
+                        WHERE tgt."{safe_col}" = freq."{safe_col}"
+                    """)
+                elif isinstance(self.db, ClickHouseAdapter):
+                    await self._exec(f"""
+                        ALTER TABLE {tq}
+                        UPDATE "{safe_new}" = CASE
+                            WHEN (SELECT COUNT(*) FROM {tq} freq WHERE freq."{safe_col}" = {tq}."{safe_col}") < {min_count} THEN '{other_esc}'
+                            ELSE "{safe_col}"
+                        END
+                        WHERE 1
+                    """)
+                else:
+                    raise self._unsupported_backend_error()
+
+            await _apply(qualified)
+
+            # Mirror the new column onto the original table (in-place mutation)
+            await self._add_new_column_if_not_exists(original, schema, new_col, col_type)
+            await _apply(self._qualified_table(original, schema))
 
             rare_rows = await self._fetch(f"""
                 SELECT DISTINCT "{safe_col}"
@@ -1052,6 +1121,7 @@ class DataCleaningOps:
         new_table: Optional[str] = None,
     ) -> Dict[str, Any]:
         try:
+            original = table
             table = await self._prepare_column_operation_table(
                 table, schema, [column], backend=backend, data_id=data_id, new_table=new_table,
             )
@@ -1082,181 +1152,187 @@ class DataCleaningOps:
 
             fill_value = None
 
-            if mode == "CONSTANT":
-                if value is None:
-                    return self._error_response("Value must be provided for CONSTANT mode")
+            if mode == "CONSTANT" and value is None:
+                return self._error_response("Value must be provided for CONSTANT mode")
 
-                if isinstance(self.db, PostgresAdapter):
-                    await self._exec(
-                        f'UPDATE {qualified} SET "{safe_new}" = COALESCE("{safe_col}", $1::TIMESTAMP)',
-                        str(value),
-                    )
-                elif isinstance(self.db, DuckDBAdapter):
-                    await self._exec(
-                        f'UPDATE {qualified} SET "{safe_new}" = COALESCE("{safe_col}", ?::TIMESTAMP)',
-                        str(value),
-                    )
-                elif isinstance(self.db, ClickHouseAdapter):
-                    await self._exec(
-                        f'ALTER TABLE {qualified} UPDATE "{safe_new}" = COALESCE("{safe_col}", CAST(\'{value}\' AS DateTime)) WHERE 1'
-                    )
-                else:
-                    raise self._unsupported_backend_error()
-                fill_value = value
-
-            elif mode == "NOW":
-                if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
-                    await self._exec(
-                        f'UPDATE {qualified} SET "{safe_new}" = COALESCE("{safe_col}", CURRENT_TIMESTAMP)'
-                    )
-                elif isinstance(self.db, ClickHouseAdapter):
-                    await self._exec(
-                        f'ALTER TABLE {qualified} UPDATE "{safe_new}" = COALESCE("{safe_col}", now()) WHERE 1'
-                    )
-                else:
-                    raise self._unsupported_backend_error()
-                fill_value = "CURRENT_TIMESTAMP"
-
-            elif mode in ["FFILL", "BFILL"]:
-
-                if isinstance(self.db, PostgresAdapter):
-                    row_id = "ctid"
-                elif isinstance(self.db, DuckDBAdapter):
-                    row_id = "rowid"
-                else:
-                    raise self._unsupported_backend_error()
-
-                if isinstance(self.db, PostgresAdapter):
-                    if mode == "FFILL":
-                        window_expr = f'''
-                            MAX("{safe_col}") OVER (
-                                ORDER BY __idx
-                                ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-                            )
-                        '''
-                    else:
-                        window_expr = f'''
-                            MIN("{safe_col}") OVER (
-                                ORDER BY __idx
-                                ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING
-                            )
-                        '''
-                elif isinstance(self.db, DuckDBAdapter):
-                    if mode == "FFILL":
-                        window_expr = f'''
-                            LAST_VALUE("{safe_col}" IGNORE NULLS)
-                            OVER (
-                                ORDER BY __idx
-                                ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-                            )
-                        '''
-                    else:
-                        window_expr = f'''
-                            FIRST_VALUE("{safe_col}" IGNORE NULLS)
-                            OVER (
-                                ORDER BY __idx
-                                ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING
-                            )
-                        '''
-                else:
-                    raise self._unsupported_backend_error()
-
-                await self._exec(f"""
-                    WITH base AS (
-                        SELECT *,
-                            ROW_NUMBER() OVER () AS __idx,
-                            {row_id} AS __rid
-                        FROM {qualified}
-                    ),
-                    filled AS (
-                        SELECT *,
-                            {window_expr} AS filled_val
-                        FROM base
-                    )
-                    UPDATE {qualified} t
-                    SET "{safe_new}" = COALESCE(t."{safe_col}", f.filled_val)
-                    FROM filled f
-                    WHERE t.{row_id} = f.__rid
-                """)
-
-                fill_value = mode
-
-            else:
-
-                if isinstance(self.db, PostgresAdapter):
-                    stat_map = {
-                        "MIN": f'MIN("{safe_col}")',
-                        "MAX": f'MAX("{safe_col}")',
-                        "MEAN": f'TO_TIMESTAMP(AVG(EXTRACT(EPOCH FROM "{safe_col}")))',
-                        "MEDIAN": f'''
-                            TO_TIMESTAMP(
-                                PERCENTILE_CONT(0.5)
-                                WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM "{safe_col}"))
-                            )
-                        ''',
-                        "MODE": f"""
-                            (
-                                SELECT "{safe_col}"
-                                FROM {qualified}
-                                WHERE "{safe_col}" IS NOT NULL
-                                GROUP BY "{safe_col}"
-                                ORDER BY COUNT(*) DESC
-                                LIMIT 1
-                            )
-                        """,
-                    }
-                elif isinstance(self.db, DuckDBAdapter):
-                    stat_map = {
-                        "MIN": f'MIN("{safe_col}")',
-                        "MAX": f'MAX("{safe_col}")',
-                        "MEAN": f'TO_TIMESTAMP(AVG(EPOCH("{safe_col}")))',
-                        "MEDIAN": f'TO_TIMESTAMP(MEDIAN(EPOCH("{safe_col}")))',
-                        "MODE": f"""
-                            (
-                                SELECT "{safe_col}"
-                                FROM {qualified}
-                                WHERE "{safe_col}" IS NOT NULL
-                                GROUP BY "{safe_col}"
-                                ORDER BY COUNT(*) DESC
-                                LIMIT 1
-                            )
-                        """,
-                    }
-                elif isinstance(self.db, ClickHouseAdapter):
-                    stat_map = {
-                        "MIN": f'min("{safe_col}")',
-                        "MAX": f'max("{safe_col}")',
-                        "MEAN": f'toDateTime(toUInt32(avg(toUnixTimestamp("{safe_col}"))))',
-                        "MEDIAN": f'toDateTime(toUInt32(quantile(0.5)(toUnixTimestamp("{safe_col}"))))',
-                        "MODE": f'(SELECT "{safe_col}" FROM {qualified} WHERE "{safe_col}" IS NOT NULL GROUP BY "{safe_col}" ORDER BY COUNT(*) DESC LIMIT 1)'
-                    }
-                else:
-                    raise self._unsupported_backend_error()
-
-                stat_expr = stat_map[mode]
-
-                if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
-                    await self._exec(f"""
-                        WITH stat_val AS (
-                            SELECT {stat_expr} AS val
-                            FROM {qualified}
-                            WHERE "{safe_col}" IS NOT NULL
+            async def _apply(tq):
+                if mode == "CONSTANT":
+                    if isinstance(self.db, PostgresAdapter):
+                        await self._exec(
+                            f'UPDATE {tq} SET "{safe_new}" = COALESCE("{safe_col}", $1::TIMESTAMP)',
+                            str(value),
                         )
-                        UPDATE {qualified}
-                        SET "{safe_new}" = COALESCE("{safe_col}", (SELECT val FROM stat_val))
-                    """)
-                elif isinstance(self.db, ClickHouseAdapter):
+                    elif isinstance(self.db, DuckDBAdapter):
+                        await self._exec(
+                            f'UPDATE {tq} SET "{safe_new}" = COALESCE("{safe_col}", ?::TIMESTAMP)',
+                            str(value),
+                        )
+                    elif isinstance(self.db, ClickHouseAdapter):
+                        await self._exec(
+                            f'ALTER TABLE {tq} UPDATE "{safe_new}" = COALESCE("{safe_col}", CAST(\'{value}\' AS DateTime)) WHERE 1'
+                        )
+                    else:
+                        raise self._unsupported_backend_error()
+                    return value
+
+                elif mode == "NOW":
+                    if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+                        await self._exec(
+                            f'UPDATE {tq} SET "{safe_new}" = COALESCE("{safe_col}", CURRENT_TIMESTAMP)'
+                        )
+                    elif isinstance(self.db, ClickHouseAdapter):
+                        await self._exec(
+                            f'ALTER TABLE {tq} UPDATE "{safe_new}" = COALESCE("{safe_col}", now()) WHERE 1'
+                        )
+                    else:
+                        raise self._unsupported_backend_error()
+                    return "CURRENT_TIMESTAMP"
+
+                elif mode in ["FFILL", "BFILL"]:
+
+                    if isinstance(self.db, PostgresAdapter):
+                        row_id = "ctid"
+                    elif isinstance(self.db, DuckDBAdapter):
+                        row_id = "rowid"
+                    else:
+                        raise self._unsupported_backend_error()
+
+                    if isinstance(self.db, PostgresAdapter):
+                        if mode == "FFILL":
+                            window_expr = f'''
+                                MAX("{safe_col}") OVER (
+                                    ORDER BY __idx
+                                    ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                                )
+                            '''
+                        else:
+                            window_expr = f'''
+                                MIN("{safe_col}") OVER (
+                                    ORDER BY __idx
+                                    ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING
+                                )
+                            '''
+                    elif isinstance(self.db, DuckDBAdapter):
+                        if mode == "FFILL":
+                            window_expr = f'''
+                                LAST_VALUE("{safe_col}" IGNORE NULLS)
+                                OVER (
+                                    ORDER BY __idx
+                                    ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                                )
+                            '''
+                        else:
+                            window_expr = f'''
+                                FIRST_VALUE("{safe_col}" IGNORE NULLS)
+                                OVER (
+                                    ORDER BY __idx
+                                    ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING
+                                )
+                            '''
+                    else:
+                        raise self._unsupported_backend_error()
+
                     await self._exec(f"""
-                        ALTER TABLE {qualified} 
-                        UPDATE "{safe_new}" = COALESCE("{safe_col}", (SELECT {stat_expr} FROM {qualified} WHERE "{safe_col}" IS NOT NULL))
-                        WHERE 1
+                        WITH base AS (
+                            SELECT *,
+                                ROW_NUMBER() OVER () AS __idx,
+                                {row_id} AS __rid
+                            FROM {tq}
+                        ),
+                        filled AS (
+                            SELECT *,
+                                {window_expr} AS filled_val
+                            FROM base
+                        )
+                        UPDATE {tq} t
+                        SET "{safe_new}" = COALESCE(t."{safe_col}", f.filled_val)
+                        FROM filled f
+                        WHERE t.{row_id} = f.__rid
                     """)
 
-                fill_value = await self._fetchval(f"""
-                    SELECT {stat_expr}
-                    FROM {qualified}
-                    WHERE "{safe_col}" IS NOT NULL
-                """)
+                    return mode
+
+                else:
+                    if isinstance(self.db, PostgresAdapter):
+                        stat_map = {
+                            "MIN": f'MIN("{safe_col}")',
+                            "MAX": f'MAX("{safe_col}")',
+                            "MEAN": f'TO_TIMESTAMP(AVG(EXTRACT(EPOCH FROM "{safe_col}")))',
+                            "MEDIAN": f'''
+                                TO_TIMESTAMP(
+                                    PERCENTILE_CONT(0.5)
+                                    WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM "{safe_col}"))
+                                )
+                            ''',
+                            "MODE": f"""
+                                (
+                                    SELECT "{safe_col}"
+                                    FROM {tq}
+                                    WHERE "{safe_col}" IS NOT NULL
+                                    GROUP BY "{safe_col}"
+                                    ORDER BY COUNT(*) DESC
+                                    LIMIT 1
+                                )
+                            """,
+                        }
+                    elif isinstance(self.db, DuckDBAdapter):
+                        stat_map = {
+                            "MIN": f'MIN("{safe_col}")',
+                            "MAX": f'MAX("{safe_col}")',
+                            "MEAN": f'TO_TIMESTAMP(AVG(EPOCH("{safe_col}")))',
+                            "MEDIAN": f'TO_TIMESTAMP(MEDIAN(EPOCH("{safe_col}")))',
+                            "MODE": f"""
+                                (
+                                    SELECT "{safe_col}"
+                                    FROM {tq}
+                                    WHERE "{safe_col}" IS NOT NULL
+                                    GROUP BY "{safe_col}"
+                                    ORDER BY COUNT(*) DESC
+                                    LIMIT 1
+                                )
+                            """,
+                        }
+                    elif isinstance(self.db, ClickHouseAdapter):
+                        stat_map = {
+                            "MIN": f'min("{safe_col}")',
+                            "MAX": f'max("{safe_col}")',
+                            "MEAN": f'toDateTime(toUInt32(avg(toUnixTimestamp("{safe_col}"))))',
+                            "MEDIAN": f'toDateTime(toUInt32(quantile(0.5)(toUnixTimestamp("{safe_col}"))))',
+                            "MODE": f'(SELECT "{safe_col}" FROM {tq} WHERE "{safe_col}" IS NOT NULL GROUP BY "{safe_col}" ORDER BY COUNT(*) DESC LIMIT 1)'
+                        }
+                    else:
+                        raise self._unsupported_backend_error()
+
+                    stat_expr = stat_map[mode]
+
+                    if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+                        await self._exec(f"""
+                            WITH stat_val AS (
+                                SELECT {stat_expr} AS val
+                                FROM {tq}
+                                WHERE "{safe_col}" IS NOT NULL
+                            )
+                            UPDATE {tq}
+                            SET "{safe_new}" = COALESCE("{safe_col}", (SELECT val FROM stat_val))
+                        """)
+                    elif isinstance(self.db, ClickHouseAdapter):
+                        await self._exec(f"""
+                            ALTER TABLE {tq} 
+                            UPDATE "{safe_new}" = COALESCE("{safe_col}", (SELECT {stat_expr} FROM {tq} WHERE "{safe_col}" IS NOT NULL))
+                            WHERE 1
+                        """)
+
+                    return await self._fetchval(f"""
+                        SELECT {stat_expr}
+                        FROM {tq}
+                        WHERE "{safe_col}" IS NOT NULL
+                    """)
+
+            fill_value = await _apply(qualified)
+
+            # Mirror the new column onto the original table (in-place mutation)
+            await self._add_new_column_if_not_exists(original, schema, new_col, "TIMESTAMP")
+            await _apply(self._qualified_table(original, schema))
 
             null_count = await self._fetchval(
                 f'SELECT COUNT(*) FROM {qualified} WHERE "{safe_col}" IS NULL'
@@ -1284,6 +1360,7 @@ class DataCleaningOps:
         new_table: Optional[str] = None,
     ) -> Dict[str, Any]:
         try:
+            original = table
             table = await self._prepare_operation_table(
                 table, schema, backend=backend, data_id=data_id, new_table=new_table,
             )
@@ -1303,25 +1380,32 @@ class DataCleaningOps:
             else:
                 raise self._unsupported_backend_error()
 
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
-                await self._exec(f"""
-                    UPDATE {qualified}
-                    SET "{safe_new}" = CASE
-                        WHEN {text_expr} = '0000-00-00' THEN NULL
-                        ELSE "{safe_col}"
-                    END
-                """)
-            elif isinstance(self.db, ClickHouseAdapter):
-                await self._exec(f"""
-                    ALTER TABLE {qualified}
-                    UPDATE "{safe_new}" = CASE
-                        WHEN {text_expr} = '0000-00-00' THEN NULL
-                        ELSE "{safe_col}"
-                    END
-                    WHERE 1
-                """)
-            else:
-                raise self._unsupported_backend_error()
+            async def _apply(tq):
+                if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+                    await self._exec(f"""
+                        UPDATE {tq}
+                        SET "{safe_new}" = CASE
+                            WHEN {text_expr} = '0000-00-00' THEN NULL
+                            ELSE "{safe_col}"
+                        END
+                    """)
+                elif isinstance(self.db, ClickHouseAdapter):
+                    await self._exec(f"""
+                        ALTER TABLE {tq}
+                        UPDATE "{safe_new}" = CASE
+                            WHEN {text_expr} = '0000-00-00' THEN NULL
+                            ELSE "{safe_col}"
+                        END
+                        WHERE 1
+                    """)
+                else:
+                    raise self._unsupported_backend_error()
+
+            await _apply(qualified)
+
+            # Mirror the new column onto the original table (in-place mutation)
+            await self._add_new_column_if_not_exists(original, schema, new_col, "DATE")
+            await _apply(self._qualified_table(original, schema))
 
             invalid = await self._fetchval(
                 f"SELECT COUNT(*) FROM {qualified} WHERE {text_expr} = '0000-00-00'"
@@ -1346,6 +1430,7 @@ class DataCleaningOps:
         new_table: Optional[str] = None,
     ) -> Dict[str, Any]:
         try:
+            original = table
             table = await self._prepare_operation_table(
                 table, schema, backend=backend, data_id=data_id, new_table=new_table,
             )
@@ -1367,23 +1452,30 @@ class DataCleaningOps:
                 case_parts.append(f'WHEN "{safe_col}" > \'{max_dt}\'::DATE THEN NULL')
             case_expr = f"CASE {' '.join(case_parts)} ELSE \"{safe_col}\" END" if case_parts else f'"{safe_col}"'
 
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
-                await self._exec(f'UPDATE {qualified} SET "{safe_new}" = {case_expr}')
-            elif isinstance(self.db, ClickHouseAdapter):
-                col_q = self.db.quote_identifier(safe_col)
-                new_q = self.db.quote_identifier(safe_new)
-                ch_case_parts = []
-                if min_dt:
-                    ch_case_parts.append(f"WHEN {col_q} < toDate('{min_dt}') THEN NULL")
-                if max_dt:
-                    ch_case_parts.append(f"WHEN {col_q} > toDate('{max_dt}') THEN NULL")
-                ch_case_expr = f"CASE {' '.join(ch_case_parts)} ELSE toDate({col_q}) END" if ch_case_parts else f"toDate({col_q})"
-                await self._exec(
-                    f"ALTER TABLE {qualified} UPDATE {new_q} = {ch_case_expr} "
-                    "WHERE 1 SETTINGS mutations_sync = 1"
-                )
-            else:
-                raise self._unsupported_backend_error()
+            async def _apply(tq):
+                if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+                    await self._exec(f'UPDATE {tq} SET "{safe_new}" = {case_expr}')
+                elif isinstance(self.db, ClickHouseAdapter):
+                    col_q = self.db.quote_identifier(safe_col)
+                    new_q = self.db.quote_identifier(safe_new)
+                    ch_case_parts = []
+                    if min_dt:
+                        ch_case_parts.append(f"WHEN {col_q} < toDate('{min_dt}') THEN NULL")
+                    if max_dt:
+                        ch_case_parts.append(f"WHEN {col_q} > toDate('{max_dt}') THEN NULL")
+                    ch_case_expr = f"CASE {' '.join(ch_case_parts)} ELSE toDate({col_q}) END" if ch_case_parts else f"toDate({col_q})"
+                    await self._exec(
+                        f"ALTER TABLE {tq} UPDATE {new_q} = {ch_case_expr} "
+                        "WHERE 1 SETTINGS mutations_sync = 1"
+                    )
+                else:
+                    raise self._unsupported_backend_error()
+
+            await _apply(qualified)
+
+            # Mirror the new column onto the original table (in-place mutation)
+            await self._add_new_column_if_not_exists(original, schema, new_col, new_col_type)
+            await _apply(self._qualified_table(original, schema))
 
             affected = 0
             if case_parts:
@@ -1436,6 +1528,7 @@ class DataCleaningOps:
         new_table: Optional[str] = None,
     ) -> Dict[str, Any]:
         try:
+            original = table
             involved_cols = [*(group_cols or []), column]
             table = await self._prepare_column_operation_table(
                 table,
@@ -1483,198 +1576,204 @@ class DataCleaningOps:
                     for c in group_cols
                 ])
 
-            if mode == "CONSTANT":
-                if value is None:
-                    return self._error_response("Value must be provided")
+            if mode == "CONSTANT" and value is None:
+                return self._error_response("Value must be provided")
 
-                converted = f"'{value}'" if isinstance(value, str) else str(value)
+            async def _apply(tq):
+                if mode == "CONSTANT":
+                    converted = f"'{value}'" if isinstance(value, str) else str(value)
 
-                if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
-                    await self._exec(
-                        f'UPDATE {qualified} SET "{safe_new}" = COALESCE("{safe_col}", {converted})'
-                    )
-                elif isinstance(self.db, ClickHouseAdapter):
-                    await self._exec(
-                        f'ALTER TABLE {qualified} UPDATE "{safe_new}" = COALESCE("{safe_col}", {converted}) WHERE 1'
-                    )
-                else:
-                    raise self._unsupported_backend_error()
-                fill_value = value
-
-            elif mode in ["FFILL", "BFILL"]:
-
-                if isinstance(self.db, PostgresAdapter):
-                    row_id = "ctid"
-                elif isinstance(self.db, DuckDBAdapter):
-                    row_id = "rowid"
-                else:
-                    raise self._unsupported_backend_error()
-
-                partition = f'PARTITION BY {group_expr}' if group_cols else ""
-
-                if isinstance(self.db, PostgresAdapter):
-                    if mode == "FFILL":
-                        window_expr = f'''
-                            MAX("{safe_col}") OVER (
-                                {partition}
-                                ORDER BY __idx
-                                ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-                            )
-                        '''
-                    else:
-                        window_expr = f'''
-                            MIN("{safe_col}") OVER (
-                                {partition}
-                                ORDER BY __idx
-                                ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING
-                            )
-                        '''
-                elif isinstance(self.db, DuckDBAdapter):
-                    if mode == "FFILL":
-                        window_expr = f'''
-                            LAST_VALUE("{safe_col}" IGNORE NULLS)
-                            OVER (
-                                {partition}
-                                ORDER BY __idx
-                                ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-                            )
-                        '''
-                    else:
-                        window_expr = f'''
-                            FIRST_VALUE("{safe_col}" IGNORE NULLS)
-                            OVER (
-                                {partition}
-                                ORDER BY __idx
-                                ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING
-                            )
-                        '''
-                else:
-                    raise self._unsupported_backend_error()
-
-                await self._exec(f"""
-                    WITH base AS (
-                        SELECT *,
-                            ROW_NUMBER() OVER () AS __idx,
-                            {row_id} AS __rid
-                        FROM {qualified}
-                    ),
-                    filled AS (
-                        SELECT *,
-                            {window_expr} AS filled_val
-                        FROM base
-                    )
-                    UPDATE {qualified} t
-                    SET "{safe_new}" = COALESCE(t."{safe_col}", f.filled_val)
-                    FROM filled f
-                    WHERE t.{row_id} = f.__rid
-                """)
-
-                fill_value = mode
-
-            else:
-
-                if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
-                    stat_map = {
-                        "MEAN": f'AVG(CASE WHEN "{safe_col}" IS NOT NULL THEN "{safe_col}" END)',
-                        "AVG": f'AVG(CASE WHEN "{safe_col}" IS NOT NULL THEN "{safe_col}" END)',
-                        "AVERAGE": f'AVG(CASE WHEN "{safe_col}" IS NOT NULL THEN "{safe_col}" END)',
-                        "MEDIAN": f'PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY "{safe_col}")',
-                        "MODE": f"""
-                            (SELECT "{safe_col}"
-                            FROM {qualified}
-                            WHERE "{safe_col}" IS NOT NULL
-                            GROUP BY "{safe_col}"
-                            ORDER BY COUNT(*) DESC
-                            LIMIT 1)
-                        """,
-                        "STD": f'STDDEV_POP("{safe_col}")',
-                        "VAR": f'VAR_POP("{safe_col}")',
-                        "VARIANCE": f'VAR_POP("{safe_col}")',
-                        "MIN": f'MIN("{safe_col}")',
-                        "MAX": f'MAX("{safe_col}")',
-                    }
-                elif isinstance(self.db, ClickHouseAdapter):
-                    stat_map = {
-                        "MEAN": f'AVG("{safe_col}")',
-                        "AVG": f'AVG("{safe_col}")',
-                        "AVERAGE": f'AVG("{safe_col}")',
-                        "MEDIAN": f'quantile(0.5)("{safe_col}")',
-                        "MODE": f'(SELECT "{safe_col}" FROM {qualified} WHERE "{safe_col}" IS NOT NULL GROUP BY "{safe_col}" ORDER BY COUNT(*) DESC LIMIT 1)',
-                        "STD": f'stddevPop("{safe_col}")',
-                        "VAR": f'varPop("{safe_col}")',
-                        "VARIANCE": f'varPop("{safe_col}")',
-                        "MIN": f'min("{safe_col}")',
-                        "MAX": f'max("{safe_col}")',
-                    }
-                else:
-                    raise self._unsupported_backend_error()
-
-                stat_expr = stat_map[mode]
-
-                if group_cols:
                     if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
-                        await self._exec(f"""
-                            WITH grouped AS (
-                                SELECT {group_expr},
-                                    {stat_expr} AS val
-                                FROM {qualified}
-                                GROUP BY {group_expr}
-                            ),
-                            global_stat AS (
-                                SELECT {stat_expr} AS val FROM {qualified}
-                            )
-                            UPDATE {qualified} t
-                            SET "{safe_new}" = COALESCE(
-                                t."{safe_col}",
-                                g.val,
-                                (SELECT val FROM global_stat)
-                            )
-                            FROM grouped g
-                            WHERE {join_cond}
-                        """)
+                        await self._exec(
+                            f'UPDATE {tq} SET "{safe_new}" = COALESCE("{safe_col}", {converted})'
+                        )
                     elif isinstance(self.db, ClickHouseAdapter):
-                        # ClickHouse doesn't support UPDATE FROM, so recreate the table
-                        await self._exec(f'ALTER TABLE {qualified} DROP COLUMN "{safe_new}"')
-                        temp_table = f"{table}__temp"
-                        await self._exec(f"DROP TABLE IF EXISTS {self._qualified_table(temp_table, schema)}")
-                        
-                        global_stat_expr = stat_expr
-                        
-                        await self._exec(f"""
-                            CREATE TABLE {self._qualified_table(temp_table, schema)} AS
-                            SELECT t.*,
-                                COALESCE(
+                        await self._exec(
+                            f'ALTER TABLE {tq} UPDATE "{safe_new}" = COALESCE("{safe_col}", {converted}) WHERE 1'
+                        )
+                    else:
+                        raise self._unsupported_backend_error()
+                    return value
+
+                elif mode in ["FFILL", "BFILL"]:
+
+                    if isinstance(self.db, PostgresAdapter):
+                        row_id = "ctid"
+                    elif isinstance(self.db, DuckDBAdapter):
+                        row_id = "rowid"
+                    else:
+                        raise self._unsupported_backend_error()
+
+                    partition = f'PARTITION BY {group_expr}' if group_cols else ""
+
+                    if isinstance(self.db, PostgresAdapter):
+                        if mode == "FFILL":
+                            window_expr = f'''
+                                MAX("{safe_col}") OVER (
+                                    {partition}
+                                    ORDER BY __idx
+                                    ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                                )
+                            '''
+                        else:
+                            window_expr = f'''
+                                MIN("{safe_col}") OVER (
+                                    {partition}
+                                    ORDER BY __idx
+                                    ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING
+                                )
+                            '''
+                    elif isinstance(self.db, DuckDBAdapter):
+                        if mode == "FFILL":
+                            window_expr = f'''
+                                LAST_VALUE("{safe_col}" IGNORE NULLS)
+                                OVER (
+                                    {partition}
+                                    ORDER BY __idx
+                                    ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                                )
+                            '''
+                        else:
+                            window_expr = f'''
+                                FIRST_VALUE("{safe_col}" IGNORE NULLS)
+                                OVER (
+                                    {partition}
+                                    ORDER BY __idx
+                                    ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING
+                                )
+                            '''
+                    else:
+                        raise self._unsupported_backend_error()
+
+                    await self._exec(f"""
+                        WITH base AS (
+                            SELECT *,
+                                ROW_NUMBER() OVER () AS __idx,
+                                {row_id} AS __rid
+                            FROM {tq}
+                        ),
+                        filled AS (
+                            SELECT *,
+                                {window_expr} AS filled_val
+                            FROM base
+                        )
+                        UPDATE {tq} t
+                        SET "{safe_new}" = COALESCE(t."{safe_col}", f.filled_val)
+                        FROM filled f
+                        WHERE t.{row_id} = f.__rid
+                    """)
+
+                    return mode
+
+                else:
+                    if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+                        stat_map = {
+                            "MEAN": f'AVG(CASE WHEN "{safe_col}" IS NOT NULL THEN "{safe_col}" END)',
+                            "AVG": f'AVG(CASE WHEN "{safe_col}" IS NOT NULL THEN "{safe_col}" END)',
+                            "AVERAGE": f'AVG(CASE WHEN "{safe_col}" IS NOT NULL THEN "{safe_col}" END)',
+                            "MEDIAN": f'PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY "{safe_col}")',
+                            "MODE": f"""
+                                (SELECT "{safe_col}"
+                                FROM {tq}
+                                WHERE "{safe_col}" IS NOT NULL
+                                GROUP BY "{safe_col}"
+                                ORDER BY COUNT(*) DESC
+                                LIMIT 1)
+                            """,
+                            "STD": f'STDDEV_POP("{safe_col}")',
+                            "VAR": f'VAR_POP("{safe_col}")',
+                            "VARIANCE": f'VAR_POP("{safe_col}")',
+                            "MIN": f'MIN("{safe_col}")',
+                            "MAX": f'MAX("{safe_col}")',
+                        }
+                    elif isinstance(self.db, ClickHouseAdapter):
+                        stat_map = {
+                            "MEAN": f'AVG("{safe_col}")',
+                            "AVG": f'AVG("{safe_col}")',
+                            "AVERAGE": f'AVG("{safe_col}")',
+                            "MEDIAN": f'quantile(0.5)("{safe_col}")',
+                            "MODE": f'(SELECT "{safe_col}" FROM {tq} WHERE "{safe_col}" IS NOT NULL GROUP BY "{safe_col}" ORDER BY COUNT(*) DESC LIMIT 1)',
+                            "STD": f'stddevPop("{safe_col}")',
+                            "VAR": f'varPop("{safe_col}")',
+                            "VARIANCE": f'varPop("{safe_col}")',
+                            "MIN": f'min("{safe_col}")',
+                            "MAX": f'max("{safe_col}")',
+                        }
+                    else:
+                        raise self._unsupported_backend_error()
+
+                    stat_expr = stat_map[mode]
+
+                    if group_cols:
+                        if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+                            await self._exec(f"""
+                                WITH grouped AS (
+                                    SELECT {group_expr},
+                                        {stat_expr} AS val
+                                    FROM {tq}
+                                    GROUP BY {group_expr}
+                                ),
+                                global_stat AS (
+                                    SELECT {stat_expr} AS val FROM {tq}
+                                )
+                                UPDATE {tq} t
+                                SET "{safe_new}" = COALESCE(
                                     t."{safe_col}",
                                     g.val,
-                                    (SELECT {global_stat_expr} FROM {qualified})
-                                ) AS "{safe_new}"
-                            FROM {qualified} t
-                            LEFT JOIN (
-                                SELECT {group_expr}, {stat_expr} AS val
-                                FROM {qualified}
-                                GROUP BY {group_expr}
-                            ) g ON {join_cond}
-                        """)
-                        await self._exec(f"DROP TABLE {qualified}")
-                        await self._exec(f"RENAME TABLE {self._qualified_table(temp_table, schema)} TO {qualified}")
-                else:
-                    if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
-                        await self._exec(f"""
-                            WITH stat_val AS (
-                                SELECT COALESCE({stat_expr}, 0) AS val
-                                FROM {qualified}
-                            )
-                            UPDATE {qualified}
-                            SET "{safe_new}" = COALESCE("{safe_col}", (SELECT val FROM stat_val))
-                        """)
-                    elif isinstance(self.db, ClickHouseAdapter):
-                        await self._exec(f"""
-                            ALTER TABLE {qualified} 
-                            UPDATE "{safe_new}" = COALESCE("{safe_col}", (SELECT COALESCE({stat_expr}, 0) FROM {qualified}))
-                            WHERE 1
-                        """)
+                                    (SELECT val FROM global_stat)
+                                )
+                                FROM grouped g
+                                WHERE {join_cond}
+                            """)
+                        elif isinstance(self.db, ClickHouseAdapter):
+                            # ClickHouse doesn't support UPDATE FROM, so recreate the table
+                            await self._exec(f'ALTER TABLE {tq} DROP COLUMN "{safe_new}"')
+                            temp_table = f"{table}__temp"
+                            await self._exec(f"DROP TABLE IF EXISTS {self._qualified_table(temp_table, schema)}")
 
-                fill_value = mode
+                            global_stat_expr = stat_expr
+
+                            await self._exec(f"""
+                                CREATE TABLE {self._qualified_table(temp_table, schema)} AS
+                                SELECT t.*,
+                                    COALESCE(
+                                        t."{safe_col}",
+                                        g.val,
+                                        (SELECT {global_stat_expr} FROM {tq})
+                                    ) AS "{safe_new}"
+                                FROM {tq} t
+                                LEFT JOIN (
+                                    SELECT {group_expr}, {stat_expr} AS val
+                                    FROM {tq}
+                                    GROUP BY {group_expr}
+                                ) g ON {join_cond}
+                            """)
+                            await self._exec(f"DROP TABLE {tq}")
+                            await self._exec(f"RENAME TABLE {self._qualified_table(temp_table, schema)} TO {tq}")
+                    else:
+                        if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+                            await self._exec(f"""
+                                WITH stat_val AS (
+                                    SELECT COALESCE({stat_expr}, 0) AS val
+                                    FROM {tq}
+                                )
+                                UPDATE {tq}
+                                SET "{safe_new}" = COALESCE("{safe_col}", (SELECT val FROM stat_val))
+                            """)
+                        elif isinstance(self.db, ClickHouseAdapter):
+                            await self._exec(f"""
+                                ALTER TABLE {tq} 
+                                UPDATE "{safe_new}" = COALESCE("{safe_col}", (SELECT COALESCE({stat_expr}, 0) FROM {tq}))
+                                WHERE 1
+                            """)
+
+                    return mode
+
+            fill_value = await _apply(qualified)
+
+            # Mirror the new column onto the original table (in-place mutation)
+            await self._add_new_column_if_not_exists(original, schema, new_col, col_type)
+            await _apply(self._qualified_table(original, schema))
 
             null_count = await self._fetchval(
                 f'SELECT COUNT(*) FROM {qualified} WHERE "{safe_col}" IS NULL'
@@ -1714,6 +1813,7 @@ class DataCleaningOps:
         new_table: Optional[str] = None,
     ) -> Dict[str, Any]:
         try:
+            original = table
             involved_cols = [*(group_cols or []), column]
             table = await self._prepare_column_operation_table(
                 table,
@@ -1757,157 +1857,163 @@ class DataCleaningOps:
 
             fill_value = None
 
-            if mode in ["FFILL", "BFILL"]:
+            async def _apply(tq):
+                if mode in ["FFILL", "BFILL"]:
 
-                if isinstance(self.db, PostgresAdapter):
-                    row_id = "ctid"
-                elif isinstance(self.db, DuckDBAdapter):
-                    row_id = "rowid"
-                else:
-                    raise self._unsupported_backend_error()
-
-                if isinstance(self.db, PostgresAdapter):
-                    if mode == "FFILL":
-                        window_expr = f'''
-                            MAX("{safe_col}") OVER (
-                                {partition}
-                                ORDER BY __idx
-                                ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-                            )
-                        '''
+                    if isinstance(self.db, PostgresAdapter):
+                        row_id = "ctid"
+                    elif isinstance(self.db, DuckDBAdapter):
+                        row_id = "rowid"
                     else:
-                        window_expr = f'''
-                            MIN("{safe_col}") OVER (
-                                {partition}
-                                ORDER BY __idx
-                                ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING
-                            )
-                        '''
-                elif isinstance(self.db, DuckDBAdapter):
-                    if mode == "FFILL":
-                        window_expr = f'''
-                            LAST_VALUE("{safe_col}" IGNORE NULLS)
-                            OVER (
-                                {partition}
-                                ORDER BY __idx
-                                ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-                            )
-                        '''
+                        raise self._unsupported_backend_error()
+
+                    if isinstance(self.db, PostgresAdapter):
+                        if mode == "FFILL":
+                            window_expr = f'''
+                                MAX("{safe_col}") OVER (
+                                    {partition}
+                                    ORDER BY __idx
+                                    ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                                )
+                            '''
+                        else:
+                            window_expr = f'''
+                                MIN("{safe_col}") OVER (
+                                    {partition}
+                                    ORDER BY __idx
+                                    ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING
+                                )
+                            '''
+                    elif isinstance(self.db, DuckDBAdapter):
+                        if mode == "FFILL":
+                            window_expr = f'''
+                                LAST_VALUE("{safe_col}" IGNORE NULLS)
+                                OVER (
+                                    {partition}
+                                    ORDER BY __idx
+                                    ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                                )
+                            '''
+                        else:
+                            window_expr = f'''
+                                FIRST_VALUE("{safe_col}" IGNORE NULLS)
+                                OVER (
+                                    {partition}
+                                    ORDER BY __idx
+                                    ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING
+                                )
+                            '''
                     else:
-                        window_expr = f'''
-                            FIRST_VALUE("{safe_col}" IGNORE NULLS)
-                            OVER (
-                                {partition}
-                                ORDER BY __idx
-                                ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING
-                            )
-                        '''
-                else:
-                    raise self._unsupported_backend_error()
+                        raise self._unsupported_backend_error()
 
-                await self._exec(f"""
-                    WITH base AS (
-                        SELECT *,
-                            ROW_NUMBER() OVER () AS __idx,
-                            {row_id} AS __rid
-                        FROM {qualified}
-                    ),
-                    filled AS (
-                        SELECT *,
-                            {window_expr} AS filled_val
-                        FROM base
-                    )
-                    UPDATE {qualified} t
-                    SET "{safe_new}" = COALESCE(t."{safe_col}", f.filled_val)
-                    FROM filled f
-                    WHERE t.{row_id} = f.__rid
-                """)
+                    await self._exec(f"""
+                        WITH base AS (
+                            SELECT *,
+                                ROW_NUMBER() OVER () AS __idx,
+                                {row_id} AS __rid
+                            FROM {tq}
+                        ),
+                        filled AS (
+                            SELECT *,
+                                {window_expr} AS filled_val
+                            FROM base
+                        )
+                        UPDATE {tq} t
+                        SET "{safe_new}" = COALESCE(t."{safe_col}", f.filled_val)
+                        FROM filled f
+                        WHERE t.{row_id} = f.__rid
+                    """)
 
-                fill_value = mode
+                    return mode
 
-            elif mode == "MODE":
-
-                if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
-                    if group_cols:
-                        await self._exec(f"""
-                            WITH mode_vals AS (
-                                SELECT {group_expr},
-                                    "{safe_col}" AS mode_val
-                                FROM (
+                else:  # MODE
+                    if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+                        if group_cols:
+                            await self._exec(f"""
+                                WITH mode_vals AS (
                                     SELECT {group_expr},
-                                        "{safe_col}",
-                                        COUNT(*) AS cnt,
-                                        ROW_NUMBER() OVER (
-                                            PARTITION BY {group_expr}
-                                            ORDER BY COUNT(*) DESC
-                                        ) AS rn
-                                    FROM {qualified}
+                                        "{safe_col}" AS mode_val
+                                    FROM (
+                                        SELECT {group_expr},
+                                            "{safe_col}",
+                                            COUNT(*) AS cnt,
+                                            ROW_NUMBER() OVER (
+                                                PARTITION BY {group_expr}
+                                                ORDER BY COUNT(*) DESC
+                                            ) AS rn
+                                        FROM {tq}
+                                        WHERE "{safe_col}" IS NOT NULL
+                                        GROUP BY {group_expr}, "{safe_col}"
+                                    ) sub
+                                    WHERE rn = 1
+                                )
+                                UPDATE {tq} t
+                                SET "{safe_new}" = COALESCE(t."{safe_col}", m.mode_val)
+                                FROM mode_vals m
+                                WHERE {join_cond}
+                            """)
+                        else:
+                            await self._exec(f"""
+                                WITH mode_val AS (
+                                    SELECT "{safe_col}" AS mode_value
+                                    FROM {tq}
                                     WHERE "{safe_col}" IS NOT NULL
-                                    GROUP BY {group_expr}, "{safe_col}"
-                                ) sub
-                                WHERE rn = 1
-                            )
-                            UPDATE {qualified} t
-                            SET "{safe_new}" = COALESCE(t."{safe_col}", m.mode_val)
-                            FROM mode_vals m
-                            WHERE {join_cond}
-                        """)
-                    else:
-                        await self._exec(f"""
-                            WITH mode_val AS (
-                                SELECT "{safe_col}" AS mode_value
-                                FROM {qualified}
-                                WHERE "{safe_col}" IS NOT NULL
-                                GROUP BY "{safe_col}"
-                                ORDER BY COUNT(*) DESC
-                                LIMIT 1
-                            )
-                            UPDATE {qualified}
-                            SET "{safe_new}" = COALESCE("{safe_col}", (SELECT mode_value FROM mode_val))
-                        """)
-                elif isinstance(self.db, ClickHouseAdapter):
-                    if group_cols:
-                        # ClickHouse doesn't support UPDATE FROM, recreate table via JOIN
-                        await self._exec(f'ALTER TABLE {qualified} DROP COLUMN "{safe_new}"')
-                        temp_table = f"{table}__temp"
-                        qualified_temp = self._qualified_table(temp_table, schema)
-                        await self._exec(f"DROP TABLE IF EXISTS {qualified_temp}")
-                        
-                        await self._exec(f"""
-                            CREATE TABLE {qualified_temp} AS
-                            SELECT t.*,
-                                COALESCE(t."{safe_col}", m.mode_val) AS "{safe_new}"
-                            FROM {qualified} t
-                            LEFT JOIN (
-                                SELECT {group_expr}, "{safe_col}" AS mode_val
-                                FROM (
-                                    SELECT {group_expr}, "{safe_col}",
-                                        COUNT(*) AS cnt,
-                                        ROW_NUMBER() OVER (
-                                            PARTITION BY {group_expr}
-                                            ORDER BY COUNT(*) DESC
-                                        ) AS rn
-                                    FROM {qualified}
-                                    WHERE "{safe_col}" IS NOT NULL
-                                    GROUP BY {group_expr}, "{safe_col}"
-                                ) sub
-                                WHERE rn = 1
-                            ) m ON {join_cond}
-                        """)
-                        await self._exec(f"DROP TABLE {qualified}")
-                        await self._exec(f"RENAME TABLE {qualified_temp} TO {qualified}")
-                    else:
-                        await self._exec(f"""
-                            ALTER TABLE {qualified} 
-                            UPDATE "{safe_new}" = COALESCE(
-                                "{safe_col}", 
-                                (SELECT "{safe_col}" FROM {qualified} WHERE "{safe_col}" IS NOT NULL GROUP BY "{safe_col}" ORDER BY COUNT(*) DESC LIMIT 1)
-                            ) WHERE 1
-                        """)
-                else:
-                    raise self._unsupported_backend_error()
+                                    GROUP BY "{safe_col}"
+                                    ORDER BY COUNT(*) DESC
+                                    LIMIT 1
+                                )
+                                UPDATE {tq}
+                                SET "{safe_new}" = COALESCE("{safe_col}", (SELECT mode_value FROM mode_val))
+                            """)
+                    elif isinstance(self.db, ClickHouseAdapter):
+                        if group_cols:
+                            # ClickHouse doesn't support UPDATE FROM, recreate table via JOIN
+                            await self._exec(f'ALTER TABLE {tq} DROP COLUMN "{safe_new}"')
+                            temp_table = f"{table}__temp"
+                            qualified_temp = self._qualified_table(temp_table, schema)
+                            await self._exec(f"DROP TABLE IF EXISTS {qualified_temp}")
 
-                fill_value = "group_mode" if group_cols else "mode"
+                            await self._exec(f"""
+                                CREATE TABLE {qualified_temp} AS
+                                SELECT t.*,
+                                    COALESCE(t."{safe_col}", m.mode_val) AS "{safe_new}"
+                                FROM {tq} t
+                                LEFT JOIN (
+                                    SELECT {group_expr}, "{safe_col}" AS mode_val
+                                    FROM (
+                                        SELECT {group_expr}, "{safe_col}",
+                                            COUNT(*) AS cnt,
+                                            ROW_NUMBER() OVER (
+                                                PARTITION BY {group_expr}
+                                                ORDER BY COUNT(*) DESC
+                                            ) AS rn
+                                        FROM {tq}
+                                        WHERE "{safe_col}" IS NOT NULL
+                                        GROUP BY {group_expr}, "{safe_col}"
+                                    ) sub
+                                    WHERE rn = 1
+                                ) m ON {join_cond}
+                            """)
+                            await self._exec(f"DROP TABLE {tq}")
+                            await self._exec(f"RENAME TABLE {qualified_temp} TO {tq}")
+                        else:
+                            await self._exec(f"""
+                                ALTER TABLE {tq} 
+                                UPDATE "{safe_new}" = COALESCE(
+                                    "{safe_col}", 
+                                    (SELECT "{safe_col}" FROM {tq} WHERE "{safe_col}" IS NOT NULL GROUP BY "{safe_col}" ORDER BY COUNT(*) DESC LIMIT 1)
+                                ) WHERE 1
+                            """)
+                    else:
+                        raise self._unsupported_backend_error()
+
+                    return "group_mode" if group_cols else "mode"
+
+            fill_value = await _apply(qualified)
+
+            # Mirror the new column onto the original table (in-place mutation)
+            await self._add_new_column_if_not_exists(original, schema, new_col, col_type)
+            await _apply(self._qualified_table(original, schema))
 
             # ----------------------------------------
             # METRICS
@@ -1950,6 +2056,7 @@ class DataCleaningOps:
         new_table: Optional[str] = None,
     ) -> Dict[str, Any]:
         try:
+            original = table
             involved_cols = [*(group_cols or []), column]
             table = await self._prepare_column_operation_table(
                 table,
@@ -2005,194 +2112,198 @@ class DataCleaningOps:
             # ----------------------------------------
             # FFILL / BFILL
             # ----------------------------------------
-            if mode in ["FFILL", "BFILL"]:
+            async def _apply(tq):
+                if mode in ["FFILL", "BFILL"]:
 
-                if isinstance(self.db, PostgresAdapter):
-                    row_id = "ctid"
-                elif isinstance(self.db, DuckDBAdapter):
-                    row_id = "rowid"
-                else:
-                    raise self._unsupported_backend_error()
-
-                if isinstance(self.db, PostgresAdapter):
-                    if mode == "FFILL":
-                        window_expr = f'''
-                            MAX("{safe_col}") OVER (
-                                {partition}
-                                ORDER BY __idx
-                                ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-                            )
-                        '''
+                    if isinstance(self.db, PostgresAdapter):
+                        row_id = "ctid"
+                    elif isinstance(self.db, DuckDBAdapter):
+                        row_id = "rowid"
                     else:
-                        window_expr = f'''
-                            MIN("{safe_col}") OVER (
-                                {partition}
-                                ORDER BY __idx
-                                ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING
-                            )
-                        '''
-                elif isinstance(self.db, DuckDBAdapter):
-                    if mode == "FFILL":
-                        window_expr = f'''
-                            LAST_VALUE("{safe_col}" IGNORE NULLS)
-                            OVER (
-                                {partition}
-                                ORDER BY __idx
-                                ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-                            )
-                        '''
+                        raise self._unsupported_backend_error()
+
+                    if isinstance(self.db, PostgresAdapter):
+                        if mode == "FFILL":
+                            window_expr = f'''
+                                MAX("{safe_col}") OVER (
+                                    {partition}
+                                    ORDER BY __idx
+                                    ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                                )
+                            '''
+                        else:
+                            window_expr = f'''
+                                MIN("{safe_col}") OVER (
+                                    {partition}
+                                    ORDER BY __idx
+                                    ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING
+                                )
+                            '''
+                    elif isinstance(self.db, DuckDBAdapter):
+                        if mode == "FFILL":
+                            window_expr = f'''
+                                LAST_VALUE("{safe_col}" IGNORE NULLS)
+                                OVER (
+                                    {partition}
+                                    ORDER BY __idx
+                                    ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                                )
+                            '''
+                        else:
+                            window_expr = f'''
+                                FIRST_VALUE("{safe_col}" IGNORE NULLS)
+                                OVER (
+                                    {partition}
+                                    ORDER BY __idx
+                                    ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING
+                                )
+                            '''
                     else:
-                        window_expr = f'''
-                            FIRST_VALUE("{safe_col}" IGNORE NULLS)
-                            OVER (
-                                {partition}
-                                ORDER BY __idx
-                                ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING
-                            )
-                        '''
+                        raise self._unsupported_backend_error()
+
+                    await self._exec(f"""
+                        WITH base AS (
+                            SELECT *,
+                                ROW_NUMBER() OVER () AS __idx,
+                                {row_id} AS __rid
+                            FROM {tq}
+                        ),
+                        filled AS (
+                            SELECT *,
+                                {window_expr} AS filled_val
+                            FROM base
+                        )
+                        UPDATE {tq} t
+                        SET "{safe_new}" = COALESCE(t."{safe_col}", f.filled_val)
+                        FROM filled f
+                        WHERE t.{row_id} = f.__rid
+                    """)
+
+                    return mode
+
                 else:
-                    raise self._unsupported_backend_error()
-
-                await self._exec(f"""
-                    WITH base AS (
-                        SELECT *,
-                            ROW_NUMBER() OVER () AS __idx,
-                            {row_id} AS __rid
-                        FROM {qualified}
-                    ),
-                    filled AS (
-                        SELECT *,
-                            {window_expr} AS filled_val
-                        FROM base
-                    )
-                    UPDATE {qualified} t
-                    SET "{safe_new}" = COALESCE(t."{safe_col}", f.filled_val)
-                    FROM filled f
-                    WHERE t.{row_id} = f.__rid
-                """)
-
-                fill_value = mode
-
-            # ----------------------------------------
-            # 🔥 FIXED STAT MODES
-            # ----------------------------------------
-            else:
-
-                if isinstance(self.db, PostgresAdapter):
-                    stat_map = {
-                        "MIN": f'MIN("{safe_col}")',
-                        "MAX": f'MAX("{safe_col}")',
-                        "MEAN": f'TO_TIMESTAMP(AVG(EXTRACT(EPOCH FROM "{safe_col}")))',
-                        "MEDIAN": f'''
-                            TO_TIMESTAMP(
-                                PERCENTILE_CONT(0.5)
-                                WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM "{safe_col}"))
-                            )
-                        ''',
-                        "MODE": f'''
-                            (
-                                SELECT "{safe_col}"
-                                FROM {qualified}
-                                WHERE "{safe_col}" IS NOT NULL
-                                GROUP BY "{safe_col}"
-                                ORDER BY COUNT(*) DESC
-                                LIMIT 1
-                            )
-                        '''
-                    }
-                elif isinstance(self.db, DuckDBAdapter):
-                    stat_map = {
-                        "MIN": f'MIN("{safe_col}")',
-                        "MAX": f'MAX("{safe_col}")',
-                        "MEAN": f'TO_TIMESTAMP(AVG(EPOCH("{safe_col}")))',
-                        "MEDIAN": f'TO_TIMESTAMP(MEDIAN(EPOCH("{safe_col}")))',
-                        "MODE": f'''
-                            (
-                                SELECT "{safe_col}"
-                                FROM {qualified}
-                                WHERE "{safe_col}" IS NOT NULL
-                                GROUP BY "{safe_col}"
-                                ORDER BY COUNT(*) DESC
-                                LIMIT 1
-                            )
-                        '''
-                    }
-                elif isinstance(self.db, ClickHouseAdapter):
-                    stat_map = {
-                        "MIN": f'min("{safe_col}")',
-                        "MAX": f'max("{safe_col}")',
-                        "MEAN": f'toDateTime(toUInt32(avg(toUnixTimestamp("{safe_col}"))))',
-                        "MEDIAN": f'toDateTime(toUInt32(quantile(0.5)(toUnixTimestamp("{safe_col}"))))',
-                        "MODE": f'(SELECT "{safe_col}" FROM {qualified} WHERE "{safe_col}" IS NOT NULL GROUP BY "{safe_col}" ORDER BY COUNT(*) DESC LIMIT 1)'
-                    }
-                else:
-                    raise self._unsupported_backend_error()
-
-                stat_expr = stat_map[mode]
-
-                if group_cols:
-                    if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
-                        await self._exec(f"""
-                            WITH grouped AS (
-                                SELECT {group_expr},
-                                    {stat_expr} AS val
-                                FROM {qualified}
-                                GROUP BY {group_expr}
-                            ),
-                            global_stat AS (
-                                SELECT COALESCE({stat_expr}, CURRENT_TIMESTAMP) AS val
-                                FROM {qualified}
-                            )
-                            UPDATE {qualified} t
-                            SET "{safe_new}" = COALESCE(
-                                t."{safe_col}",
-                                g.val,
-                                (SELECT val FROM global_stat)
-                            )
-                            FROM grouped g
-                            WHERE {join_cond}
-                        """)
+                    if isinstance(self.db, PostgresAdapter):
+                        stat_map = {
+                            "MIN": f'MIN("{safe_col}")',
+                            "MAX": f'MAX("{safe_col}")',
+                            "MEAN": f'TO_TIMESTAMP(AVG(EXTRACT(EPOCH FROM "{safe_col}")))',
+                            "MEDIAN": f'''
+                                TO_TIMESTAMP(
+                                    PERCENTILE_CONT(0.5)
+                                    WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM "{safe_col}"))
+                                )
+                            ''',
+                            "MODE": f'''
+                                (
+                                    SELECT "{safe_col}"
+                                    FROM {tq}
+                                    WHERE "{safe_col}" IS NOT NULL
+                                    GROUP BY "{safe_col}"
+                                    ORDER BY COUNT(*) DESC
+                                    LIMIT 1
+                                )
+                            '''
+                        }
+                    elif isinstance(self.db, DuckDBAdapter):
+                        stat_map = {
+                            "MIN": f'MIN("{safe_col}")',
+                            "MAX": f'MAX("{safe_col}")',
+                            "MEAN": f'TO_TIMESTAMP(AVG(EPOCH("{safe_col}")))',
+                            "MEDIAN": f'TO_TIMESTAMP(MEDIAN(EPOCH("{safe_col}")))',
+                            "MODE": f'''
+                                (
+                                    SELECT "{safe_col}"
+                                    FROM {tq}
+                                    WHERE "{safe_col}" IS NOT NULL
+                                    GROUP BY "{safe_col}"
+                                    ORDER BY COUNT(*) DESC
+                                    LIMIT 1
+                                )
+                            '''
+                        }
                     elif isinstance(self.db, ClickHouseAdapter):
-                        await self._exec(f'ALTER TABLE {qualified} DROP COLUMN "{safe_new}"')
-                        temp_table = f"{table}__temp"
-                        qualified_temp = self._qualified_table(temp_table, schema)
-                        await self._exec(f"DROP TABLE IF EXISTS {qualified_temp}")
-                        
-                        await self._exec(f"""
-                            CREATE TABLE {qualified_temp} AS
-                            SELECT t.*,
-                                COALESCE(
+                        stat_map = {
+                            "MIN": f'min("{safe_col}")',
+                            "MAX": f'max("{safe_col}")',
+                            "MEAN": f'toDateTime(toUInt32(avg(toUnixTimestamp("{safe_col}"))))',
+                            "MEDIAN": f'toDateTime(toUInt32(quantile(0.5)(toUnixTimestamp("{safe_col}"))))',
+                            "MODE": f'(SELECT "{safe_col}" FROM {tq} WHERE "{safe_col}" IS NOT NULL GROUP BY "{safe_col}" ORDER BY COUNT(*) DESC LIMIT 1)'
+                        }
+                    else:
+                        raise self._unsupported_backend_error()
+
+                    stat_expr = stat_map[mode]
+
+                    if group_cols:
+                        if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+                            await self._exec(f"""
+                                WITH grouped AS (
+                                    SELECT {group_expr},
+                                        {stat_expr} AS val
+                                    FROM {tq}
+                                    GROUP BY {group_expr}
+                                ),
+                                global_stat AS (
+                                    SELECT COALESCE({stat_expr}, CURRENT_TIMESTAMP) AS val
+                                    FROM {tq}
+                                )
+                                UPDATE {tq} t
+                                SET "{safe_new}" = COALESCE(
                                     t."{safe_col}",
                                     g.val,
-                                    (SELECT {stat_expr} FROM {qualified})
-                                ) AS "{safe_new}"
-                            FROM {qualified} t
-                            LEFT JOIN (
-                                SELECT {group_expr}, {stat_expr} AS val
-                                FROM {qualified}
-                                GROUP BY {group_expr}
-                            ) g ON {join_cond}
-                        """)
-                        await self._exec(f"DROP TABLE {qualified}")
-                        await self._exec(f"RENAME TABLE {qualified_temp} TO {qualified}")
-                else:
-                    if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
-                        await self._exec(f"""
-                            WITH stat_val AS (
-                                SELECT {stat_expr} AS val
-                                FROM {qualified}
-                                WHERE "{safe_col}" IS NOT NULL
-                            )
-                            UPDATE {qualified}
-                            SET "{safe_new}" = COALESCE("{safe_col}", (SELECT val FROM stat_val))
-                        """)
-                    elif isinstance(self.db, ClickHouseAdapter):
-                        await self._exec(f"""
-                            ALTER TABLE {qualified} 
-                            UPDATE "{safe_new}" = COALESCE("{safe_col}", (SELECT {stat_expr} FROM {qualified} WHERE "{safe_col}" IS NOT NULL))
-                            WHERE 1
-                        """)
-                    fill_value = mode
+                                    (SELECT val FROM global_stat)
+                                )
+                                FROM grouped g
+                                WHERE {join_cond}
+                            """)
+                        elif isinstance(self.db, ClickHouseAdapter):
+                            await self._exec(f'ALTER TABLE {tq} DROP COLUMN "{safe_new}"')
+                            temp_table = f"{table}__temp"
+                            qualified_temp = self._qualified_table(temp_table, schema)
+                            await self._exec(f"DROP TABLE IF EXISTS {qualified_temp}")
+
+                            await self._exec(f"""
+                                CREATE TABLE {qualified_temp} AS
+                                SELECT t.*,
+                                    COALESCE(
+                                        t."{safe_col}",
+                                        g.val,
+                                        (SELECT {stat_expr} FROM {tq})
+                                    ) AS "{safe_new}"
+                                FROM {tq} t
+                                LEFT JOIN (
+                                    SELECT {group_expr}, {stat_expr} AS val
+                                    FROM {tq}
+                                    GROUP BY {group_expr}
+                                ) g ON {join_cond}
+                            """)
+                            await self._exec(f"DROP TABLE {tq}")
+                            await self._exec(f"RENAME TABLE {qualified_temp} TO {tq}")
+                        return None
+                    else:
+                        if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+                            await self._exec(f"""
+                                WITH stat_val AS (
+                                    SELECT {stat_expr} AS val
+                                    FROM {tq}
+                                    WHERE "{safe_col}" IS NOT NULL
+                                )
+                                UPDATE {tq}
+                                SET "{safe_new}" = COALESCE("{safe_col}", (SELECT val FROM stat_val))
+                            """)
+                        elif isinstance(self.db, ClickHouseAdapter):
+                            await self._exec(f"""
+                                ALTER TABLE {tq} 
+                                UPDATE "{safe_new}" = COALESCE("{safe_col}", (SELECT {stat_expr} FROM {tq} WHERE "{safe_col}" IS NOT NULL))
+                                WHERE 1
+                            """)
+                        return mode
+
+            fill_value = await _apply(qualified)
+
+            # Mirror the new column onto the original table (in-place mutation)
+            await self._add_new_column_if_not_exists(original, schema, new_col, "TIMESTAMP")
+            await _apply(self._qualified_table(original, schema))
 
             # ----------------------------------------
             # METRICS
