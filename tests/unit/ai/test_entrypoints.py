@@ -35,7 +35,7 @@ def test_aenable_agent_stores_settings():
     assert m._ai_settings is settings
     assert settings.api_key == "k"
     assert settings.provider == "openai"
-    assert settings.model == "gpt-5-mini"
+    assert settings.model == "gpt-5.5"
 
 
 def test_aenable_agent_requires_api_key():

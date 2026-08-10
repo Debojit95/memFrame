@@ -9,4 +9,10 @@ echo "Running commit checks. To bypass this hook, commit with: git commit --no-v
 echo "==> ruff check src/"
 uv run ruff check src/ || exit 1
 
-scripts/run-commit-checks.sh
+echo "==> std tests (unit)"
+uv run python tests/run_tests.py --scope unit
+rc=$?
+if [ $rc -ne 0 ]; then
+  echo "==> Commit checks FAILED (rc=$rc)" >&2
+fi
+exit $rc

@@ -28,12 +28,14 @@ find . \( -path "./src/*" -o -path "./tests/*" \) -name "__pycache__" -type d -e
 
 echo "==> Running commit checks via tests/run_tests.py"
 
-python tests/run_tests.py \
+uv run python tests/run_tests.py \
   --backend duckdb,postgres,clickhouse \
   --upload-type csv,parquet \
   --schema-prefix "mf_$$_commit" \
   --require-upload-file \
   --tox
-
-echo "==> Commit checks completed."
-exit 0
+rc=$?
+if [ $rc -ne 0 ]; then
+  echo "==> Commit checks FAILED (rc=$rc)" >&2
+fi
+exit $rc

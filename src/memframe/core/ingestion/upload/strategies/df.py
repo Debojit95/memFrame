@@ -110,10 +110,10 @@ class DfUploadStrategy(UploadStrategy):
         if schema_changed:
             await self._uploader._cast_table_in_place(final_table, columns, schema)
 
-        upload_name = filename or f"dataframe_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
-        upload_name = Path(upload_name).name
-        if not upload_name.lower().endswith(".csv"):
-            upload_name = f"{upload_name}.csv"
+        if filename:
+            upload_name = Path(filename).name
+        else:
+            upload_name = f"dataframe_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
 
         row_count = await self._uploader.fetchval(f"SELECT COUNT(*) FROM {final_table}")
 
