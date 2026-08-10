@@ -1,7 +1,6 @@
 import logging
 from typing import Any, List, Optional, Tuple
 
-from memframe.core.ingestion.datatype_detector import Backend
 from memframe.db_manager.setup.base import DatabaseBackend
 from memframe.exceptions import ConfigurationError, ConnectionNotReady
 

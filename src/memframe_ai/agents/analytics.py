@@ -1,7 +1,6 @@
 import functools
 import time
 import asyncio
-from typing import Any, Optional
 
 from pydantic_ai import Agent
 from pydantic_ai.toolsets import FunctionToolset

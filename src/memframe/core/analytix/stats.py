@@ -1114,7 +1114,6 @@ class DataStatsOps:
                     return self._success_response(f"Theil's U '{column1}' → '{column2}': N/A", [column1, column2], result=None)
                 df = pd.DataFrame([dict(r) for r in rows])
                 total = float(df["cnt"].sum())
-                pxy = df["cnt"] / total
                 py = df.groupby("y")["cnt"].sum() / total
                 h_y = float(-(py * py.apply(lambda p: 0.0 if p <= 0 else np.log(p))).sum())
                 if h_y == 0:
@@ -1213,8 +1212,7 @@ class DataStatsOps:
                     base_table, schema, backend=backend, data_id=data_id, new_table=new_table
                 )
 
-                concat_fn = " || '|' || " if isinstance(self.db, (PostgresAdapter, DuckDBAdapter)) else " concat('|', "
-                # PG/Duck: "c1" || '|' || "c2" 
+                # PG/Duck: "c1" || '|' || "c2"
                 # Clickhouse: concat("c1", '|', "c2")
                 if isinstance(self.db, ClickHouseAdapter):
                     combined = ", '|', ".join(f'"{c}"' for c in qcols)
@@ -1308,7 +1306,7 @@ class DataStatsOps:
 
                 if is_date_only:
                     if isinstance(self.db, ClickHouseAdapter):
-                        from_epoch_expr = f"toDate(value_epoch)"
+                        from_epoch_expr = "toDate(value_epoch)"
                     else:
                         from_epoch_expr = f"CAST({from_epoch_expr} AS DATE)"
 
@@ -1358,7 +1356,7 @@ class DataStatsOps:
 
                 if is_date_only:
                     if isinstance(self.db, ClickHouseAdapter):
-                        from_epoch_expr = f"toDate(value_epoch)"
+                        from_epoch_expr = "toDate(value_epoch)"
                     else:
                         from_epoch_expr = f"CAST({from_epoch_expr} AS DATE)"
 

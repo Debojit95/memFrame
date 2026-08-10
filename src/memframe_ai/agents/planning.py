@@ -11,6 +11,8 @@ from typing import Optional
 from pydantic import BaseModel
 from pydantic_ai import Agent
 
+from memframe_ai.observe import logger
+
 
 class SubQueryNode(BaseModel):
     """One sub-query step returned by the planner."""
@@ -119,6 +121,3 @@ class PlannerAgent:
 # ── kept for backward compat if anything imports render_plan ────────────
 def render_plan(items) -> str:
     return "(structured planner — render_plan unused)"
-
-
-from memframe_ai.observe import logger

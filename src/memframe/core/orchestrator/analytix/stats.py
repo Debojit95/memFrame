@@ -1,6 +1,5 @@
 from typing import Any, Dict, List
 import numpy as np
-import pandas as pd
 from memframe.core.ingestion.datatype_detector import DatatypeDetector
 from memframe.core.analytix.stats import DataStatsOps
 from memframe.cache import record_call

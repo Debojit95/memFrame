@@ -1,5 +1,5 @@
 import logging
-from typing import Any, List, Optional, Tuple
+from typing import Optional, Tuple
 
 from memframe.db_manager.setup.base import DatabaseBackend
 from memframe.exceptions import ConfigurationError
@@ -20,7 +20,6 @@ def _sanitize_schema_name(value: str) -> str:
 
 class DuckDBBackend(DatabaseBackend):
     backend = "duckdb"
-    placeholder = lambda self, i: "?"
 
     def __init__(self, conn_params: dict):
         super().__init__(conn_params)

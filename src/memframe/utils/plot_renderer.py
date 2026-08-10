@@ -60,7 +60,7 @@ def smart_show(fig, filename="plot.html"):
     - Fallback -> save HTML and open manually
     """
 
-    renderer = setup_plotly_renderer()
+    setup_plotly_renderer()
 
     try:
         fig.show()

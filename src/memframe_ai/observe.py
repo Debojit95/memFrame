@@ -11,6 +11,10 @@ many requests each run consumed.
 
 import logging
 import time
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from pydantic_ai.capabilities.hooks import Hooks
 
 logger = logging.getLogger("memFrame")
 

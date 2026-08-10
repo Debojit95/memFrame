@@ -1,0 +1,112 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  UPLOAD_CSV_FILEPATH: tests/datasets/sample.csv
+  UPLOAD_PARQUET_FILEPATH: tests/datasets/sample.parquet
+  DUCKDB_UPLOAD_DB_BACKEND: duckdb
+  DUCKDB_UPLOAD_DB_PARAMS: '{"db_path":"memFrame_new.duckdb"}'
+  DUCKDB_DB_PARAMS: '{"db_path":"memFrame_new.duckdb"}'
+  POSTGRES_UPLOAD_DB_BACKEND: postgres
+  POSTGRES_UPLOAD_DB_PARAMS: '{"backend":"postgres","host":"localhost","port":5723,"user":"postgres","password":"memframe","database":"memframe"}'
+  POSTGRES_DB_PARAMS: '{"backend":"postgres","host":"localhost","port":5723,"user":"postgres","password":"memframe","database":"memframe"}'
+  POSTGRES_USER: postgres
+  POSTGRES_PASSWORD: memframe
+  POSTGRES_DB: memframe
+  CLICKHOUSE_UPLOAD_DB_BACKEND: clickhouse
+  CLICKHOUSE_UPLOAD_DB_PARAMS: '{"backend":"clickhouse","host":"localhost","port":8123,"user":"default","password":"memframe"}'
+  CLICKHOUSE_DB_PARAMS: '{"backend":"clickhouse","host":"localhost","port":8123,"user":"default","password":"memframe"}'
+  CLICKHOUSE_USER: default
+  CLICKHOUSE_PASSWORD: memframe
+
+jobs:
+  ruff:
+    name: Ruff lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uvx ruff check src/
+
+  unit:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --extra dev --extra ai
+      - run: python tests/run_tests.py --scope unit
+
+  tox:
+    name: Tox py${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: uvx tox -e py${{ matrix.python-version }} -- tests/unit
+
+  integration:
+    name: Integration (non-blocking)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ${{ env.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ env.POSTGRES_PASSWORD }}
+          POSTGRES_DB: ${{ env.POSTGRES_DB }}
+        ports:
+          - 5723:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d memframe"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      clickhouse:
+        image: clickhouse/clickhouse-server:24.8
+        env:
+          CLICKHOUSE_USER: ${{ env.CLICKHOUSE_USER }}
+          CLICKHOUSE_PASSWORD: ${{ env.CLICKHOUSE_PASSWORD }}
+        ports:
+          - 8123:8123
+        options: >-
+          --health-cmd "clickhouse-client --user default --password memframe --query 'SELECT 1'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --extra dev --extra ai
+      - name: Write check environment
+        run: |
+          {
+            echo "UPLOAD_CSV_FILEPATH=$UPLOAD_CSV_FILEPATH"
+            echo "UPLOAD_PARQUET_FILEPATH=$UPLOAD_PARQUET_FILEPATH"
+            echo "DUCKDB_UPLOAD_DB_BACKEND=$DUCKDB_UPLOAD_DB_BACKEND"
+            echo "DUCKDB_UPLOAD_DB_PARAMS='$DUCKDB_UPLOAD_DB_PARAMS'"
+            echo "DUCKDB_DB_PARAMS='$DUCKDB_DB_PARAMS'"
+            echo "POSTGRES_UPLOAD_DB_BACKEND=$POSTGRES_UPLOAD_DB_BACKEND"
+            echo "POSTGRES_UPLOAD_DB_PARAMS='$POSTGRES_UPLOAD_DB_PARAMS'"
+            echo "POSTGRES_DB_PARAMS='$POSTGRES_DB_PARAMS'"
+            echo "CLICKHOUSE_UPLOAD_DB_BACKEND=$CLICKHOUSE_UPLOAD_DB_BACKEND"
+            echo "CLICKHOUSE_UPLOAD_DB_PARAMS='$CLICKHOUSE_UPLOAD_DB_PARAMS'"
+            echo "CLICKHOUSE_DB_PARAMS='$CLICKHOUSE_DB_PARAMS'"
+          } > .env.test
+      - name: Run integration tests (duckdb, postgres, clickhouse)
+        run: python tests/run_tests.py --scope integration,ops --backend all --upload-type csv,parquet

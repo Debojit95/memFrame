@@ -4,6 +4,13 @@
 
 # memFrame
 
+[![PyPI - Version](https://img.shields.io/pypi/v/memframe)](https://pypi.org/project/memframe/)
+[![PyPI - Python Versions](https://img.shields.io/pypi/pyversions/memframe)](https://pypi.org/project/memframe/)
+[![PyPI - License](https://img.shields.io/pypi/l/memframe)](https://pypi.org/project/memframe/)
+[![PyPI - Downloads](https://img.shields.io/pypi/dm/memframe)](https://pypi.org/project/memframe/)
+[![CI](https://img.shields.io/github/actions/workflow/status/Debojit95/memFrame/ci.yml)](https://github.com/Debojit95/memFrame/actions/workflows/ci.yml)
+[![Tox](https://img.shields.io/github/actions/workflow/status/Debojit95/memFrame/tox.yml)](https://github.com/Debojit95/memFrame/actions/workflows/tox.yml)
+
 memFrame is a Python package for working with database-backed DataFrame operations. It lets you upload CSV files, Parquet files, and pandas DataFrames into a local DuckDB database or a remote PostgreSQL/Clickhouse database, then run DataFrame-style inspection, selection, cleaning, and table-management operations through one consistent API.
 
 The package is designed for workflows where data may be larger than what you want to repeatedly pull into memory, while still keeping a familiar pandas-like developer experience.
@@ -20,17 +27,31 @@ The package is designed for workflows where data may be larger than what you wan
 
 ## Installation
 
+memFrame requires Python 3.10 or newer.
+
 ```bash
+# pip
 pip install memframe
+
+# uv
+uv add memframe
+```
+
+The optional AI chat layer (`memframe_ai`) pulls in pydantic-ai and is installed separately:
+
+```bash
+# pip
+pip install "memframe[ai]"
+
+# uv
+uv add "memframe[ai]"
 ```
 
 For local development from this repository:
 
 ```bash
-pip install -e .
+pip install -e ".[dev,ai]"
 ```
-
-memFrame requires Python 3.10 or newer.
 
 ## Quick Start
 

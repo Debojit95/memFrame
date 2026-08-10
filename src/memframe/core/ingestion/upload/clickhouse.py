@@ -5,7 +5,7 @@ import pyarrow as pa
 from memframe.core.ingestion.upload.base import Uploader
 
 if TYPE_CHECKING:
-    import pandas as pd
+    pass
 
 
 logger = logging.getLogger("memFrame")

@@ -1,21 +1,12 @@
-import csv
-import io
-import os
-import tempfile
 import logging
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union, TYPE_CHECKING
+from typing import Any, Dict, List, TYPE_CHECKING
 
-import numpy as np
 import pyarrow as pa
-import pyarrow.csv as pcsv
-import pyarrow.parquet as pq
 
 from memframe.core.ingestion.upload.base import Uploader
-from memframe.core.ingestion.datatype_detector import Backend
 
 if TYPE_CHECKING:
-    import pandas as pd
+    pass
 
 
 logger = logging.getLogger("memFrame")
