@@ -617,7 +617,7 @@ class DataStatsOps:
                 sql = f'''
                     WITH lagged AS (
                         SELECT "{c}" AS cur, LAG("{c}", {lag}) OVER (ORDER BY (SELECT NULL)) AS prev
-                        FROM {q} WHERE "{c}" IS NOT NULL
+                        FROM {q}
                     )
                     SELECT CORR(cur, prev) FROM lagged WHERE cur IS NOT NULL AND prev IS NOT NULL
                 '''
@@ -630,7 +630,7 @@ class DataStatsOps:
                 sql = f'''
                     WITH lagged AS (
                         SELECT "{c}" AS cur, lagInFrame("{c}", {lag}) OVER (ORDER BY (SELECT NULL)) AS prev
-                        FROM {q} WHERE "{c}" IS NOT NULL
+                        FROM {q}
                     )
                     SELECT corr(cur, prev) FROM lagged WHERE cur IS NOT NULL AND prev IS NOT NULL
                 '''

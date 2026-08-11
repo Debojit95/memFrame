@@ -5,11 +5,10 @@
 # memFrame
 
 [![PyPI - Version](https://img.shields.io/pypi/v/memframe)](https://pypi.org/project/memframe/)
-[![Python - 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)](https://pypi.org/project/memframe/)
+[![Tox](https://img.shields.io/github/actions/workflow/status/Debojit95/memFrame/tox.yml)](https://github.com/Debojit95/memFrame/actions/workflows/tox.yml)
 [![License - AGPL-3.0](https://img.shields.io/github/license/Debojit95/memFrame)](https://github.com/Debojit95/memFrame/blob/main/LICENSE)
 [![PyPI - Downloads](https://img.shields.io/pypi/dm/memframe)](https://pypi.org/project/memframe/)
 [![CI](https://img.shields.io/github/actions/workflow/status/Debojit95/memFrame/ci.yml)](https://github.com/Debojit95/memFrame/actions/workflows/ci.yml)
-[![Tox](https://img.shields.io/github/actions/workflow/status/Debojit95/memFrame/tox.yml)](https://github.com/Debojit95/memFrame/actions/workflows/tox.yml)
 
 memFrame is a Python package for working with database-backed DataFrame operations. It lets you upload CSV files, Parquet files, and pandas DataFrames into a local DuckDB database or a remote PostgreSQL/Clickhouse database, then run DataFrame-style inspection, selection, cleaning, and table-management operations through one consistent API.
 

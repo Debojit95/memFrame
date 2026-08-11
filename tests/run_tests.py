@@ -268,7 +268,7 @@ def main() -> int:
                 check(f"upload {upload_type} {backend}", cmd, integration_args)
 
     if run_tox:
-        tox_args = ["uv", "run", "tox", "-p", "auto", "-e", "py310,py311,py312,py313"]
+        tox_args = ["uv", "run", "tox", "-p", "auto", "-e", "py310,py311,py312,py313", "--", "tests/unit"]
         if args.tox_recreate:
             tox_args.insert(3, "-r")
         check("tox py310 py311 py312 py313", tox_args)

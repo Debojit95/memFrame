@@ -80,6 +80,8 @@ class CsvUploadStrategy(UploadStrategy):
                     locked_cols=set(dtypes or {}),
                 )
             except Exception as exc:
+                if isinstance(exc, ConfigurationError):
+                    raise
                 logger.warning(
                     f"Typed CSV upload failed ({type(exc).__name__}: {exc}); "
                     "retrying as all-text then casting."

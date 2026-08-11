@@ -775,12 +775,16 @@ class TestSelectionOperations:
         # Alice (row 0) keeps her score
         assert wdf.iloc[0]["score"] == 95.5
 
+        # Bob (row 1, score 88.0) matches and keeps his values
+        assert wdf.iloc[1]["id"] == 102
+        assert wdf.iloc[1]["score"] == 88.0
+
         # Charlie (row 2) should have NULL score because his score is NaN (not > 85)
         assert pd.isna(wdf.iloc[2]["score"])
 
-        # Non‑matching row (id=102, row 1) – all columns become NULL
-        assert pd.isna(wdf.iloc[1]["id"])
-        assert pd.isna(wdf.iloc[1]["score"])
+        # Non‑matching row (id=104, row 3) – all columns become NULL
+        assert pd.isna(wdf.iloc[3]["id"])
+        assert pd.isna(wdf.iloc[3]["score"])
 
     # ------------------------------------------------------------------
     # select_dtypes
