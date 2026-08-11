@@ -5,8 +5,8 @@
 # memFrame
 
 [![PyPI - Version](https://img.shields.io/pypi/v/memframe)](https://pypi.org/project/memframe/)
-[![PyPI - Python Versions](https://img.shields.io/pypi/pyversions/memframe)](https://pypi.org/project/memframe/)
-[![PyPI - License](https://img.shields.io/pypi/l/memframe)](https://pypi.org/project/memframe/)
+[![Python - 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)](https://pypi.org/project/memframe/)
+[![License - AGPL-3.0](https://img.shields.io/github/license/Debojit95/memFrame)](https://github.com/Debojit95/memFrame/blob/main/LICENSE)
 [![PyPI - Downloads](https://img.shields.io/pypi/dm/memframe)](https://pypi.org/project/memframe/)
 [![CI](https://img.shields.io/github/actions/workflow/status/Debojit95/memFrame/ci.yml)](https://github.com/Debojit95/memFrame/actions/workflows/ci.yml)
 [![Tox](https://img.shields.io/github/actions/workflow/status/Debojit95/memFrame/tox.yml)](https://github.com/Debojit95/memFrame/actions/workflows/tox.yml)
