@@ -20,8 +20,6 @@ class PostgresAdapter(DatabaseAdapter):
             "password": conn_params["password"],
             "database": conn_params["database"],
         }
-        if "schema_prefix" in conn_params:
-            params["schema_prefix"] = conn_params["schema_prefix"]
         return params
 
     async def execute(self, sql: str, *args):

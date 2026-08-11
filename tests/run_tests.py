@@ -95,13 +95,6 @@ def backend_params(backend: str, args, label: str) -> dict | None:
     return None
 
 
-def schema_prefixed(params: dict, backend: str, prefix: str) -> dict:
-    if prefix and backend != "duckdb":
-        params = dict(params)
-        params["schema_prefix"] = prefix
-    return params
-
-
 def upload_args(args, upload_type: str) -> list[str]:
     if upload_type == "df":
         return ["--upload-type", "df"]
@@ -150,7 +143,6 @@ def build_parser() -> argparse.ArgumentParser:
         parser.add_argument(f"--{b}-params", help=f"JSON connection params for {b}")
     parser.add_argument("--upload-csv", help="Path to the CSV file used by upload tests")
     parser.add_argument("--upload-parquet", help="Path to the Parquet file used by upload tests")
-    parser.add_argument("--schema-prefix", help="Schema prefix for postgres/clickhouse isolation")
     parser.add_argument("--tox", action="store_true", help="Also run tox across py310-py313")
     parser.add_argument("--tox-recreate", action="store_true", help="Recreate tox environments")
     parser.add_argument(
@@ -237,7 +229,7 @@ def main() -> int:
                 continue
 
             def fresh_params() -> str:
-                p = schema_prefixed(dict(params), backend, args.schema_prefix)
+                p = dict(params)
                 if backend == "duckdb" and not (getattr(args, f"{backend}_params") or os.getenv(ENV_PARAMS[backend])):
                     p = default_duckdb_params(label)
                 return json.dumps(p, separators=(",", ":"))

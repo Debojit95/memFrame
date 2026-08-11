@@ -251,7 +251,7 @@ class ClickHouseAdapter(DatabaseAdapter):
             "user": conn_params["user"],
             "password": conn_params["password"],
         }
-        for optional_key in ("database", "secure", "timeout", "schema_prefix"):
+        for optional_key in ("database", "secure", "timeout"):
             if optional_key in conn_params:
                 params[optional_key] = conn_params[optional_key]
         return params

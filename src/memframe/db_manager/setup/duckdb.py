@@ -2,20 +2,8 @@ import logging
 from typing import Optional, Tuple
 
 from memframe.db_manager.setup.base import DatabaseBackend
-from memframe.exceptions import ConfigurationError
 
 logger = logging.getLogger(__name__)
-
-
-def _sanitize_schema_name(value: str) -> str:
-    import re
-    name = re.sub(r"[^A-Za-z0-9_]", "_", value.strip())
-    name = re.sub(r"_+", "_", name).strip("_")
-    if not name:
-        raise ConfigurationError("schema_prefix must contain at least one alphanumeric character")
-    if name[0].isdigit():
-        name = f"mf_{name}"
-    return name.lower()
 
 
 class DuckDBBackend(DatabaseBackend):
@@ -23,19 +11,9 @@ class DuckDBBackend(DatabaseBackend):
 
     def __init__(self, conn_params: dict):
         super().__init__(conn_params)
-        schema_prefix = conn_params.get("schema_prefix")
-        if schema_prefix:
-            prefix = _sanitize_schema_name(str(schema_prefix))
-            self.upload_schema = f"{prefix}_upload"
-            self.transient_schema = f"{prefix}_transient"
-            self.registry_schema = f"{prefix}_registry"
-        else:
-            self.upload_schema = "upload"
-            self.transient_schema = "transient"
-            self.registry_schema = "registry"
-
-    def _sanitize_schema_name(self, name: str) -> str:
-        return _sanitize_schema_name(name)
+        self.upload_schema = "upload"
+        self.transient_schema = "transient"
+        self.registry_schema = "registry"
 
     async def _setup_database(self) -> None:
         for schema in (self.upload_schema, self.transient_schema, self.registry_schema):

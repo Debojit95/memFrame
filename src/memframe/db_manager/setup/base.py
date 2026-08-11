@@ -3,20 +3,9 @@ from abc import ABC, abstractmethod
 from typing import Any, List, Optional, Tuple
 
 from memframe.core.ingestion.datatype_detector import DatatypeDetector
-from memframe.exceptions import ConfigurationError, ConnectionNotReady
+from memframe.exceptions import ConnectionNotReady
 
 logger = logging.getLogger(__name__)
-
-
-def _sanitize_schema_name(value: str) -> str:
-    import re
-    name = re.sub(r"[^A-Za-z0-9_]", "_", value.strip())
-    name = re.sub(r"_+", "_", name).strip("_")
-    if not name:
-        raise ConfigurationError("schema_prefix must contain at least one alphanumeric character")
-    if name[0].isdigit():
-        name = f"mf_{name}"
-    return name.lower()
 
 
 class DatabaseBackend(ABC):
@@ -41,10 +30,6 @@ class DatabaseBackend(ABC):
     @property
     @abstractmethod
     def placeholder(self) -> str:
-        pass
-
-    @abstractmethod
-    def _sanitize_schema_name(self, name: str) -> str:
         pass
 
     @abstractmethod

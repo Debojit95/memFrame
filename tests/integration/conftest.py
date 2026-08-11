@@ -102,7 +102,7 @@ def _validate_port(value: Any) -> int:
 
 
 def _validate_postgres_params(params: Dict[str, Any]) -> Dict[str, Any]:
-    allowed = {"backend", "host", "port", "user", "password", "database", "schema_prefix"}
+    allowed = {"backend", "host", "port", "user", "password", "database"}
     unknown = sorted(set(params) - allowed)
     if unknown:
         raise _usage_error(f"Postgres does not accept params: {', '.join(unknown)}")
@@ -128,7 +128,7 @@ def _env_bool(name: str, default: bool = False) -> bool:
 
 
 def _validate_clickhouse_params(params: Dict[str, Any]) -> Dict[str, Any]:
-    allowed = {"backend", "host", "port", "user", "password", "database", "secure", "timeout", "schema_prefix"}
+    allowed = {"backend", "host", "port", "user", "password", "database", "secure", "timeout"}
     unknown = sorted(set(params) - allowed)
     if unknown:
         raise _usage_error(f"ClickHouse does not accept params: {', '.join(unknown)}")

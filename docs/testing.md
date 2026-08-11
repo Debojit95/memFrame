@@ -43,7 +43,6 @@ python tests/run_tests.py --backend all --tox
 | `--upload-type` | Comma-separated `csv,parquet,df`, `all`, or `none`. |
 | `--<backend>-params` | JSON connection params (e.g. `--duckdb-params '{"db_path":"/tmp/x.duckdb"}'`). Falls back to `DUCKDB_DB_PARAMS`, `POSTGRES_DB_PARAMS`, `CLICKHOUSE_DB_PARAMS` env vars. |
 | `--upload-csv` / `--upload-parquet` | Source files for upload tests. Falls back to `UPLOAD_CSV_FILEPATH` / `UPLOAD_PARQUET_FILEPATH`. |
-| `--schema-prefix` | Schema prefix for Postgres/ClickHouse isolation across concurrent runs. |
 | `--require-upload-file` | Fail if an upload source file is missing, instead of skipping that upload test. |
 | `-v`, `--verbose` | Pass `-v` to every pytest run for verbose output. |
 | `--save-to-file` | Pass `--save-to-file` to integration runs so they save expected-vs-actual PDF reports under `tests/integration/ops/result/` (one PDF per operation test module). |
@@ -134,14 +133,13 @@ python tests/run_tests.py --backend duckdb
 
 ### PostgreSQL / ClickHouse (remote)
 
-Provide connection params via CLI or env. Postgres and ClickHouse use a
-`schema_prefix` to keep parallel runs isolated.
+Provide connection params via CLI or env.
 
 ```bash
 POSTGRES_DB_PARAMS='{"backend":"postgres","host":"localhost","port":5432,"user":"postgres","password":"secret","database":"memframe_test"}' \
 python tests/run_tests.py --backend postgres
 
-python tests/run_tests.py --backend postgres,clickhouse --schema-prefix mf_dev
+python tests/run_tests.py --backend postgres,clickhouse
 ```
 
 The commit-checks workflow (`.github/workflows/commit-checks.yml`) starts

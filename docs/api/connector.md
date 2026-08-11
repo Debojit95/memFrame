@@ -73,7 +73,6 @@ Parameters:
 | `user` | Yes | None | Database user. |
 | `password` | Yes | None | Database password. |
 | `database` | Yes | None | Target database name. memFrame attempts to create it when it is missing and the user has permission. |
-| `schema_prefix` | No | None | Prefix for memFrame-managed schemas. Useful for test isolation or shared databases. |
 
 ## ClickHouse
 
@@ -111,29 +110,6 @@ Parameters:
 | `database` | No | server default | Database used for ClickHouse tables. |
 | `secure` | No | `False` | Whether to use HTTPS for the backend connection. |
 | `timeout` | No | `10.0` | Request timeout in seconds. |
-| `schema_prefix` | No | None | Prefix for memFrame-managed schemas or database namespaces where supported. |
-
-## Schema Prefixes
-
-When `schema_prefix` is provided, memFrame derives isolated schema names for
-uploads, transient operation tables, and registry tables:
-
-```python
-mf = MemFrame(
-    connection_type="remote",
-    connection_params={
-        "backend": "postgres",
-        "host": "localhost",
-        "user": "postgres",
-        "password": "secret",
-        "database": "memframe",
-        "schema_prefix": "demo",
-    },
-)
-```
-
-This creates names such as `demo_upload`, `demo_transient`, and
-`demo_registry` after sanitization.
 
 ## Connection Lifecycle
 

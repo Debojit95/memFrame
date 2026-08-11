@@ -31,7 +31,6 @@ echo "==> Running commit checks via tests/run_tests.py"
 uv run python tests/run_tests.py \
   --backend duckdb,postgres,clickhouse \
   --upload-type csv,parquet \
-  --schema-prefix "mf_$$_commit" \
   --require-upload-file \
   --tox
 rc=$?

@@ -16,16 +16,6 @@ class TestSchemaNaming:
         assert duckdb_backend.transient_schema == "transient"
         assert duckdb_backend.registry_schema == "registry"
 
-    def test_schema_prefix_namespacing(self):
-        backend = create_backend(Backend.DUCKDB, {"db_path": ":memory:", "schema_prefix": "test"})
-        assert backend.upload_schema == "test_upload"
-        assert backend.transient_schema == "test_transient"
-        assert backend.registry_schema == "test_registry"
-
-    def test_schema_prefix_sanitized(self):
-        backend = create_backend(Backend.DUCKDB, {"db_path": ":memory:", "schema_prefix": "My-App!"})
-        assert backend.upload_schema == "my_app_upload"
-
 
 class TestTableNaming:
     def test_get_upload_table_name(self, duckdb_backend):

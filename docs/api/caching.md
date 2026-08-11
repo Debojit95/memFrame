@@ -107,8 +107,8 @@ The transient registry lives in the backend registry schema:
 | PostgreSQL | `registry.transient_registry` | `transient` |
 | ClickHouse | `registry.transient_registry` | `transient` |
 
-With a `schema_prefix`, registry and transient schemas are namespaced
-accordingly (see [Connector](connector.md)).
+Registry and transient schemas are fixed: `registry`, `transient`, and
+`upload`.
 
 ## Cache-key and registry index
 
