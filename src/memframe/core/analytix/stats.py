@@ -453,19 +453,26 @@ class DataStatsOps:
                 q = self._qualified_table(table, schema)
                 c = SQLIdentifierSanitizer.sanitize(column)
                 col = f'"{c}"::DOUBLE PRECISION'
+                # ponytail: pandas Series.skew() uses the bias-corrected sample
+                # (Fisher–Pearson) skew: g1 = n/((n-1)(n-2)) * sum((x-mean)/s)^3
+                # with s = sample stddev (ddof=1). The prior population formula
+                # (STDDEV_POP, no n/((n-1)(n-2)) factor) diverged for small n.
+                # n is cast to DOUBLE PRECISION to avoid Postgres integer
+                # division in the n/((n-1)(n-2)) factor (COUNT returns bigint).
                 sql = f"""
                     WITH stats AS (
                         SELECT
                             AVG({col}) AS mean_val,
-                            STDDEV_POP({col}) AS std_val,
-                            COUNT({col}) AS n
+                            STDDEV_SAMP({col}) AS std_val,
+                            COUNT({col})::DOUBLE PRECISION AS n
                         FROM {q}
                         WHERE "{c}" IS NOT NULL
                     )
                     SELECT
                         CASE
-                            WHEN stats.n = 0 OR stats.std_val = 0 THEN NULL
-                            ELSE AVG(POWER({col} - stats.mean_val, 3))
+                            WHEN stats.n < 3 OR stats.std_val = 0 OR stats.std_val IS NULL THEN NULL
+                            ELSE (stats.n / ((stats.n - 1) * (stats.n - 2)))
+                                 * SUM(POWER({col} - stats.mean_val, 3))
                                  / POWER(stats.std_val, 3)
                         END
                     FROM {q}
@@ -486,7 +493,35 @@ class DataStatsOps:
             elif isinstance(self.db, ClickHouseAdapter):
                 q = self._qualified_table(table, schema)
                 c = SQLIdentifierSanitizer.sanitize(column)
-                sql = f'SELECT skewPop("{c}") FROM {q} WHERE "{c}" IS NOT NULL'
+                # ponytail: ClickHouse's skewSamp uses a different bias-correction
+                # than pandas. Match pandas's G1 = n/((n-1)(n-2)) * sum((x-mean)/s)^3
+                # with s = stddevSamp explicitly. CTEs avoid the unsupported correlated
+                # subquery; scalar subqueries referencing CTEs are non-correlated.
+                sql = f"""
+                    WITH stats AS (
+                        SELECT
+                            avg("{c}") AS mean_val,
+                            stddevSamp("{c}") AS std_val,
+                            count() AS n
+                        FROM {q}
+                        WHERE "{c}" IS NOT NULL
+                    ),
+                    deviations AS (
+                        SELECT sum(power("{c}" - (SELECT mean_val FROM stats), 3)) AS sum3
+                        FROM {q}
+                        WHERE "{c}" IS NOT NULL
+                    )
+                    SELECT
+                        CASE
+                            WHEN (SELECT n FROM stats) < 3
+                              OR (SELECT std_val FROM stats) = 0
+                              OR (SELECT std_val FROM stats) IS NULL THEN NULL
+                            ELSE ((SELECT n FROM stats) / ((SELECT n FROM stats) - 1)
+                                   / ((SELECT n FROM stats) - 2))
+                                 * (SELECT sum3 FROM deviations)
+                                 / power((SELECT std_val FROM stats), 3)
+                        END
+                """
                 val = await self._fetchval(sql)
                 msg = f"Skewness of '{column}': {val:.4f}" if val is not None else "N/A"
                 return self._success_response(msg, result=val)
@@ -501,20 +536,31 @@ class DataStatsOps:
                 q = self._qualified_table(table, schema)
                 c = SQLIdentifierSanitizer.sanitize(column)
                 col = f'"{c}"::DOUBLE PRECISION'
+                # ponytail: pandas Series.kurtosis() uses the bias-corrected
+                # sample excess kurtosis:
+                #   g2 = n(n+1)/((n-1)(n-2)(n-3)) * sum((x-mean)/s)^4
+                #        - 3(n-1)^2/((n-2)(n-3))   (s = sample stddev, ddof=1)
+                # The prior population formula (STDDEV_POP, AVG(...)-3) diverged
+                # for small n. n is cast to DOUBLE PRECISION to avoid Postgres
+                # integer division in the n*(n+1)/(...) factor.
                 sql = f"""
                     WITH stats AS (
                         SELECT
                             AVG({col}) AS mean_val,
-                            STDDEV_POP({col}) AS std_val,
-                            COUNT({col}) AS n
+                            STDDEV_SAMP({col}) AS std_val,
+                            COUNT({col})::DOUBLE PRECISION AS n
                         FROM {q}
                         WHERE "{c}" IS NOT NULL
                     )
                     SELECT
                         CASE
-                            WHEN stats.n = 0 OR stats.std_val = 0 THEN NULL
-                            ELSE AVG(POWER({col} - stats.mean_val, 4))
-                                 / POWER(stats.std_val, 4) - 3
+                            WHEN stats.n < 4 OR stats.std_val = 0 OR stats.std_val IS NULL THEN NULL
+                            ELSE ((stats.n * (stats.n + 1))
+                                  / ((stats.n - 1) * (stats.n - 2) * (stats.n - 3)))
+                                 * SUM(POWER({col} - stats.mean_val, 4))
+                                 / POWER(stats.std_val, 4)
+                                 - (3.0 * POWER(stats.n - 1, 2))
+                                   / ((stats.n - 2) * (stats.n - 3))
                         END
                     FROM {q}
                     CROSS JOIN stats
@@ -534,7 +580,40 @@ class DataStatsOps:
             elif isinstance(self.db, ClickHouseAdapter):
                 q = self._qualified_table(table, schema)
                 c = SQLIdentifierSanitizer.sanitize(column)
-                sql = f'SELECT kurtPop("{c}") FROM {q} WHERE "{c}" IS NOT NULL'
+                # ponytail: ClickHouse's kurtSamp uses a different bias-correction
+                # than pandas. Match pandas's sample excess kurtosis explicitly:
+                #   g2 = n(n+1)/((n-1)(n-2)(n-3)) * sum((x-mean)/s)^4
+                #        - 3(n-1)^2/((n-2)(n-3))   (s = stddevSamp)
+                sql = f"""
+                    WITH stats AS (
+                        SELECT
+                            avg("{c}") AS mean_val,
+                            stddevSamp("{c}") AS std_val,
+                            count() AS n
+                        FROM {q}
+                        WHERE "{c}" IS NOT NULL
+                    ),
+                    deviations AS (
+                        SELECT sum(power("{c}" - (SELECT mean_val FROM stats), 4)) AS sum4
+                        FROM {q}
+                        WHERE "{c}" IS NOT NULL
+                    )
+                    SELECT
+                        CASE
+                            WHEN (SELECT n FROM stats) < 4
+                              OR (SELECT std_val FROM stats) = 0
+                              OR (SELECT std_val FROM stats) IS NULL THEN NULL
+                            ELSE ((SELECT n FROM stats) * ((SELECT n FROM stats) + 1))
+                                 / ((SELECT n FROM stats) - 1)
+                                 / ((SELECT n FROM stats) - 2)
+                                 / ((SELECT n FROM stats) - 3)
+                                 * (SELECT sum4 FROM deviations)
+                                 / power((SELECT std_val FROM stats), 4)
+                                 - (3.0 * power((SELECT n FROM stats) - 1, 2))
+                                   / (((SELECT n FROM stats) - 2)
+                                      * ((SELECT n FROM stats) - 3))
+                        END
+                """
                 val = await self._fetchval(sql)
                 msg = f"Kurtosis of '{column}': {val:.4f}" if val is not None else "N/A"
                 return self._success_response(msg, result=val)
@@ -1047,7 +1126,8 @@ class DataStatsOps:
                         FROM expected, grand_total gt
                     )
                     SELECT CASE WHEN rows = 1 OR cols = 1 THEN 0
-                            ELSE SQRT(chi2 / (n * LEAST(rows-1, cols-1))) END as V
+                            ELSE SQRT(chi2 / (n * LEAST(rows-1, cols-1)))::DOUBLE PRECISION
+                            END as V
                     FROM chi
                 '''
                 val = await self._fetchval(sql)
@@ -1396,9 +1476,11 @@ class DataStatsOps:
                 q = self._qualified_table(table, schema)
                 c = SQLIdentifierSanitizer.sanitize(column)
                 if isinstance(self.db, PostgresAdapter):
+                    # ponytail: cast to DOUBLE PRECISION so asyncpg returns a
+                    # float, not Decimal — np.allclose trips on Decimal-vs-float.
                     diff_expr = (
-                        f'EXTRACT(EPOCH FROM CAST(b."{c}" AS TIMESTAMP)) - '
-                        f'EXTRACT(EPOCH FROM CAST(a."{c}" AS TIMESTAMP))'
+                        f'(EXTRACT(EPOCH FROM CAST(b."{c}" AS TIMESTAMP)) - '
+                        f' EXTRACT(EPOCH FROM CAST(a."{c}" AS TIMESTAMP)))::DOUBLE PRECISION'
                     )
                 elif isinstance(self.db, DuckDBAdapter):
                     diff_expr = f'epoch(CAST(b."{c}" AS TIMESTAMP)) - epoch(CAST(a."{c}" AS TIMESTAMP))'
