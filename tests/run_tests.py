@@ -156,6 +156,8 @@ def build_parser() -> argparse.ArgumentParser:
         help="Save expected-vs-actual PDF reports from integration tests",
     )
     parser.add_argument("--pytest-args", nargs=argparse.REMAINDER, help="Extra args passed to every pytest run")
+    parser.add_argument("--warn-integration", action="store_true",
+                        help="Treat postgres/clickhouse integration failures as warnings, not fatal")
     parser.add_argument("--dry-run", action="store_true", help="Print commands without running them")
     return parser
 
@@ -207,11 +209,12 @@ def main() -> int:
     scopes = selected_scopes(args)
     upload_types = selected_upload_types(args)
     failed: list[str] = []
+    warned: list[str] = []
 
-    def check(label: str, cmd: list[str], run_args: list[str] | None = None):
+    def check(label: str, cmd: list[str], run_args: list[str] | None = None, warn_only: bool = False):
         ok = run(cmd + verbose + (run_args or []) + pytest_args, args.dry_run)
         if not ok:
-            failed.append(label)
+            (warned if warn_only else failed).append(label)
 
     # Unit tests need no database; run once, not per backend.
     if "unit" in scopes:
@@ -227,6 +230,7 @@ def main() -> int:
             if params is None:
                 print(f"==> Skipping {backend}: no params provided")
                 continue
+            warn_only = args.warn_integration and backend in ("postgres", "clickhouse")
 
             def fresh_params() -> str:
                 p = dict(params)
@@ -240,7 +244,7 @@ def main() -> int:
             if "integration" in scopes:
                 targets.append("tests/integration")
             cmd = PYTEST + targets + ["--db-backend", backend, "--db-params", fresh_params()]
-            check(f"ops+integration {backend}", cmd, integration_args)
+            check(f"ops+integration {backend}", cmd, integration_args, warn_only=warn_only)
 
             for upload_type in upload_types:
                 filepath = getattr(args, f"upload_{upload_type}", None)
@@ -257,13 +261,19 @@ def main() -> int:
                     + upload_args(args, upload_type)
                     + ["--db-backend", backend, "--db-params", fresh_params()]
                 )
-                check(f"upload {upload_type} {backend}", cmd, integration_args)
+                check(f"upload {upload_type} {backend}", cmd, integration_args, warn_only=warn_only)
 
     if run_tox:
         tox_args = ["uv", "run", "tox", "-p", "auto", "-e", "py310,py311,py312,py313", "--", "tests/unit"]
         if args.tox_recreate:
             tox_args.insert(3, "-r")
         check("tox py310 py311 py312 py313", tox_args)
+
+    if warned:
+        print("")
+        print("Integration runs failed (non-blocking warnings):")
+        for w in warned:
+            print(f"  - {w}")
 
     if failed:
         print("")

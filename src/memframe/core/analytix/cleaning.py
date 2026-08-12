@@ -1073,14 +1073,32 @@ class DataCleaningOps:
                         WHERE tgt."{safe_col}" = freq."{safe_col}"
                     """)
                 elif isinstance(self.db, ClickHouseAdapter):
+                    # ponytail: ClickHouse has no correlated subqueries inside
+                    # ALTER TABLE ... UPDATE, so the prior per-row COUNT collapsed
+                    # to a total and rare categories were never replaced. Rebuild
+                    # via a grouped freq LEFT JOIN (same idiom as the stat-groupby
+                    # ClickHouse branch below).
+                    await self._exec(f'ALTER TABLE {tq} DROP COLUMN "{safe_new}"')
+                    temp_table = f"{table}__temp"
+                    qualified_temp = self._qualified_table(temp_table, schema)
+                    await self._exec(f"DROP TABLE IF EXISTS {qualified_temp}")
                     await self._exec(f"""
-                        ALTER TABLE {tq}
-                        UPDATE "{safe_new}" = CASE
-                            WHEN (SELECT COUNT(*) FROM {tq} freq WHERE freq."{safe_col}" = {tq}."{safe_col}") < {min_count} THEN '{other_esc}'
-                            ELSE "{safe_col}"
-                        END
-                        WHERE 1
+                        CREATE TABLE {qualified_temp} AS
+                        SELECT t.*,
+                            CASE
+                                WHEN freq.cnt IS NULL OR freq.cnt < {min_count} THEN '{other_esc}'
+                                ELSE t."{safe_col}"
+                            END AS "{safe_new}"
+                        FROM {tq} t
+                        LEFT JOIN (
+                            SELECT "{safe_col}", COUNT(*) AS cnt
+                            FROM {tq}
+                            WHERE "{safe_col}" IS NOT NULL
+                            GROUP BY "{safe_col}"
+                        ) freq ON t."{safe_col}" = freq."{safe_col}"
                     """)
+                    await self._exec(f"DROP TABLE {tq}")
+                    await self._exec(f"RENAME TABLE {qualified_temp} TO {tq}")
                 else:
                     raise self._unsupported_backend_error()
 
@@ -1160,7 +1178,7 @@ class DataCleaningOps:
                     if isinstance(self.db, PostgresAdapter):
                         await self._exec(
                             f'UPDATE {tq} SET "{safe_new}" = COALESCE("{safe_col}", $1::TIMESTAMP)',
-                            str(value),
+                            pd.Timestamp(value).to_pydatetime(),
                         )
                     elif isinstance(self.db, DuckDBAdapter):
                         await self._exec(
@@ -1232,23 +1250,49 @@ class DataCleaningOps:
                     else:
                         raise self._unsupported_backend_error()
 
-                    await self._exec(f"""
-                        WITH base AS (
-                            SELECT *,
-                                ROW_NUMBER() OVER () AS __idx,
-                                {row_id} AS __rid
-                            FROM {tq}
-                        ),
-                        filled AS (
-                            SELECT *,
-                                {window_expr} AS filled_val
-                            FROM base
-                        )
-                        UPDATE {tq} t
-                        SET "{safe_new}" = COALESCE(t."{safe_col}", f.filled_val)
-                        FROM filled f
-                        WHERE t.{row_id} = f.__rid
-                    """)
+                    if isinstance(self.db, PostgresAdapter):
+                        temp_table = f"{table}__fill_temp"
+                        qualified_temp = self._qualified_table(temp_table, schema)
+                        cols = ", ".join(f'"{c}"' for c in (safe_group_cols + [safe_col]))
+                        bare_name = f"{tq}".split(".", 1)[-1]
+                        await self._exec(f"DROP TABLE IF EXISTS {qualified_temp}")
+                        await self._exec(f"""
+                            CREATE TABLE {qualified_temp} AS
+                            SELECT {cols}, COALESCE("{safe_col}", filled_val) AS "{safe_new}"
+                            FROM (
+                                WITH base AS (
+                                    SELECT *,
+                                        ROW_NUMBER() OVER (ORDER BY ctid) AS __idx
+                                    FROM {tq}
+                                ),
+                                filled AS (
+                                    SELECT *, {window_expr} AS filled_val
+                                    FROM base
+                                )
+                                SELECT * FROM filled
+                            ) sub
+                            ORDER BY __idx
+                        """)
+                        await self._exec(f"DROP TABLE {tq}")
+                        await self._exec(f"ALTER TABLE {qualified_temp} RENAME TO {bare_name}")
+                    else:
+                        await self._exec(f"""
+                            WITH base AS (
+                                SELECT *,
+                                    ROW_NUMBER() OVER () AS __idx,
+                                    {row_id} AS __rid
+                                FROM {tq}
+                            ),
+                            filled AS (
+                                SELECT *,
+                                    {window_expr} AS filled_val
+                                FROM base
+                            )
+                            UPDATE {tq} t
+                            SET "{safe_new}" = COALESCE(t."{safe_col}", f.filled_val)
+                            FROM filled f
+                            WHERE t.{row_id} = f.__rid
+                        """)
 
                     return mode
 
@@ -2115,6 +2159,65 @@ class DataCleaningOps:
             async def _apply(tq):
                 if mode in ["FFILL", "BFILL"]:
 
+                    if isinstance(self.db, ClickHouseAdapter):
+                        # ponytail: ClickHouse has no LAST/FIRST_VALUE IGNORE NULLS,
+                        # so use the cumulative-non-null-count "islands and gaps"
+                        # idiom — each row's island id is the count of non-null
+                        # values seen so far (asc for FFILL, desc for BFILL). Every
+                        # island has exactly one non-null anchor; null rows inherit
+                        # its value. Rebuild via temp table (same idiom as the
+                        # stat-groupby ClickHouse branch below).
+                        order_dir = "DESC" if mode == "BFILL" else "ASC"
+                        if safe_group_cols:
+                            fm_select = ", ".join(f'"{c}"' for c in safe_group_cols) + ", "
+                            fm_group = "GROUP BY " + ", ".join(f'"{c}"' for c in safe_group_cols) + ", _island_id"
+                            fm_join = " AND ".join(
+                                [f'b."{c}" = fm."{c}"' for c in safe_group_cols]
+                                + ["b._island_id = fm._island_id"]
+                            )
+                        else:
+                            fm_select = ""
+                            fm_group = "GROUP BY _island_id"
+                            fm_join = "b._island_id = fm._island_id"
+
+                        await self._exec(f'ALTER TABLE {tq} DROP COLUMN "{safe_new}"')
+                        temp_table = f"{table}__temp"
+                        qualified_temp = self._qualified_table(temp_table, schema)
+                        await self._exec(f"DROP TABLE IF EXISTS {qualified_temp}")
+                        await self._exec(f"""
+                            CREATE TABLE {qualified_temp} AS
+                            WITH base AS (
+                                SELECT t.*, ROW_NUMBER() OVER () AS __idx
+                                FROM {tq} t
+                            ),
+                            with_island AS (
+                                SELECT b.*,
+                                    countIf(isNotNull("{safe_col}")) OVER (
+                                        {partition}
+                                        ORDER BY __idx {order_dir}
+                                        ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                                    ) AS _island_id
+                                FROM base b
+                            ),
+                            fill_map AS (
+                                SELECT
+                                    {fm_select}
+                                    _island_id,
+                                    any("{safe_col}") AS fill_val
+                                FROM with_island
+                                WHERE "{safe_col}" IS NOT NULL
+                                {fm_group}
+                            )
+                            SELECT b.*,
+                                COALESCE(b."{safe_col}", fm.fill_val) AS "{safe_new}"
+                            FROM with_island b
+                            LEFT JOIN fill_map fm ON {fm_join}
+                            ORDER BY b.__idx
+                        """)
+                        await self._exec(f"DROP TABLE {tq}")
+                        await self._exec(f"RENAME TABLE {qualified_temp} TO {tq}")
+                        return mode
+
                     if isinstance(self.db, PostgresAdapter):
                         row_id = "ctid"
                     elif isinstance(self.db, DuckDBAdapter):
@@ -2161,23 +2264,49 @@ class DataCleaningOps:
                     else:
                         raise self._unsupported_backend_error()
 
-                    await self._exec(f"""
-                        WITH base AS (
-                            SELECT *,
-                                ROW_NUMBER() OVER () AS __idx,
-                                {row_id} AS __rid
-                            FROM {tq}
-                        ),
-                        filled AS (
-                            SELECT *,
-                                {window_expr} AS filled_val
-                            FROM base
-                        )
-                        UPDATE {tq} t
-                        SET "{safe_new}" = COALESCE(t."{safe_col}", f.filled_val)
-                        FROM filled f
-                        WHERE t.{row_id} = f.__rid
-                    """)
+                    if isinstance(self.db, PostgresAdapter):
+                        temp_table = f"{table}__fill_temp"
+                        qualified_temp = self._qualified_table(temp_table, schema)
+                        cols = ", ".join(f'"{c}"' for c in (safe_group_cols + [safe_col]))
+                        bare_name = f"{tq}".split(".", 1)[-1]
+                        await self._exec(f"DROP TABLE IF EXISTS {qualified_temp}")
+                        await self._exec(f"""
+                            CREATE TABLE {qualified_temp} AS
+                            SELECT {cols}, COALESCE("{safe_col}", filled_val) AS "{safe_new}"
+                            FROM (
+                                WITH base AS (
+                                    SELECT *,
+                                        ROW_NUMBER() OVER (ORDER BY ctid) AS __idx
+                                    FROM {tq}
+                                ),
+                                filled AS (
+                                    SELECT *, {window_expr} AS filled_val
+                                    FROM base
+                                )
+                                SELECT * FROM filled
+                            ) sub
+                            ORDER BY __idx
+                        """)
+                        await self._exec(f"DROP TABLE {tq}")
+                        await self._exec(f"ALTER TABLE {qualified_temp} RENAME TO {bare_name}")
+                    else:
+                        await self._exec(f"""
+                            WITH base AS (
+                                SELECT *,
+                                    ROW_NUMBER() OVER () AS __idx,
+                                    {row_id} AS __rid
+                                FROM {tq}
+                            ),
+                            filled AS (
+                                SELECT *,
+                                    {window_expr} AS filled_val
+                                FROM base
+                            )
+                            UPDATE {tq} t
+                            SET "{safe_new}" = COALESCE(t."{safe_col}", f.filled_val)
+                            FROM filled f
+                            WHERE t.{row_id} = f.__rid
+                        """)
 
                     return mode
 

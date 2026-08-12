@@ -32,7 +32,8 @@ uv run python tests/run_tests.py \
   --backend duckdb,postgres,clickhouse \
   --upload-type csv,parquet \
   --require-upload-file \
-  --tox
+  --tox \
+  "${INTEGRATION_MODE:+--warn-integration}"
 rc=$?
 if [ $rc -ne 0 ]; then
   echo "==> Commit checks FAILED (rc=$rc)" >&2

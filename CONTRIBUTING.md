@@ -36,7 +36,6 @@ Version scheme:
 
 - `0.X.0` — feature addition (bump X, reset Y)
 - `0.X.Y` — bug fix only (bump Y)
-- `0.X.Y` with both bumped — feature + bug fix in the same release
 
 The first release uses the current `pyproject.toml` version as a bootstrap (no bump needed).
 
