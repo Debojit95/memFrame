@@ -280,8 +280,13 @@ class DataSelectionOps:
         normalized = self._normalize_asof_value(value, column_kind)
         if isinstance(self.db, PostgresAdapter):
             return normalized
-        if isinstance(normalized, (datetime, date)):
+        # ponytail: check datetime before date — datetime is a subclass of date.
+        # A bare date must serialize as "YYYY-MM-DD" or ClickHouse rejects it
+        # against a Date column (TYPE_MISMATCH); a datetime keeps its time.
+        if isinstance(normalized, datetime):
             return str(pd.Timestamp(normalized))
+        if isinstance(normalized, date):
+            return str(normalized)
         return normalized
 
     # ------------------------------------------------------------------
