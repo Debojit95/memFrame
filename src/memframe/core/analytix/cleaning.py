@@ -1253,7 +1253,7 @@ class DataCleaningOps:
                     if isinstance(self.db, PostgresAdapter):
                         temp_table = f"{table}__fill_temp"
                         qualified_temp = self._qualified_table(temp_table, schema)
-                        cols = ", ".join(f'"{c}"' for c in (safe_group_cols + [safe_col]))
+                        cols = ", ".join(f'"{c}"' for c in [safe_col])
                         bare_name = f"{tq}".split(".", 1)[-1]
                         await self._exec(f"DROP TABLE IF EXISTS {qualified_temp}")
                         await self._exec(f"""
