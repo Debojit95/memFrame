@@ -239,13 +239,22 @@ class Uploader:
 
     async def _insert_arrow_table_postgres_impl(self, final_table: str, arrow_table: pa.Table, columns: List[str]) -> None:
         full_table = arrow_table.rename_columns(columns)
+        # ponytail: csv.writer emits `""` (quoted empty) for single-column-None
+        # rows, which Postgres COPY CSV parses as the empty-string literal (not
+        # NULL) → numeric columns crash with `invalid input syntax for type
+        # double precision: ""`. Substitute `\N` (Postgres TEXT-format NULL
+        # convention) and tell Postgres `null='\N'`.
+        NULL_MARKER = "\\N"
         with io.BytesIO() as buf:
             text_writer = io.TextIOWrapper(buf, encoding="utf-8", write_through=True, newline="")
             writer = csv.writer(text_writer, quoting=csv.QUOTE_MINIMAL)
             for batch in full_table.to_batches(max_chunksize=10000):
                 cols_data = [list(batch.column(j).to_pylist()) for j in range(batch.num_columns)]
                 for i in range(batch.num_rows):
-                    row = [cols_data[j][i] for j in range(batch.num_columns)]
+                    row = [
+                        NULL_MARKER if cols_data[j][i] is None else cols_data[j][i]
+                        for j in range(batch.num_columns)
+                    ]
                     writer.writerow(row)
             text_writer.flush()
             text_writer.detach()
@@ -259,6 +268,7 @@ class Uploader:
                 format="csv",
                 header=False,
                 encoding="UTF8",
+                null=NULL_MARKER,
             )
 
     async def _insert_arrow_table_clickhouse(self, table_name: str, arrow_table: pa.Table) -> None:

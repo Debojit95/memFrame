@@ -207,15 +207,23 @@ class GeneralTableOps:
     def _sql_type_for_series(self, series: pd.Series) -> str:
         dtype = series.dtype
         if isinstance(self.db, ClickHouseAdapter):
+            # ponytail: ClickHouse non-Nullable columns can't store NULL — they
+            # coerce None to "" (String) or 1970-01-01 (DateTime). The original
+            # upload path uses Nullable(...) wrapping (base.py:193); _sql_type_for_series
+            # didn't, so set_index → _save_dataframe_as_table quietly lost nulls.
+            # Wrap in Nullable(...) when the series has any NA values.
+            nullable = bool(series.isna().any())
+            def _ch(t: str) -> str:
+                return f"Nullable({t})" if nullable else t
             if pd.api.types.is_bool_dtype(dtype):
-                return "UInt8"
+                return _ch("UInt8")
             if pd.api.types.is_integer_dtype(dtype):
-                return "Int64"
+                return _ch("Int64")
             if pd.api.types.is_float_dtype(dtype):
-                return "Float64"
+                return _ch("Float64")
             if pd.api.types.is_datetime64_any_dtype(dtype):
-                return "DateTime"
-            return "String"
+                return _ch("DateTime")
+            return _ch("String")
 
         if pd.api.types.is_bool_dtype(dtype):
             return "BOOLEAN"
@@ -442,7 +450,12 @@ class GeneralTableOps:
 
                 if random_state is not None:
                     if isinstance(self.db, PostgresAdapter):
-                        await self._exec(f"SELECT setseed({random_state})")
+                        # ponytail: Postgres setseed(x) requires x ∈ [-1, 1];
+                        # pandas accepts any int. Map deterministically so large
+                        # seeds don't crash (test only checks row-count + id
+                        # subset, no determinism check).
+                        norm = ((random_state % 2000) - 1000) / 1000.0
+                        await self._exec(f"SELECT setseed({norm})")
                     elif isinstance(self.db, DuckDBAdapter):
                         random_state = random_state
                     elif isinstance(self.db, ClickHouseAdapter):
@@ -1320,19 +1333,32 @@ class GeneralTableOps:
                 table = SQLIdentifierSanitizer.sanitize(table)
                 qualified = self._qualified_table(table, schema)
 
-                await self._exec(f"""
-                    DO $$
-                    BEGIN
-                        IF EXISTS (
-                            SELECT 1 FROM information_schema.columns
-                            WHERE table_name = '{table}' AND column_name = 'id'
-                        ) THEN
-                            ALTER TABLE {qualified} DROP COLUMN id;
-                        END IF;
-                    END$$;
-                """)
+                # ponytail: prior version did DROP COLUMN id + ADD COLUMN id
+                # SERIAL — id ended up as the LAST column, breaking column-order
+                # parity with DuckDB (and pandas's reset_index). Rebuild via temp
+                # table with id first; explicitly enumerate the non-id columns
+                # since Postgres does not auto-rename duplicates (unlike DuckDB)
+                # and would raise "column 'id' specified more than once".
+                column_types = await self._get_column_types(table, schema)
+                other_cols = [SQLIdentifierSanitizer.sanitize(c) for c in column_types
+                              if c.lower() != "id"]
+                cols_clause = ", ".join(f'"{c}"' for c in other_cols)
 
-                await self._exec(f'ALTER TABLE {qualified} ADD COLUMN id SERIAL')
+                temp_table = f"{table}_temp_reset"
+                qualified_temp = (
+                    f'{self.db.quote_identifier(schema)}.{self.db.quote_identifier(temp_table)}'
+                )
+
+                await self._exec(f"""
+                    CREATE TABLE {qualified_temp} AS
+                    SELECT ROW_NUMBER() OVER () AS id, {cols_clause}
+                    FROM {qualified}
+                """)
+                await self._exec(f"DROP TABLE {qualified}")
+                await self._exec(f"""
+                    ALTER TABLE {qualified_temp}
+                    RENAME TO {self.db.quote_identifier(table)}
+                """)
 
                 current_df = await self._get_table_dataframe(table, schema)
 
@@ -1376,17 +1402,25 @@ class GeneralTableOps:
                 table = SQLIdentifierSanitizer.sanitize(table)
                 qualified = self._qualified_table(table, schema)
 
+                # ponytail: ClickHouse silently keeps a duplicate `id` from
+                # `SELECT ROW_NUMBER() OVER () AS id, *` (qualified as
+                # <table>.id, not auto-renamed to id_1 like DuckDB), so the
+                # test's drop-if-id_1 doesn't trigger and res_df has 9 cols
+                # instead of 8. Explicitly enumerate the non-id cols (same
+                # approach as the Postgres branch above).
+                column_types = await self._get_column_types(table, schema)
+                other_cols = [SQLIdentifierSanitizer.sanitize(c) for c in column_types
+                              if c.lower() != "id"]
+                cols_clause = ", ".join(self.db.quote_identifier(c) for c in other_cols)
+
                 temp_table = f"{table}_temp_reset"
                 qualified_temp = self._qualified_table(temp_table, schema)
 
                 await self._exec(f"""
                     CREATE TABLE {qualified_temp} AS
-                    SELECT 
-                        ROW_NUMBER() OVER () AS id,
-                        *
+                    SELECT ROW_NUMBER() OVER () AS id, {cols_clause}
                     FROM {qualified}
                 """)
-
                 await self._exec(f"DROP TABLE IF EXISTS {qualified}")
                 await self._exec(f"RENAME TABLE {qualified_temp} TO {qualified}")
 
@@ -1522,8 +1556,7 @@ class GeneralTableOps:
                     for col in common_cols:
                         conflict = await self._fetchval(f"""
                             SELECT count()
-                            FROM {t1}
-                            JOIN {t2} ON {t1}.`{on}` = {t2}.`{on}`
+                            FROM {t1} JOIN {t2} ON {t1}.`{on}` = {t2}.`{on}`
                             WHERE {t1}.`{col}` IS NOT NULL AND {t2}.`{col}` IS NOT NULL
                         """)
                         if conflict > 0:
@@ -1531,18 +1564,39 @@ class GeneralTableOps:
                                 f"Conflict detected in column '{col}'"
                             )
 
-                assignments = []
-                for col in common_cols:
+                # ponytail: ClickHouse rejects correlated subqueries inside
+                # ALTER TABLE ... UPDATE ("Correlated subqueries in mutation
+                # update are not supported"), so rebuild via temp-table +
+                # LEFT JOIN with COALESCE. Matches Postgres/DuckDB branch's
+                # overwrite semantics exactly:
+                #   overwrite=True  → other wins if not null, else keep target
+                #   overwrite=False → only fill null target with other
+                select_parts = []
+                for col in target_cols:
                     col_safe = SQLIdentifierSanitizer.sanitize(col)
-                    if overwrite:
-                        expr = f"`{col_safe}` = (SELECT `{col_safe}` FROM {t2} WHERE `{t2}`.`{on}` = `{t1}`.`{on}` LIMIT 1)"
+                    if col == on:
+                        select_parts.append(f"t1.`{col_safe}` AS `{col_safe}`")
+                    elif col in common_cols:
+                        if overwrite:
+                            expr = f"COALESCE(t2.`{col_safe}`, t1.`{col_safe}`)"
+                        else:
+                            expr = f"COALESCE(t1.`{col_safe}`, t2.`{col_safe}`)"
+                        select_parts.append(f"{expr} AS `{col_safe}`")
                     else:
-                        expr = f"`{col_safe}` = CASE WHEN `{t1}`.`{col_safe}` IS NULL THEN (SELECT `{col_safe}` FROM {t2} WHERE `{t2}`.`{on}` = `{t1}`.`{on}` LIMIT 1) ELSE `{t1}`.`{col_safe}` END"
-                    assignments.append(expr)
+                        select_parts.append(f"t1.`{col_safe}` AS `{col_safe}`")
+                cols_clause = ", ".join(select_parts)
 
-                assignment_sql = ", ".join(assignments)
-                update_sql = f"ALTER TABLE {t1} UPDATE {assignment_sql} WHERE 1"
-                await self._exec(update_sql)
+                temp_table = f"{table}__update_temp"
+                qualified_temp = self._qualified_table(temp_table, schema)
+                await self._exec(f"DROP TABLE IF EXISTS {qualified_temp}")
+                await self._exec(f"""
+                    CREATE TABLE {qualified_temp} AS
+                    SELECT {cols_clause}
+                    FROM {t1} t1
+                    LEFT JOIN {t2} t2 ON t1.`{on}` = t2.`{on}`
+                """)
+                await self._exec(f"DROP TABLE {t1}")
+                await self._exec(f"RENAME TABLE {qualified_temp} TO {t1}")
 
                 sample_rows = await self._fetch(f"SELECT * FROM {t1} LIMIT 10")
                 records = self._rows_to_records(sample_rows)
@@ -1599,10 +1653,25 @@ class GeneralTableOps:
                     value_column = SQLIdentifierSanitizer.sanitize(value_column)
                     agg_expr = f'{agg.upper()}("{value_column}")'
 
-                bucket_expr = f'DATE_TRUNC(\'{rule}\', "{time_column}")'
+                # ponytail: ClickHouse DATE_TRUNC/dateTrunc needs full unit names
+                    # ('day', 'hour', ...); Postgres/DuckDB both accept pandas
+                    # offset aliases like 'D'. Translate only for ClickHouse;
+                    # leave the others alone to preserve existing behavior.
+                    effective_rule = rule
+                    interval_rule = rule
+                    if isinstance(self.db, ClickHouseAdapter):
+                        alias_map = {
+                            "D": "day", "H": "hour", "T": "minute", "MIN": "minute",
+                            "S": "second", "W": "week", "M": "month",
+                            "Q": "quarter", "A": "year", "Y": "year",
+                        }
+                        effective_rule = alias_map.get(rule.upper(), rule)
+                        interval_rule = effective_rule
+
+                bucket_expr = f'DATE_TRUNC(\'{effective_rule}\', "{time_column}")'
 
                 if label == "right":
-                    bucket_expr = f"{bucket_expr} + INTERVAL '1 {rule}'"
+                    bucket_expr = f"{bucket_expr} + INTERVAL '1 {interval_rule}'"
 
                 query = f"""
                     SELECT

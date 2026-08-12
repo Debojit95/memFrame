@@ -138,15 +138,20 @@ class PostgresPool(BasePool):
 
     async def copy_to_table(
         self, table, source, columns, schema_name,
-        format, header, encoding,
+        format, header, encoding, null=None,
     ):
         await self._ensure()
         async with self._pool.acquire() as conn:
-            await conn.copy_to_table(
-                table, source=source, columns=columns,
+            kwargs = dict(
+                source=source, columns=columns,
                 schema_name=schema_name, format=format,
                 header=header, encoding=encoding,
             )
+            # ponytail: only forward `null` when explicitly provided —
+            # asyncpg rejects null=None (must be a non-empty marker string).
+            if null is not None:
+                kwargs["null"] = null
+            await conn.copy_to_table(table, **kwargs)
 
     async def execute(self, sql: str, *args) -> None:
         await self._ensure()

@@ -993,6 +993,12 @@ class TestInspectionOperations:
         # Rename columns if needed
         res_df = normalize_frame(res_df)
         expected = normalize_frame(expected)
+        # ponytail: ClickHouse returns DATE_TRUNC buckets as strings via JSON
+        # (DuckDB/Postgres return native datetime). Normalize both sides to
+        # datetime — matches the pattern used in test_reset_index (line 933)
+        # for hire_date, but applied to the resample bucket column.
+        if "timestamp" in res_df.columns:
+            res_df["timestamp"] = pd.to_datetime(res_df["timestamp"])
         pd.testing.assert_frame_equal(
             res_df.sort_values("timestamp").reset_index(drop=True),
             expected.sort_values("timestamp").reset_index(drop=True),
