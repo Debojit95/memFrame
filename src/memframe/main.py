@@ -160,9 +160,3 @@ class MemFrame(ContextManager, OpsMixin):
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self.aclose()
 
-
-
-
-
-
-

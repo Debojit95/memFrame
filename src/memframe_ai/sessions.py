@@ -68,6 +68,21 @@ class Session:
             self._table, self._schema = await self._resolve_active()
         return self
 
+    @property
+    def wrappers(self):
+        """Public wrappers bound to this session, one per domain.
+
+        Built lazily and cached on the session. AI tool files dispatch
+        through these wrappers instead of reaching into core.analytix.
+        """
+        wrappers = getattr(self, "_wrappers", None)
+        if wrappers is None:
+            from memframe_ai.wrappers import SessionWrappers
+
+            wrappers = SessionWrappers(self)
+            self._wrappers = wrappers
+        return wrappers
+
     async def _resolve_active(self) -> tuple[str, str]:
         backend = self.backend
         if backend is None:

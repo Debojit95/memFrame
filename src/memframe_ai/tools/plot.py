@@ -1,21 +1,17 @@
 import json
 import uuid
 
-from memframe.core.plots.bar import BarPlotCore
-from memframe.core.plots.bar_polar import BarPolarPlotCore
-from memframe.core.plots.line import LinePlotCore
-from memframe.core.plots.pie import PiePlotCore
-from memframe.core.plots.scatter import ScatterPlotCore
-from memframe.core.plots.scatter_3d import Scatter3DPlotCore
+from memframe.utils.plot_renderer import smart_show
 
-_PLOTS = {
-    "bar": (BarPlotCore, "bar"),
-    "line": (LinePlotCore, "line"),
-    "scatter": (ScatterPlotCore, "scatter"),
-    "scatter_3d": (Scatter3DPlotCore, "scatter_3d"),
-    "pie": (PiePlotCore, "pie"),
-    "bar_polar": (BarPolarPlotCore, "bar_polar"),
-}
+
+_PLOT_WRAPPERS = (
+    "bar",
+    "line",
+    "pie",
+    "scatter",
+    "scatter_3d",
+    "bar_polar",
+)
 
 
 def _json_safe(value):
@@ -68,10 +64,16 @@ def tools(session):
         or 'bar_polar' (x=theta, y=r). Returns plot_id + figure spec.
         """
         await session.ensure()
-        if plot_type not in _PLOTS:
-            return {"ok": False, "hint": f"Unknown plot_type {plot_type!r}; choose from {sorted(_PLOTS)}"}
+        if plot_type not in _PLOT_WRAPPERS:
+            return {
+                "ok": False,
+                "hint": f"Unknown plot_type {plot_type!r}; choose from {sorted(_PLOT_WRAPPERS)}",
+            }
 
-        core_cls, method = _PLOTS[plot_type]
+        wrapper_attr = f"plot_{plot_type}" if plot_type != "bar_polar" else "plot_bar_polar"
+        wrapper = getattr(session.wrappers, wrapper_attr)
+        method = getattr(wrapper, f"a{plot_type}")
+
         kwargs = {"title": title}
         if plot_type == "pie":
             kwargs["names"] = x
@@ -91,25 +93,26 @@ def tools(session):
             kwargs["color"] = color
 
         try:
-            core = core_cls(session.adapter)
-            fig = await getattr(core, method)(session.table, session.schema, **kwargs)
+            fig = await method(**kwargs)
         except Exception as exc:
             return {
                 "ok": False,
                 "hint": f"{plot_type} plot failed: {type(exc).__name__}: {exc}",
             }
-        try:
-            from memframe.utils.plot_renderer import smart_show
 
+        try:
             smart_show(fig)
         except Exception:
             pass
+
         try:
-            # to_json round-trip makes the spec JSON-safe (numpy -> lists)
             spec = json.loads(fig.to_json())
             spec = _json_safe(spec)
         except Exception as exc:
-            return {"ok": False, "hint": f"plot serialization failed: {type(exc).__name__}: {exc}"}
+            return {
+                "ok": False,
+                "hint": f"plot serialization failed: {type(exc).__name__}: {exc}",
+            }
 
         plot_id = uuid.uuid4().hex[:12]
         # ponytail: PNG needs Chrome/kaleido; best-effort, spec renders client-side anyway
