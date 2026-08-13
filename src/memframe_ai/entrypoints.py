@@ -31,24 +31,3 @@ async def achat(self, prompt: str, session_id: str | None = None, return_blocks:
 
 
 chat = async_to_sync(achat)
-
-
-async def aenable_agent(
-    self,
-    api_key: str,
-    provider: str | None = None,
-    model: str | None = None,
-    **overrides,
-) -> AISettings:
-    kwargs = {"api_key": api_key}
-    if provider is not None:
-        kwargs["provider"] = provider
-    if model is not None:
-        kwargs["model"] = model
-    kwargs.update(overrides)
-    settings = AISettings(**kwargs)
-    self._ai_settings = settings
-    return settings
-
-
-enable_agent = async_to_sync(aenable_agent)

@@ -42,8 +42,28 @@ def test_aenable_agent_requires_api_key():
     from memframe.main import MemFrame
 
     m = MemFrame()
-    with pytest.raises(TypeError):
+    with pytest.raises(ValidationError):
         asyncio.run(m.aenable_agent())
+
+
+def test_aenable_agent_defaults_when_only_api_key_given():
+    from memframe.main import MemFrame
+
+    m = MemFrame()
+    settings = asyncio.run(m.aenable_agent(api_key="k"))
+    assert settings.provider == "openai"
+    assert settings.model == "gpt-5.5"
+
+
+def test_enable_agent_sync_form():
+    from memframe.main import MemFrame
+
+    m = MemFrame()
+    settings = m.enable_agent(provider="anthropic", model="claude-x", api_key="sk-ant-...")
+    assert isinstance(settings, AISettings)
+    assert m._ai_settings is settings
+    assert settings.provider == "anthropic"
+    assert settings.model == "claude-x"
 
 
 def test_settings_requires_api_key():
