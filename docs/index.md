@@ -15,10 +15,12 @@ memFrame is a database-backed data processing & analytics library via typed api 
 - Persistent Caching Layer.
 - Transaction audit trail.
 - Plotting support(Plotly wrapper)
+- Optional AI agent layer (`memframe_ai`) for natural-language data work.
 
 
 ## Start Here
 
 1. Follow [Getting Started](getting-started.md) to connect and upload data.
-2. Read [Upload Manager](api/upload-manager.md) for ingestion behavior.
-3. Read [Dataset Operations](api/database.md) to manage uploaded datasets.
+2. Try the [AI Agent](api/agent.md) for natural-language data work.
+3. Read [Upload Manager](api/upload-manager.md) for ingestion behavior.
+4. Read [Dataset Operations](api/database.md) to manage uploaded datasets.

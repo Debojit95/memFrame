@@ -42,6 +42,7 @@ nav:
   - Code of Conduct: CODE_OF_CONDUCT.md
   - API:
       - Caching: api/caching.md
+      - Agent: api/agent.md
       - DB Manager:
           - Connector: api/connector.md
           - Upload Manager: api/upload-manager.md

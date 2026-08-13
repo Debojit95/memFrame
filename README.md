@@ -5,50 +5,37 @@
 # memFrame
 
 [![PyPI - Version](https://img.shields.io/pypi/v/memframe)](https://pypi.org/project/memframe/)
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://github.com/Debojit95/memFrame/blob/main/pyproject.toml)
+[![CI](https://img.shields.io/github/actions/workflow/status/Debojit95/memFrame/ci.yml?label=ci)](https://github.com/Debojit95/memFrame/actions/workflows/ci.yml)
 [![Tox](https://img.shields.io/github/actions/workflow/status/Debojit95/memFrame/tox.yml?label=tox)](https://github.com/Debojit95/memFrame/actions/workflows/tox.yml)
 [![License - AGPL-3.0](https://img.shields.io/github/license/Debojit95/memFrame)](https://github.com/Debojit95/memFrame/blob/main/LICENSE)
 [![PyPI - Downloads](https://img.shields.io/pypi/dm/memframe)](https://pypi.org/project/memframe/)
-[![CI](https://img.shields.io/github/actions/workflow/status/Debojit95/memFrame/ci.yml?label=ci)](https://github.com/Debojit95/memFrame/actions/workflows/ci.yml)
 
-memFrame is a Python package for working with database-backed DataFrame operations. It lets you upload CSV files, Parquet files, and pandas DataFrames into a local DuckDB database or a remote PostgreSQL/Clickhouse database, then run DataFrame-style inspection, selection, cleaning, and table-management operations through one consistent API.
-
-The package is designed for workflows where data may be larger than what you want to repeatedly pull into memory, while still keeping a familiar pandas-like developer experience.
+> *memFrame brings a pandas-like DataFrame API to DuckDB, PostgreSQL, and ClickHouse — async-first, with an optional AI agent for natural-language data work.*
 
 ## Features
 
-- Local DuckDB and remote PostgreSQL/Clickhouse backends.
-- Async(first) and Sync APIs.
-- csv, parquet, and pandas DataFrame upload.
-- Persistent Caching Layer.
-- Transaction audit trail.
-- Plotting support(Plotly wrapper)
-
+- Database-backed DataFrame API across DuckDB, PostgreSQL, and ClickHouse.
+- Async-first surface with sync equivalents for every operation.
+- Upload from CSV, Parquet, or pandas DataFrame.
+- Inspection, selection, cleaning, statistics, arithmetic, Plotly charts.
+- Two-level cache: lineage audit + replayable result tables.
+- Optional AI agent layer (`memframe_ai`) for natural-language data work.
 
 ## Installation
 
-memFrame requires Python 3.10 or newer.
-
 ```bash
-# pip
-pip install memframe
-
-# uv
-uv add memframe
+pip install memframe              # core
+uv add memframe                   # alt: uv
+pip install "memframe[ai]"        # + Pydantic AI agent layer
+uv add "memframe[ai]"             # alt: uv
 ```
 
-The optional AI chat layer (`memframe_ai`) pulls in pydantic-ai and is installed separately:
+Local development from this repository:
 
 ```bash
-# pip
-pip install "memframe[ai]"
-
-# uv
-uv add "memframe[ai]"
-```
-
-For local development from this repository:
-
-```bash
+git clone https://github.com/Debojit95/memFrame.git
+cd memFrame
 pip install -e ".[dev,ai]"
 ```
 
@@ -66,164 +53,38 @@ async def main():
         connection_type="local",
         connection_params={"db_path": "memFrame.duckdb"},
     )
-    await mf.connect()
+    await mf.aconnect()
 
-    df = pd.DataFrame(
-        {
-            "id": [101, 102, 103],
-            "name": ["Alice", "Bob", "Charlie"],
-            "score": [95.5, 82.0, None],
-            "active": [True, False, True],
-        }
+    customers = await mf.aupload_df(
+        pd.DataFrame(
+            {
+                "id": [101, 102, 103],
+                "name": ["Alice", "Bob", "Charlie"],
+                "score": [95.5, 82.0, None],
+                "active": [True, False, True],
+            }
+        ),
+        filename="customers",
     )
-
-    customers = await mf.aupload_df(df, filename="customers")
 
     preview = await customers.ahead(n=5)
     print(preview["result"])
 
-    await mf.close()
+    await mf.aclose()
 
 
 asyncio.run(main())
 ```
 
-## Connection Examples
+Each upload returns a dataset context; chain inspection, selection, cleaning,
+arithmetic, statistics, and plotting on it. Sync methods drop the `a` prefix
+(`head`, `iloc`, `fillna`, …).
 
-### Local DuckDB
+## AI Agent
 
-```python
-from memframe import MemFrame
-
-mf = MemFrame(
-    connection_type="local",
-    connection_params={"db_path": "memFrame.duckdb"},
-)
-```
-
-For a temporary in-memory database, pass `"db_path": ":memory:"`; nothing is persisted to disk.
-
-### Remote PostgreSQL
-
-```python
-from memframe import MemFrame
-
-mf = MemFrame(
-    connection_type="remote",
-    connection_params={
-        "backend": "postgres",
-        "host": "localhost",
-        "port": 5432,
-        "user": "postgres",
-        "password": "postgres",
-        "database": "memframe",
-    },
-)
-```
-
-## Upload Data
-
-Each upload returns a dataset context. Use that context to inspect, select, clean, and transform the uploaded data.
-
-```python
-dataset = await mf.aupload_csv("data/customers.csv")
-dataset = await mf.aupload_parquet("data/events.parquet")
-dataset = await mf.aupload_df(df, filename="customers")
-```
-
-Sync upload methods are also available:
-
-```python
-dataset = mf.upload_csv("data/customers.csv")
-dataset = mf.upload_parquet("data/events.parquet")
-dataset = mf.upload_df(df, filename="customers")
-```
-
-## Inspect Data
-
-```python
-head = await dataset.ahead(n=10)
-summary = await dataset.adescribe()
-types = await dataset.adtypes()
-shape = await dataset.ashape()
-columns = await dataset.acolumns()
-
-print(head["result"])
-print(summary["result"])
-```
-
-Sync equivalents use the same names without the `a` prefix:
-
-```python
-print(dataset.head(n=10)["result"])
-print(dataset.describe()["result"])
-print(dataset.dtypes()["result"])
-```
-
-## Select Data
-
-```python
-rows = await dataset.ailoc(row_indexer="0:100", columns=["id", "name", "score"])
-active = await dataset.aloc(row_selector="active = true")
-score = await dataset.aat(row_label=101, column_label="score", index_column="id")
-filtered = await dataset.awhere(cond="score > 85", other=None)
-
-print(rows["result"])
-```
-
-Sync equivalents:
-
-```python
-rows = dataset.iloc(row_indexer="0:100", columns=["id", "name", "score"])
-active = dataset.loc(row_selector="active = true")
-score = dataset.at(row_label=101, column_label="score", index_column="id")
-```
-
-## Clean Data
-
-```python
-filled = await dataset.afillna(column="score", method="mean")
-deduped = await dataset.adrop_duplicates(subset=["id"])
-clipped = await dataset.aclip(column="score", lower=0, upper=100)
-valid = await dataset.afilter_valid(column="name", valid_values=["Alice", "Bob"])
-
-print(filled["result"])
-```
-
-Sync equivalents:
-
-```python
-filled = dataset.fillna(column="score", method="mean")
-deduped = dataset.drop_duplicates(subset=["id"])
-clipped = dataset.clip(column="score", lower=0, upper=100)
-```
-
-## Manage Tables
-
-```python
-tables = await mf.alist_tables()
-active = await mf.aget_active_table()
-
-print(tables)
-print(active)
-```
-
-Sync equivalents:
-
-```python
-print(mf.list_tables())
-print(mf.get_active_table())
-```
-
-## Async and Sync APIs
-
-memFrame exposes both async and sync methods:
-
-- Async methods are prefixed with `a`, for example `aupload_df`, `ahead`, `ailoc`, and `afillna`.
-- Sync methods do not use the prefix, for example `upload_df`, `head`, `iloc`, and `fillna`.
-- Do not call sync APIs from inside a running event loop. In async code, use the async variant with `await`.
-
-For a normal sync script, connect and close with `asyncio.run`, then use sync dataset methods outside any async function:
+`memframe_ai` adds a Pydantic AI agent fleet on top of memFrame. After enabling
+it on the `MemFrame` instance, any dataset context can run natural-language
+queries that decompose into specialist tools and return typed response blocks.
 
 ```python
 import asyncio
@@ -231,18 +92,60 @@ import pandas as pd
 
 from memframe import MemFrame
 
-mf = MemFrame(connection_type="local", connection_params={"db_path": "memFrame.duckdb"})
-asyncio.run(mf.connect())
 
-dataset = mf.upload_df(pd.DataFrame({"id": [1, 2], "value": [10, 20]}))
-print(dataset.head(n=2)["result"])
+async def main():
+    mf = MemFrame(
+        connection_type="local",
+        connection_params={"db_path": "memFrame.duckdb"},
+    )
+    await mf.aconnect()
 
-asyncio.run(mf.close())
+    await mf.aenable_agent(
+        provider="openai",
+        model="gpt-5.5",
+        api_key="sk-...",
+    )
+
+    ds = await mf.aupload_df(
+        pd.DataFrame(
+            {
+                "name": ["Alice", "Bob", "Charlie"],
+                "score": [95.5, 82.0, None],
+            }
+        ),
+        filename="customers",
+    )
+
+    result = await ds.achat("fill null scores with the mean")
+    print(result["answer"])
+    print(result["plots"])  # any charts the agent built
+
+    await mf.aclose()
+
+
+asyncio.run(main())
+```
+
+The agent supports OpenAI, Anthropic, Google, and Ollama. Pick a provider when
+you enable the agent:
+
+```python
+await mf.aenable_agent(api_key="sk-...", provider="anthropic", model="claude-...")
 ```
 
 ## Documentation
 
-The API documentation is available in the `docs/api` directory and can be served locally with MkDocs:
+Full reference lives in [`docs/`](docs/):
+
+- [Getting Started](docs/getting-started.md) — connect, upload, first query.
+- [Connector & Connection](docs/api/connector.md) — DuckDB / Postgres / ClickHouse wiring.
+- [Upload Manager](docs/api/upload-manager.md) — CSV / Parquet / DataFrame ingestion.
+- [Dataset Operations](docs/api/database.md) — table and active-dataset management.
+- [Inspection](docs/api/inspect.md) · [Selection](docs/api/selection.md) · [Cleaning](docs/api/cleaning.md)
+- [Statistics](docs/api/stats.md) · [Arithmetic](docs/api/arithmetic.md)
+- [Plotting](docs/api/bar.md) · [Caching](docs/api/caching.md)
+
+Serve locally:
 
 ```bash
 mkdocs serve
