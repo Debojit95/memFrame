@@ -4,7 +4,6 @@ from memframe_ai.tools._helpers import normalize
 def tools(session):
     w = session.wrappers.stats
 
-    # ----- unified / dtype-routed -----
     async def count(column: str) -> dict:
         """Count of non-null values in `column`."""
         return await normalize(await w.acount(column=column), session)
