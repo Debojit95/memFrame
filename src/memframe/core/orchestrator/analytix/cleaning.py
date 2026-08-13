@@ -46,7 +46,6 @@ class CleaningOrchestrator:
         chunked = pa.chunked_array([pa.array(series)])
         
         inferred = self._dtype_detector._infer_column(chunked_array=chunked)
-        print("Inferred : ", inferred)
         detected = str(inferred.get("type", "text")).lower()
 
         if detected in ("integer", "float"):
@@ -81,7 +80,6 @@ class CleaningOrchestrator:
 
         method_lower = method.lower()
         detected_dtype = await self._detect_fillna_dtype(ops, table, schema, column)
-        print(f"detected_dtype--------- : {detected_dtype}")
         dtype_hint = (dtype or "").strip().lower()
         if dtype_hint in ("numeric", "categorical", "datetime"):
             detected_dtype = dtype_hint
