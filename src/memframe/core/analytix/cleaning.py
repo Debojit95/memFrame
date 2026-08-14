@@ -10,6 +10,8 @@ from memframe.db_manager.adapters.clickhouse import ClickHouseAdapter
 from memframe.utils.helper import SQLIdentifierSanitizer
 from memframe.exceptions import OperationError
 
+from memframe.core.analytix._response import fail, ok
+
 
 class DataCleaningOps:
     """
@@ -210,38 +212,6 @@ class DataCleaningOps:
         if safe_col not in types:
             await self._add_new_column(table, schema, col_name, col_type)
 
-    def _success_response(
-        self,
-        message: str,
-        involved_cols: Optional[List[str]] = None,
-        generated_cols: Optional[List[str]] = None,
-        sample_df: Optional[pd.DataFrame] = None,
-        result: Any = None,
-        **extra,
-    ) -> Dict[str, Any]:
-        payload = {
-            "is_error": False,
-            "message": message,
-            "error_message": None,
-            "involved_cols": involved_cols or [],
-            "generated_cols": generated_cols or [],
-        }
-        if result is not None:
-            payload["result"] = result
-        else:
-            payload["result"] = sample_df if sample_df is not None else pd.DataFrame()
-        payload.update(extra)
-        return payload
-
-    def _error_response( self, error_message: str,   involved_cols: List[str] = None, generated_cols: List[str] = None,) -> Dict[str, Any]:
-        return {
-            "is_error": True,
-            "message": "",
-            "error_message": error_message,
-            "involved_cols": involved_cols or [],
-            "generated_cols": generated_cols or [],
-        }
-
     # ------------------------------------------------------------------
     # Numeric cleaning
     # ------------------------------------------------------------------
@@ -285,7 +255,7 @@ class DataCleaningOps:
             }
 
             if mode not in suffix_map:
-                return self._error_response(f"Unsupported mode: {mode}")
+                return fail(f"Unsupported mode: {mode}")
 
             new_col = self._generate_cleaned_column_name(column, suffix_map[mode])
             col_type = await self._get_column_type(table, schema, column)
@@ -296,7 +266,7 @@ class DataCleaningOps:
             safe_new = SQLIdentifierSanitizer.sanitize(new_col)
 
             if mode == "CONSTANT" and value is None:
-                return self._error_response("Value must be provided for CONSTANT mode")
+                return fail("Value must be provided for CONSTANT mode")
 
             async def _apply(tq):
                 if mode == "CONSTANT":
@@ -454,12 +424,12 @@ class DataCleaningOps:
             sample = await self._fetch_data(table, schema,columns=[safe_col,safe_new])
             msg = f"Filled {null_count} null values in '{column}' using {mode} ({fill_value})"
 
-            return self._success_response(
+            return ok(
                 msg, [column], [new_col], sample, fill_mode=mode, fill_value=fill_value, new_table=table,
             )
 
         except Exception as e:
-            return self._error_response(
+            return fail(
                 f"numeric_fillna error: {str(e)}\n{traceback.format_exc()}", [column], [],
             )
             
@@ -530,10 +500,10 @@ class DataCleaningOps:
 
             sample = await self._fetch_data(table, schema, columns=[safe_col,safe_new])
             msg = f"Enforced range on '{column}': {affected} values set to NULL"
-            return self._success_response(msg, [column], [new_col], sample, new_table=table)
+            return ok(msg, [column], [new_col], sample, new_table=table)
 
         except Exception as e:
-            return self._error_response(f"numeric_enforce_range error: {str(e)}\n{traceback.format_exc()}")
+            return fail(f"numeric_enforce_range error: {str(e)}\n{traceback.format_exc()}")
 
     async def numeric_drop_outliers_zscore(
         self,
@@ -618,10 +588,10 @@ class DataCleaningOps:
 
             sample = await self._fetch_data(table, schema, columns=[safe_col,safe_new])
             msg = f"Removed {outlier_count} outliers from '{column}' using Z-score (threshold={z_thresh})"
-            return self._success_response(msg, [column], [new_col], sample, new_table=table)
+            return ok(msg, [column], [new_col], sample, new_table=table)
 
         except Exception as e:
-            return self._error_response(f"numeric_drop_outliers_zscore error: {str(e)}\n{traceback.format_exc()}")
+            return fail(f"numeric_drop_outliers_zscore error: {str(e)}\n{traceback.format_exc()}")
 
     async def numeric_convert_text(
         self,
@@ -697,10 +667,10 @@ class DataCleaningOps:
 
             sample = await self._fetch_data(table, schema, columns=[safe_col,safe_new])
             msg = f"Converted {converted} text values in '{column}' to numeric"
-            return self._success_response(msg, [column], [new_col], sample, new_table=table)
+            return ok(msg, [column], [new_col], sample, new_table=table)
 
         except Exception as e:
-            return self._error_response(f"numeric_convert_text error: {str(e)}\n{traceback.format_exc()}")
+            return fail(f"numeric_convert_text error: {str(e)}\n{traceback.format_exc()}")
 
     # ------------------------------------------------------------------
     # Categorical cleaning
@@ -726,7 +696,7 @@ class DataCleaningOps:
 
             valid_modes = {"CONSTANT", "MODE", "MAP","BFILL","FFILL"}
             if mode not in valid_modes:
-                return self._error_response(f"Unsupported mode: {mode}")
+                return fail(f"Unsupported mode: {mode}")
 
             suffix_map = {
                 "CONSTANT": "constant_filled",
@@ -747,9 +717,9 @@ class DataCleaningOps:
             fill_value = None
 
             if mode == "CONSTANT" and value is None:
-                return self._error_response("Value must be provided for CONSTANT mode")
+                return fail("Value must be provided for CONSTANT mode")
             if mode == "MAP" and not mapping:
-                return self._error_response("Mapping must be provided for MAP mode")
+                return fail("Mapping must be provided for MAP mode")
 
             async def _apply(tq):
                 if mode == "CONSTANT":
@@ -904,12 +874,12 @@ class DataCleaningOps:
             sample = await self._fetch_data(table, schema, columns=[safe_col,safe_new])
             msg = f"Processed '{column}' using {mode} (fill={fill_value}), affected {null_count} nulls"
 
-            return self._success_response(
+            return ok(
                 msg, [column], [new_col], sample, fill_mode=mode, fill_value=fill_value, new_table=table,
             )
 
         except Exception as e:
-            return self._error_response(
+            return fail(
                 f"categorical_fillna error: {str(e)}\n{traceback.format_exc()}", [column], [],
             )
     
@@ -929,7 +899,7 @@ class DataCleaningOps:
                 table, schema, backend=backend, data_id=data_id, new_table=new_table,
             )
             if not mapping:
-                return self._error_response("No mapping provided")
+                return fail("No mapping provided")
 
             new_col = self._generate_cleaned_column_name(column, f"mapped_{'_'.join(list(mapping.keys()))}")
             col_type = await self._get_column_type(table, schema, column)
@@ -962,10 +932,10 @@ class DataCleaningOps:
 
             sample = await self._fetch_data(table, schema, columns=[safe_col,safe_new])
             msg = f"Mapped {len(mapping)} value categories in '{column}'"
-            return self._success_response(msg, [column], [new_col], sample, new_table=table)
+            return ok(msg, [column], [new_col], sample, new_table=table)
 
         except Exception as e:
-            return self._error_response(f"categorical_map_values error: {str(e)}\n{traceback.format_exc()}")
+            return fail(f"categorical_map_values error: {str(e)}\n{traceback.format_exc()}")
 
     async def categorical_filter_invalid(
         self,
@@ -983,7 +953,7 @@ class DataCleaningOps:
                 table, schema, backend=backend, data_id=data_id, new_table=new_table,
             )
             if not valid_values:
-                return self._error_response("No valid_values provided")
+                return fail("No valid_values provided")
 
             new_col = self._generate_cleaned_column_name(column, f"valid_values_{'_'.join(valid_values)}")
             col_type = await self._get_column_type(table, schema, column)
@@ -1024,10 +994,10 @@ class DataCleaningOps:
 
             sample = await self._fetch_data(table, schema, columns=[safe_col,safe_new])
             msg = f"Set {invalid} invalid values in '{column}' to NULL. Valid values: {valid_values[:10]}..."
-            return self._success_response(msg, [column], [new_col], sample, new_table=table)
+            return ok(msg, [column], [new_col], sample, new_table=table)
 
         except Exception as e:
-            return self._error_response(f"categorical_filter_invalid error: {str(e)}\n{traceback.format_exc()}")
+            return fail(f"categorical_filter_invalid error: {str(e)}\n{traceback.format_exc()}")
 
     async def categorical_compress_rare(
         self,
@@ -1119,10 +1089,10 @@ class DataCleaningOps:
 
             sample = await self._fetch_data(table, schema, columns=[safe_col,safe_new])
             msg = f"Compressed {rare_count} rare categories in '{column}' to '{other_label}' (min_count={min_count})"
-            return self._success_response(msg, [column], [new_col], sample, new_table=table)
+            return ok(msg, [column], [new_col], sample, new_table=table)
 
         except Exception as e:
-            return self._error_response(f"categorical_compress_rare error: {str(e)}\n{traceback.format_exc()}")
+            return fail(f"categorical_compress_rare error: {str(e)}\n{traceback.format_exc()}")
 
     # ------------------------------------------------------------------
     # Datetime cleaning
@@ -1147,7 +1117,7 @@ class DataCleaningOps:
 
             valid_modes = {"CONSTANT", "MIN", "MAX", "MEAN", "MEDIAN", "MODE", "NOW", "FFILL", "BFILL"}
             if mode not in valid_modes:
-                return self._error_response(f"Unsupported mode: {mode}")
+                return fail(f"Unsupported mode: {mode}")
 
             suffix_map = {
                 "CONSTANT": "constant_filled",
@@ -1171,7 +1141,7 @@ class DataCleaningOps:
             fill_value = None
 
             if mode == "CONSTANT" and value is None:
-                return self._error_response("Value must be provided for CONSTANT mode")
+                return fail("Value must be provided for CONSTANT mode")
 
             async def _apply(tq):
                 if mode == "CONSTANT":
@@ -1385,12 +1355,12 @@ class DataCleaningOps:
             sample = await self._fetch_data(table, schema, columns=[safe_col, safe_new])
             msg = f"Filled {null_count} null values in '{column}' using {mode} ({fill_value})"
 
-            return self._success_response(
+            return ok(
                 msg, [column], [new_col], sample, fill_mode=mode, fill_value=fill_value, new_table=table,
             )
 
         except Exception as e:
-            return self._error_response(
+            return fail(
                 f"datetime_fillna error: {str(e)}\n{traceback.format_exc()}", [column], [],
             )
     
@@ -1457,10 +1427,10 @@ class DataCleaningOps:
 
             sample = await self._fetch_data(table, schema, columns=[safe_col,safe_new])
             msg = f"Fixed {invalid} invalid dates in '{column}'"
-            return self._success_response(msg, [column], [new_col], sample, new_table=table)
+            return ok(msg, [column], [new_col], sample, new_table=table)
 
         except Exception as e:
-            return self._error_response(f"datetime_fix_invalid error: {str(e)}\n{traceback.format_exc()}")
+            return fail(f"datetime_fix_invalid error: {str(e)}\n{traceback.format_exc()}")
 
     async def datetime_remove_out_of_range(
         self,
@@ -1550,10 +1520,10 @@ class DataCleaningOps:
 
             sample = await self._fetch_data(table, schema, columns=[safe_col,safe_new])
             msg = f"Set {affected} out-of-range dates in '{column}' to NULL"
-            return self._success_response(msg, [column], [new_col], sample, new_table=table)
+            return ok(msg, [column], [new_col], sample, new_table=table)
 
         except Exception as e:
-            return self._error_response(f"datetime_remove_out_of_range error: {str(e)}\n{traceback.format_exc()}")
+            return fail(f"datetime_remove_out_of_range error: {str(e)}\n{traceback.format_exc()}")
 
     # ------------------------------------------------------------------
     # Groupby cleaning
@@ -1601,7 +1571,7 @@ class DataCleaningOps:
             }
 
             if mode not in suffix_map:
-                return self._error_response(f"Unsupported mode: {mode}")
+                return fail(f"Unsupported mode: {mode}")
 
             new_col = self._generate_cleaned_column_name(column, suffix_map[mode])
             col_type = await self._get_column_type(table, schema, column)
@@ -1621,7 +1591,7 @@ class DataCleaningOps:
                 ])
 
             if mode == "CONSTANT" and value is None:
-                return self._error_response("Value must be provided")
+                return fail("Value must be provided")
 
             async def _apply(tq):
                 if mode == "CONSTANT":
@@ -1830,7 +1800,7 @@ class DataCleaningOps:
 
             msg = f"Filled {null_count} nulls in '{column}' using {mode} (grouped={bool(group_cols)})"
 
-            return self._success_response(
+            return ok(
                 msg,
                 involved_cols,
                 [new_col],
@@ -1841,7 +1811,7 @@ class DataCleaningOps:
             )
 
         except Exception as e:
-            return self._error_response(
+            return fail(
                 f"numeric_fillna_groupby error: {str(e)}\n{traceback.format_exc()}", [column], [],
             )
             
@@ -1871,7 +1841,7 @@ class DataCleaningOps:
 
             valid_modes = {"MODE", "BFILL", "FFILL"}
             if mode not in valid_modes:
-                return self._error_response(f"Unsupported mode: {mode}")
+                return fail(f"Unsupported mode: {mode}")
 
             suffix_map = {
                 "MODE": "mode_filled",
@@ -2073,7 +2043,7 @@ class DataCleaningOps:
 
             msg = f"Processed '{column}' using {mode} (grouped={bool(group_cols)}), affected {null_count} nulls"
 
-            return self._success_response(
+            return ok(
                 msg,
                 involved_cols,
                 [new_col],
@@ -2084,7 +2054,7 @@ class DataCleaningOps:
             )
 
         except Exception as e:
-            return self._error_response(
+            return fail(
                 f"categorical_fillna_groupby error: {str(e)}\n{traceback.format_exc()}", [column], [],
             )        
             
@@ -2114,7 +2084,7 @@ class DataCleaningOps:
 
             valid_modes = {"MIN", "MAX", "MEAN", "MEDIAN", "MODE", "FFILL", "BFILL"}
             if mode not in valid_modes:
-                return self._error_response(f"Unsupported mode: {mode}")
+                return fail(f"Unsupported mode: {mode}")
 
             suffix_map = {
                 "MIN": "min_filled",
@@ -2448,7 +2418,7 @@ class DataCleaningOps:
 
             msg = f"Filled {null_count} nulls in '{column}' using {mode} (grouped={bool(group_cols)})"
 
-            return self._success_response(
+            return ok(
                 msg,
                 involved_cols,
                 [new_col],
@@ -2459,7 +2429,7 @@ class DataCleaningOps:
             )
 
         except Exception as e:
-            return self._error_response(
+            return fail(
                 f"datetime_fillna_groupby error: {str(e)}\n{traceback.format_exc()}", [column], [],
             )        
             
@@ -2499,16 +2469,16 @@ class DataCleaningOps:
 
             if thresh is not None:
                 if not isinstance(thresh, int) or thresh < 1:
-                    return self._error_response("thresh must be a positive integer")
+                    return fail("thresh must be a positive integer")
                 how = None
             elif how not in {"any", "all"}:
-                return self._error_response("Invalid 'how'. Use 'any' or 'all'")
+                return fail("Invalid 'how'. Use 'any' or 'all'")
 
             column_types = await self.db.get_column_types(source_table, schema)
             cols = list(column_types.keys())
 
             if not cols:
-                return self._error_response("No columns found")
+                return fail("No columns found")
 
             def valid_expr(col):
                 return f'"{col}" IS NOT NULL AND "{col}" = "{col}"'
@@ -2552,16 +2522,16 @@ class DataCleaningOps:
                             selected_cols.append(f'"{safe_col}"')
 
                 if not selected_cols:
-                    return self._success_response(
+                    return ok(
                         message="All columns dropped (all contained missing values)",
                         involved_cols=cols,
                         generated_cols=[],
-                        sample_df=pd.DataFrame(),
+                        result=pd.DataFrame(),
                     )
 
                 query = f'SELECT {", ".join(selected_cols)} FROM {qualified}'
             else:
-                return self._error_response("Invalid axis. Use 0/'index' or 1/'columns'")
+                return fail("Invalid axis. Use 0/'index' or 1/'columns'")
 
             output_table = await self._materialize_query_as_table(
                 query=query, table=source_table, schema=schema,
@@ -2569,13 +2539,13 @@ class DataCleaningOps:
             )
             df = await self._fetch_data(output_table, schema)
 
-            return self._success_response(
+            return ok(
                 message=f"dropna applied (axis={axis}, how={how}, thresh={thresh})",
-                involved_cols=cols, generated_cols=[], sample_df=df, new_table=output_table,
+                involved_cols=cols, generated_cols=[], result=df, new_table=output_table,
             )
 
         except Exception as e:
-            return self._error_response(f"dataframe_dropna error: {str(e)}\n{traceback.format_exc()}")
+            return fail(f"dataframe_dropna error: {str(e)}\n{traceback.format_exc()}")
    
             
     async def dataframe_drop(
@@ -2602,12 +2572,12 @@ class DataCleaningOps:
 
             if axis in (0, "index"):
                 if not index:
-                    return self._error_response("index must be provided when axis=0")
+                    return fail("index must be provided when axis=0")
             elif axis in (1, "columns"):
                 if not columns:
-                    return self._error_response("columns must be provided when axis=1")
+                    return fail("columns must be provided when axis=1")
             else:
-                return self._error_response("Invalid axis. Use 0 or 1")
+                return fail("Invalid axis. Use 0 or 1")
 
             if axis in (1, "columns"):
                 column_types = await self.db.get_column_types(source_table, schema)
@@ -2616,11 +2586,11 @@ class DataCleaningOps:
                 drop_cols = set([SQLIdentifierSanitizer.sanitize(c) for c in columns])
                 missing = drop_cols - set(existing_cols)
                 if missing:
-                    return self._error_response(f"Columns not found: {missing}")
+                    return fail(f"Columns not found: {missing}")
 
                 remaining_cols = [c for c in existing_cols if c not in drop_cols]
                 if not remaining_cols:
-                    return self._error_response("Cannot drop all columns")
+                    return fail("Cannot drop all columns")
 
                 select_clause = ", ".join([f'"{c}"' for c in remaining_cols])
                 query = f"SELECT {select_clause} FROM {qualified}"
@@ -2642,13 +2612,13 @@ class DataCleaningOps:
             )
             df = await self._fetch_data(output_table, schema)
 
-            return self._success_response(
+            return ok(
                 message=f"drop applied (axis={axis})",
-                involved_cols=columns or [], generated_cols=[], sample_df=df, new_table=output_table,
+                involved_cols=columns or [], generated_cols=[], result=df, new_table=output_table,
             )
 
         except Exception as e:
-            return self._error_response(f"dataframe_drop error: {str(e)}\n{traceback.format_exc()}")
+            return fail(f"dataframe_drop error: {str(e)}\n{traceback.format_exc()}")
         
     async def dataframe_isna(
         self,
@@ -2673,7 +2643,7 @@ class DataCleaningOps:
             cols = list(column_types.keys())
 
             if not cols:
-                return self._error_response("No columns found")
+                return fail("No columns found")
 
             select_parts = [f'"{col}" IS NULL AS "{col}"' for col in cols]
             query = f"""
@@ -2687,13 +2657,13 @@ class DataCleaningOps:
             )
             df = await self._fetch_data(output_table, schema)
 
-            return self._success_response(
+            return ok(
                 message="Generated NA mask (isna)",
-                involved_cols=cols, generated_cols=cols, sample_df=df, new_table=output_table,
+                involved_cols=cols, generated_cols=cols, result=df, new_table=output_table,
             )
 
         except Exception as e:
-            return self._error_response(f"dataframe_isna error: {str(e)}\n{traceback.format_exc()}")
+            return fail(f"dataframe_isna error: {str(e)}\n{traceback.format_exc()}")
             
     async def dataframe_notna(
         self,
@@ -2718,7 +2688,7 @@ class DataCleaningOps:
             cols = list(column_types.keys())
 
             if not cols:
-                return self._error_response("No columns found")
+                return fail("No columns found")
 
             select_parts = [f'"{col}" IS NOT NULL AS "{col}"' for col in cols]
             query = f"""
@@ -2732,13 +2702,13 @@ class DataCleaningOps:
             )
             df = await self._fetch_data(output_table, schema)
 
-            return self._success_response(
+            return ok(
                 message="Generated NA mask (notna)",
-                involved_cols=cols, generated_cols=cols, sample_df=df, new_table=output_table,
+                involved_cols=cols, generated_cols=cols, result=df, new_table=output_table,
             )
 
         except Exception as e:
-            return self._error_response(f"dataframe_notna error: {str(e)}\n{traceback.format_exc()}")
+            return fail(f"dataframe_notna error: {str(e)}\n{traceback.format_exc()}")
             
             
     async def dataframe_drop_duplicates(
@@ -2766,13 +2736,13 @@ class DataCleaningOps:
             all_cols = list(column_types.keys())
 
             if not all_cols:
-                return self._error_response("No columns found")
+                return fail("No columns found")
 
             if subset:
                 subset = [SQLIdentifierSanitizer.sanitize(c) for c in subset]
                 missing = set(subset) - set(all_cols)
                 if missing:
-                    return self._error_response(f"Columns not found: {missing}")
+                    return fail(f"Columns not found: {missing}")
                 partition_cols = subset
             else:
                 partition_cols = all_cols
@@ -2822,7 +2792,7 @@ class DataCleaningOps:
                     WHERE cnt = 1
                 """
             else:
-                return self._error_response("Invalid 'keep'. Use 'first', 'last', or False")
+                return fail("Invalid 'keep'. Use 'first', 'last', or False")
 
             output_table = await self._materialize_query_as_table(
                 query=query, table=source_table, schema=schema,
@@ -2830,13 +2800,13 @@ class DataCleaningOps:
             )
             df = await self._fetch_data(output_table, schema)
 
-            return self._success_response(
+            return ok(
                 message=f"drop_duplicates applied (subset={subset}, keep={keep})",
-                involved_cols=partition_cols, generated_cols=[], sample_df=df, new_table=output_table,
+                involved_cols=partition_cols, generated_cols=[], result=df, new_table=output_table,
             )
 
         except Exception as e:
-            return self._error_response(f"dataframe_drop_duplicates error: {str(e)}\n{traceback.format_exc()}")
+            return fail(f"dataframe_drop_duplicates error: {str(e)}\n{traceback.format_exc()}")
             
             
     # =========================================================================
@@ -2865,9 +2835,9 @@ class DataCleaningOps:
             high_missing = [c for c, v in result.items() if v["missing_pct"] > 50]
             msg = (f"Missing value analysis: {len(columns)} columns, "
                    f"{len(high_missing)} columns over 50% missing")
-            return self._success_response(msg, columns, result=result)
+            return ok(msg, columns, result=result)
         except Exception as e:
-            return self._error_response(str(e), columns)
+            return fail(str(e), columns)
 
     async def data_quality_completeness_score(
         self, table: str, schema: str, columns: List[str]
@@ -2889,9 +2859,9 @@ class DataCleaningOps:
                 scores[col] = {"completeness": (non_null/total*100) if total else 0}
             avg_comp = sum(v["completeness"] for v in scores.values()) / len(scores) if scores else 0
             msg = f"Completeness scores: {len(columns)} columns, average {avg_comp:.1f}%"
-            return self._success_response(msg, columns, result=scores)
+            return ok(msg, columns, result=scores)
         except Exception as e:
-            return self._error_response(str(e), columns)
+            return fail(str(e), columns)
 
     # =========================================================================
     # COMPREHENSIVE SUMMARIES
@@ -2913,9 +2883,9 @@ class DataCleaningOps:
                 if not res["is_error"]:
                     summaries[col] = res["message"]
             msg = f"Comprehensive numeric summary for {len(summaries)} columns"
-            return self._success_response(msg, columns[:20], result=summaries)
+            return ok(msg, columns[:20], result=summaries)
         except Exception as e:
-            return self._error_response(str(e), columns)
+            return fail(str(e), columns)
 
     async def statistical_profile_report(
         self, table: str, schema: str, columns: List[str]
@@ -2932,6 +2902,6 @@ class DataCleaningOps:
             comp = await self.data_quality_completeness_score(table, schema, columns)
             num = await self.comprehensive_numeric_summary(table, schema, columns)
             msg = f"Statistical profile for '{table}': {len(columns)} columns"
-            return self._success_response(msg, columns, result={"completeness": comp, "numeric": num})
+            return ok(msg, columns, result={"completeness": comp, "numeric": num})
         except Exception as e:
-            return self._error_response(str(e), columns)
+            return fail(str(e), columns)
