@@ -10,6 +10,7 @@ from memframe.db_manager.adapters.postgresql import PostgresAdapter
 from memframe.db_manager.adapters.duckdb import DuckDBAdapter
 from memframe.db_manager.adapters.clickhouse import ClickHouseAdapter
 from memframe.utils.helper import SQLIdentifierSanitizer
+from memframe.core.analytix._response import fail, ok
 
 class GeneralTableOps:
     """
@@ -56,22 +57,9 @@ class GeneralTableOps:
         involved_cols: Optional[List[str]] = None,
         generated_cols: Optional[List[str]] = None,
         result: Any = None,
-        current_state: Optional[pd.DataFrame] = None,
         **extra: Any,
     ) -> Dict[str, Any]:
-        response = {
-            "is_error": False,
-            "message": message,
-            "error_message": None,
-            "involved_cols": involved_cols or [],
-            "generated_cols": generated_cols or [],
-        }
-        if result is not None:
-            response["result"] = result
-        if current_state is not None:
-            response["current_state"] = current_state
-        response.update(extra)
-        return response
+        return ok(message, involved_cols, generated_cols, result, **extra)
 
     def _error_response(
         self,
@@ -81,17 +69,7 @@ class GeneralTableOps:
         result: Any = None,
         **extra: Any,
     ) -> Dict[str, Any]:
-        response = {
-            "is_error": True,
-            "message": "",
-            "error_message": error_message,
-            "involved_cols": involved_cols or [],
-            "generated_cols": generated_cols or [],
-        }
-        if result is not None:
-            response["result"] = result
-        response.update(extra)
-        return response
+        return fail(error_message, involved_cols, generated_cols, **extra)
 
     def _unsupported_backend_error(self) -> NotImplementedError:
         return NotImplementedError(
@@ -858,14 +836,13 @@ class GeneralTableOps:
                             yield pd.DataFrame.from_records(records)
                             offset += chunk_size
 
-                    return {
-                        "is_error": False,
-                        "message": f"Streaming full table '{table}'",
-                        "error_message": None,
-                        "iterator": iterator(),
-                        "chunk_size": chunk_size,
-                        "involved_cols": selected,
-                    }
+                    return self._success_response(
+                        message=f"Streaming full table '{table}'",
+                        involved_cols=selected,
+                        result=None,
+                        iterator=iterator(),
+                        chunk_size=chunk_size,
+                    )
 
                 rows = await self._fetch(f"SELECT {column_clause} FROM {qualified}")
                 records = self._rows_to_records(rows)
@@ -1080,7 +1057,7 @@ class GeneralTableOps:
                     message=f"Column '{column}' created successfully with {total_rows} values",
                     involved_cols=[],
                     generated_cols=[column],
-                    current_state=current_df,
+                    result=current_df,
                 )
 
             elif isinstance(self.db, ClickHouseAdapter):
@@ -1114,7 +1091,7 @@ class GeneralTableOps:
                     message=f"Column '{column}' created successfully with {total_rows} values",
                     involved_cols=[],
                     generated_cols=[column],
-                    current_state=df,
+                    result=df,
                 )
 
             else:
@@ -1365,7 +1342,7 @@ class GeneralTableOps:
                 return self._success_response(
                     message="Index reset with new id column",
                     generated_cols=["id"],
-                    current_state=current_df,
+                    result=current_df,
                 )
 
             elif isinstance(self.db, DuckDBAdapter):
@@ -1395,7 +1372,7 @@ class GeneralTableOps:
                 return self._success_response(
                     message="Index reset with new id column",
                     generated_cols=["id"],
-                    current_state=current_df,
+                    result=current_df,
                 )
 
             elif isinstance(self.db, ClickHouseAdapter):
@@ -1429,7 +1406,7 @@ class GeneralTableOps:
                 return self._success_response(
                     message="Index reset with new id column",
                     generated_cols=["id"],
-                    current_state=current_df,
+                    result=current_df,
                 )
 
             else:
@@ -1790,7 +1767,7 @@ class GeneralTableOps:
             return self._success_response(result={"ndim": 2})
 
         else:
-            raise self._unsupported_backend_error()
+            return self._error_response(str(self._unsupported_backend_error()))
     async def dataframe_shape(self, table: str, schema: str, **kwargs) -> Dict[str, Any]:
         try:
             if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
