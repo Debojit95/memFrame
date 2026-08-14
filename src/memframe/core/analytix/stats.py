@@ -14,6 +14,7 @@ from memframe.db_manager.adapters.duckdb import DuckDBAdapter
 from memframe.db_manager.adapters.postgresql import PostgresAdapter
 from memframe.db_manager.adapters.clickhouse import ClickHouseAdapter
 from memframe.utils.helper import SQLIdentifierSanitizer
+from memframe.core.analytix._response import fail, ok
 
 
 class DataStatsOps:
@@ -76,15 +77,7 @@ class DataStatsOps:
         result: Any = None,
         **extra,
     ) -> Dict[str, Any]:
-        return {
-            "is_error": False,
-            "message": message,
-            "error_message": None,
-            "involved_cols": involved_cols or [],
-            "generated_cols": generated_cols or [],
-            "result": result,
-            **extra,
-        }
+        return ok(message, involved_cols, generated_cols, result, **extra)
 
     def _error_response(
         self,
@@ -92,13 +85,7 @@ class DataStatsOps:
         involved_cols: List[str] = None,
         generated_cols: List[str] = None,
     ) -> Dict[str, Any]:
-        return {
-            "is_error": True,
-            "message": "",
-            "error_message": error_message,
-            "involved_cols": involved_cols or [],
-            "generated_cols": generated_cols or [],
-        }
+        return fail(error_message, involved_cols, generated_cols)
 
     def _unsupported_backend_error(self) -> NotImplementedError:
         return NotImplementedError(
@@ -956,19 +943,19 @@ class DataStatsOps:
         if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
             return await self.numeric_count(table, schema, column)
         else:
-            raise self._unsupported_backend_error()
+            return fail(str(self._unsupported_backend_error()), [column])
             
     async def categorical_unique(self, table: str, schema: str, column: str) -> Dict[str, Any]:
         if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
             return await self.numeric_unique(table, schema, column)
         else:
-            raise self._unsupported_backend_error()
+            return fail(str(self._unsupported_backend_error()), [column])
             
     async def categorical_nunique(self, table: str, schema: str, column: str) -> Dict[str, Any]:
         if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
             return await self.numeric_nunique(table, schema, column)
         else:
-            raise self._unsupported_backend_error()
+            return fail(str(self._unsupported_backend_error()), [column])
             
     async def categorical_value_counts(self, table: str, schema: str, column: str, top_n: int = 10) -> Dict[str, Any]:
         try:
@@ -1013,7 +1000,7 @@ class DataStatsOps:
         if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
             return await self.numeric_mode(table, schema, column, top_n)
         else:
-            raise self._unsupported_backend_error()
+            return fail(str(self._unsupported_backend_error()), [column])
             
     async def categorical_chi_square(self, table: str, schema: str, column1: str, column2: str) -> Dict[str, Any]:
         try:
@@ -1462,13 +1449,13 @@ class DataStatsOps:
         if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
             return await self.numeric_count(table, schema, column)
         else:
-            raise self._unsupported_backend_error()
+            return fail(str(self._unsupported_backend_error()), [column])
             
     async def datetime_nunique(self, table: str, schema: str, column: str) -> Dict[str, Any]:
         if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
             return await self.numeric_nunique(table, schema, column)
         else:
-            raise self._unsupported_backend_error()
+            return fail(str(self._unsupported_backend_error()), [column])
             
     async def datetime_diff(self, table: str, schema: str, column: str) -> Dict[str, Any]:
         try:
