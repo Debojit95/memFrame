@@ -1,5 +1,4 @@
 import asyncio
-from pathlib import Path
 
 import pandas as pd
 import pytest
@@ -8,7 +7,6 @@ from memframe.exceptions import (
     ConfigurationError,
     ConnectionNotReady,
     DataNotFound,
-    OperationError,
 )
 from memframe.main import MemFrame
 from memframe.utils.helper import SQLIdentifierSanitizer
@@ -88,9 +86,9 @@ class TestSelectionErrorResponses:
         resp = uploaded.loc("1:2", columns=[1, 2])
         assert_error_dict(resp, "list of column names")
 
-    def test_loc_unknown_column_raises(self, uploaded):
-        with pytest.raises(OperationError, match="Unknown column"):
-            uploaded.loc("1:2", columns=["nope"])
+    def test_loc_unknown_column_returns_error(self, uploaded):
+        response = uploaded.loc("1:2", columns=["nope"])
+        assert_error_dict(response, "Unknown column")
 
     def test_iloc_col_indexer_and_columns_conflict(self, uploaded):
         resp = uploaded.iloc(1, col_indexer=[0], columns=["a"])

@@ -43,7 +43,8 @@ Every selection operation has synchronous and asynchronous forms:
 | `take(indices, axis=0)` | `await atake(...)` | Rows or columns by integer indices |
 
 All methods return a dictionary with `is_error`, `message`, `error_message`,
-and either `result`, `value`, `iterator`, or method-specific metadata.
+and `result`. The result may be a DataFrame, Series, scalar, dictionary, or
+`None` when the operation uses an iterator or fails.
 
 ## Usage Overview
 
@@ -80,7 +81,7 @@ result = dataset.at(
     column_label="name",
     index_column="id",
 )
-print(result["value"])
+print(result["result"])
 ```
 
 ```python
@@ -101,7 +102,7 @@ Parameters:
 
 Return behavior:
 
-- On success, the scalar is returned under `value`.
+- On success, the scalar is returned under `result`.
 - Missing `column_label`, missing `index_column`, or missing `row_label`
   returns `is_error=True`.
 
@@ -244,7 +245,7 @@ Supported selector forms:
 | Named columns | `columns=["name"]` | Converts names to column positions. |
 
 When both row and column indexers resolve to a single cell, the response
-contains `value` instead of `result`.
+contains the scalar under `result`.
 
 ### `loc`
 
@@ -377,15 +378,14 @@ Selection methods return dictionaries. Common keys are:
 | `is_error` | `bool` | `True` when the operation failed. |
 | `message` | `str` | Human-readable operation summary. |
 | `error_message` | `str` or `None` | Error details when `is_error` is true. |
-| `result` | `pd.DataFrame`, `pd.Series`, or `None` | DataFrame or row result for non-scalar operations. |
-| `value` | scalar or `None` | Scalar result for `at`, `iat`, and single-cell `iloc`. |
+| `result` | `pd.DataFrame`, `pd.Series`, scalar, dictionary, or `None` | Operation result. |
 | `new_table` | `str` or `None` | Generated/transient table name for table-producing operations. |
 | `iterator` | async generator or `None` | Chunk iterator when supported and `chunk_size` is set. |
 | `selected_columns` | `list` or `None` | Columns selected by `select_dtypes`. |
 | `row_indices` | `list` or absent | Row positions resolved by `iloc`/`take`. |
 | `col_indices` | `list` or absent | Column positions resolved by `iloc`/`take`. |
 
-Always check `is_error` before consuming `result`, `value`, or `iterator`.
+Always check `is_error` before consuming `result` or `iterator`.
 
 ## Generated Tables
 

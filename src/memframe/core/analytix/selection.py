@@ -14,6 +14,7 @@ from memframe.db_manager.adapters.postgresql import PostgresAdapter
 from memframe.db_manager.adapters.clickhouse import ClickHouseAdapter
 from memframe.utils.helper import SQLIdentifierSanitizer
 from memframe.exceptions import DataNotFound, OperationError
+from memframe.core.analytix._response import fail, ok
 
 
 class DataSelectionOps:
@@ -43,20 +44,11 @@ class DataSelectionOps:
         return f"{self.db.quote_identifier(s)}.{self.db.quote_identifier(t)}"
 
     def _success_response(self, message, sample_df=None, **extra):
-        return {
-            "is_error": False,
-            "message": message,
-            "error_message": None,
-            "result": sample_df,
-            **extra,
-        }
+        result = extra.pop("result", sample_df)
+        return ok(message, result=result, **extra)
 
     def _error_response(self, msg):
-        return {
-            "is_error": True,
-            "message": "",
-            "error_message": msg,
-        }
+        return fail(msg)
 
     def _unsupported_backend_error(self) -> NotImplementedError:
         return NotImplementedError(
@@ -410,8 +402,7 @@ class DataSelectionOps:
                     raise DataNotFound(f"Label '{row_label}' not found in index column '{resolved_index_column}'")
                 return self._success_response(
                     f"at[{row_label}, {column_label}]",
-                    sample_df=None,
-                    value=scalar,
+                    result=scalar,
                     index_column=resolved_index_column,
                 )
             else:
@@ -450,8 +441,7 @@ class DataSelectionOps:
                     raise OperationError(f"Position {row_position} out of bounds")
                 return self._success_response(
                     f"iat[{row_position}, {column_label}]",
-                    sample_df=None,
-                    value=scalar,
+                    result=scalar,
                 )
             else:
                 raise self._unsupported_backend_error()
@@ -803,8 +793,7 @@ class DataSelectionOps:
                         raise OperationError(f"Row index {row_idx} out of bounds")
                     return self._success_response(
                         f"iloc[{row_idx}, {col_pos[0]}]",
-                        sample_df=None,
-                        value=scalar,
+                        result=scalar,
                     )
 
                 selected_col_names = [all_cols[i] for i in col_pos]

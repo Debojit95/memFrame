@@ -581,7 +581,7 @@ class TestSelectionOperations:
             backend_config["connection_type"],
         )
         assert not result.get("is_error")
-        assert result["value"] == "Charlie"
+        assert result["result"] == "Charlie"
 
         # explicit index column
         result = uploaded_ctx.at(row_label=103, column_label="name", index_column="id")
@@ -594,7 +594,7 @@ class TestSelectionOperations:
             backend_config["connection_type"],
         )
         assert not result.get("is_error")
-        assert result["value"] == "Charlie"
+        assert result["result"] == "Charlie"
 
         # non-existent label
         result = uploaded_ctx.at(row_label=999, column_label="name", index_column="id")
@@ -623,7 +623,7 @@ class TestSelectionOperations:
         )
         assert not result.get("is_error")
         # row 2 after sorting by id: 101(0), 102(1), 103(2) -> score NaN
-        assert pd.isna(result["value"])
+        assert pd.isna(result["result"])
 
         # out of bounds
         result = uploaded_ctx.iat(row_position=10, column_label="score", order_by="id")
@@ -909,7 +909,7 @@ class TestSelectionOperations:
             backend_config["connection_type"],
         )
         assert not result.get("is_error")
-        assert result["value"] == "Alice"
+        assert result["result"] == "Alice"
 
     def test_iloc_list_rows_cols(self, uploaded_ctx, sample_df, backend_config):
         result = uploaded_ctx.iloc(row_indexer=[0, 3], col_indexer=[1, 2])

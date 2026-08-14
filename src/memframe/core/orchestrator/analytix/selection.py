@@ -1,5 +1,6 @@
 from typing import Any, List, Optional, Tuple, Union
 from memframe.core.analytix.selection import DataSelectionOps
+from memframe.core.analytix._response import fail
 from memframe.exceptions import OperationError
 from memframe.cache import record_call
 
@@ -101,25 +102,13 @@ class SelectionOrchestrator:
         data_id = self._data_id or self._memframe._active_id
 
         if chunk_size is not None:
-            return {
-                "is_error": True,
-                "message": "",
-                "error_message": "chunk_size is not supported for loc with iloc-style row indexers.",
-            }
+            return fail("chunk_size is not supported for loc with iloc-style row indexers.")
 
         if isinstance(row_selector, tuple):
             if columns is not None:
-                return {
-                    "is_error": True,
-                    "message": "",
-                    "error_message": "Pass either tuple row_selector=(rows, columns) or columns separately, not both.",
-                }
+                return fail("Pass either tuple row_selector=(rows, columns) or columns separately, not both.")
             if len(row_selector) != 2:
-                return {
-                    "is_error": True,
-                    "message": "",
-                    "error_message": "Tuple row_selector for loc must have exactly two items: (row_indexer, columns).",
-                }
+                return fail("Tuple row_selector for loc must have exactly two items: (row_indexer, columns).")
             row_selector, columns = row_selector
 
         # Handle string conditions (WHERE clauses) directly via core loc
@@ -133,45 +122,28 @@ class SelectionOrchestrator:
                 backend=backend, data_id=data_id, chunk_size=chunk_size,
             )
 
-        row_indexer = self._parse_slice_text(row_selector)
+        try:
+            row_indexer = self._parse_slice_text(row_selector)
+        except (OperationError, ValueError) as exc:
+            return fail(str(exc))
         col_indexer = None
         if columns in (None, "*", ["*"], ("*",)):
             col_indexer = None
         elif isinstance(columns, str):
-            return {
-                "is_error": True,
-                "message": "",
-                "error_message": "columns must be a list of column names or '*'.",
-            }
+            return fail("columns must be a list of column names or '*'.")
         elif isinstance(columns, (list, tuple)):
             if not columns:
-                return {
-                    "is_error": True,
-                    "message": "",
-                    "error_message": "columns list cannot be empty.",
-                }
+                return fail("columns list cannot be empty.")
             if not all(isinstance(c, str) for c in columns):
-                return {
-                    "is_error": True,
-                    "message": "",
-                    "error_message": "columns must be a list of column names or '*'.",
-                }
+                return fail("columns must be a list of column names or '*'.")
             try:
                 col_indexer = await self._column_names_to_positions(
                     ops=ops, table=table, schema=schema, columns=list(columns),
                 )
-            except ValueError as exc:
-                return {
-                    "is_error": True,
-                    "message": "",
-                    "error_message": str(exc),
-                }
+            except (OperationError, ValueError) as exc:
+                return fail(str(exc))
         else:
-            return {
-                "is_error": True,
-                "message": "",
-                "error_message": "columns must be a list of column names or '*'.",
-            }
+            return fail("columns must be a list of column names or '*'.")
 
         result = await ops.iloc(
             table=table, schema=schema,
@@ -235,28 +207,19 @@ class SelectionOrchestrator:
 
         if isinstance(row_indexer, tuple):
             if col_indexer is not None:
-                return {
-                    "is_error": True,
-                    "message": "",
-                    "error_message": "Pass either tuple row_indexer=(rows, cols) or col_indexer separately, not both.",
-                }
+                return fail("Pass either tuple row_indexer=(rows, cols) or col_indexer separately, not both.")
             if len(row_indexer) != 2:
-                return {
-                    "is_error": True,
-                    "message": "",
-                    "error_message": "Tuple row_indexer for iloc must have exactly two items: (row_indexer, col_indexer).",
-                }
+                return fail("Tuple row_indexer for iloc must have exactly two items: (row_indexer, col_indexer).")
             row_indexer, col_indexer = row_indexer
 
-        row_indexer = self._parse_slice_text(row_indexer)
-        col_indexer = self._parse_slice_text(col_indexer)
+        try:
+            row_indexer = self._parse_slice_text(row_indexer)
+            col_indexer = self._parse_slice_text(col_indexer)
+        except (OperationError, ValueError) as exc:
+            return fail(str(exc))
 
         if columns is not None and col_indexer is not None:
-            return {
-                "is_error": True,
-                "message": "",
-                "error_message": "Use either `col_indexer` or `columns`, not both.",
-            }
+            return fail("Use either `col_indexer` or `columns`, not both.")
 
         try:
             if columns is not None:
@@ -271,20 +234,12 @@ class SelectionOrchestrator:
                 has_str = any(isinstance(c, str) for c in col_indexer)
                 if has_str:
                     if not all(isinstance(c, str) for c in col_indexer):
-                        return {
-                            "is_error": True,
-                            "message": "",
-                            "error_message": "When passing column names in col_indexer, all entries must be strings.",
-                        }
+                        return fail("When passing column names in col_indexer, all entries must be strings.")
                     col_indexer = await self._column_names_to_positions(
                         ops=ops, table=table, schema=schema, columns=list(col_indexer),
                     )
-        except ValueError as exc:
-            return {
-                "is_error": True,
-                "message": "",
-                "error_message": str(exc),
-            }
+        except (OperationError, ValueError, TypeError) as exc:
+            return fail(str(exc))
 
         result = await ops.iloc(
             table=table, schema=schema,
