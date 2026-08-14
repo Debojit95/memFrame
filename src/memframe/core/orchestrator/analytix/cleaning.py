@@ -4,6 +4,7 @@ import numpy as np
 
 from memframe.core.ingestion.datatype_detector import DatatypeDetector
 from memframe.core.analytix.cleaning import DataCleaningOps
+from memframe.core.analytix._response import fail
 from memframe.cache import record_call
 
 
@@ -87,15 +88,14 @@ class CleaningOrchestrator:
         if method_lower == "map":
             return await ops.categorical_fillna(table, schema, column, mode="MAP", mapping=mapping, **persist)
 
-        # Datetime‑specific mode
+        # Datetime-specific mode
         if method_lower in ("now",):
             if detected_dtype != "datetime":
-                return {
-                    "is_error": True,
-                    "error_message": f"Method '{method}' is only valid for datetime columns (detected: {detected_dtype})",
-                    "involved_cols": [column],
-                    "generated_cols": [],
-                }
+                return fail(
+                    f"Method '{method}' is only valid for datetime columns (detected: {detected_dtype})",
+                    [column],
+                    [],
+                )
             return await ops.datetime_fillna(
                 table, schema, column, mode=method_lower.upper(), value=value, **persist
             )
@@ -113,12 +113,11 @@ class CleaningOrchestrator:
 
         # Categorical/text/boolean branch
         if method_lower in ("mean", "median", "std", "var", "min", "max"):
-            return {
-                "is_error": True,
-                "error_message": f"Method '{method}' requires a numeric column (detected: {detected_dtype})",
-                "involved_cols": [column],
-                "generated_cols": [],
-            }
+            return fail(
+                f"Method '{method}' requires a numeric column (detected: {detected_dtype})",
+                [column],
+                [],
+            )
 
         return await ops.categorical_fillna(table, schema, column, mode=method_lower.upper(), value=value, mapping=mapping, **persist)
 
@@ -285,12 +284,7 @@ class CleaningOrchestrator:
             Standard response dict.
         """
         if not group_cols:
-            return {
-                "is_error": True,
-                "error_message": "group_cols must be provided for groupby_fillna",
-                "involved_cols": [column],
-                "generated_cols": [],
-            }
+            return fail("group_cols must be provided for groupby_fillna", [column], [])
 
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
@@ -362,12 +356,11 @@ class CleaningOrchestrator:
         # INVALID NUMERIC METHODS ON CATEGORICAL
         # ----------------------------------------
         if method_lower in ("mean", "median", "std", "var", "min", "max"):
-            return {
-                "is_error": True,
-                "error_message": f"Method '{method}' requires numeric column (detected: {detected_dtype})",
-                "involved_cols": [column],
-                "generated_cols": [],
-            }
+            return fail(
+                f"Method '{method}' requires numeric column (detected: {detected_dtype})",
+                [column],
+                [],
+            )
 
         # ----------------------------------------
         # CATEGORICAL
