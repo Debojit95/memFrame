@@ -1,4 +1,5 @@
 from __future__ import annotations
+from functools import wraps
 from typing import Any, Dict, List, Optional, Union
 from datetime import datetime, timezone
 
@@ -9,6 +10,19 @@ from memframe.db_manager.adapters.duckdb import DuckDBAdapter
 from memframe.db_manager.adapters.postgresql import PostgresAdapter
 from memframe.db_manager.adapters.clickhouse import ClickHouseAdapter
 from memframe.utils.helper import SQLIdentifierSanitizer
+from memframe.core.analytix._response import fail, ok
+
+
+def _response_errors(method):
+    """Keep arithmetic operation failures inside the response contract."""
+    @wraps(method)
+    async def wrapped(self, *args, **kwargs):
+        try:
+            return await method(self, *args, **kwargs)
+        except Exception as exc:
+            return fail(f"{method.__name__} error: {exc}")
+
+    return wrapped
 
 
 class ArithmeticOps:
@@ -154,34 +168,6 @@ class ArithmeticOps:
             await self._exec(
                 f"ALTER TABLE {qualified} ADD COLUMN {self.db.quote_identifier(safe_col)} {data_type}"
             )
-
-    # ------------------------------------------------------------------
-    # Response builders (mirror DataCleaningOps)
-    # ------------------------------------------------------------------
-    def _success_response(
-        self, message: str, involved_cols: List[str], generated_cols: List[str],
-        sample_df: pd.DataFrame, **extra
-    ) -> Dict[str, Any]:
-        return {
-            "is_error": False,
-            "message": message,
-            "error_message": None,
-            "involved_cols": involved_cols,
-            "generated_cols": generated_cols,
-            "result": sample_df,
-            **extra,
-        }
-
-    def _error_response(
-        self, error_message: str, involved_cols: List[str] = None, generated_cols: List[str] = None
-    ) -> Dict[str, Any]:
-        return {
-            "is_error": True,
-            "message": "",
-            "error_message": error_message,
-            "involved_cols": involved_cols or [],
-            "generated_cols": generated_cols or [],
-        }
 
     def _unsupported_backend_error(self) -> NotImplementedError:
         return NotImplementedError(
@@ -352,7 +338,7 @@ class ArithmeticOps:
         cols_to_fetch = list(set(involved_cols)) + [target_col]
         sample = await self._fetch_data(working_table, schema, cols_to_fetch)
 
-        return self._success_response(
+        return ok(
             f"{operation_name}: {expression} → {tgt_safe}",
             involved_cols,
             [tgt_safe],
@@ -365,6 +351,7 @@ class ArithmeticOps:
     # ==================================================================
     #  BINARY OPERATIONS (updated signatures with backend etc.)
     # ==================================================================
+    @_response_errors
     async def add(self, table: str, schema: str, col1: Union[str, float, int],
                   col2: Union[str, float, int], target_col: Optional[str] = None,
                   backend=None, data_id: Optional[str] = None,
@@ -381,6 +368,7 @@ class ArithmeticOps:
         else:
             raise self._unsupported_backend_error()
 
+    @_response_errors
     async def subtract(self, table: str, schema: str, col1: Union[str, float, int],
                        col2: Union[str, float, int], target_col: Optional[str] = None,
                        backend=None, data_id: Optional[str] = None,
@@ -397,6 +385,7 @@ class ArithmeticOps:
         else:
             raise self._unsupported_backend_error()
 
+    @_response_errors
     async def multiply(self, table: str, schema: str, col1: Union[str, float, int],
                        col2: Union[str, float, int], target_col: Optional[str] = None,
                        backend=None, data_id: Optional[str] = None,
@@ -413,6 +402,7 @@ class ArithmeticOps:
         else:
             raise self._unsupported_backend_error()
 
+    @_response_errors
     async def divide(self, table: str, schema: str, col1: Union[str, float, int],
                      col2: Union[str, float, int], target_col: Optional[str] = None,
                      backend=None, data_id: Optional[str] = None,
@@ -429,6 +419,7 @@ class ArithmeticOps:
         else:
             raise self._unsupported_backend_error()
 
+    @_response_errors
     async def modulo(self, table: str, schema: str, col1: Union[str, float, int],
                      col2: Union[str, float, int], target_col: Optional[str] = None,
                      backend=None, data_id: Optional[str] = None,
@@ -446,6 +437,7 @@ class ArithmeticOps:
         else:
             raise self._unsupported_backend_error()
 
+    @_response_errors
     async def power(self, table: str, schema: str, col1: Union[str, float, int],
                     col2: Union[str, float, int], target_col: Optional[str] = None,
                     backend=None, data_id: Optional[str] = None,
@@ -466,6 +458,7 @@ class ArithmeticOps:
     # ==================================================================
     #  UNARY OPERATIONS (updated)
     # ==================================================================
+    @_response_errors
     async def absolute(self, table: str, schema: str, column: str,
                        target_col: Optional[str] = None,
                        backend=None, data_id: Optional[str] = None,
@@ -482,6 +475,7 @@ class ArithmeticOps:
         else:
             raise self._unsupported_backend_error()
 
+    @_response_errors
     async def negate(self, table: str, schema: str, column: str,
                      target_col: Optional[str] = None,
                      backend=None, data_id: Optional[str] = None,
@@ -498,6 +492,7 @@ class ArithmeticOps:
         else:
             raise self._unsupported_backend_error()
 
+    @_response_errors
     async def round(self, table: str, schema: str, column: str,
                     digits: int = 0, target_col: Optional[str] = None,
                     backend=None, data_id: Optional[str] = None,
@@ -517,6 +512,7 @@ class ArithmeticOps:
         else:
             raise self._unsupported_backend_error()
 
+    @_response_errors
     async def ceil(self, table: str, schema: str, column: str,
                    target_col: Optional[str] = None,
                    backend=None, data_id: Optional[str] = None,
@@ -533,6 +529,7 @@ class ArithmeticOps:
         else:
             raise self._unsupported_backend_error()
 
+    @_response_errors
     async def floor(self, table: str, schema: str, column: str,
                     target_col: Optional[str] = None,
                     backend=None, data_id: Optional[str] = None,
@@ -549,6 +546,7 @@ class ArithmeticOps:
         else:
             raise self._unsupported_backend_error()
 
+    @_response_errors
     async def truncate(self, table: str, schema: str, column: str,
                        digits: int = 0, target_col: Optional[str] = None,
                        backend=None, data_id: Optional[str] = None,
@@ -579,6 +577,7 @@ class ArithmeticOps:
     # ==================================================================
     #  EXP / LOG / ROOT (updated)
     # ==================================================================
+    @_response_errors
     async def exp(self, table: str, schema: str, column: str,
                   target_col: Optional[str] = None,
                   backend=None, data_id: Optional[str] = None,
@@ -595,6 +594,7 @@ class ArithmeticOps:
         else:
             raise self._unsupported_backend_error()
 
+    @_response_errors
     async def log(self, table: str, schema: str, column: str,
                   target_col: Optional[str] = None,
                   backend=None, data_id: Optional[str] = None,
@@ -613,6 +613,7 @@ class ArithmeticOps:
             raise self._unsupported_backend_error()
 
     
+    @_response_errors
     async def log10(self, table: str, schema: str, column: str,
                     target_col: Optional[str] = None,
                     backend=None, data_id: Optional[str] = None,
@@ -639,6 +640,7 @@ class ArithmeticOps:
         else:
             raise self._unsupported_backend_error()
     
+    @_response_errors
     async def sqrt(self, table: str, schema: str, column: str,
                    target_col: Optional[str] = None,
                    backend=None, data_id: Optional[str] = None,
@@ -658,6 +660,7 @@ class ArithmeticOps:
     # ==================================================================
     #  TRIGONOMETRIC (updated)
     # ==================================================================
+    @_response_errors
     async def sin(self, table: str, schema: str, column: str,
                   target_col: Optional[str] = None,
                   backend=None, data_id: Optional[str] = None,
@@ -675,6 +678,7 @@ class ArithmeticOps:
             raise self._unsupported_backend_error()
 
 
+    @_response_errors
     async def cos(self, table: str, schema: str, column: str,
                   target_col: Optional[str] = None,
                   backend=None, data_id: Optional[str] = None,
@@ -691,6 +695,7 @@ class ArithmeticOps:
         else:
             raise self._unsupported_backend_error()
 
+    @_response_errors
     async def tan(self, table: str, schema: str, column: str,
                   target_col: Optional[str] = None,
                   backend=None, data_id: Optional[str] = None,
@@ -707,6 +712,7 @@ class ArithmeticOps:
         else:
             raise self._unsupported_backend_error()
 
+    @_response_errors
     async def asin(self, table: str, schema: str, column: str,
                    target_col: Optional[str] = None,
                    backend=None, data_id: Optional[str] = None,
@@ -723,6 +729,7 @@ class ArithmeticOps:
         else:
             raise self._unsupported_backend_error()
 
+    @_response_errors
     async def acos(self, table: str, schema: str, column: str,
                    target_col: Optional[str] = None,
                    backend=None, data_id: Optional[str] = None,
@@ -739,6 +746,7 @@ class ArithmeticOps:
         else:
             raise self._unsupported_backend_error()
 
+    @_response_errors
     async def atan(self, table: str, schema: str, column: str,
                    target_col: Optional[str] = None,
                    backend=None, data_id: Optional[str] = None,
@@ -755,6 +763,7 @@ class ArithmeticOps:
         else:
             raise self._unsupported_backend_error()
 
+    @_response_errors
     async def atan2(self, table: str, schema: str,
                     col1: Union[str, float, int], col2: Union[str, float, int],
                     target_col: Optional[str] = None,
@@ -775,6 +784,7 @@ class ArithmeticOps:
     # ==================================================================
     #  COMPLEX OPERATIONS (updated)
     # ==================================================================
+    @_response_errors
     async def weighted_average(self, table: str, schema: str,
                                col1: Union[str, float, int], col2: Union[str, float, int],
                                weight1: float = 1, weight2: float = 1,
@@ -793,6 +803,7 @@ class ArithmeticOps:
         else:
             raise self._unsupported_backend_error()
 
+    @_response_errors
     async def percentage_change(self, table: str, schema: str,
                                 old_col: str, new_col: str,
                                 target_col: Optional[str] = None,
@@ -810,6 +821,7 @@ class ArithmeticOps:
         else:
             raise self._unsupported_backend_error()
 
+    @_response_errors
     async def normalize_range(self, table: str, schema: str, column: str,
                               target_col: Optional[str] = None,
                               backend=None, data_id: Optional[str] = None,
@@ -832,4 +844,4 @@ class ArithmeticOps:
             else:
                 raise self._unsupported_backend_error()
         except Exception as e:
-            return self._error_response(f"normalize_range error: {str(e)}", [column])
+            return fail(f"normalize_range error: {str(e)}", [column])
