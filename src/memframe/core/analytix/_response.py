@@ -6,6 +6,8 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from memframe.exceptions import OperationError
+
 
 class OperationResponse(BaseModel):
     """Validated internal representation of an operation response."""
@@ -25,6 +27,28 @@ class OperationResponse(BaseModel):
     def to_payload(self) -> dict[str, Any]:
         """Return the existing dictionary API payload without dropping None."""
         return self.model_dump(exclude_none=False)
+
+
+def is_operation_response(value: Any) -> bool:
+    """Return whether a value is a canonical analytix response payload."""
+    return isinstance(value, dict) and {
+        "is_error",
+        "error_message",
+        "result",
+    }.issubset(value)
+
+
+def unwrap_response(value: Any) -> Any:
+    """Return a public operation value or raise its operation error."""
+    if not is_operation_response(value):
+        return value
+    if value["is_error"]:
+        raise OperationError(
+            value.get("error_message") or value.get("message") or "Operation failed"
+        )
+    if value.get("result") is None and value.get("iterator") is not None:
+        return value["iterator"]
+    return value["result"]
 
 
 # Keep the argument order used by the existing analytix response builders.
