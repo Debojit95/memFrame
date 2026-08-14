@@ -1,6 +1,7 @@
 from typing import Optional, Dict, Any, List
 from memframe.cache import record_call
 from memframe.core.analytix.inspection import GeneralTableOps
+from memframe.core.analytix._response import fail
 
 
 class TableOpsOrchestrator:
@@ -61,13 +62,7 @@ class TableOpsOrchestrator:
         if columns == "*" or columns == ["*"]:
             columns = None
         if columns is not None and not isinstance(columns, list):
-            return {
-                "is_error": True,
-                "message": "",
-                "error_message": "columns must be a list of column names or '*'",
-                "involved_cols": [],
-                "generated_cols": [],
-            }
+            return fail("columns must be a list of column names or '*'")
 
         return await ops.dataframe_null_analysis(table, schema, columns=columns)
 
@@ -90,22 +85,10 @@ class TableOpsOrchestrator:
 
         if dtype_map is None:
             if columns is None or dtypes is None:
-                return {
-                    "is_error": True,
-                    "message": "",
-                    "error_message": "Provide either dtype_map OR (columns + dtypes)",
-                    "involved_cols": [],
-                    "generated_cols": [],
-                }
+                return fail("Provide either dtype_map OR (columns + dtypes)")
 
             if len(columns) != len(dtypes):
-                return {
-                    "is_error": True,
-                    "message": "",
-                    "error_message": "columns and dtypes length mismatch",
-                    "involved_cols": [],
-                    "generated_cols": [],
-                }
+                return fail("columns and dtypes length mismatch")
 
             dtype_map = dict(zip(columns, dtypes))
 
@@ -116,13 +99,7 @@ class TableOpsOrchestrator:
         ops = await self._ensure_ops()
 
         if not isinstance(value, list):
-            return {
-                "is_error": True,
-                "message": "",
-                "error_message": "Value must be a list",
-                "involved_cols": [],
-                "generated_cols": [],
-            }
+            return fail("Value must be a list")
 
         table, schema = await self._get_context()
 
@@ -139,13 +116,7 @@ class TableOpsOrchestrator:
         ops = await self._ensure_ops()
 
         if datetime_action not in ["skip", "cast_string", "extract_epoch", "keep", "error"]:
-            return {
-                "is_error": True,
-                "message": "",
-                "error_message": "Invalid datetime_action",
-                "involved_cols": [],
-                "generated_cols": [],
-            }
+            return fail("Invalid datetime_action")
 
         table, schema = await self._get_context()
 
