@@ -4,13 +4,11 @@ import os
 import asyncio
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 import pandas as pd
 import numpy as np
 import pytest
-import subprocess
-import sys
 
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
@@ -286,7 +284,7 @@ def get_result_value(result: Any) -> Any:
         if result.get("is_error"):
             raise AssertionError(result.get("error_message") or f"Operation failed: {result}")
         if "result" in result:
-            return get_result_value(result["result"])
+            return get_result_value(result)
         if "value" in result:
             return result["value"]
         if "data" in result:

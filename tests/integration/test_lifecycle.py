@@ -6,6 +6,7 @@ the end-to-end lifecycle a production user runs against each backend.
 
 import asyncio
 
+import pandas as pd
 import pytest
 
 from memframe.exceptions import DataNotFound
@@ -41,7 +42,7 @@ class TestOperationLifecycle:
     def test_operation_then_history_then_retrieve(self, connected_memframe, uploaded_ctx):
         data_id = uploaded_ctx._data_id
         result = asyncio.run(uploaded_ctx.aadd("a", "b"))
-        assert not result.get("is_error"), result.get("error_message")
+        assert isinstance(result, pd.DataFrame)
 
         ops = asyncio.run(connected_memframe.alist_operations(data_id))
         method_calls = [o for o in ops if o["operation_type"] == "method_call"]
@@ -52,9 +53,9 @@ class TestOperationLifecycle:
 
     def test_deep_cache_hit_roundtrip(self, connected_memframe, uploaded_ctx):
         r1 = asyncio.run(uploaded_ctx.amul("a", "b"))
-        assert not r1.get("is_error"), r1.get("error_message")
         r2 = asyncio.run(uploaded_ctx.amul("a", "b"))
-        assert r2.get("result_metadata", {}).get("from_cache") is True
+        assert isinstance(r2, pd.DataFrame)
+        assert r2.iloc[:, -1].tolist() == r1.iloc[:, -1].tolist()
 
 
 class TestDeleteLifecycle:

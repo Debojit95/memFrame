@@ -301,8 +301,8 @@ def get_result_df(result: Any) -> pd.DataFrame:
     if isinstance(result, dict):
         if result.get("is_error"):
             raise AssertionError(result.get("error_message") or f"Operation failed: {result}")
-        if "result" in result and isinstance(result["result"], pd.DataFrame):
-            return result["result"]
+        if "result" in result and isinstance(result, pd.DataFrame):
+            return result
         if "data" in result and isinstance(result["data"], pd.DataFrame):
             return result["data"]
     raise AssertionError(f"Cannot extract DataFrame from type {type(result)}: {result}")
@@ -310,6 +310,8 @@ def get_result_df(result: Any) -> pd.DataFrame:
 
 def get_generated_col(result: Any, fallback: str) -> str:
     """Retrieve the name of the new column (if renamed) else fallback."""
+    if isinstance(result, pd.DataFrame):
+        return fallback
     if isinstance(result, dict):
         cols = result.get("generated_cols") or []
         if cols:
@@ -348,7 +350,7 @@ def normalize_frame(df: pd.DataFrame) -> pd.DataFrame:
 
 def unwrap_result_payload(result: Any) -> Any:
     if isinstance(result, dict) and "result" in result:
-        return result["result"]
+        return result
     return result
 
 

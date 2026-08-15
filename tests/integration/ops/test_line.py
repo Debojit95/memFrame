@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 import pandas as pd
-import numpy as np
 import pytest
 
 import matplotlib

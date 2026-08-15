@@ -5,7 +5,7 @@ import asyncio
 import functools
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 import pandas as pd
 import numpy as np
@@ -285,21 +285,12 @@ def uploaded_ctx(connected_memframe, sample_df) -> Any:
 # Helper: convert library result to pandas DataFrame
 # ----------------------------------------------------------------------
 def get_plain_result(result: Any) -> Any:
-    """Extract the actual value from a library result dict (non‑DataFrame)."""
+    """Return the public operation value unchanged (results are now raw)."""
     if isinstance(result, dict):
         if result.get("is_error"):
             raise AssertionError(result.get("error_message") or f"Operation failed: {result}")
-        # Often the real result is under 'result' key
-        if "result" in result:
-            return get_plain_result(result["result"])
-        # For property methods that return a dict with e.g. 'columns' key
         if "columns" in result:
             return result["columns"]
-        # For info
-        if "column_name" in result:
-            return result  # it's a table, leave as dict
-        # Fallback: return the whole dict (for metadata methods)
-        return result
     return result
 
 def get_result_df(result: Any) -> pd.DataFrame:
@@ -378,7 +369,7 @@ def normalize_frame(df: pd.DataFrame) -> pd.DataFrame:
 
 def unwrap_result_payload(result: Any) -> Any:
     if isinstance(result, dict) and "result" in result:
-        return result["result"]
+        return result
     return result
 
 
@@ -1041,20 +1032,21 @@ class TestInspectionOperations:
         
     def test_values(self, uploaded_ctx, sample_df):
         result = uploaded_ctx.values()
-        # Returns list of lists or 2D array
-        assert len(result) == len(sample_df)
+        # Returns {"values": [[...]]} with one row of column values each
+        assert isinstance(result, dict)
+        assert len(result["values"]) == len(sample_df)
 
     def test_items(self, uploaded_ctx):
         result = uploaded_ctx.items()
-        # Should be iterable of (column, series-like) pairs
-        assert hasattr(result, "__iter__")
+        # Should be an async iterator of (column, series-like) pairs
+        assert hasattr(result, "__aiter__")
 
     def test_iterrows(self, uploaded_ctx):
         result = uploaded_ctx.iterrows()
-        # Should be iterable of (index, row) pairs
-        assert hasattr(result, "__iter__")
+        # Should be an async iterator of (index, row) pairs
+        assert hasattr(result, "__aiter__")
 
     def test_itertuples(self, uploaded_ctx):
         result = uploaded_ctx.itertuples(index=False)
-        # Should be iterable of namedtuples
-        assert hasattr(result, "__iter__")
+        # Should be an async iterator of namedtuples
+        assert hasattr(result, "__aiter__")

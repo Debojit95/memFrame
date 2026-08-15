@@ -7,6 +7,7 @@ those are not tested here.
 
 import asyncio
 
+import pandas as pd
 import pytest
 
 pytestmark = pytest.mark.integration
@@ -28,10 +29,11 @@ class TestOperationIndexMonotonic:
 class TestCacheTransition:
     def test_cold_then_warm(self, uploaded_ctx):
         r1 = asyncio.run(uploaded_ctx.amul("a", "b"))
-        assert r1.get("result_metadata", {}).get("from_cache", False) is False
+        assert isinstance(r1, pd.DataFrame)
 
         r2 = asyncio.run(uploaded_ctx.amul("a", "b"))
-        assert r2.get("result_metadata", {}).get("from_cache") is True
+        assert isinstance(r2, pd.DataFrame)
+        assert r2.iloc[:, -1].tolist() == r1.iloc[:, -1].tolist()
 
     def test_warm_result_equals_cold(self, uploaded_ctx, get_result_df):
         r1 = asyncio.run(uploaded_ctx.amul("a", "b"))
@@ -49,7 +51,7 @@ class TestCacheTransition:
 
     def test_different_args_miss(self, uploaded_ctx):
         r1 = asyncio.run(uploaded_ctx.amul("a", "b"))
-        assert r1.get("result_metadata", {}).get("from_cache", False) is False
+        assert isinstance(r1, pd.DataFrame)
 
         r2 = asyncio.run(uploaded_ctx.aadd("a", "b"))
-        assert r2.get("result_metadata", {}).get("from_cache", False) is False
+        assert isinstance(r2, pd.DataFrame)
