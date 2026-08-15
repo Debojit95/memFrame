@@ -52,4 +52,4 @@ class TestSelectionParity:
 class TestStatsParity:
     def test_sum_parity(self, uploaded_ctx, sample_df):
         result = asyncio.run(uploaded_ctx.asum("a"))
-        assert result == pytest.approx(sample_df["a"].sum())
+        assert float(result) == pytest.approx(float(sample_df["a"].sum()))
