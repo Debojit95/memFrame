@@ -4,17 +4,15 @@
 
 # memFrame
 
-memFrame is a database-backed data processing & analytics library via typed api that works with duckdb,postgres & clickhouse.
+> *memFrame brings a pandas-like DataFrame API to DuckDB, PostgreSQL, and ClickHouse — async-first, with an optional AI agent for natural-language data work.*
 
 ## What It Provides
 
-- Asynchronous(first) and synchronous APIs.
-- Local DuckDB and remote PostgreSQL/Clickhouse backends.
-- Pandas equivalent syntax.
-- CSV, Parquet, and pandas DataFrame uploads.
-- Persistent Caching Layer.
-- Transaction audit trail.
-- Plotting support(Plotly wrapper)
+- Database-backed DataFrame API across DuckDB, PostgreSQL, and ClickHouse.
+- Async-first surface with sync equivalents for every operation.
+- Upload from CSV, Parquet, or pandas DataFrame.
+- Inspection, selection, cleaning, statistics, arithmetic, Plotly charts.
+- Two-level cache: lineage audit + replayable result tables.
 - Optional AI agent layer (`memframe_ai`) for natural-language data work.
 
 

@@ -239,8 +239,10 @@ result = await dataset.adrop_outliers(column="amount", z_thresh=2.5)
 
 ### `to_numeric`
 
-`to_numeric` strips non-numeric characters from a text-like column and casts
-valid numeric tokens to `NUMERIC`.
+`to_numeric` converts a text-like column to a numeric type **in place**,
+stripping non-numeric characters from its values. The target column type
+(integer, float, or decimal) is auto-detected from a sample of the cleaned
+values. Invalid or empty numeric tokens become `NULL`.
 
 ```python
 result = dataset.to_numeric(column="price_text")
@@ -249,8 +251,6 @@ result = dataset.to_numeric(column="price_text")
 ```python
 result = await dataset.ato_numeric(column="amount_raw")
 ```
-
-Invalid or empty numeric tokens become `NULL`.
 
 ## Categorical Cleaning
 
