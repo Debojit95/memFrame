@@ -61,25 +61,21 @@ Every inspect operation has synchronous and asynchronous forms:
 | `iterrows()` | `await aiterrows()` | Row iterator result |
 | `itertuples(index=True)` | `await aitertuples(...)` | Tuple-style row iterator result |
 
-All methods return a dictionary with `is_error`, `message`, `error_message`,
-and either `result`, `iterator`, or method-specific metadata.
+Public methods return DataFrames, dictionaries, scalars, or iterators directly.
+Invalid operations raise `OperationError`.
 
 ## Usage Overview
 
 ```python
 dataset = mf.upload_csv("data/sales.csv")
 
-preview = dataset.head(n=5, columns=["customer_id", "amount"])
-if not preview["is_error"]:
-    frame = preview["result"]
+frame = dataset.head(n=5, columns=["customer_id", "amount"])
 ```
 
 ```python
 dataset = await mf.aupload_csv("data/sales.csv")
 
-summary = await dataset.adescribe(columns=["amount"])
-if not summary["is_error"]:
-    frame = summary["result"]
+frame = await dataset.adescribe(columns=["amount"])
 ```
 
 Inspect methods are exposed directly through context forwarding. You can use
@@ -109,8 +105,8 @@ Parameters:
 | `n` | `int` | Maximum number of rows to return. Defaults to `10`. |
 | `columns` | `list[str]` or `None` | Optional columns to include. Invalid names are ignored; if none are valid, all columns are used. |
 
-The response includes a DataFrame under `result` and row/column metadata under
-`result_metadata`.
+The public method returns the DataFrame directly. Row/column metadata remains
+internal to the response envelope.
 
 ### `tail`
 
@@ -164,7 +160,7 @@ result = dataset.full_table(columns=["id", "name"])
 
 ```python
 result = await dataset.afull_table(chunk_size=1000)
-async for chunk in result["iterator"]:
+async for chunk in result:
     ...
 ```
 
@@ -173,9 +169,9 @@ Parameters:
 | Parameter | Type | Description |
 | --- | --- | --- |
 | `columns` | `list[str]` or `None` | Optional columns to include. |
-| `chunk_size` | `int` or `None` | Positive row count per chunk. When set, response contains `iterator` instead of `result`. |
+| `chunk_size` | `int` or `None` | Positive row count per chunk. When set, the method returns an async iterator. |
 
-Invalid or non-positive `chunk_size` returns an error response.
+Invalid or non-positive `chunk_size` raises `OperationError`.
 
 ## Summary Methods
 
@@ -196,11 +192,9 @@ Parameters: none.
 
 Return behavior:
 
-- `result` is a DataFrame with one row per column.
-- `new_table` contains the generated summary table name when persistence
-  context is available.
-- `result_metadata.table_info` contains table-level metadata such as row count,
-  column count, and backend size information.
+- The method returns a DataFrame with one row per column.
+- Generated summary-table and table-level metadata remain internal when
+  persistence context is available.
 
 ### `describe`
 
@@ -222,8 +216,8 @@ Parameters:
 | `columns` | `list[str]` or `None` | Numeric columns to summarize. If omitted, numeric columns are discovered from the backend schema. |
 
 The result DataFrame has a `statistic` column plus one column per summarized
-numeric column. If no numeric columns are available, the method returns
-`is_error=True`.
+numeric column. If no numeric columns are available, the method raises
+`OperationError`.
 
 ### `null_analysis`
 
@@ -478,13 +472,13 @@ Parameters:
 
 ## Property Methods
 
-These methods return compact dictionary payloads under `result`:
+These methods return compact dictionary or list payloads directly:
 
-| Method | Async | Result key |
+| Method | Async | Public result |
 | --- | --- | --- |
-| `axes()` | `aaxes()` | `{"axes": [row_index, columns]}` |
-| `columns()` | `acolumns()` | `{"columns": [...]}` |
-| `dtypes()` | `adtypes()` | `{"dtypes": {column: db_type}}` |
+| `axes()` | `aaxes()` | `[row_index, columns]` |
+| `columns()` | `acolumns()` | `[...]` |
+| `dtypes()` | `adtypes()` | `{column: db_type}` |
 | `first_valid_index()` | `afirst_valid_index()` | `{"first_valid_index": 0}` or `None` |
 | `memory_usage()` | `amemory_usage()` | `{"memory_bytes": value}` |
 | `ndim()` | `andim()` | `{"ndim": 2}` |
@@ -493,8 +487,8 @@ These methods return compact dictionary payloads under `result`:
 | `values()` | `avalues()` | `{"values": [[...], ...]}` |
 
 ```python
-print(dataset.shape()["result"]["shape"])
-print(dataset.columns()["result"]["columns"])
+print(dataset.shape()["shape"])
+print(dataset.columns())
 ```
 
 ```python
@@ -529,32 +523,20 @@ Parameters:
 | `iterrows` | none | - | Returns row-oriented iterator payload from the core engine. |
 | `itertuples` | `index` | `bool` | Whether tuple rows include an index value. Defaults to `True`. |
 
-The exact payload is returned under `result` or iterator-specific response
-fields from the core table engine.
+The public method returns the exact payload or iterator from the core table
+engine.
 
-## Return Value Format
+## Return Values and Errors
 
-Inspect methods return dictionaries. Common keys are:
-
-| Key | Type | Description |
-| --- | --- | --- |
-| `is_error` | `bool` | `True` when the operation failed. |
-| `message` | `str` | Human-readable operation summary. |
-| `error_message` | `str` or `None` | Error details when `is_error` is true. |
-| `result` | Any | DataFrame, scalar-like dict, or iterator payload. |
-| `iterator` | async generator or `None` | Chunk iterator from `full_table`. |
-| `involved_cols` | `list` | Columns read or analyzed. |
-| `generated_cols` | `list` | Columns produced by the operation. |
-| `new_table` | `str` or `None` | Generated table name for logged summary outputs. |
-| `result_metadata` | `dict` | Row counts, selected columns, and method-specific metadata. |
-
-Always check `is_error` before consuming `result` or `iterator`.
+Public inspection methods return DataFrames, dictionaries, scalars, or async
+iterators directly. Generated-table and result metadata remains internal.
+Failed operations raise `OperationError`.
 
 ## Generated Tables
 
-Some inspect methods create generated summary tables when method-call logging
-receives backend context. This is most visible for `info`, `describe`,
-`null_analysis`, and `corr`, which return `new_table` and saved-table metadata.
+Some inspect methods create generated summary tables internally when method-call
+logging receives backend context. This is most visible for `info`, `describe`,
+`null_analysis`, and `corr`.
 
 Preview methods such as `head`, `tail`, `sample`, and unchunked `full_table`
 are read-oriented and return a DataFrame sample directly.
@@ -574,19 +556,18 @@ Inspect supports DuckDB and PostgreSQL adapters:
 
 ## Errors
 
-Inspect methods catch exceptions and return `is_error=True` in normal public
-use.
+Inspect methods raise `OperationError` for invalid input or backend failures.
 
-- Invalid `chunk_size` in `full_table` returns an error response.
-- `describe` returns an error when no numeric columns are available.
-- `corr` returns an error when fewer than two numeric columns are available.
-- `astype` returns an error for missing columns or unsupported dtype aliases.
+- Invalid `chunk_size` in `full_table` raises `OperationError`.
+- `describe` raises an error when no numeric columns are available.
+- `corr` raises an error when fewer than two numeric columns are available.
+- `astype` raises an error for missing columns or unsupported dtype aliases.
 - `astype` requires either `dtype_map` or matching `columns` and `dtypes`.
-- `insert` returns an error when `value` is not a list or its length does not
+- `insert` raises an error when `value` is not a list or its length does not
   match the row count.
-- `map` returns an error when `func` is not a SQL expression string or when no
+- `map` raises an error when `func` is not a SQL expression string or when no
   selected columns are compatible with the expression.
-- `rename`, `set_index`, `reset_index`, `update`, and `resample` can return
+- `rename`, `set_index`, `reset_index`, `update`, and `resample` can raise
   backend SQL errors when identifiers or constraints are invalid.
 
 ## API Reference

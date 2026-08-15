@@ -70,48 +70,32 @@ Every stats operation has synchronous and asynchronous forms:
 | `weekday_weekend_counts(column)` | `await aweekday_weekend_counts(...)` | Weekday versus weekend counts |
 | `holiday_counts(column)` | `await aholiday_counts(...)` | New Year and Christmas counts |
 
-All methods return a dictionary with `is_error`, `message`, `error_message`,
-`result`, and column metadata such as `involved_cols` and `generated_cols`.
-Matrix operations such as `corr` and `cov` may also return `new_table`.
+Public methods return scalars, dictionaries, lists, or DataFrames directly.
+Invalid operations raise `OperationError`. Matrix operations may create
+internal result tables.
 
 ## Usage Overview
 
 ```python
 dataset = mf.upload_csv("data/employees.csv")
 
-result = dataset.mean(column="salary")
-if not result["is_error"]:
-    print(result["result"])
+print(dataset.mean(column="salary"))
 ```
 
 ```python
 dataset = await mf.aupload_csv("data/events.csv")
 
-result = await dataset.acorr(columns=["amount", "discount", "tax"])
-if not result["is_error"]:
-    matrix = result["result"]
+matrix = await dataset.acorr(columns=["amount", "discount", "tax"])
 ```
 
 Stats methods are exposed directly through context forwarding. You can use
 `dataset.mean(...)` or the explicit `dataset.stats.mean(...)` form.
 
-## Response Shape
+## Return Values and Errors
 
-Successful scalar methods return the computed value under `result`:
-
-```python
-{
-    "is_error": False,
-    "message": "Mean of 'salary': 72500.0000",
-    "error_message": None,
-    "involved_cols": [],
-    "generated_cols": [],
-    "result": 72500.0,
-}
-```
-
-Failed operations return `is_error=True` and place the backend or validation
-message under `error_message`.
+The public API returns the computed scalar, dictionary, list, or DataFrame.
+Failed operations raise `OperationError`. The full response envelope remains
+internal for cache and AI execution.
 
 Most stats methods ignore `NULL` values. Counts use non-null counts unless the
 method description says otherwise.
@@ -330,7 +314,7 @@ columns are filtered out by the orchestrator.
 
 ```python
 result = dataset.corr(columns=["salary", "bonus", "tax"])
-matrix = result["result"]
+matrix = result
 ```
 
 ```python
@@ -345,8 +329,8 @@ Parameters:
 
 Return behavior:
 
-- `result` contains a pandas DataFrame correlation matrix.
-- `new_table` contains the transient table name when persistence context is
+- The method returns a pandas DataFrame correlation matrix directly.
+- The transient table name remains internal when persistence context is
   available.
 - The generated backend table stores the matrix in long format with
   `column1`, `column2`, and `value`.
@@ -450,7 +434,7 @@ Parameters:
 | --- | --- | --- |
 | `column` | `str` | Datetime column to analyze. |
 
-The response `result` is a list of second differences.
+The method returns a list of second differences.
 
 ### `time_delta_stats`
 
@@ -471,8 +455,8 @@ Parameters:
 | --- | --- | --- |
 | `column` | `str` | Datetime column to analyze. |
 
-The response `result` is a dictionary with keys such as `cnt`, `min_d`,
-`max_d`, `avg_d`, `median_d`, and `std_d`, measured in seconds.
+The method returns a dictionary with keys such as `cnt`, `min_d`, `max_d`,
+`avg_d`, `median_d`, and `std_d`, measured in seconds.
 
 ### `event_rate`
 

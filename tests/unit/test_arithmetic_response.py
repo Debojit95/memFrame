@@ -5,6 +5,7 @@ import pytest
 
 from memframe.core.analytix.arithmetic import ArithmeticOps
 from memframe.main import MemFrame
+from memframe.wrappers.analytix.arithmetic import ArithmeticWrapper
 
 
 @pytest.fixture
@@ -24,7 +25,9 @@ def arithmetic_context():
 
 
 def test_arithmetic_success_returns_dataframe_result(arithmetic_context):
-    response = arithmetic_context.add("value", 2, target_col="adjusted")
+    response = ArithmeticWrapper(arithmetic_context).add(
+        "value", 2, target_col="adjusted"
+    )
 
     assert response["is_error"] is False
     assert response["error_message"] is None

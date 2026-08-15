@@ -51,34 +51,29 @@ Every cleaning operation has synchronous and asynchronous forms:
 | `comprehensive_numeric_summary(columns)` | `await acomprehensive_numeric_summary(...)` | Numeric summary report |
 | `statistical_profile_report(columns)` | `await astatistical_profile_report(...)` | Combined profile report |
 
-All methods return a dictionary with `is_error`, `message`, `error_message`,
-`result`, and column metadata such as `involved_cols` and `generated_cols`.
+Public methods return the operation value directly: usually a DataFrame, report
+dictionary, mask, or `None`. Invalid operations raise `OperationError`.
 
 ## Usage Overview
 
 ```python
 dataset = mf.upload_csv("data/employees.csv")
 
-result = dataset.fillna(column="salary", method="mean")
-if not result["is_error"]:
-    cleaned_sample = result["result"]
-    next_table = result["new_table"]
+cleaned_sample = dataset.fillna(column="salary", method="mean")
 ```
 
 ```python
 dataset = await mf.aupload_csv("data/employees.csv")
 
-result = await dataset.afilter_valid(
+cleaned_sample = await dataset.afilter_valid(
     column="department",
     valid_values=["Sales", "Engineering", "Finance"],
 )
-if not result["is_error"]:
-    cleaned_sample = result["result"]
 ```
 
-Most cleaning methods materialize a new operation table and return its table
-name under `new_table`. The response sample usually includes the original
-column and a generated `cleaned_<column>...` column.
+Most cleaning methods materialize a new operation table internally. The public
+return value is the sample DataFrame; table metadata remains available to the
+cache and AI execution layers.
 
 ## Missing Values
 
@@ -466,29 +461,16 @@ result = dataset.statistical_profile_report(columns=["salary", "bonus"])
 result = await dataset.astatistical_profile_report(columns=["salary", "bonus"])
 ```
 
-## Return Value Format
+## Return Values and Errors
 
-Cleaning methods return dictionaries. Common keys are:
-
-| Key | Type | Description |
-| --- | --- | --- |
-| `is_error` | `bool` | `True` when the operation failed |
-| `message` | `str` | Human-readable operation summary |
-| `error_message` | `str` or `None` | Error details when `is_error` is true |
-| `result` | `pd.DataFrame` or other payload | Sample of the generated table, boolean mask, or report payload |
-| `involved_cols` | `list` | Source columns used by the operation |
-| `generated_cols` | `list` | Cleaned/generated columns produced by the operation |
-| `new_table` | `str` or `None` | Generated operation table name |
-| `fill_mode` | `str` or absent | Fill strategy used by fill operations |
-| `fill_value` | any or absent | Value/statistic used by fill operations |
-
-Always check `is_error` before consuming `result` or `new_table`.
+Public cleaning methods return the underlying DataFrame, dictionary, mask, or
+other simple result. Failed operations raise `OperationError`. The internal
+response envelope still carries `new_table`, column metadata, and fill metrics.
 
 ## Generated Tables
 
 Most cleaning operations are non-destructive to the source upload table. They
-create a generated table, usually in the same active schema, and return the
-table name under `new_table`.
+create a generated table internally, usually in the same active schema.
 
 Column-cleaning operations usually:
 
@@ -514,8 +496,7 @@ Cleaning supports DuckDB and PostgreSQL adapters:
 
 ## Errors
 
-Cleaning methods catch exceptions and return `is_error=True` in normal public
-use.
+Cleaning methods raise `OperationError` for invalid input or backend failures.
 
 - `fillna(method="constant")` requires `value`.
 - `fillna(method="map")` requires `mapping`.

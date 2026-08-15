@@ -5,6 +5,7 @@ import pytest
 
 from memframe.core.analytix._response import fail, ok
 from memframe.main import MemFrame
+from memframe.wrappers.analytix.cleaning import CleaningWrapper
 
 
 @pytest.fixture
@@ -62,7 +63,7 @@ def test_fail_always_has_the_common_shape():
 
 
 def test_cleaning_success_uses_result_and_preserves_metadata(cleaning_context):
-    response = cleaning_context.fillna("value", method="mean")
+    response = CleaningWrapper(cleaning_context).fillna("value", method="mean")
 
     assert response["is_error"] is False
     assert response["error_message"] is None
@@ -74,7 +75,7 @@ def test_cleaning_success_uses_result_and_preserves_metadata(cleaning_context):
 
 
 def test_cleaning_error_has_result_key(cleaning_context):
-    response = cleaning_context.fillna("value", method="unsupported")
+    response = CleaningWrapper(cleaning_context).fillna("value", method="unsupported")
 
     assert response["is_error"] is True
     assert response["error_message"] == "Unsupported mode: UNSUPPORTED"

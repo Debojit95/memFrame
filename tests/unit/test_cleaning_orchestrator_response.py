@@ -4,6 +4,7 @@ import pandas as pd
 import pytest
 
 from memframe.main import MemFrame
+from memframe.wrappers.analytix.cleaning import CleaningWrapper
 
 
 @pytest.fixture
@@ -23,7 +24,7 @@ def cleaning_context():
 
 
 def test_cleaning_validation_error_is_canonical(cleaning_context):
-    response = cleaning_context.fillna("category", method="mean")
+    response = CleaningWrapper(cleaning_context).fillna("category", method="mean")
 
     assert response["is_error"] is True
     assert response["error_message"]
@@ -32,7 +33,7 @@ def test_cleaning_validation_error_is_canonical(cleaning_context):
 
 
 def test_groupby_validation_error_is_canonical(cleaning_context):
-    response = cleaning_context.groupby_fillna("category", group_cols=[])
+    response = CleaningWrapper(cleaning_context).groupby_fillna("category", group_cols=[])
 
     assert response["is_error"] is True
     assert response["error_message"] == "group_cols must be provided for groupby_fillna"

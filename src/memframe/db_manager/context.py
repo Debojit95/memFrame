@@ -1,5 +1,7 @@
+import inspect
 import logging
 from typing import Any, Optional
+from functools import wraps
 
 from memframe.core.ingestion.datatype_detector import Backend
 from memframe.db_manager.adapters.base import DatabaseAdapter
@@ -8,9 +10,25 @@ from memframe.db_manager.adapters.duckdb import DuckDBAdapter
 from memframe.db_manager.adapters.clickhouse import ClickHouseAdapter
 from memframe.exceptions import BackendNotSupported, ConnectionNotReady, DataNotFound
 from memframe.utils.async_sync import async_to_sync
+from memframe.core.analytix._response import unwrap_response
 
 
 logger = logging.getLogger("memFrame")
+
+
+def _public_result(method):
+    """Expose raw operation values while leaving AI wrappers unchanged."""
+    @wraps(method)
+    def wrapped(*args, **kwargs):
+        value = method(*args, **kwargs)
+        if inspect.isawaitable(value):
+            async def resolve():
+                return unwrap_response(await value)
+
+            return resolve()
+        return unwrap_response(value)
+
+    return wrapped
 
 
 class ContextManager:
@@ -53,7 +71,8 @@ class ContextManager:
         self._lazy_init_wrappers()
         for w in self._wrappers:
             if hasattr(w, name):
-                return getattr(w, name)
+                attribute = getattr(w, name)
+                return _public_result(attribute) if callable(attribute) else attribute
         raise AttributeError(f"{self.__class__.__name__!r} object has no attribute {name!r}")
 
     def __dir__(self):

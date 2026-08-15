@@ -7,6 +7,7 @@ from memframe.exceptions import (
     ConfigurationError,
     ConnectionNotReady,
     DataNotFound,
+    OperationError,
 )
 from memframe.main import MemFrame
 from memframe.utils.helper import SQLIdentifierSanitizer
@@ -26,16 +27,6 @@ def mf():
 def uploaded(mf):
     ctx = mf.upload_df(pd.DataFrame({"a": [1, 2], "b": ["x", "y"]}), filename="err_dataset")
     return ctx
-
-
-def assert_error_dict(resp, msg_part=None):
-    assert isinstance(resp, dict)
-    assert resp["is_error"] is True
-    assert resp["message"] == ""
-    assert isinstance(resp["error_message"], str) and resp["error_message"]
-    if msg_part:
-        assert msg_part in resp["error_message"]
-    return resp
 
 
 class TestUploadErrorPaths:
@@ -67,40 +58,40 @@ class TestUploadErrorPaths:
 
 class TestSelectionErrorResponses:
     def test_loc_tuple_and_columns_conflict(self, uploaded):
-        resp = uploaded.loc(("1:2", "a"), columns=["a"])
-        assert_error_dict(resp, "not both")
+        with pytest.raises(OperationError, match="not both"):
+            uploaded.loc(("1:2", "a"), columns=["a"])
 
     def test_loc_tuple_bad_length(self, uploaded):
-        resp = uploaded.loc(("1:2", "a", "extra"))
-        assert_error_dict(resp, "exactly two items")
+        with pytest.raises(OperationError, match="exactly two items"):
+            uploaded.loc(("1:2", "a", "extra"))
 
     def test_loc_columns_not_str_list(self, uploaded):
-        resp = uploaded.loc("1:2", columns=42)
-        assert_error_dict(resp, "list of column names")
+        with pytest.raises(OperationError, match="list of column names"):
+            uploaded.loc("1:2", columns=42)
 
     def test_loc_columns_empty_list(self, uploaded):
-        resp = uploaded.loc("1:2", columns=[])
-        assert_error_dict(resp, "cannot be empty")
+        with pytest.raises(OperationError, match="cannot be empty"):
+            uploaded.loc("1:2", columns=[])
 
     def test_loc_columns_non_str_elements(self, uploaded):
-        resp = uploaded.loc("1:2", columns=[1, 2])
-        assert_error_dict(resp, "list of column names")
+        with pytest.raises(OperationError, match="list of column names"):
+            uploaded.loc("1:2", columns=[1, 2])
 
-    def test_loc_unknown_column_returns_error(self, uploaded):
-        response = uploaded.loc("1:2", columns=["nope"])
-        assert_error_dict(response, "Unknown column")
+    def test_loc_unknown_column_raises(self, uploaded):
+        with pytest.raises(OperationError, match="Unknown column"):
+            uploaded.loc("1:2", columns=["nope"])
 
     def test_iloc_col_indexer_and_columns_conflict(self, uploaded):
-        resp = uploaded.iloc(1, col_indexer=[0], columns=["a"])
-        assert_error_dict(resp, "not both")
+        with pytest.raises(OperationError, match="not both"):
+            uploaded.iloc(1, col_indexer=[0], columns=["a"])
 
     def test_select_dtypes_no_match(self, uploaded):
-        resp = uploaded.select_dtypes(include=["float64"])
-        assert_error_dict(resp, "No columns match")
+        with pytest.raises(OperationError, match="No columns match"):
+            uploaded.select_dtypes(include=["float64"])
 
     def test_map_invalid_datetime_action(self, uploaded):
-        resp = uploaded.map("uppercase", datetime_action="bogus")
-        assert_error_dict(resp, "Invalid datetime_action")
+        with pytest.raises(OperationError, match="Invalid datetime_action"):
+            uploaded.map("uppercase", datetime_action="bogus")
 
 
 class TestOpsConfigErrorPaths:

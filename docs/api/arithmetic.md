@@ -60,26 +60,21 @@ Every arithmetic operation has synchronous and asynchronous forms:
 | `percentage_change(old_col, new_col, target_col=None)` | `await apercentage_change(...)` | Percentage change |
 | `normalize_range(column, target_col=None)` | `await anormalize_range(...)` | Min-max normalize |
 
-All methods return a dictionary with `is_error`, `message`, `error_message`,
-`result`, and column metadata such as `involved_cols` and `generated_cols`.
+Public methods return the resulting DataFrame directly. Invalid operations
+raise `OperationError`.
 
 ## Usage Overview
 
 ```python
 dataset = mf.upload_df(frame)
 
-result = dataset.add("salary", "bonus", "total_income")
-if not result["is_error"]:
-    sample = result["result"]
-    next_table = result["new_table"]
+sample = dataset.add("salary", "bonus", "total_income")
 ```
 
 ```python
 dataset = await mf.aupload_df(frame)
 
-result = await dataset.anormalize_range("salary", "normalized_salary")
-if not result["is_error"]:
-    normalized_sample = result["result"]
+normalized_sample = await dataset.anormalize_range("salary", "normalized_salary")
 ```
 
 ## Binary Operations
@@ -270,21 +265,11 @@ result = dataset.normalize_range("salary", "normalized_salary")
 result = await dataset.anormalize_range("distance", "scaled_distance")
 ```
 
-## Return Value Format
+## Return Values and Errors
 
-Arithmetic methods return dictionaries. Common keys are:
-
-| Key | Type | Description |
-| --- | --- | --- |
-| `is_error` | `bool` | `True` when the operation failed |
-| `message` | `str` | Human-readable operation summary |
-| `error_message` | `str` or `None` | Error details when `is_error` is true |
-| `result` | `pd.DataFrame` | Sample of the generated table |
-| `involved_cols` | `list` | Source columns used by the operation |
-| `generated_cols` | `list` | Generated columns produced by the operation |
-| `new_table` | `str` or `None` | Generated operation table name |
-
-Always check `is_error` before consuming `result` or `new_table`.
+Public arithmetic methods return the resulting DataFrame directly. Generated
+table names and expression metadata remain internal to cache and AI layers.
+Invalid operations raise `OperationError`.
 
 ## Generated Tables
 
@@ -294,7 +279,7 @@ operation:
 1. Clones the source table into a new transient table.
 2. Adds a result column (e.g. `total_income`, `log_salary`, `sin_angle`).
 3. Populates the result column using a SQL `UPDATE`.
-4. Returns a sample DataFrame and the new table name under `new_table`.
+4. Returns the sample DataFrame directly; table metadata remains internal.
 
 ## Backend Behavior
 
@@ -312,14 +297,14 @@ Arithmetic supports DuckDB, PostgreSQL, and ClickHouse adapters:
 
 ## Errors
 
-Arithmetic methods catch exceptions and return `is_error=True`:
+Arithmetic methods raise `OperationError` for backend or validation failures:
 
 - Division by zero produces `NULL` in the result column (division uses
   `NULLIF(denominator, 0)`).
 - Negative or zero inputs to `log`/`log10` produce `NULL`.
 - Negative inputs to `sqrt` produce `NULL`.
 - Values outside `[-1, 1]` for `asin`/`acos` produce `NULL`.
-- Unsupported backends raise `NotImplementedError`.
+- Unsupported backends raise `OperationError`.
 
 ## API Reference
 

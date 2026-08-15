@@ -5,6 +5,7 @@ import pytest
 
 from memframe.core.analytix.stats import DataStatsOps
 from memframe.main import MemFrame
+from memframe.wrappers.analytix.stats import StatsWrapper
 
 
 @pytest.fixture
@@ -29,7 +30,7 @@ def stats_context():
 
 
 def test_stats_scalar_result_uses_common_envelope(stats_context):
-    response = stats_context.mean("value")
+    response = StatsWrapper(stats_context).mean("value")
 
     assert response["is_error"] is False
     assert response["error_message"] is None
@@ -37,7 +38,7 @@ def test_stats_scalar_result_uses_common_envelope(stats_context):
 
 
 def test_stats_dict_result_uses_common_envelope(stats_context):
-    response = stats_context.proportions("category")
+    response = StatsWrapper(stats_context).proportions("category")
 
     assert response["is_error"] is False
     assert isinstance(response["result"], dict)

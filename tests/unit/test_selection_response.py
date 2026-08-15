@@ -5,6 +5,7 @@ import pytest
 
 from memframe.core.analytix.selection import DataSelectionOps
 from memframe.main import MemFrame
+from memframe.wrappers.analytix.selection import SelectionWrapper
 
 
 @pytest.fixture
@@ -29,7 +30,9 @@ def selection_context():
 
 
 def test_selection_scalar_result_uses_result(selection_context):
-    response = selection_context.at(2, "value", index_column="id")
+    response = SelectionWrapper(selection_context).at(
+        2, "value", index_column="id"
+    )
 
     assert response["is_error"] is False
     assert response["result"] == 20
@@ -37,7 +40,7 @@ def test_selection_scalar_result_uses_result(selection_context):
 
 
 def test_selection_streaming_response_keeps_iterator(selection_context):
-    response = selection_context.where("value > 10", chunk_size=2)
+    response = SelectionWrapper(selection_context).where("value > 10", chunk_size=2)
 
     assert response["is_error"] is False
     assert response["result"] is None
