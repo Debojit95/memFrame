@@ -10,6 +10,7 @@ from memframe.db_manager.adapters.clickhouse import ClickHouseAdapter
 from memframe.utils.helper import SQLIdentifierSanitizer
 from memframe.exceptions import OperationError
 
+from memframe.core.ingestion.datatype_detector import DatatypeDetector
 from memframe.core.analytix._response import fail, ok
 
 
@@ -211,6 +212,38 @@ class DataCleaningOps:
         types = await self.db.get_column_types(table, schema)
         if safe_col not in types:
             await self._add_new_column(table, schema, col_name, col_type)
+
+    async def _detect_numeric_target(self, qualified: str, cleaned_expr: str) -> str:
+        """Pick a per-backend numeric SQL type from the cleaned column sample.
+
+        Uses only the integer/float detectors; if the cleaned tokens are not
+        uniformly numeric, fall back to the decimal type (current behavior).
+        """
+        rows = await self._fetch(
+            f"SELECT {cleaned_expr} AS v FROM {qualified} "
+            f"WHERE {cleaned_expr} IS NOT NULL LIMIT 5000"
+        )
+        values = [str(dict(row)["v"]) for row in rows]
+
+        detector = DatatypeDetector()
+        int_conf, int_sql = detector._detect_integer(values)
+        float_conf = detector._detect_float(values)
+
+        if int_conf == 1.0:
+            return self._numeric_target_for(int_sql or "INTEGER")
+        if float_conf == 1.0:
+            return self._numeric_target_for("FLOAT")
+        return self._numeric_target_for("TEXT")
+
+    def _numeric_target_for(self, pg_type: str) -> str:
+        ch_map = {"SMALLINT": "Int16", "INTEGER": "Int32", "BIGINT": "Int64", "FLOAT": "Float64"}
+        if isinstance(self.db, PostgresAdapter):
+            return {"SMALLINT": "SMALLINT", "INTEGER": "INTEGER", "BIGINT": "BIGINT", "FLOAT": "DOUBLE PRECISION"}.get(pg_type, "NUMERIC")
+        if isinstance(self.db, DuckDBAdapter):
+            return {"SMALLINT": "SMALLINT", "INTEGER": "INTEGER", "BIGINT": "BIGINT", "FLOAT": "DOUBLE"}.get(pg_type, "NUMERIC")
+        if isinstance(self.db, ClickHouseAdapter):
+            return ch_map.get(pg_type, "Decimal(18, 6)")
+        raise self._unsupported_backend_error()
 
     # ------------------------------------------------------------------
     # Numeric cleaning
@@ -607,12 +640,9 @@ class DataCleaningOps:
             table = await self._prepare_operation_table(
                 table, schema, backend=backend, data_id=data_id, new_table=new_table,
             )
-            new_col = self._generate_cleaned_column_name(column, "numeric_converted")
-            await self._add_new_column(table, schema, new_col, "NUMERIC")
 
             qualified = self._qualified_table(table, schema)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
-            safe_new = SQLIdentifierSanitizer.sanitize(new_col)
 
             if isinstance(self.db, PostgresAdapter):
                 cleaned_expr = f"""NULLIF(
@@ -632,42 +662,53 @@ class DataCleaningOps:
             else:
                 raise self._unsupported_backend_error()
 
+            target_type = await self._detect_numeric_target(qualified, cleaned_expr)
+
             async def _apply(tq):
                 if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
                     await self._exec(f"""
-                        UPDATE {tq}
-                        SET "{safe_new}" = CASE
+                        ALTER TABLE {tq}
+                        ALTER COLUMN "{safe_col}" TYPE {target_type}
+                        USING (CASE
                             WHEN {numeric_check}
-                                THEN CAST({cleaned_expr} AS NUMERIC)
+                                THEN CAST({cleaned_expr} AS {target_type})
                             ELSE NULL
-                        END
+                        END)
                     """)
                 elif isinstance(self.db, ClickHouseAdapter):
+                    # ponytail: CH has no ALTER COLUMN TYPE ... USING, so rebuild
+                    # in place via a temp table (same idiom as compress_rare).
+                    temp_table = f"{table}__temp"
+                    qualified_temp = self._qualified_table(temp_table, schema)
+                    await self._exec(f"DROP TABLE IF EXISTS {qualified_temp}")
                     await self._exec(f"""
-                        ALTER TABLE {tq} 
-                        UPDATE "{safe_new}" = CASE
-                            WHEN {numeric_check}
-                                THEN CAST({cleaned_expr} AS Decimal(18, 6))
-                            ELSE NULL
-                        END
-                        WHERE 1
+                        CREATE TABLE {qualified_temp} AS
+                        SELECT * REPLACE (
+                            CAST(CASE
+                                WHEN {numeric_check}
+                                    THEN {cleaned_expr}
+                                ELSE NULL
+                            END AS {target_type}) AS "{safe_col}"
+                        )
+                        FROM {tq}
                     """)
+                    await self._exec(f"DROP TABLE {tq}")
+                    await self._exec(f"RENAME TABLE {qualified_temp} TO {tq}")
                 else:
                     raise self._unsupported_backend_error()
 
             await _apply(qualified)
 
-            # Mirror the new column onto the original table (in-place mutation)
-            await self._add_new_column_if_not_exists(original, schema, new_col, "NUMERIC")
+            # Mirror the in-place conversion onto the original table
             await _apply(self._qualified_table(original, schema))
 
             converted = await self._fetchval(
-                f'SELECT COUNT(*) FROM {qualified} WHERE "{safe_new}" IS NOT NULL'
+                f'SELECT COUNT(*) FROM {qualified} WHERE "{safe_col}" IS NOT NULL'
             ) or 0
 
-            sample = await self._fetch_data(table, schema, columns=[safe_col,safe_new])
+            sample = await self._fetch_data(table, schema, columns=[safe_col])
             msg = f"Converted {converted} text values in '{column}' to numeric"
-            return ok(msg, [column], [new_col], sample, new_table=table)
+            return ok(msg, [column], [], sample, new_table=table)
 
         except Exception as e:
             return fail(f"numeric_convert_text error: {str(e)}\n{traceback.format_exc()}")
