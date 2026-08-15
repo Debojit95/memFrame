@@ -35,13 +35,13 @@ def classify_block(label: str, result: dict) -> dict:
             "type": "error",
             "message": result.get("hint") or result.get("message") or "operation failed",
         }
-    if "plot_id" in result or "spec" in result:
+    if "plot_id" in result or "spec" in result or "spec_preview" in result:
         return {
             "query": label,
             "type": "plot",
             "plot_id": result.get("plot_id"),
             "title": result.get("title"),
-            "spec": result.get("spec"),
+            "spec": result.get("spec") or result.get("spec_preview"),
             "error": None,
         }
     payload = result.get("result")

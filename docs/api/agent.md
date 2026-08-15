@@ -78,7 +78,7 @@ ds = await mf.aupload_df(
 result = await ds.achat("fill null scores with the mean")
 print(result["answer"])   # natural-language summary
 print(result["table"])    # active table after the agent's work
-print(result["plots"])    # any charts the agent built
+print(result["plots"])    # any charts the agent built (id, title, spec_preview)
 print(result["blocks"])   # per-tool response blocks
 ```
 

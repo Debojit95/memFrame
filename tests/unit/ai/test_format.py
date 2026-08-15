@@ -35,11 +35,11 @@ def test_classify_df():
 def test_classify_plot():
     b = classify_block(
         "bar(x=G)",
-        {"ok": True, "plot_id": "abc", "title": "t", "spec": {"data": []}},
+        {"ok": True, "plot_id": "abc", "title": "t", "spec_preview": {"traces": 1}},
     )
     assert b["type"] == "plot"
     assert b["plot_id"] == "abc"
-    assert b["spec"] == {"data": []}
+    assert b["spec"] == {"traces": 1}
     assert b["error"] is None
 
 
@@ -115,6 +115,7 @@ def test_plot_spec_is_json_safe():
         fn = {f.__name__: f for f in plot.tools(s)}["plot"]
         res = asyncio.run(fn(plot_type="bar", x="G", y="C", title="T"))
         assert res["ok"] is True
-        json.dumps(res["spec"])  # must not raise
+        json.dumps(res["spec_preview"])  # must not raise
+        json.dumps(s.plots[res["plot_id"]]["spec"])  # full spec stays JSON-safe in session
     finally:
         asyncio.run(m.aclose())

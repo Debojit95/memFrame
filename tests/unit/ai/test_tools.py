@@ -63,8 +63,10 @@ def test_plot_stores_spec(session):
     r = asyncio.run(_tool(session, "plot")(plot_type="bar", x="name", y="age"))
     assert r["ok"] is True
     assert r["plot_id"] in session.plots
-    assert r["spec"]["data"]
-    assert session.plots[r["plot_id"]]["spec"] == r["spec"]
+    assert "spec" not in r
+    assert r["spec_preview"]["traces"] == 1
+    assert r["spec_preview"]["points"] == 4
+    assert session.plots[r["plot_id"]]["spec"]["data"]
 
 
 def test_inspect_tools_do_not_advance(session):

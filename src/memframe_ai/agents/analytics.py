@@ -251,7 +251,11 @@ class AnalyticsAgent:
             "table": self._session.table,
             "schema": self._session.schema,
             "plots": [
-                {"id": pid, "title": p["title"], "spec": p["spec"]}
+                {
+                    "id": pid,
+                    "title": p["title"],
+                    "spec_preview": plot.plot_spec_preview(p["spec"]),
+                }
                 for pid, p in self._session.plots.items()
             ],
             "error": None,

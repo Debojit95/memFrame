@@ -14,6 +14,22 @@ _PLOT_WRAPPERS = (
 )
 
 
+def plot_spec_preview(spec: dict) -> dict:
+    """Small JSON-safe summary of a figure spec (never the full spec).
+
+    The full spec can hold every data point (millions of tokens), so the model
+    and the chat response only ever see this preview; the full spec lives in
+    ``session.plots`` for client-side rendering.
+    """
+    data = spec.get("data") or []
+    return {
+        "traces": len(data),
+        "trace_types": [d.get("type") for d in data],
+        "points": sum(len(d.get("x") or []) for d in data),
+        "title": (spec.get("layout") or {}).get("title", {}).get("text"),
+    }
+
+
 def _json_safe(value):
     """Recursively convert a value into plain JSON-serializable data.
 
@@ -61,7 +77,7 @@ def tools(session):
         """Build a plot from the active table and store it as a figure.
 
         plot_type: 'bar', 'line', 'scatter', 'scatter_3d' (needs z), 'pie' (x=names, y=values),
-        or 'bar_polar' (x=theta, y=r). Returns plot_id + figure spec.
+        or 'bar_polar' (x=theta, y=r). Returns plot_id + a small spec preview.
         """
         await session.ensure()
         if plot_type not in _PLOT_WRAPPERS:
@@ -127,7 +143,7 @@ def tools(session):
             "message": f"Plot {plot_id} created",
             "plot_id": plot_id,
             "title": title or f"{plot_type} of {x}",
-            "spec": spec,
+            "spec_preview": plot_spec_preview(spec),
         }
 
     return [plot]

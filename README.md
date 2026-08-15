@@ -118,7 +118,7 @@ async def main():
 
     result = await ds.achat("fill null scores with the mean")
     print(result["answer"])
-    print(result["plots"])  # any charts the agent built
+    print(result["plots"])  # any charts the agent built (id, title, spec_preview)
 
     await mf.aclose()
 
