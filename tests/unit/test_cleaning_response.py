@@ -80,3 +80,28 @@ def test_cleaning_error_has_result_key(cleaning_context):
     assert response["is_error"] is True
     assert response["error_message"] == "Unsupported mode: UNSUPPORTED"
     assert response["result"] is None
+
+
+def test_fillna_mean_after_to_numeric_with_leading_null_rows():
+    # First 10 rows all NULL, numeric values after: content sampling would
+    # mis-detect the column as categorical, but the schema says numeric.
+    df = pd.DataFrame(
+        {
+            "total_cases": [None] * 12 + ["123", "456", "789", "1011"],
+            "x": list(range(16)),
+        }
+    )
+    memframe = MemFrame(connection_type="local", connection_params={"db_path": ":memory:"})
+    asyncio.run(memframe.aconnect())
+    try:
+        ctx = memframe.upload_df(df, filename="fillna_leading_nulls")
+        wrapper = CleaningWrapper(ctx)
+        wrapper.to_numeric(column="total_cases")
+        response = wrapper.fillna("total_cases", method="mean")
+
+        assert response["is_error"] is False
+        assert response["error_message"] is None
+        assert response["fill_mode"] == "MEAN"
+        assert response["generated_cols"]
+    finally:
+        asyncio.run(memframe.aclose())

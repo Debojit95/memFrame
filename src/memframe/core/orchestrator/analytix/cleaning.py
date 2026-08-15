@@ -37,6 +37,15 @@ class CleaningOrchestrator:
         return {"backend": backend, "data_id": data_id}
 
     async def _detect_fillna_dtype(self, ops: DataCleaningOps, table: str, schema: str, column: str) -> str:
+        # Trust the declared schema type first: content sampling of the first
+        # rows mis-detects columns whose leading rows are all NULL (e.g.
+        # total_cases right after an in-place to_numeric conversion).
+        sql_type = (await ops._get_column_type(table, schema, column)).lower()
+        if any(k in sql_type for k in ("timestamp", "datetime", "date", "time")):
+            return "datetime"
+        if any(k in sql_type for k in ("int", "float", "double", "decimal", "numeric", "real")):
+            return "numeric"
+
         sample_df = await ops._fetch_data(table, schema, columns=[column],limit=10)
         if sample_df.empty:
             return "categorical"
