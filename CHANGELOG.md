@@ -4,6 +4,23 @@ All notable changes to memFrame are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and the project adheres
 to [Semantic Versioning](https://semver.org/).
 
+## [0.1.3] - 2026-08-15
+
+### Changed
+- Public operation results are now raw values (DataFrame, dict, scalar, or
+  streaming async iterator) instead of the internal response envelope.
+  Operations that fail raise `OperationError` instead of returning an
+  `is_error` dict.
+- All `tests/integration` and `tests/integration/ops` tests updated to the
+  new raw public API.
+
+### Added
+- Unit tests covering the public result boundary (`test_public_results.py`).
+
+### Docs
+- `docs/api/{cleaning,arithmetic,stats,inspect,selection}.md` updated to the
+  raw return types.
+
 ## [0.1.1] - 2026-08-13
 
 ### Changed
