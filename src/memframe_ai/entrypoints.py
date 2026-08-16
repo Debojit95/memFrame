@@ -20,14 +20,14 @@ def _get_settings(memframe) -> AISettings:
     return settings
 
 
-async def achat(self, prompt: str, session_id: str | None = None, return_blocks: bool = False) -> dict:
+async def achat(self, prompt: str, session_id: str | None = None) -> dict:
     settings = _get_settings(self.memframe)
     sid = session_id or _default_session_id(self)
-    logger.info("achat session=%s user_query='%s' return_blocks=%s", sid, prompt, return_blocks)
+    logger.info("achat session=%s user_query='%s'", sid, prompt)
     session = store.get(sid)
     if session is None:
         session = store.create(sid, ops=self, settings=settings)
-    return await agent_for(session).achat(prompt, return_blocks=return_blocks)
+    return await agent_for(session).achat(prompt)
 
 
 chat = async_to_sync(achat)

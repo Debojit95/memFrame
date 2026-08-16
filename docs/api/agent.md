@@ -76,10 +76,9 @@ ds = await mf.aupload_df(
 )
 
 result = await ds.achat("fill null scores with the mean")
-print(result["answer"])   # natural-language summary
+print(result["answer"])   # one line per sub-query: `fn(args): ✓ (plot/table shown)` or `✗ <reason>`
 print(result["table"])    # active table after the agent's work
-print(result["plots"])    # any charts the agent built (id, title, spec_preview)
-print(result["blocks"])   # per-tool response blocks
+print(result["plots"])    # any charts the agent built (id, title, spec_preview, full spec)
 ```
 
 Synchronous:
@@ -106,9 +105,8 @@ result = ds.chat("describe the score distribution")
 
 Key source files:
 
-- `src/memframe_ai/agents/analytics.py` — orchestrator + specialist fleet
+- `src/memframe_ai/agents/analytics.py` — orchestrator + specialist fleet, packaging
 - `src/memframe_ai/agents/planning.py` — Planner agent
-- `src/memframe_ai/sessions.py` — chat session state, pinned table
+- `src/memframe_ai/sessions.py` — chat session state, pinned table, per-sub-query results
 - `src/memframe_ai/gateway.py` — provider/model resolution
-- `src/memframe_ai/format.py` — response block rendering
 - `src/memframe_ai/observe.py` — model / tool call observability

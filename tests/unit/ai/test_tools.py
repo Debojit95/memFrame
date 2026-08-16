@@ -69,6 +69,28 @@ def test_plot_stores_spec(session):
     assert session.plots[r["plot_id"]]["spec"]["data"]
 
 
+def test_normalize_stashes_full_df_result():
+    """The USER gets the full DataFrame; the MODEL only ever sees a capped sample."""
+    m = MemFrame(connection_type="local", connection_params={"db_path": ":memory:"})
+    asyncio.run(m.aconnect())
+    big = pd.DataFrame({"x": range(30), "y": range(30, 60)})
+    ops = asyncio.run(m.aupload_df(big, filename="big"))
+    s = store.create("t2", ops=ops, settings=AISettings(api_key="k"))
+    try:
+        asyncio.run(s.ensure())
+        r = asyncio.run(_tool(s, "head")(n=30))
+        assert r["ok"] is True
+        # user stash: full 30-row frame, both columns
+        assert len(s.results) == 1
+        assert len(s.results[0]) == 30
+        assert list(s.results[0].columns) == ["x", "y"]
+        # model path: still capped at max_output_rows (20)
+        assert len(r["result"]) == 20
+        s.reset_results()
+    finally:
+        asyncio.run(m.aclose())
+
+
 def test_inspect_tools_do_not_advance(session):
     asyncio.run(session.ensure())
     base = session.table

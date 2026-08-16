@@ -44,6 +44,10 @@ async def normalize(op_result: dict, session, *, include_result: bool = True, ad
             if not include_result:
                 continue
             if isinstance(value, pd.DataFrame):
+                # ponytail: stash the FULL frame for the user (rendered inline
+                # + returned all rows). The model still gets only a capped
+                # sample via df_to_records below, so the LLM context stays small.
+                session.add_result(value)
                 payload["result"] = df_to_records(value, session)
             elif value is not None:
                 payload["result"] = _jsonable(value)

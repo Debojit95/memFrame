@@ -103,10 +103,10 @@ class ContextManager:
 
     # ── AI agent entrypoints (delegate to memframe_ai) ──────────
 
-    async def achat(self, prompt: str, session_id: Optional[str] = None, return_blocks: bool = False) -> dict:
+    async def achat(self, prompt: str, session_id: Optional[str] = None) -> dict:
         from memframe_ai.entrypoints import achat as _achat
 
-        return await _achat(self, prompt, session_id, return_blocks)
+        return await _achat(self, prompt, session_id)
 
     @async_to_sync
     async def chat(self, prompt: str, session_id: Optional[str] = None) -> dict:

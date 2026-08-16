@@ -28,20 +28,33 @@ class Session:
     _schema: Optional[str] = None
     plots: dict = field(default_factory=dict)
     lock: Any = field(default_factory=asyncio.Lock)
-    _blocks: list = field(default_factory=list)
+    _subquery_results: list = field(default_factory=list)
+    # ponytail: full-df stash for the USER (all rows). The model still only
+    # sees a capped sample via normalize's df_to_records payload.
+    _results: list = field(default_factory=list)
     _context_cache: Optional[str] = None
     _context_version: int = 0
     _pinned: Optional[tuple] = None
 
     @property
-    def blocks(self) -> list:
-        return self._blocks
+    def subquery_results(self) -> list:
+        return self._subquery_results
 
-    def reset_blocks(self) -> None:
-        self._blocks.clear()
+    def reset_subquery_results(self) -> None:
+        self._subquery_results.clear()
 
-    def record_block(self, block: dict) -> None:
-        self._blocks.append(block)
+    def record_subquery_result(self, label: str, payload: dict) -> None:
+        self._subquery_results.append((label, payload))
+
+    def reset_results(self) -> None:
+        self._results.clear()
+
+    @property
+    def results(self) -> list:
+        return self._results
+
+    def add_result(self, df) -> None:
+        self._results.append(df)
 
     @property
     def backend(self) -> Any:

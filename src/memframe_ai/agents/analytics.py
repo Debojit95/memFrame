@@ -11,7 +11,6 @@ from memframe.utils.async_sync import async_to_sync
 
 from memframe_ai.agents.planning import SubQuery
 from memframe_ai.config import AISettings
-from memframe_ai.format import classify_block, render_blocks
 from memframe_ai.gateway import ModelGateway
 from memframe_ai.observe import logger, make_hooks
 from memframe_ai.tools import arithmetic, clean, context, inspect, plot, select, stats, upload
@@ -118,16 +117,36 @@ def _recorded(session, fn):
             result = await fn(*args, **kwargs)
         except Exception as exc:
             logger.warning("[tool] %s FAILED %.1fs %s: %s", label, time.perf_counter() - t0, type(exc).__name__, exc)
-            session.record_block(
-                {"query": label, "type": "error", "message": f"{type(exc).__name__}: {exc}"}
+            session.record_subquery_result(
+                label, {"ok": False, "hint": f"{type(exc).__name__}: {exc}"}
             )
             raise
         ok = result.get("ok") if isinstance(result, dict) else None
         logger.info("[tool] %s ok=%s %.1fs", label, ok, time.perf_counter() - t0)
-        session.record_block(classify_block(label, result))
+        session.record_subquery_result(
+            label, result if isinstance(result, dict) else {"ok": True, "result": result}
+        )
         return result
 
     return wrapped
+
+
+def _fmt_subquery(label: str, payload: dict) -> str:
+    """Render one sub-query result as a single human line for `answer`."""
+    if not isinstance(payload, dict) or not payload.get("ok"):
+        msg = payload.get("hint") or payload.get("message") if isinstance(payload, dict) else None
+        return f"{label}: ✗ {msg or 'failed'}"
+    if payload.get("plot_id") is not None or "spec" in payload:
+        return f"{label}: ✓ (plot shown)"
+    val = payload.get("result")
+    if val is None:
+        return f"{label}: ✓"
+    if isinstance(val, list):
+        return f"{label}: ✓ (table shown)"
+    text = repr(val)
+    if len(text) > 120:
+        text = text[:117] + "..."
+    return f"{label}: ✓ {text}"
 
 
 class AnalyticsAgent:
@@ -165,9 +184,11 @@ class AnalyticsAgent:
             )
         return self._specialists
 
-    async def achat(self, prompt: str, return_blocks: bool = False) -> dict:
+    async def achat(self, prompt: str) -> dict:
         t0 = time.perf_counter()
         await self._session.ensure()
+        self._session.reset_subquery_results()
+        self._session.reset_results()
         logger.info(
             "chat start session=%s table=%s.%s prompt='%s'",
             self._session.session_id, self._session.schema, self._session.table, prompt,
@@ -194,8 +215,22 @@ class AnalyticsAgent:
         else:
             logger.info("No sub-queries produced — nothing to execute")
 
+        self._render_results()
         logger.info("chat done %.1fs", time.perf_counter() - t0)
-        return self._package(return_blocks=return_blocks)
+        return self._package()
+
+    def _render_results(self) -> None:
+        """Render stashed DataFrame results inline, from the main kernel loop.
+
+        Full-df results are captured during execution (inside CodeMode tool
+        dispatch, where IPython display does not propagate to the notebook) and
+        shown here, after the run, in their entirety. Plots already render
+        inline during execution via the plot specialist's direct tool path.
+        """
+        from memframe.utils.plot_renderer import display_df
+
+        for df in self._session.results:
+            display_df(df)
 
     async def _execute_subqueries(self, head: SubQuery, base_ctx: str) -> None:
         """Walk the linked list.
@@ -242,26 +277,32 @@ class AnalyticsAgent:
         except Exception as exc:
             logger.warning("Sub-query failed (%s): %s", sq.agent, exc)
 
-    def _package(self, return_blocks: bool = False) -> dict:
-        blocks = list(self._session.blocks)
-        answer = render_blocks(blocks) if blocks else ""
+    def _package(self) -> dict:
+        sep = "\n............\n"
+        answer = sep.join(
+            _fmt_subquery(label, payload)
+            for label, payload in self._session.subquery_results
+        )
+        results = list(self._session.results)
         resp = {
             "session_id": self._session.session_id,
             "answer": answer,
             "table": self._session.table,
             "schema": self._session.schema,
+            "result": results[-1] if results else None,
+            "results": results,
             "plots": [
+                # ponytail: full spec shipped for re-render; spec_preview for lightweight clients
                 {
                     "id": pid,
                     "title": p["title"],
                     "spec_preview": plot.plot_spec_preview(p["spec"]),
+                    "spec": p["spec"],
                 }
                 for pid, p in self._session.plots.items()
             ],
             "error": None,
         }
-        if return_blocks:
-            resp["blocks"] = blocks
         return resp
 
     chat = async_to_sync(achat)
