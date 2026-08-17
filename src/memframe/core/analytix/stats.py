@@ -806,6 +806,83 @@ class DataStatsOps:
     # =========================================================================
     # Multi‑column operations that **create a result table** (correlation / covariance)
     # =========================================================================
+    async def _multi_column_assoc_matrix(
+        self,
+        table: str,
+        schema: str,
+        columns: List[str],
+        agg_fn: str,
+        backend=None,
+        data_id: Optional[str] = None,
+        new_table: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Compute an n x n correlation/covariance matrix purely in the database.
+
+        All CORR/COVAR_SAMP calls are batched into single SELECT statements so the
+        engine scans the table once per batch, not once per pair. ClickHouse uses a
+        tighter batch so a single scan covers the table whenever the pair count fits
+        its expression budget (Tier-2); wider tables fall back to batching.
+        """
+        try:
+            if not isinstance(self.db, (PostgresAdapter, DuckDBAdapter, ClickHouseAdapter)):
+                raise self._unsupported_backend_error()
+
+            q = self._qualified_table(table, schema)
+            cols = [SQLIdentifierSanitizer.sanitize(c) for c in columns]
+            n = len(cols)
+            if n < 1:
+                return self._error_response("No columns provided", columns)
+
+            def _cast(c: str) -> str:
+                if isinstance(self.db, PostgresAdapter):
+                    return f'CAST(NULLIF("{c}"::text, \'\') AS DOUBLE PRECISION)'
+                if isinstance(self.db, DuckDBAdapter):
+                    return f'TRY_CAST("{c}" AS DOUBLE)'
+                return f'toFloat64OrNull(toString("{c}"))'
+
+            alias = {c: f"a{idx}" for idx, c in enumerate(cols)}
+            pairs = [(i, j) for i in range(n) for j in range(i, n)]
+
+            # ponytail: batch size chosen under each backend's expression-count limit
+            if isinstance(self.db, ClickHouseAdapter):
+                B = min(len(pairs), 250)
+            else:
+                B = min(len(pairs), 500)
+
+            results: Dict[tuple, Any] = {}
+            for start in range(0, len(pairs), B):
+                batch = pairs[start:start + B]
+                used = sorted(
+                    {cols[i] for (i, j) in batch} | {cols[j] for (i, j) in batch},
+                    key=lambda c: cols.index(c),
+                )
+                cte = ", ".join(f"{_cast(c)} AS {alias[c]}" for c in used)
+                sel = []
+                for k, (i, j) in enumerate(batch):
+                    ai, aj = alias[cols[i]], alias[cols[j]]
+                    cond = f"{ai} IS NOT NULL AND {aj} IS NOT NULL"
+                    sel.append(
+                        f"{agg_fn}(CASE WHEN {cond} THEN {ai} END, "
+                        f"CASE WHEN {cond} THEN {aj} END) AS v_{k}"
+                    )
+                sql = f"WITH q AS (SELECT {cte} FROM {q}) SELECT " + ", ".join(sel) + " FROM q"
+                rows = await self._fetch(sql)
+                row = rows[0] if rows else {}
+                for k, (i, j) in enumerate(batch):
+                    val = row.get(f"v_{k}") if row else None
+                    results[(i, j)] = val if val is not None else float("nan")
+
+            mat = [[results.get((min(i, j), max(i, j))) for j in range(n)] for i in range(n)]
+            df = pd.DataFrame(mat, index=columns, columns=columns)
+            msg = f"Computed {agg_fn} matrix for {n} columns"
+            return self._success_response(msg, columns, result=df)
+
+        except Exception as e:
+            return self._error_response(
+                f"multi_column_assoc_matrix error: {str(e)}\n{traceback.format_exc()}",
+                columns,
+            )
+
     async def numeric_multi_column_correlation(
         self,
         table: str,
@@ -815,61 +892,10 @@ class DataStatsOps:
         data_id: Optional[str] = None,
         new_table: Optional[str] = None,
     ) -> Dict[str, Any]:
-        try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
-                q = self._qualified_table(table, schema)
-                qcols = [SQLIdentifierSanitizer.sanitize(c) for c in columns]
-                base_table = table
-
-                output_table = await self._resolve_output_table_name(
-                    base_table, schema, backend=backend, data_id=data_id, new_table=new_table
-                )
-
-                corr_fn = "CORR" if isinstance(self.db, (PostgresAdapter, DuckDBAdapter)) else "corr"
-
-                union_parts = []
-                for i, ci in enumerate(qcols):
-                    for j in range(i, len(qcols)):
-                        cj = qcols[j]
-                        col1_str = columns[i]
-                        col2_str = columns[j]
-                        union_parts.append(
-                            f"SELECT '{col1_str}' AS column1, '{col2_str}' AS column2, "
-                            f"{corr_fn}(\"{ci}\", \"{cj}\") AS value "
-                            f"FROM {q} WHERE \"{ci}\" IS NOT NULL AND \"{cj}\" IS NOT NULL"
-                        )
-
-                if not union_parts:
-                    return self._error_response("No columns provided", columns)
-
-                create_sql = (
-                    f"CREATE TABLE {self._qualified_table(output_table, schema)} AS "
-                    + " UNION ALL ".join(union_parts)
-                )
-                await self._exec(create_sql)
-
-                rows = await self._fetch(f"SELECT * FROM {self._qualified_table(output_table, schema)}")
-
-                mat = {col: {} for col in columns}
-                for row in rows:
-                    c1 = row["column1"]
-                    c2 = row["column2"]
-                    val = row["value"]
-                    mat[c1][c2] = val
-                    if c1 != c2:
-                        mat[c2][c1] = val
-
-                df = pd.DataFrame(mat)
-                msg = f"Correlation matrix computed for {len(columns)} columns, stored in '{output_table}'"
-                return self._success_response(msg, columns, result=df, new_table=output_table)
-
-            else:
-                raise self._unsupported_backend_error()
-        except Exception as e:
-            return self._error_response(
-                f"numeric_multi_column_correlation error: {str(e)}\n{traceback.format_exc()}",
-                columns,
-            )
+        agg = "CORR" if isinstance(self.db, (PostgresAdapter, DuckDBAdapter)) else "corr"
+        return await self._multi_column_assoc_matrix(
+            table, schema, columns, agg, backend=backend, data_id=data_id, new_table=new_table
+        )
 
     async def numeric_multi_column_covariance(
         self,
@@ -880,61 +906,10 @@ class DataStatsOps:
         data_id: Optional[str] = None,
         new_table: Optional[str] = None,
     ) -> Dict[str, Any]:
-        try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
-                q = self._qualified_table(table, schema)
-                qcols = [SQLIdentifierSanitizer.sanitize(c) for c in columns]
-                base_table = table
-
-                output_table = await self._resolve_output_table_name(
-                    base_table, schema, backend=backend, data_id=data_id, new_table=new_table
-                )
-
-                covar_fn = "COVAR_SAMP" if isinstance(self.db, (PostgresAdapter, DuckDBAdapter)) else "covarSamp"
-
-                union_parts = []
-                for i, ci in enumerate(qcols):
-                    for j in range(i, len(qcols)):
-                        cj = qcols[j]
-                        col1_str = columns[i]
-                        col2_str = columns[j]
-                        union_parts.append(
-                            f"SELECT '{col1_str}' AS column1, '{col2_str}' AS column2, "
-                            f"{covar_fn}(\"{ci}\", \"{cj}\") AS value "
-                            f"FROM {q} WHERE \"{ci}\" IS NOT NULL AND \"{cj}\" IS NOT NULL"
-                        )
-
-                if not union_parts:
-                    return self._error_response("No columns provided", columns)
-
-                create_sql = (
-                    f"CREATE TABLE {self._qualified_table(output_table, schema)} AS "
-                    + " UNION ALL ".join(union_parts)
-                )
-                await self._exec(create_sql)
-
-                rows = await self._fetch(f"SELECT * FROM {self._qualified_table(output_table, schema)}")
-
-                mat = {col: {} for col in columns}
-                for row in rows:
-                    c1 = row["column1"]
-                    c2 = row["column2"]
-                    val = row["value"]
-                    mat[c1][c2] = val
-                    if c1 != c2:
-                        mat[c2][c1] = val
-
-                df = pd.DataFrame(mat)
-                msg = f"Covariance matrix computed for {len(columns)} columns, stored in '{output_table}'"
-                return self._success_response(msg, columns, result=df, new_table=output_table)
-
-            else:
-                raise self._unsupported_backend_error()
-        except Exception as e:
-            return self._error_response(
-                f"numeric_multi_column_covariance error: {str(e)}\n{traceback.format_exc()}",
-                columns,
-            )
+        agg = "COVAR_SAMP" if isinstance(self.db, (PostgresAdapter, DuckDBAdapter)) else "covarSamp"
+        return await self._multi_column_assoc_matrix(
+            table, schema, columns, agg, backend=backend, data_id=data_id, new_table=new_table
+        )
 
     # =========================================================================
     # CATEGORICAL STATISTICS (scalars – unchanged)

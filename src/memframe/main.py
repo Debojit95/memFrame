@@ -288,8 +288,8 @@ async def test():
         ])
     
     # mf = MemFrame(connection_type="local", connection_params={"db_path": "/mnt/c/Users/ASUS/Documents/Open_Source/memFrame/memFrame_new.duckdb"})
-    # mf = MemFrame(connection_type="remote", connection_params=pg_params,deep_cache=True)
-    mf = MemFrame(connection_type="remote", connection_params=clickhouse_params, deep_cache=True)
+    mf = MemFrame(connection_type="remote", connection_params=pg_params,deep_cache=True)
+    # mf = MemFrame(connection_type="remote", connection_params=clickhouse_params, deep_cache=True)
     
     
     
@@ -341,7 +341,8 @@ async def test():
         # result1 = ops1.sub('C','B')
         # print(result1)
         print("*"*100)
-        _ = ops1.clip(column="date", lower="2021-01-05", upper="2023-10-15")
+        # _ = ops1.clip(column="date", lower="2021-01-05", upper="2023-10-15")
+        _ = ops1.corr()
         print(_)
 
 
