@@ -86,3 +86,4 @@ Thumbs.db
 plot.html
 *.html
 
+src/memframe/test_main.py

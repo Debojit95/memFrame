@@ -692,6 +692,98 @@ class TestArithmeticOperations:
             backend=backend_config["connection_type"],
         )
 
+    def test_add_scalar(self, uploaded_ctx, sample_df, backend_config):
+        result = uploaded_ctx.add("salary", 100, "salary_plus_100")
+        res_df = get_result_df(result)
+        out_col = get_generated_col(result, "salary_plus_100")
+
+        expected = sample_df.copy()
+        expected["salary_plus_100"] = expected["salary"] + 100
+        assert_series_equal_loose(res_df[out_col], expected["salary_plus_100"])
+        self._record_result(
+            test_name="add_scalar",
+            method_call='uploaded_ctx.add("salary", 100, "salary_plus_100")',
+            original_df=sample_df,
+            memframe_df=res_df,
+            pandas_df=expected,
+            backend=backend_config["connection_type"],
+        )
+
+    def test_add_scalar_first(self, uploaded_ctx, sample_df, backend_config):
+        result = uploaded_ctx.add(100, "salary", "100_plus_salary")
+        res_df = get_result_df(result)
+        out_col = get_generated_col(result, "100_plus_salary")
+
+        expected = sample_df.copy()
+        expected["100_plus_salary"] = 100 + expected["salary"]
+        assert_series_equal_loose(res_df[out_col], expected["100_plus_salary"])
+        self._record_result(
+            test_name="add_scalar_first",
+            method_call='uploaded_ctx.add(100, "salary", "100_plus_salary")',
+            original_df=sample_df,
+            memframe_df=res_df,
+            pandas_df=expected,
+            backend=backend_config["connection_type"],
+        )
+
+    def test_subtract_scalar(self, uploaded_ctx, sample_df, backend_config):
+        result = uploaded_ctx.subtract("salary", 100, "salary_minus_100")
+        res_df = get_result_df(result)
+        out_col = get_generated_col(result, "salary_minus_100")
+
+        expected = sample_df.copy()
+        expected["salary_minus_100"] = expected["salary"] - 100
+        assert_series_equal_loose(res_df[out_col], expected["salary_minus_100"])
+        self._record_result(
+            test_name="subtract_scalar",
+            method_call='uploaded_ctx.subtract("salary", 100, "salary_minus_100")',
+            original_df=sample_df,
+            memframe_df=res_df,
+            pandas_df=expected,
+            backend=backend_config["connection_type"],
+        )
+
+    def test_add_scalar_negative(self, uploaded_ctx, sample_df, backend_config):
+        result = uploaded_ctx.add("negative_vals", -5, "neg_plus_minus5")
+        res_df = get_result_df(result)
+        out_col = get_generated_col(result, "neg_plus_minus5")
+
+        expected = sample_df.copy()
+        expected["neg_plus_minus5"] = expected["negative_vals"] + (-5)
+        assert_series_equal_loose(res_df[out_col], expected["neg_plus_minus5"])
+        self._record_result(
+            test_name="add_scalar_negative",
+            method_call='uploaded_ctx.add("negative_vals", -5, "neg_plus_minus5")',
+            original_df=sample_df,
+            memframe_df=res_df,
+            pandas_df=expected,
+            backend=backend_config["connection_type"],
+        )
+
+    def test_add_float_scalar(self, uploaded_ctx, sample_df, backend_config):
+        result = uploaded_ctx.add("score", 1.5, "score_plus_1_5")
+        res_df = get_result_df(result)
+        out_col = get_generated_col(result, "score_plus_1_5")
+
+        expected = sample_df.copy()
+        expected["score_plus_1_5"] = expected["score"] + 1.5
+        assert_series_equal_loose(res_df[out_col], expected["score_plus_1_5"])
+        self._record_result(
+            test_name="add_float_scalar",
+            method_call='uploaded_ctx.add("score", 1.5, "score_plus_1_5")',
+            original_df=sample_df,
+            memframe_df=res_df,
+            pandas_df=expected,
+            backend=backend_config["connection_type"],
+        )
+
+    def test_scalar_scalar_rejected(self, uploaded_ctx, backend_config):
+        from memframe.exceptions import OperationError
+
+        with pytest.raises(OperationError) as exc_info:
+            uploaded_ctx.add(5, 3)
+        assert "scalar-scalar" in str(exc_info.value), str(exc_info.value)
+
     # ----------------------------------------------------
     # Unary operations
     # ----------------------------------------------------

@@ -277,6 +277,46 @@ class ArithmeticOps:
         return "_".join(parts)
 
     # ------------------------------------------------------------------
+    # Operand classification (vector-vector / vector-scalar / scalar-scalar)
+    # ------------------------------------------------------------------
+    def _operand_kind(self, val) -> str:
+        if isinstance(val, (int, float)):
+            return "scalar"
+        if isinstance(val, str):
+            try:
+                float(val)
+                return "scalar"
+            except ValueError:
+                return "column"
+        return "scalar"
+
+    def _operand_expr(self, val, types: Dict[str, str]) -> str:
+        if isinstance(val, (int, float)):
+            return f"({val})"
+        if isinstance(val, str):
+            try:
+                return f"({float(val)})"
+            except ValueError:
+                pass
+            safe = SQLIdentifierSanitizer.sanitize(val)
+            quoted = self.db.quote_identifier(safe)
+            if self._is_textual_dtype(types.get(safe)):
+                return self._numeric_text_cast(quoted)
+            return quoted
+        return f"({val})"
+
+    async def _build_binary(self, table, schema, col1, col2, op, *, divisor_nullif=False):
+        lk, rk = self._operand_kind(col1), self._operand_kind(col2)
+        if lk == "scalar" and rk == "scalar":
+            return None, None, "scalar-scalar"
+        types = await self.db.get_column_types(table, schema) if (lk == "column" or rk == "column") else {}
+        left = self._operand_expr(col1, types)
+        right = self._operand_expr(col2, types)
+        if divisor_nullif:
+            right = f"NULLIF({right}, 0)"
+        return f"{left} {op} {right}", self._involved_cols(col1, col2), f"{lk}-{rk}"
+
+    # ------------------------------------------------------------------
     # ** NEW ** Core operation wrapper – creates a new table first
     # ------------------------------------------------------------------
     async def _apply_expression(
@@ -356,68 +396,56 @@ class ArithmeticOps:
                   col2: Union[str, float, int], target_col: Optional[str] = None,
                   backend=None, data_id: Optional[str] = None,
                   new_table: Optional[str] = None):
-        if isinstance(self.db, (PostgresAdapter, DuckDBAdapter, ClickHouseAdapter)):
-            left, right = await self._numeric_exprs(table, schema, col1, col2)
-            expr = f"{left} + {right}"
-            involved = self._involved_cols(col1, col2)
-            return await self._apply_expression(
-                table, schema, involved, expr,
-                target_col or self._generate_target_col(col1, "add", col2),
-                "Addition", backend=backend, data_id=data_id, new_table=new_table
-            )
-        else:
-            raise self._unsupported_backend_error()
+        expr, involved, mode = await self._build_binary(table, schema, col1, col2, "+")
+        if mode == "scalar-scalar":
+            return fail("scalar-scalar arithmetic is not supported; provide at least one column")
+        return await self._apply_expression(
+            table, schema, involved, expr,
+            target_col or self._generate_target_col(col1, "add", col2),
+            "Addition", backend=backend, data_id=data_id, new_table=new_table
+        )
 
     @_response_errors
     async def subtract(self, table: str, schema: str, col1: Union[str, float, int],
-                       col2: Union[str, float, int], target_col: Optional[str] = None,
-                       backend=None, data_id: Optional[str] = None,
-                       new_table: Optional[str] = None):
-        if isinstance(self.db, (PostgresAdapter, DuckDBAdapter, ClickHouseAdapter)):
-            left, right = await self._numeric_exprs(table, schema, col1, col2)
-            expr = f"{left} - {right}"
-            involved = self._involved_cols(col1, col2)
-            return await self._apply_expression(
-                table, schema, involved, expr,
-                target_col or self._generate_target_col(col1, "sub", col2),
-                "Subtraction", backend=backend, data_id=data_id, new_table=new_table
-            )
-        else:
-            raise self._unsupported_backend_error()
+                        col2: Union[str, float, int], target_col: Optional[str] = None,
+                        backend=None, data_id: Optional[str] = None,
+                        new_table: Optional[str] = None):
+        expr, involved, mode = await self._build_binary(table, schema, col1, col2, "-")
+        if mode == "scalar-scalar":
+            return fail("scalar-scalar arithmetic is not supported; provide at least one column")
+        return await self._apply_expression(
+            table, schema, involved, expr,
+            target_col or self._generate_target_col(col1, "sub", col2),
+            "Subtraction", backend=backend, data_id=data_id, new_table=new_table
+        )
 
     @_response_errors
     async def multiply(self, table: str, schema: str, col1: Union[str, float, int],
-                       col2: Union[str, float, int], target_col: Optional[str] = None,
-                       backend=None, data_id: Optional[str] = None,
-                       new_table: Optional[str] = None):
-        if isinstance(self.db, (PostgresAdapter, DuckDBAdapter, ClickHouseAdapter)):
-            left, right = await self._numeric_exprs(table, schema, col1, col2)
-            expr = f"{left} * {right}"
-            involved = self._involved_cols(col1, col2)
-            return await self._apply_expression(
-                table, schema, involved, expr,
-                target_col or self._generate_target_col(col1, "mul", col2),
-                "Multiplication", backend=backend, data_id=data_id, new_table=new_table
-            )
-        else:
-            raise self._unsupported_backend_error()
+                        col2: Union[str, float, int], target_col: Optional[str] = None,
+                        backend=None, data_id: Optional[str] = None,
+                        new_table: Optional[str] = None):
+        expr, involved, mode = await self._build_binary(table, schema, col1, col2, "*")
+        if mode == "scalar-scalar":
+            return fail("scalar-scalar arithmetic is not supported; provide at least one column")
+        return await self._apply_expression(
+            table, schema, involved, expr,
+            target_col or self._generate_target_col(col1, "mul", col2),
+            "Multiplication", backend=backend, data_id=data_id, new_table=new_table
+        )
 
     @_response_errors
     async def divide(self, table: str, schema: str, col1: Union[str, float, int],
-                     col2: Union[str, float, int], target_col: Optional[str] = None,
-                     backend=None, data_id: Optional[str] = None,
-                     new_table: Optional[str] = None):
-        if isinstance(self.db, (PostgresAdapter, DuckDBAdapter, ClickHouseAdapter)):
-            left, right = await self._numeric_exprs(table, schema, col1, col2)
-            expr = f"{left} / NULLIF({right}, 0)"
-            involved = self._involved_cols(col1, col2)
-            return await self._apply_expression(
-                table, schema, involved, expr,
-                target_col or self._generate_target_col(col1, "div", col2),
-                "Division", backend=backend, data_id=data_id, new_table=new_table
-            )
-        else:
-            raise self._unsupported_backend_error()
+                      col2: Union[str, float, int], target_col: Optional[str] = None,
+                      backend=None, data_id: Optional[str] = None,
+                      new_table: Optional[str] = None):
+        expr, involved, mode = await self._build_binary(table, schema, col1, col2, "/", divisor_nullif=True)
+        if mode == "scalar-scalar":
+            return fail("scalar-scalar arithmetic is not supported; provide at least one column")
+        return await self._apply_expression(
+            table, schema, involved, expr,
+            target_col or self._generate_target_col(col1, "div", col2),
+            "Division", backend=backend, data_id=data_id, new_table=new_table
+        )
 
     @_response_errors
     async def modulo(self, table: str, schema: str, col1: Union[str, float, int],
