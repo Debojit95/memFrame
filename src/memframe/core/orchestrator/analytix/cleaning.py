@@ -38,8 +38,6 @@ class CleaningOrchestrator:
 
     async def _detect_fillna_dtype(self, ops: DataCleaningOps, table: str, schema: str, column: str) -> str:
         # Trust the declared schema type first: content sampling of the first
-        # rows mis-detects columns whose leading rows are all NULL (e.g.
-        # total_cases right after an in-place to_numeric conversion).
         sql_type = (await ops._get_column_type(table, schema, column)).lower()
         if any(k in sql_type for k in ("timestamp", "datetime", "date", "time")):
             return "datetime"

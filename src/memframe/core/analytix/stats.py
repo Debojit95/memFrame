@@ -44,14 +44,14 @@ class DataStatsOps:
         return f'{self.db.quote_identifier(safe_schema)}.{self.db.quote_identifier(safe_table)}'
 
     
-    async def _fetch_data(self, table: str, schema: str, columns: Any = "*") -> pd.DataFrame:
+    async def _fetch_data(self, table: str, schema: str, columns: Any = "*", limit: Optional[int] = None) -> pd.DataFrame:
         """Return a DataFrame sample of the table for the response."""
         qualified = self._qualified_table(table, schema)
 
         if columns is None or (isinstance(columns, str) and columns.strip() == "*"):
             column_clause = "*"
         elif isinstance(columns, (list, tuple)):
-            if not columns or (len(columns) == 1 and str(columns[0]).strip() == "*"):
+            if not columns or (len(columns)  == 1 and str(columns[0]).strip() == "*"):
                 column_clause = "*"
             else:
                 sanitized_cols = [
@@ -63,7 +63,8 @@ class DataStatsOps:
             safe_col = SQLIdentifierSanitizer.sanitize(str(columns), allow_qualified=False)
             column_clause = self.db.quote_identifier(safe_col)
 
-        rows = await self._fetch(f"SELECT {column_clause} FROM {qualified}")
+        limit_clause = f" LIMIT {int(limit)}" if limit is not None else ""
+        rows = await self._fetch(f"SELECT {column_clause} FROM {qualified}{limit_clause}")
         records = [dict(row) for row in rows]
         return pd.DataFrame.from_records(records)
 
@@ -843,11 +844,16 @@ class DataStatsOps:
             alias = {c: f"a{idx}" for idx, c in enumerate(cols)}
             pairs = [(i, j) for i in range(n) for j in range(i, n)]
 
-            # ponytail: batch size chosen under each backend's expression-count limit
+            # Batch size by backend. DuckDB handles one big vectorized scan.
+            # ClickHouse caps expressions per query. Postgres' planner chokes on a
+            # single statement with ~thousands of CORR/COVAR_SAMP aggregates, so it
+            # is batched (still many correlations per scan, one pass each).
             if isinstance(self.db, ClickHouseAdapter):
                 B = min(len(pairs), 250)
+            elif isinstance(self.db, DuckDBAdapter):
+                B = len(pairs)
             else:
-                B = min(len(pairs), 500)
+                B = min(len(pairs), 1000)
 
             results: Dict[tuple, Any] = {}
             for start in range(0, len(pairs), B):
@@ -883,6 +889,52 @@ class DataStatsOps:
                 columns,
             )
 
+    async def _multi_column_assoc_matrix_streamed(
+        self,
+        table: str,
+        schema: str,
+        columns: List[str],
+        kind: str,
+        data_id: Optional[str] = None,
+        new_table: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Postgres-only: stream numeric columns via fetch_iter into a float matrix,
+        then compute corr/cov in numpy. Avoids bulk-pulling all rows/columns at once.
+
+        ponytail: holds the full rows x numeric_cols float matrix client-side (the
+        irreducible data size); a non-numeric value past the 5k detection sample still
+        errors the CAST, identical to the in-DB path.
+        """
+        try:
+            q = self._qualified_table(table, schema)
+            cols = [SQLIdentifierSanitizer.sanitize(c) for c in columns]
+            n = len(cols)
+            if n < 1:
+                return self._error_response("No columns provided", columns)
+
+            def _cast(c: str) -> str:
+                return f'CAST(NULLIF("{c}"::text, \'\') AS DOUBLE PRECISION) AS "{c}"'
+
+            sql = f"SELECT {', '.join(_cast(c) for c in cols)} FROM {q}"
+            row_count = await self._fetchval(f"SELECT COUNT(*) FROM {q}") or 0
+            arr = np.empty((row_count, n), dtype=np.float64)
+
+            r = 0
+            async for record in self.db.fetch_iter(sql, chunk_size=2000):
+                arr[r] = [np.nan if record[c] is None else record[c] for c in cols]
+                r += 1
+
+            df = pd.DataFrame(arr, columns=cols)
+            mat = df.corr() if kind == "corr" else df.cov()
+            msg = f"Computed {kind} matrix for {n} columns (streamed in-memory)"
+            return self._success_response(msg, columns, result=mat)
+
+        except Exception as e:
+            return self._error_response(
+                f"multi_column_assoc_matrix_streamed error: {str(e)}\n{traceback.format_exc()}",
+                columns,
+            )
+
     async def numeric_multi_column_correlation(
         self,
         table: str,
@@ -892,7 +944,11 @@ class DataStatsOps:
         data_id: Optional[str] = None,
         new_table: Optional[str] = None,
     ) -> Dict[str, Any]:
-        agg = "CORR" if isinstance(self.db, (PostgresAdapter, DuckDBAdapter)) else "corr"
+        if isinstance(self.db, PostgresAdapter):
+            return await self._multi_column_assoc_matrix_streamed(
+                table, schema, columns, "corr", data_id=data_id
+            )
+        agg = "CORR" if isinstance(self.db, DuckDBAdapter) else "corr"
         return await self._multi_column_assoc_matrix(
             table, schema, columns, agg, backend=backend, data_id=data_id, new_table=new_table
         )
@@ -906,7 +962,11 @@ class DataStatsOps:
         data_id: Optional[str] = None,
         new_table: Optional[str] = None,
     ) -> Dict[str, Any]:
-        agg = "COVAR_SAMP" if isinstance(self.db, (PostgresAdapter, DuckDBAdapter)) else "covarSamp"
+        if isinstance(self.db, PostgresAdapter):
+            return await self._multi_column_assoc_matrix_streamed(
+                table, schema, columns, "cov", data_id=data_id
+            )
+        agg = "COVAR_SAMP" if isinstance(self.db, DuckDBAdapter) else "covarSamp"
         return await self._multi_column_assoc_matrix(
             table, schema, columns, agg, backend=backend, data_id=data_id, new_table=new_table
         )

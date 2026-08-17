@@ -30,7 +30,7 @@ class StatsOrchestrator:
         Detect column family for stats routing.
         Returns one of: 'numeric', 'categorical', 'datetime'.
         """
-        sample_df = await ops._fetch_data(table, schema, columns=[column])
+        sample_df = await ops._fetch_data(table, schema, columns=[column], limit=5000)
         if sample_df.empty:
             return "categorical"
         
@@ -214,6 +214,25 @@ class StatsOrchestrator:
         return await ops.numeric_outliers_zscore(table, schema, column, threshold)
 
     # ── Methods that **return DataFrames** → table creation + call recording ──
+    async def _detect_numeric_columns(self, ops, table, schema, candidate_columns):
+        """One 5000-row sample query for all candidate columns (ponytail: was N
+        per-column queries). Dtype inferred per column from that single sample."""
+        if not candidate_columns:
+            return []
+        sample_df = await ops._fetch_data(table, schema, columns=list(candidate_columns), limit=5000)
+        numeric_cols = []
+        for col in candidate_columns:
+            if col not in sample_df.columns:
+                continue
+            series = sample_df[col].replace('', np.nan)
+            import pyarrow as pa
+            chunked = pa.chunked_array([pa.array(series)])
+            inferred = self._dtype_detector._infer_column(chunked_array=chunked)
+            detected = str(inferred.get("type", "text")).lower()
+            if detected in ("integer", "float"):
+                numeric_cols.append(col)
+        return numeric_cols
+
     @record_call(deep_cache=True)
     async def corr(self, columns: List[str] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
@@ -226,14 +245,7 @@ class StatsOrchestrator:
             col_types = await ops.db.get_column_types(table, schema)
             candidate_columns = list(col_types.keys())
 
-        numeric_cols = []
-        for col in candidate_columns or []:
-            detected_dtype = await self._detect_stats_dtype(ops, table, schema, col)
-            if detected_dtype == "numeric":
-                numeric_cols.append(col)
-
-        # if not numeric_cols or len(numeric_cols) < 2:
-        #     return ops._error_response("Need at least 2 numeric columns for correlation")
+        numeric_cols = await self._detect_numeric_columns(ops, table, schema, candidate_columns or [])
 
         return await ops.numeric_multi_column_correlation(
             table, schema, numeric_cols,
@@ -252,14 +264,7 @@ class StatsOrchestrator:
             col_types = await ops.db.get_column_types(table, schema)
             candidate_columns = list(col_types.keys())
 
-        numeric_cols = []
-        for col in candidate_columns or []:
-            detected_dtype = await self._detect_stats_dtype(ops, table, schema, col)
-            if detected_dtype == "numeric":
-                numeric_cols.append(col)
-
-        # if not numeric_cols or len(numeric_cols) < 2:
-            # return ops._error_response("Need at least 2 numeric columns for covariance")
+        numeric_cols = await self._detect_numeric_columns(ops, table, schema, candidate_columns or [])
 
         return await ops.numeric_multi_column_covariance(
             table, schema, numeric_cols,
