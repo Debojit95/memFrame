@@ -78,10 +78,13 @@ class CleaningWrapper(CleaningOrchestrator):
     async def aclip(
         self,
         column: str,
-        lower: int | float = None,
-        upper: int | float = None,
+        lower: Optional[Any] = None,
+        upper: Optional[Any] = None,
     ) -> Dict[str, Any]:
-        """Asynchronously clip column values to lower/upper bounds."""
+        """Asynchronously clip column values to lower/upper bounds.
+
+        For date/datetime columns, pass date strings ('YYYY-MM-DD') as bounds.
+        """
         return await super().clip(
             column=column,
             lower=lower,
@@ -92,10 +95,13 @@ class CleaningWrapper(CleaningOrchestrator):
     async def clip(
         self,
         column: str,
-        lower: int | float = None,
-        upper: int | float = None,
+        lower: Optional[Any] = None,
+        upper: Optional[Any] = None,
     ) -> Dict[str, Any]:
-        """Synchronously clip column values to lower/upper bounds."""
+        """Synchronously clip column values to lower/upper bounds.
+
+        For date/datetime columns, pass date strings ('YYYY-MM-DD') as bounds.
+        """
         return await self.aclip(
             column=column,
             lower=lower,

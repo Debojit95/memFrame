@@ -131,21 +131,30 @@ class CleaningOrchestrator:
         return await ops.categorical_fillna(table, schema, column, mode=method_lower.upper(), value=value, mapping=mapping, **persist)
 
     @record_call(deep_cache=True)
-    async def clip(self, column: str,  lower: int|float = None, upper: int|float = None,) -> Dict[str, Any]:
+    async def clip(self, column: str,  lower: Optional[Any] = None, upper: Optional[Any] = None,) -> Dict[str, Any]:
         """
         Trim values at lower and/or upper bounds. Out‑of‑bounds become NULL.
         Equivalent to pandas `clip` but with NULL instead of bound clamping.
 
         Args:
             column: Column name.
-            lower: Minimum allowed value.
-            upper: Maximum allowed value.
+            lower: Minimum allowed value. For numeric columns pass a number;
+                for date/datetime columns pass a date string ('YYYY-MM-DD').
+            upper: Maximum allowed value (same rules as `lower`).
 
         Returns:
             Standard response dict with sample DataFrame.
         """
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
+
+        detected_dtype = await self._detect_fillna_dtype(ops, table, schema, column)
+        if detected_dtype == "datetime":
+            return await ops.datetime_remove_out_of_range(
+                table, schema, column, min_dt=lower, max_dt=upper,
+                **self._persistence_context(),
+            )
+
         return await ops.numeric_enforce_range(
             table, schema, column, lower, upper, **self._persistence_context()
         )
