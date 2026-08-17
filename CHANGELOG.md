@@ -6,6 +6,18 @@ to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-08-17
+
+### Fixed
+- Postgres `.corr()`/`.cov()` now compute via streaming in-memory numpy for wide
+  feature sets, removing the Postgres aggregate-explosion hang and greatly
+  speeding up wide correlation/covariance matrices.
+- DuckDB `.corr()` recursion-depth failure fixed for large column-pair counts.
+- Arithmetic `add`/`subtract`/`multiply`/`divide` now correctly handle
+  vector-scalar operands (column ± scalar, scalar ± column, negative and float
+  scalars); scalar-scalar operands are now rejected with a clear `OperationError`.
+- Fixed `clip` date parsing bug.
+
 ## [0.2.0] - 2026-08-16
 
 ### Changed

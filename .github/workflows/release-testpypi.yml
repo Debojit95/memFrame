@@ -20,7 +20,14 @@ jobs:
         env:
           UV_PUBLISH_TOKEN: ${{ secrets.TEST_PYPI_TOKEN }}
         run: uv publish --publish-url https://test.pypi.org/legacy/
+      - name: Extract release notes from CHANGELOG
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          ver="${VERSION#v}"
+          awk -v v="## [$ver]" '$0==v{f=1;next} /^## \[/{if(f)exit} f' CHANGELOG.md > release_notes.md
+          cat release_notes.md
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          generate_release_notes: true
+          body_path: release_notes.md
