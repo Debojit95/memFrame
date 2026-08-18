@@ -101,7 +101,7 @@ def tools(session):
         return await normalize(await w.aoutliers_iqr(column=column), session)
 
     async def outliers_zscore(column: str, threshold: float = 3.0) -> dict:
-        """Z-score outlier values for `column` (|x-mean| > threshold*std)."""
+        """Z-score outlier bounds for `column` (mean ± threshold*std); returns a dict of stats."""
         return await normalize(
             await w.aoutliers_zscore(column=column, threshold=threshold), session
         )
@@ -140,7 +140,7 @@ def tools(session):
 
     # ----- datetime -----
     async def datetime_diff(column: str) -> dict:
-        """Consecutive differences of a datetime `column` (in seconds)."""
+        """Add a `{column}__diff_seconds` column (seconds vs previous row) and return the result DataFrame."""
         return await normalize(await w.adatetime_diff(column=column), session)
 
     async def time_delta_stats(column: str) -> dict:

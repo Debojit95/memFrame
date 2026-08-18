@@ -208,10 +208,14 @@ class StatsOrchestrator:
         table, schema = await self._get_context()
         return await ops.numeric_outliers_iqr(table, schema, column)
 
+    @record_call(deep_cache=True)
     async def outliers_zscore(self, column: str, threshold: float = 3.0) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
-        return await ops.numeric_outliers_zscore(table, schema, column, threshold)
+        return await ops.numeric_outliers_zscore(
+            table, schema, column, threshold,
+            backend=self._memframe._backend, data_id=self._data_id,
+        )
 
     # ── Methods that **return DataFrames** → table creation + call recording ──
     async def _detect_numeric_columns(self, ops, table, schema, candidate_columns):
@@ -299,10 +303,15 @@ class StatsOrchestrator:
 
 
     # ── datetime-specific methods ──────────────────────────────────────
-    async def datetime_diff(self, column: str) -> Dict[str, Any]:
+    @record_call(deep_cache=True)
+    async def datetime_diff(self, column: str, target_col: str = None, new_table: str = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
-        return await ops.datetime_diff(table, schema, column)
+        return await ops.datetime_diff(
+            table, schema, column,
+            backend=self._memframe._backend, data_id=self._data_id,
+            new_table=new_table, target_col=target_col,
+        )
 
     async def time_delta_stats(self, column: str) -> Dict[str, Any]:
         ops = await self._ensure_ops()

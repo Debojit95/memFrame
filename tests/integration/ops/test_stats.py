@@ -728,41 +728,34 @@ class TestStatsOperations:
     # ------------------------------------------------------------------
     def test_outliers_iqr(self, uploaded_ctx, sample_df, backend_config):
         result = uploaded_ctx.outliers_iqr("score")
-        value = get_result_value(result)
+        stats = get_result_value(result)
         Q1 = sample_df["score"].quantile(0.25)
         Q3 = sample_df["score"].quantile(0.75)
         IQR = Q3 - Q1
         lower = Q1 - 1.5 * IQR
         upper = Q3 + 1.5 * IQR
-        outlier_mask = (sample_df["score"] < lower) | (sample_df["score"] > upper)
-        expected_indices = sample_df.index[outlier_mask].tolist()
-        if isinstance(value, list) and len(value) > 0:
-            if isinstance(value[0], (int, float)) and value[0] < 10:
-                assert sorted(value) == sorted(expected_indices)
-            else:
-                expected_vals = sample_df["score"].iloc[expected_indices].tolist()
-                assert sorted(value) == sorted(expected_vals)
-        else:
-            assert len(value) == 0
-        self._record_result("outliers_iqr", 'outliers_iqr("score")', sample_df, value, expected_indices, backend_config["connection_type"])
+        assert stats["column"] == "score"
+        assert stats["q1"] == pytest.approx(Q1)
+        assert stats["q3"] == pytest.approx(Q3)
+        assert stats["iqr"] == pytest.approx(IQR)
+        assert stats["lower_bound"] == pytest.approx(lower)
+        assert stats["upper_bound"] == pytest.approx(upper)
+        self._record_result("outliers_iqr", 'outliers_iqr("score")', sample_df, stats, None, backend_config["connection_type"])
 
     def test_outliers_zscore(self, uploaded_ctx, sample_df, backend_config):
         result = uploaded_ctx.outliers_zscore("score", threshold=2.0)
-        value = get_result_value(result)
+        stats = get_result_value(result)
         mean = sample_df["score"].mean()
         std = sample_df["score"].std(ddof=0)
-        z = (sample_df["score"] - mean).abs() / std
-        outlier_mask = z > 2.0
-        expected_indices = sample_df.index[outlier_mask].tolist()
-        if isinstance(value, list) and len(value) > 0:
-            if isinstance(value[0], (int, float)) and value[0] < 10:
-                assert sorted(value) == sorted(expected_indices)
-            else:
-                expected_vals = sample_df["score"].iloc[expected_indices].tolist()
-                assert sorted(value) == sorted(expected_vals)
-        else:
-            assert len(value) == 0
-        self._record_result("outliers_zscore", 'outliers_zscore("score", threshold=2.0)', sample_df, value, expected_indices, backend_config["connection_type"])
+        lower = mean - 2.0 * std
+        upper = mean + 2.0 * std
+        assert stats["column"] == "score"
+        assert stats["mean"] == pytest.approx(mean)
+        assert stats["std"] == pytest.approx(std)
+        assert stats["threshold"] == 2.0
+        assert stats["lower_bound"] == pytest.approx(lower)
+        assert stats["upper_bound"] == pytest.approx(upper)
+        self._record_result("outliers_zscore", 'outliers_zscore("score", threshold=2.0)', sample_df, stats, None, backend_config["connection_type"])
 
     # ------------------------------------------------------------------
     # Multi-column correlations / covariance
@@ -831,15 +824,13 @@ class TestStatsOperations:
     # ------------------------------------------------------------------
     def test_datetime_diff(self, uploaded_ctx, sample_df, backend_config):
         result = uploaded_ctx.datetime_diff("date")
-        value = get_result_value(result)
-        expected = sample_df["date"].diff().dropna().dt.total_seconds().tolist()
-        if isinstance(value, list) and len(value) == 4:
-            if value[0] > 1000:
-                assert np.allclose(value, expected, rtol=0.01)
-            else:
-                expected_days = sample_df["date"].diff().dropna().dt.days.tolist()
-                assert value == expected_days
-        self._record_result("datetime_diff", 'datetime_diff("date")', sample_df, value, expected, backend_config["connection_type"])
+        res_df = get_result_df(result)
+        out_col = "date__diff_seconds"
+        expected = sample_df["date"].diff().dt.total_seconds().astype(float).reset_index(drop=True)
+        got = res_df[out_col].astype(float).reset_index(drop=True)
+        mask = expected.notna()
+        assert np.allclose(got[mask].values, expected[mask].values, rtol=0.01)
+        self._record_result("datetime_diff", 'datetime_diff("date")', sample_df, res_df, expected, backend_config["connection_type"])
 
     def test_time_delta_stats(self, uploaded_ctx, sample_df, backend_config):
         result = uploaded_ctx.time_delta_stats("date")

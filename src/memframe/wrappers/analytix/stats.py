@@ -269,7 +269,11 @@ class StatsWrapper(StatsOrchestrator):
         column: str,
         threshold: float = 3.0,
     ) -> Dict[str, Any]:
-        """Asynchronously detect outliers using z-score threshold."""
+        """Asynchronously detect outliers using z-score threshold.
+
+        Returns a dict of statistics: column, mean, std, threshold,
+        lower_bound, upper_bound.
+        """
         return await super().outliers_zscore(column, threshold)
 
     @async_to_sync
@@ -278,7 +282,11 @@ class StatsWrapper(StatsOrchestrator):
         column: str,
         threshold: float = 3.0,
     ) -> Dict[str, Any]:
-        """Synchronously detect outliers using z-score threshold."""
+        """Synchronously detect outliers using z-score threshold.
+
+        Returns a dict of statistics: column, mean, std, threshold,
+        lower_bound, upper_bound.
+        """
         return await self.aoutliers_zscore(column, threshold)
 
     # ------------------------------------------------------------------
@@ -401,14 +409,14 @@ class StatsWrapper(StatsOrchestrator):
     # Datetime
     # ------------------------------------------------------------------
 
-    async def adatetime_diff(self, column: str) -> Dict[str, Any]:
+    async def adatetime_diff(self, column: str, target_col: str = None, new_table: str = None) -> Dict[str, Any]:
         """Asynchronously compute consecutive datetime differences."""
-        return await super().datetime_diff(column)
+        return await super().datetime_diff(column, target_col=target_col, new_table=new_table)
 
     @async_to_sync
-    async def datetime_diff(self, column: str) -> Dict[str, Any]:
+    async def datetime_diff(self, column: str, target_col: str = None, new_table: str = None) -> Dict[str, Any]:
         """Synchronously compute consecutive datetime differences."""
-        return await self.adatetime_diff(column)
+        return await self.adatetime_diff(column, target_col=target_col, new_table=new_table)
 
     async def atime_delta_stats(self, column: str) -> Dict[str, Any]:
         """Asynchronously compute statistics over datetime deltas."""

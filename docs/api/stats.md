@@ -54,8 +54,8 @@ Every stats operation has synchronous and asynchronous forms:
 | `quantile(column, q=None)` | `await aquantile(...)` | One or more quantiles |
 | `autocorr(column, lag=1)` | `await aautocorr(...)` | Autocorrelation at a lag |
 | `coefficient_of_variation(column)` | `await acoefficient_of_variation(...)` | Standard deviation divided by mean |
-| `outliers_iqr(column)` | `await aoutliers_iqr(...)` | Outlier values by the IQR rule |
-| `outliers_zscore(column, threshold=3.0)` | `await aoutliers_zscore(...)` | Outlier values by z-score |
+| `outliers_iqr(column)` | `await aoutliers_iqr(...)` | Returns a dict of IQR outlier bounds (`q1`, `q3`, `iqr`, `lower_bound`, `upper_bound`) |
+| `outliers_zscore(column, threshold=3.0)` | `await aoutliers_zscore(...)` | Returns a dict of z-score outlier bounds (`mean`, `std`, `threshold`, `lower_bound`, `upper_bound`) |
 | `corr(columns=None)` | `await acorr(...)` | Numeric correlation matrix |
 | `cov(columns=None)` | `await acov(...)` | Numeric covariance matrix |
 | `proportions(column)` | `await aproportions(...)` | Category proportions |
@@ -63,7 +63,7 @@ Every stats operation has synchronous and asynchronous forms:
 | `cramers_v(column1, column2)` | `await acramers_v(...)` | Cramer's V association score |
 | `theil_u(column1, column2)` | `await atheil_u(...)` | Theil's U asymmetric association score |
 | `mutual_information(column1, column2)` | `await amutual_information(...)` | Mutual information |
-| `datetime_diff(column)` | `await adatetime_diff(...)` | Consecutive datetime differences |
+| `datetime_diff(column, target_col=None, new_table=None)` | `await adatetime_diff(...)` | Adds a `{column}__diff_seconds` column and returns the result DataFrame |
 | `time_delta_stats(column)` | `await atime_delta_stats(...)` | Summary stats over datetime deltas |
 | `event_rate(column, unit="day")` | `await aevent_rate(...)` | Event rate per time unit |
 | `time_unit_counts(column, unit="day")` | `await atime_unit_counts(...)` | Counts grouped by a datetime part |
@@ -292,8 +292,8 @@ quantiles = await dataset.aquantile(column="salary", q=[0.1, 0.5, 0.9])
 | `quantile` | `column`, `q=None` | Dictionary keyed as `p_25`, `p_50`, etc. |
 | `autocorr` | `column`, `lag=1` | Correlation between the current value and the lagged value. |
 | `coefficient_of_variation` | `column` | Population standard deviation divided by average. |
-| `outliers_iqr` | `column` | List of values outside `Q1 - 1.5 * IQR` or `Q3 + 1.5 * IQR`. |
-| `outliers_zscore` | `column`, `threshold=3.0` | List of values whose absolute z-score exceeds `threshold`. |
+| `outliers_iqr` | `column` | Dict of IQR outlier bounds: `q1`, `q3`, `iqr`, `lower_bound` (`Q1 - 1.5*IQR`), `upper_bound` (`Q3 + 1.5*IQR`). |
+| `outliers_zscore` | `column`, `threshold=3.0` | Dict of z-score outlier bounds: `mean`, `std`, `threshold`, `lower_bound` (`mean - threshold*std`), `upper_bound` (`mean + threshold*std`). |
 
 Parameters:
 
@@ -417,8 +417,9 @@ Datetime stats operate on non-null date or timestamp values.
 
 ### `datetime_diff`
 
-`datetime_diff` sorts the column and returns the differences in seconds between
-consecutive non-null values.
+`datetime_diff` sorts the column and computes the difference in seconds between
+each row and the previous row (pandas `.diff()` style; the first row is `NULL`),
+writes it to a new `{column}__diff_seconds` column, and returns the result DataFrame.
 
 ```python
 result = dataset.datetime_diff(column="last_login")
@@ -433,8 +434,10 @@ Parameters:
 | Parameter | Type | Description |
 | --- | --- | --- |
 | `column` | `str` | Datetime column to analyze. |
+| `target_col` | `str` or `None` | Name for the diff column. Defaults to `{column}__diff_seconds`. |
+| `new_table` | `str` or `None` | Name for the result table; a transient table is created when omitted. |
 
-The method returns a list of second differences.
+The method returns a DataFrame (the result table) containing the new diff column.
 
 ### `time_delta_stats`
 

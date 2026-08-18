@@ -132,6 +132,42 @@ class DataStatsOps:
 
         return output_table
 
+    # ------------------------------------------------------------------
+    # Column-materialization helpers (mirror ArithmeticOps)
+    # ------------------------------------------------------------------
+    async def _add_column_if_not_exists(
+        self, table: str, schema: str, column: str, data_type: str = "DOUBLE PRECISION"
+    ) -> None:
+        qualified = self._qualified_table(table, schema)
+        safe_col = SQLIdentifierSanitizer.sanitize(column)
+        if isinstance(self.db, ClickHouseAdapter) and data_type == "DOUBLE PRECISION":
+            data_type = "Float64"
+        atype = "UInt8" if (isinstance(self.db, ClickHouseAdapter) and data_type == "INTEGER") else data_type
+        try:
+            await self._exec(f"SELECT {self.db.quote_identifier(safe_col)} FROM {qualified} LIMIT 1")
+        except Exception:
+            await self._exec(
+                f"ALTER TABLE {qualified} ADD COLUMN {self.db.quote_identifier(safe_col)} {atype}"
+            )
+
+    async def _materialize_query_as_table(
+        self,
+        query: str,
+        table: str,
+        schema: str,
+        backend=None,
+        data_id: Optional[str] = None,
+        new_table: Optional[str] = None,
+    ) -> str:
+        """Create a transient result table from a SELECT query and return its name."""
+        safe_schema = SQLIdentifierSanitizer.sanitize(schema)
+        output_table = await self._resolve_output_table_name(
+            table, safe_schema, backend=backend, data_id=data_id, new_table=new_table
+        )
+        qualified_target = f'{self.db.quote_identifier(safe_schema)}.{self.db.quote_identifier(output_table)}'
+        await self._exec(f"CREATE TABLE {qualified_target} AS {query}")
+        return output_table
+
     # =========================================================================
     # NUMERIC STATISTICS (scalars)
     # =========================================================================
@@ -733,72 +769,90 @@ class DataStatsOps:
             if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
                 q = self._qualified_table(table, schema)
                 c = SQLIdentifierSanitizer.sanitize(column)
+                # ponytail: cast to DOUBLE so quantiles + IQR bounds are float, not DECIMAL(18).
                 if isinstance(self.db, PostgresAdapter):
-                    q1_expr = f'PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY "{c}")'
-                    q3_expr = f'PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY "{c}")'
+                    col_expr = f'CAST("{c}" AS DOUBLE PRECISION)'
                 elif isinstance(self.db, DuckDBAdapter):
-                    q1_expr = f'QUANTILE_CONT("{c}", 0.25)'
-                    q3_expr = f'QUANTILE_CONT("{c}", 0.75)'
+                    col_expr = f'CAST("{c}" AS DOUBLE)'
+                else:
+                    col_expr = f'toFloat64("{c}")'
+                if isinstance(self.db, PostgresAdapter):
+                    q1_expr = f'PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY {col_expr})'
+                    q3_expr = f'PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY {col_expr})'
+                elif isinstance(self.db, DuckDBAdapter):
+                    q1_expr = f'QUANTILE_CONT({col_expr}, 0.25)'
+                    q3_expr = f'QUANTILE_CONT({col_expr}, 0.75)'
                 elif isinstance(self.db, ClickHouseAdapter):
-                    q1_expr = f'quantile(0.25)("{c}")'
-                    q3_expr = f'quantile(0.75)("{c}")'
+                    q1_expr = f'quantile(0.25)({col_expr})'
+                    q3_expr = f'quantile(0.75)({col_expr})'
                 else:
                     raise self._unsupported_backend_error()
-                sql = f'''
-                    WITH stats AS (
-                        SELECT {q1_expr} AS q1,
-                               {q3_expr} AS q3
-                        FROM {q} WHERE "{c}" IS NOT NULL
-                    )
-                    SELECT "{c}" AS outlier_value
-                    FROM {q}, stats
-                    WHERE "{c}" IS NOT NULL
-                      AND ("{c}" < (stats.q1 - 1.5 * (stats.q3 - stats.q1))
-                        OR "{c}" > (stats.q3 + 1.5 * (stats.q3 - stats.q1)))
-                '''
-                rows = await self._fetch(sql)
-                vals = [r["outlier_value"] for r in rows]
-                msg = f"Outliers (IQR) for '{column}': {len(vals)}"
-                return self._success_response(msg, result=vals)
+                row = await self._fetch(
+                    f'SELECT {q1_expr} AS q1, {q3_expr} AS q3 FROM {q} WHERE "{c}" IS NOT NULL'
+                )
+                if not row or row[0]["q1"] is None:
+                    return self._error_response(f"No numeric data for '{column}'", [column])
+                q1 = float(row[0]["q1"])
+                q3 = float(row[0]["q3"])
+                iqr = q3 - q1
+                lower = q1 - 1.5 * iqr
+                upper = q3 + 1.5 * iqr
+                stats = {
+                    "column": column,
+                    "q1": q1,
+                    "q3": q3,
+                    "iqr": iqr,
+                    "lower_bound": lower,
+                    "upper_bound": upper,
+                }
+                msg = f"Outlier bounds (IQR) for '{column}'"
+                return self._success_response(msg, [column], result=stats)
             else:
                 raise self._unsupported_backend_error()
         except Exception as e:
             return self._error_response(str(e), [column])
 
-    async def numeric_outliers_zscore(self, table: str, schema: str, column: str, threshold: float = 3.0) -> Dict[str, Any]:
+    async def numeric_outliers_zscore(
+        self,
+        table: str,
+        schema: str,
+        column: str,
+        threshold: float = 3.0,
+        backend=None,
+        data_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
         try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+            if isinstance(self.db, (PostgresAdapter, DuckDBAdapter, ClickHouseAdapter)):
                 q = self._qualified_table(table, schema)
                 c = SQLIdentifierSanitizer.sanitize(column)
-                sql = f'''
-                    WITH stats AS (
-                        SELECT AVG("{c}") AS mean, STDDEV_POP("{c}") AS std
-                        FROM {q} WHERE "{c}" IS NOT NULL
-                    )
-                    SELECT "{c}" AS outlier_value
-                    FROM {q}, stats
-                    WHERE "{c}" IS NOT NULL AND ABS("{c}" - stats.mean) > {threshold} * stats.std
-                '''
-                rows = await self._fetch(sql)
-                vals = [r["outlier_value"] for r in rows]
-                msg = f"Outliers (z-score, threshold={threshold}) for '{column}': {len(vals)}"
-                return self._success_response(msg, result=vals)
-            elif isinstance(self.db, ClickHouseAdapter):
-                q = self._qualified_table(table, schema)
-                c = SQLIdentifierSanitizer.sanitize(column)
-                sql = f'''
-                    WITH stats AS (
-                        SELECT avg("{c}") AS mean, stddevPop("{c}") AS std
-                        FROM {q} WHERE "{c}" IS NOT NULL
-                    )
-                    SELECT "{c}" AS outlier_value
-                    FROM {q}, stats
-                    WHERE "{c}" IS NOT NULL AND abs("{c}" - stats.mean) > {threshold} * stats.std
-                '''
-                rows = await self._fetch(sql)
-                vals = [r["outlier_value"] for r in rows]
-                msg = f"Outliers (z-score, threshold={threshold}) for '{column}': {len(vals)}"
-                return self._success_response(msg, result=vals)
+                # ponytail: cast to DOUBLE so AVG/STDDEV_POP are float, not DECIMAL(18)
+                # — large integer columns overflow DECIMAL on the internal multiply.
+                if isinstance(self.db, PostgresAdapter):
+                    col_expr = f'CAST("{c}" AS DOUBLE PRECISION)'
+                elif isinstance(self.db, DuckDBAdapter):
+                    col_expr = f'CAST("{c}" AS DOUBLE)'
+                else:
+                    col_expr = f'toFloat64("{c}")'
+                row = await self._fetch(
+                    f'SELECT AVG({col_expr}) AS m, STDDEV_POP({col_expr}) AS s '
+                    f'FROM {q} WHERE "{c}" IS NOT NULL'
+                )
+                if not row or row[0]["m"] is None:
+                    return self._error_response(f"No numeric data for '{column}'", [column])
+                mean = float(row[0]["m"])
+                std = float(row[0]["s"] or 0.0)
+                lower = mean - threshold * std
+                upper = mean + threshold * std
+                stats = {
+                    "column": column,
+                    "mean": mean,
+                    "std": std,
+                    "threshold": threshold,
+                    "lower_bound": lower,
+                    "upper_bound": upper,
+                }
+                msg = f"Outlier bounds (z-score, threshold={threshold}) for '{column}'"
+                return self._success_response(msg, [column], result=stats)
             else:
                 raise self._unsupported_backend_error()
         except Exception as e:
@@ -1492,58 +1546,61 @@ class DataStatsOps:
         else:
             return fail(str(self._unsupported_backend_error()), [column])
             
-    async def datetime_diff(self, table: str, schema: str, column: str) -> Dict[str, Any]:
+    async def datetime_diff(
+        self,
+        table: str,
+        schema: str,
+        column: str,
+        backend=None,
+        data_id: Optional[str] = None,
+        new_table: Optional[str] = None,
+        target_col: Optional[str] = None,
+    ) -> Dict[str, Any]:
         try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+            if isinstance(self.db, (PostgresAdapter, DuckDBAdapter, ClickHouseAdapter)):
                 q = self._qualified_table(table, schema)
                 c = SQLIdentifierSanitizer.sanitize(column)
                 if isinstance(self.db, PostgresAdapter):
-                    # ponytail: cast to DOUBLE PRECISION so asyncpg returns a
-                    # float, not Decimal — np.allclose trips on Decimal-vs-float.
-                    diff_expr = (
-                        f'(EXTRACT(EPOCH FROM CAST(b."{c}" AS TIMESTAMP)) - '
-                        f' EXTRACT(EPOCH FROM CAST(a."{c}" AS TIMESTAMP)))::DOUBLE PRECISION'
-                    )
+                    # ponytail: cast to DOUBLE PRECISION so asyncpg returns a float, not Decimal.
+                    e = f'EXTRACT(EPOCH FROM CAST("{c}" AS TIMESTAMP))::DOUBLE PRECISION'
+                    diff_expr = f'{e} - LAG({e}) OVER (ORDER BY CAST("{c}" AS TIMESTAMP))'
                 elif isinstance(self.db, DuckDBAdapter):
-                    diff_expr = f'epoch(CAST(b."{c}" AS TIMESTAMP)) - epoch(CAST(a."{c}" AS TIMESTAMP))'
+                    e = f'epoch(CAST("{c}" AS TIMESTAMP))'
+                    diff_expr = f'{e} - LAG({e}) OVER (ORDER BY CAST("{c}" AS TIMESTAMP))'
+                else:  # ClickHouse
+                    e = f'toUnixTimestamp(CAST("{c}" AS DateTime))'
+                    diff_expr = f'{e} - lagInFrame({e}) OVER (ORDER BY CAST("{c}" AS DateTime))'
+                tgt = SQLIdentifierSanitizer.sanitize(target_col) if target_col else f"{c}__diff_seconds"
+                out = await self._materialize_query_as_table(
+                    f'SELECT *, ({diff_expr}) AS "{tgt}" FROM {q}',
+                    table, schema, backend=backend, data_id=data_id, new_table=new_table,
+                )
+                # ponytail: mirror the diff onto the original table in place. PG/DuckDB use a
+                # rowid/ctid join (window-in-UPDATE unsupported); ClickHouse rebuilds + renames.
+                await self._add_column_if_not_exists(table, schema, tgt, "DOUBLE PRECISION")
+                orig_q = self._qualified_table(table, schema)
+                if isinstance(self.db, ClickHouseAdapter):
+                    try:
+                        orig_new = await self._materialize_query_as_table(
+                            f'SELECT *, ({diff_expr}) AS "{tgt}" FROM {q}',
+                            table, schema, backend=backend, data_id=data_id,
+                            new_table=f"{table}__tmp_mirror",
+                        )
+                        await self._exec(f"DROP TABLE {orig_q}")
+                        new_qualified = self._qualified_table(orig_new, schema)
+                        await self._exec(f"RENAME TABLE {new_qualified} TO {orig_q}")
+                    except Exception:
+                        pass  # result table already has the column; leave original unchanged
                 else:
-                    raise self._unsupported_backend_error()
-                sql = f'''
-                    WITH ordered AS (
-                        SELECT "{c}", ROW_NUMBER() OVER (ORDER BY "{c}") AS rn
-                        FROM {q} WHERE "{c}" IS NOT NULL
+                    key = "ctid" if isinstance(self.db, PostgresAdapter) else "rowid"
+                    await self._exec(
+                        f'UPDATE {orig_q} SET "{tgt}" = sub.d '
+                        f'FROM (SELECT {key}, ({diff_expr}) AS d FROM {orig_q}) sub '
+                        f'WHERE {orig_q}.{key} = sub.{key}'
                     )
-                    SELECT ({diff_expr}) AS diff_seconds
-                    FROM ordered a JOIN ordered b ON a.rn + 1 = b.rn
-                    ORDER BY a."{c}"
-                '''
-                rows = await self._fetch(sql)
-                diffs = [r["diff_seconds"] for r in rows if r["diff_seconds"] is not None]
-                if not diffs:
-                    return self._success_response(f"No time differences for '{column}'", [column], result=[])
-                msg = (f"Time differences for '{column}': count={len(diffs)}, min={min(diffs):.1f}s, "
-                       f"max={max(diffs):.1f}s")
-                return self._success_response(msg, [column], result=diffs)
-            elif isinstance(self.db, ClickHouseAdapter):
-                q = self._qualified_table(table, schema)
-                c = SQLIdentifierSanitizer.sanitize(column)
-                diff_expr = f'toUnixTimestamp(b."{c}") - toUnixTimestamp(a."{c}")'
-                sql = f'''
-                    WITH ordered AS (
-                        SELECT "{c}", ROW_NUMBER() OVER (ORDER BY "{c}") AS rn
-                        FROM {q} WHERE "{c}" IS NOT NULL
-                    )
-                    SELECT ({diff_expr}) AS diff_seconds
-                    FROM ordered a JOIN ordered b ON a.rn + 1 = b.rn
-                    ORDER BY a."{c}"
-                '''
-                rows = await self._fetch(sql)
-                diffs = [r["diff_seconds"] for r in rows if r["diff_seconds"] is not None]
-                if not diffs:
-                    return self._success_response(f"No time differences for '{column}'", [column], result=[])
-                msg = (f"Time differences for '{column}': count={len(diffs)}, min={min(diffs):.1f}s, "
-                       f"max={max(diffs):.1f}s")
-                return self._success_response(msg, [column], result=diffs)
+                sample = await self._fetch_data(out, schema, [column, tgt])
+                msg = f"Time differences for '{column}' → '{tgt}'"
+                return self._success_response(msg, [column], [tgt], sample, new_table=out)
             else:
                 raise self._unsupported_backend_error()
         except Exception as e:
