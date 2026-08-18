@@ -45,17 +45,11 @@ Every inspect operation has synchronous and asynchronous forms:
 | `map(func, na_action=None, columns=None, datetime_action="skip")` | `await amap(...)` | Apply SQL expression to values |
 | `rename(columns)` | `await arename(...)` | Rename columns |
 | `set_index(columns)` | `await aset_index(...)` | Add a primary-key index |
-| `reset_index()` | `await areset_index()` | Recreate an `id` index column |
 | `update(on, other_table, other_schema="upload", overwrite=True, errors="ignore")` | `await aupdate(...)` | Update from another table |
 | `resample(time_column, rule, agg="COUNT", value_column=None, label="left", closed="left")` | `await aresample(...)` | Time-series aggregation |
-| `axes()` | `await aaxes()` | Row and column axes |
 | `columns()` | `await acolumns()` | Column labels |
 | `dtypes()` | `await adtypes()` | Column database types |
-| `first_valid_index()` | `await afirst_valid_index()` | First row with non-null values |
-| `memory_usage()` | `await amemory_usage()` | Backend table memory usage |
-| `ndim()` | `await andim()` | Number of dimensions |
 | `shape()` | `await ashape()` | Row and column count |
-| `size()` | `await asize()` | Total element count |
 | `values()` | `await avalues()` | Table values as nested lists |
 | `items()` | `await aitems()` | Column/value iterator result |
 | `iterrows()` | `await aiterrows()` | Row iterator result |
@@ -388,17 +382,12 @@ Parameters:
 | --- | --- | --- |
 | `columns` | `dict[str, str]` | Mapping of old column names to new names. |
 
-### `set_index` and `reset_index`
+### `set_index`
 
-`set_index` adds a primary-key constraint over selected columns. `reset_index`
-recreates an `id` index column.
+`set_index` adds a primary-key constraint over selected columns.
 
 ```python
 result = dataset.set_index(columns=["customer_id"])
-```
-
-```python
-result = await dataset.areset_index()
 ```
 
 `set_index` parameters:
@@ -476,14 +465,9 @@ These methods return compact dictionary or list payloads directly:
 
 | Method | Async | Public result |
 | --- | --- | --- |
-| `axes()` | `aaxes()` | `[row_index, columns]` |
 | `columns()` | `acolumns()` | `[...]` |
 | `dtypes()` | `adtypes()` | `{column: db_type}` |
-| `first_valid_index()` | `afirst_valid_index()` | `{"first_valid_index": 0}` or `None` |
-| `memory_usage()` | `amemory_usage()` | `{"memory_bytes": value}` |
-| `ndim()` | `andim()` | `{"ndim": 2}` |
 | `shape()` | `ashape()` | `{"shape": (rows, columns)}` |
-| `size()` | `asize()` | `{"size": rows * columns}` |
 | `values()` | `avalues()` | `{"values": [[...], ...]}` |
 
 ```python
@@ -550,8 +534,8 @@ Inspect supports DuckDB and PostgreSQL adapters:
 - `describe` uses backend-specific percentile functions.
 - `corr` uses SQL `CORR` over numeric columns.
 - `sample` uses backend `RANDOM()` ordering.
-- PostgreSQL can report relation memory usage; DuckDB currently returns `None`
-  for `memory_usage`.
+- PostgreSQL can report relation memory usage through `info`; DuckDB currently
+  returns `None` for `memory_usage`.
 - Column and table identifiers are sanitized before SQL is generated.
 
 ## Errors
@@ -567,7 +551,7 @@ Inspect methods raise `OperationError` for invalid input or backend failures.
   match the row count.
 - `map` raises an error when `func` is not a SQL expression string or when no
   selected columns are compatible with the expression.
-- `rename`, `set_index`, `reset_index`, `update`, and `resample` can raise
+- `rename`, `set_index`, `update`, and `resample` can raise
   backend SQL errors when identifiers or constraints are invalid.
 
 ## API Reference
@@ -603,28 +587,16 @@ Inspect methods raise `OperationError` for invalid input or backend failures.
         - rename
         - aset_index
         - set_index
-        - areset_index
-        - reset_index
         - aupdate
         - update
         - aresample
         - resample
-        - aaxes
-        - axes
         - acolumns
         - columns
         - adtypes
         - dtypes
-        - afirst_valid_index
-        - first_valid_index
-        - amemory_usage
-        - memory_usage
-        - andim
-        - ndim
         - ashape
         - shape
-        - asize
-        - size
         - avalues
         - values
         - aitems

@@ -43,10 +43,6 @@ def tools(session):
         )
 
     # ----- structural property getters -----
-    async def axes() -> dict:
-        """Return table axis labels (rows index, columns)."""
-        return await normalize(await w.aaxes(), session, advance=False)
-
     async def columns() -> dict:
         """Return column labels."""
         return await normalize(await w.acolumns(), session, advance=False)
@@ -55,25 +51,9 @@ def tools(session):
         """Return column dtypes."""
         return await normalize(await w.adtypes(), session, advance=False)
 
-    async def first_valid_index() -> dict:
-        """Return the first valid (non-null) index label."""
-        return await normalize(await w.afirst_valid_index(), session, advance=False)
-
-    async def memory_usage() -> dict:
-        """Per-column memory usage."""
-        return await normalize(await w.amemory_usage(), session, advance=False)
-
-    async def ndim() -> dict:
-        """Number of dimensions (always 2 for a table)."""
-        return await normalize(await w.andim(), session, advance=False)
-
     async def shape() -> dict:
         """(rows, columns) shape of the active table."""
         return await normalize(await w.ashape(), session, advance=False)
-
-    async def size() -> dict:
-        """Total number of elements (rows × columns)."""
-        return await normalize(await w.asize(), session, advance=False)
 
     async def values() -> dict:
         """Return the table values as a list of records."""
@@ -125,10 +105,6 @@ def tools(session):
         """Set one or more `columns` as the table index."""
         return await normalize(await w.aset_index(columns=columns), session)
 
-    async def reset_index() -> dict:
-        """Reset the table index back to default integers."""
-        return await normalize(await w.areset_index(), session)
-
     async def update(
         on: str,
         other_table: str,
@@ -168,8 +144,7 @@ def tools(session):
         # summaries
         info, describe, null_analysis,
         # structural property getters
-        axes, columns, dtypes, first_valid_index, memory_usage, ndim, shape, size,
-        values, items, iterrows, itertuples,
+        columns, dtypes, shape, values, items, iterrows, itertuples,
         # write ops
-        astype, insert, map, rename, set_index, reset_index, update, resample,
+        astype, insert, map, rename, set_index, update, resample,
     ]

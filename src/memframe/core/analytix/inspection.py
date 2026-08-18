@@ -1304,115 +1304,7 @@ class GeneralTableOps:
             return self._error_response(str(e))
 
 
-    async def dataframe_reset_index(self, table: str, schema: str, **kwargs) -> Dict[str, Any]:
-        try:
-            if isinstance(self.db, PostgresAdapter):
-                table = SQLIdentifierSanitizer.sanitize(table)
-                qualified = self._qualified_table(table, schema)
 
-                # ponytail: prior version did DROP COLUMN id + ADD COLUMN id
-                # SERIAL — id ended up as the LAST column, breaking column-order
-                # parity with DuckDB (and pandas's reset_index). Rebuild via temp
-                # table with id first; explicitly enumerate the non-id columns
-                # since Postgres does not auto-rename duplicates (unlike DuckDB)
-                # and would raise "column 'id' specified more than once".
-                column_types = await self._get_column_types(table, schema)
-                other_cols = [SQLIdentifierSanitizer.sanitize(c) for c in column_types
-                              if c.lower() != "id"]
-                cols_clause = ", ".join(f'"{c}"' for c in other_cols)
-
-                temp_table = f"{table}_temp_reset"
-                qualified_temp = (
-                    f'{self.db.quote_identifier(schema)}.{self.db.quote_identifier(temp_table)}'
-                )
-
-                await self._exec(f"""
-                    CREATE TABLE {qualified_temp} AS
-                    SELECT ROW_NUMBER() OVER () AS id, {cols_clause}
-                    FROM {qualified}
-                """)
-                await self._exec(f"DROP TABLE {qualified}")
-                await self._exec(f"""
-                    ALTER TABLE {qualified_temp}
-                    RENAME TO {self.db.quote_identifier(table)}
-                """)
-
-                current_df = await self._get_table_dataframe(table, schema)
-
-                return self._success_response(
-                    message="Index reset with new id column",
-                    generated_cols=["id"],
-                    result=current_df,
-                )
-
-            elif isinstance(self.db, DuckDBAdapter):
-                table = SQLIdentifierSanitizer.sanitize(table)
-                qualified = self._qualified_table(table, schema)
-
-                temp_table = f"{table}_temp_reset"
-                qualified_temp = f'{self.db.quote_identifier(schema)}.{self.db.quote_identifier(temp_table)}'
-
-                await self._exec(f"""
-                    CREATE TABLE {qualified_temp} AS
-                    SELECT 
-                        ROW_NUMBER() OVER () AS id,
-                        *
-                    FROM {qualified}
-                """)
-
-                await self._exec(f"DROP TABLE {qualified}")
-
-                await self._exec(f"""
-                    ALTER TABLE {qualified_temp}
-                    RENAME TO {self.db.quote_identifier(table)}
-                """)
-
-                current_df = await self._get_table_dataframe(table, schema)
-
-                return self._success_response(
-                    message="Index reset with new id column",
-                    generated_cols=["id"],
-                    result=current_df,
-                )
-
-            elif isinstance(self.db, ClickHouseAdapter):
-                table = SQLIdentifierSanitizer.sanitize(table)
-                qualified = self._qualified_table(table, schema)
-
-                # ponytail: ClickHouse silently keeps a duplicate `id` from
-                # `SELECT ROW_NUMBER() OVER () AS id, *` (qualified as
-                # <table>.id, not auto-renamed to id_1 like DuckDB), so the
-                # test's drop-if-id_1 doesn't trigger and res_df has 9 cols
-                # instead of 8. Explicitly enumerate the non-id cols (same
-                # approach as the Postgres branch above).
-                column_types = await self._get_column_types(table, schema)
-                other_cols = [SQLIdentifierSanitizer.sanitize(c) for c in column_types
-                              if c.lower() != "id"]
-                cols_clause = ", ".join(self.db.quote_identifier(c) for c in other_cols)
-
-                temp_table = f"{table}_temp_reset"
-                qualified_temp = self._qualified_table(temp_table, schema)
-
-                await self._exec(f"""
-                    CREATE TABLE {qualified_temp} AS
-                    SELECT ROW_NUMBER() OVER () AS id, {cols_clause}
-                    FROM {qualified}
-                """)
-                await self._exec(f"DROP TABLE IF EXISTS {qualified}")
-                await self._exec(f"RENAME TABLE {qualified_temp} TO {qualified}")
-
-                current_df = await self._get_table_dataframe(table, schema)
-
-                return self._success_response(
-                    message="Index reset with new id column",
-                    generated_cols=["id"],
-                    result=current_df,
-                )
-
-            else:
-                raise self._unsupported_backend_error()
-        except Exception as e:
-            return self._error_response(str(e))
 
 
     async def dataframe_update(self,table: str,schema: str,other_table: str,other_schema: str,on: str,    overwrite: bool = True,    errors: str = "ignore",    **kwargs) -> Dict[str, Any]:
@@ -1689,20 +1581,6 @@ class GeneralTableOps:
     # ------------------------------------------------------------------
     # Metadata / Info Methods
     # ------------------------------------------------------------------
-    async def dataframe_axes(self, table: str, schema: str, **kwargs) -> Dict[str, Any]:
-        try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
-                columns = list((await self._get_column_types(table, schema)).keys())
-                count = await self._fetchval(
-                    f"SELECT COUNT(*) FROM {self._qualified_table(table, schema)}"
-                )
-                index = list(range(count))
-                return self._success_response(result=[index, columns])
-            else:
-                raise self._unsupported_backend_error()
-        except Exception as e:
-            return self._error_response(str(e))
-
     async def dataframe_columns(self, table: str, schema: str, **kwargs) -> Dict[str, Any]:
         try:
             if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
@@ -1723,51 +1601,6 @@ class GeneralTableOps:
         except Exception as e:
             return self._error_response(str(e))
 
-    async def dataframe_first_valid_index(self, table: str, schema: str, **kwargs) -> Dict[str, Any]:
-        try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
-                qualified = self._qualified_table(table, schema)
-                cols = await self._get_column_types(table, schema)
-                if not cols:
-                    return self._success_response(result={"first_valid_index": None})
-
-                condition = " AND ".join([f'"{c}" IS NULL' for c in cols])
-                row = await self._fetchrow(
-                    f"SELECT * FROM {qualified} WHERE NOT ({condition}) LIMIT 1"
-                )
-                return self._success_response(result={"first_valid_index": 0 if row else None})
-            else:
-                raise self._unsupported_backend_error()
-        except Exception as e:
-            return self._error_response(str(e))
-
-    async def dataframe_memory_usage(self, table: str, schema: str, **kwargs) -> Dict[str, Any]:
-        try:
-            if isinstance(self.db, PostgresAdapter):
-                relation = f'"{schema}"."{table}"'
-                size = await self._fetchval(
-                    f"SELECT pg_total_relation_size('{relation}') as total_bytes"
-                )
-                return self._success_response(result={"memory_bytes": size})
-            elif isinstance(self.db, DuckDBAdapter):
-                size = None
-                return self._success_response(result={"memory_bytes": size})
-            elif isinstance(self.db, ClickHouseAdapter):
-                size = await self._fetchval(
-                    f"SELECT sum(bytes) FROM system.parts WHERE database = '{schema}' AND table = '{table}' AND active = 1"
-                )
-                return self._success_response(result={"memory_bytes": size})
-            else:
-                raise self._unsupported_backend_error()
-        except Exception as e:
-            return self._error_response(str(e))
-
-    async def dataframe_ndim(self, table: str, schema: str, **kwargs) -> Dict[str, Any]:
-        if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
-            return self._success_response(result={"ndim": 2})
-
-        else:
-            return self._error_response(str(self._unsupported_backend_error()))
     async def dataframe_shape(self, table: str, schema: str, **kwargs) -> Dict[str, Any]:
         try:
             if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
@@ -1776,17 +1609,6 @@ class GeneralTableOps:
                 )
                 cols = len(await self._get_column_types(table, schema))
                 return self._success_response(result={"shape": (rows, cols)})
-            else:
-                raise self._unsupported_backend_error()
-        except Exception as e:
-            return self._error_response(str(e))
-
-    async def dataframe_size(self, table: str, schema: str, **kwargs) -> Dict[str, Any]:
-        try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
-                shape_res = await self.dataframe_shape(table, schema)
-                shape = shape_res["result"]["shape"]
-                return self._success_response(result={"size": shape[0] * shape[1]})
             else:
                 raise self._unsupported_backend_error()
         except Exception as e:

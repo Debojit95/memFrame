@@ -312,19 +312,6 @@ class TableOpsWrapper(TableOpsOrchestrator):
         return await self.aset_index(columns=columns)
 
     # ==========================================================
-    # RESET INDEX
-    # ==========================================================
-
-    async def areset_index(self) -> Dict[str, Any]:
-        """Asynchronously reset the table index."""
-        return await super().reset_index()
-
-    @async_to_sync
-    async def reset_index(self) -> Dict[str, Any]:
-        """Synchronously reset the table index."""
-        return await self.areset_index()
-
-    # ==========================================================
     # UPDATE
     # ==========================================================
 
@@ -410,15 +397,6 @@ class TableOpsWrapper(TableOpsOrchestrator):
     # SIMPLE PROPERTY OPS
     # ==========================================================
 
-    async def aaxes(self):
-        """Asynchronously return table axis labels."""
-        return await super().axes()
-
-    @async_to_sync
-    async def axes(self):
-        """Synchronously return table axis labels."""
-        return await self.aaxes()
-
     async def acolumns(self):
         """Asynchronously return column labels."""
         return await super().columns()
@@ -437,33 +415,6 @@ class TableOpsWrapper(TableOpsOrchestrator):
         """Synchronously return column dtypes."""
         return await self.adtypes()
 
-    async def afirst_valid_index(self):
-        """Asynchronously return the first valid index label."""
-        return await super().first_valid_index()
-
-    @async_to_sync
-    async def first_valid_index(self):
-        """Synchronously return the first valid index label."""
-        return await self.afirst_valid_index()
-
-    async def amemory_usage(self):
-        """Asynchronously return per-column memory usage."""
-        return await super().memory_usage()
-
-    @async_to_sync
-    async def memory_usage(self):
-        """Synchronously return per-column memory usage."""
-        return await self.amemory_usage()
-
-    async def andim(self):
-        """Asynchronously return number of dimensions."""
-        return await super().ndim()
-
-    @async_to_sync
-    async def ndim(self):
-        """Synchronously return number of dimensions."""
-        return await self.andim()
-
     async def ashape(self):
         """Asynchronously return table shape."""
         return await super().shape()
@@ -472,15 +423,6 @@ class TableOpsWrapper(TableOpsOrchestrator):
     async def shape(self):
         """Synchronously return table shape."""
         return await self.ashape()
-
-    async def asize(self):
-        """Asynchronously return total number of elements."""
-        return await super().size()
-
-    @async_to_sync
-    async def size(self):
-        """Synchronously return total number of elements."""
-        return await self.asize()
 
     async def avalues(self):
         """Asynchronously return table values."""

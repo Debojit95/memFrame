@@ -142,12 +142,6 @@ class TableOpsOrchestrator:
         return await ops.dataframe_set_index(table, schema, columns=columns)
 
     @record_call(deep_cache=True)
-    async def reset_index(self) -> Dict[str, Any]:
-        ops = await self._ensure_ops()
-        table, schema = await self._get_context()
-        return await ops.dataframe_reset_index(table, schema)
-
-    @record_call(deep_cache=True)
     async def update(self, on: str, other_table: str, other_schema: str = "upload",overwrite: bool = True, errors: str = "ignore",) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
@@ -181,11 +175,6 @@ class TableOpsOrchestrator:
             closed=closed,
         )
 
-    async def axes(self) -> Dict[str, Any]:
-        ops = await self._ensure_ops()
-        table, schema = await self._get_context()
-        return await ops.dataframe_axes(table, schema)
-
     async def columns(self) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
@@ -196,30 +185,10 @@ class TableOpsOrchestrator:
         table, schema = await self._get_context()
         return await ops.dataframe_dtypes(table, schema)
 
-    async def first_valid_index(self) -> Dict[str, Any]:
-        ops = await self._ensure_ops()
-        table, schema = await self._get_context()
-        return await ops.dataframe_first_valid_index(table, schema)
-
-    async def memory_usage(self) -> Dict[str, Any]:
-        ops = await self._ensure_ops()
-        table, schema = await self._get_context()
-        return await ops.dataframe_memory_usage(table, schema)
-
-    async def ndim(self) -> Dict[str, Any]:
-        ops = await self._ensure_ops()
-        table, schema = await self._get_context()
-        return await ops.dataframe_ndim(table, schema)
-
     async def shape(self) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
         return await ops.dataframe_shape(table, schema)
-
-    async def size(self) -> Dict[str, Any]:
-        ops = await self._ensure_ops()
-        table, schema = await self._get_context()
-        return await ops.dataframe_size(table, schema)
 
     async def values(self) -> Dict[str, Any]:
         ops = await self._ensure_ops()

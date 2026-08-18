@@ -908,26 +908,6 @@ class TestInspectionOperations:
         plain = get_plain_result(result)
         assert "Index set" in plain or plain.get("message") == "Index set"
     
-    def test_reset_index(self, uploaded_ctx, sample_df, backend_config):
-        uploaded_ctx.set_index(columns=["id"])
-        result = uploaded_ctx.reset_index()
-        res_df = get_result_df(result)  # now looks in current_state
-        assert "id" in res_df.columns
-        # compare after sorting
-        expected = sample_df.copy()
-        # The library added an extra 'id_1' column; we can ignore that for comparison
-        # Drop extra generated column if present
-        if "id_1" in res_df.columns:
-            res_df = res_df.drop(columns=["id_1"])
-        # Normalize datetime to string for consistent comparison
-        if "hire_date" in res_df.columns and "hire_date" in expected.columns:
-            res_df["hire_date"] = pd.to_datetime(res_df["hire_date"]).dt.strftime("%Y-%m-%d %H:%M:%S")
-            expected["hire_date"] = expected["hire_date"].dt.strftime("%Y-%m-%d %H:%M:%S")
-        pd.testing.assert_frame_equal(
-            normalize_frame(res_df).sort_values("id").reset_index(drop=True),
-            normalize_frame(expected).sort_values("id").reset_index(drop=True),
-            check_dtype=False,
-        )
     
     # ----------------------------------------------------
     # update
@@ -1000,13 +980,6 @@ class TestInspectionOperations:
     # ----------------------------------------------------
     # Property-like methods (non-DataFrame returns)
     # ----------------------------------------------------
-    def test_axes(self, uploaded_ctx):
-        result = get_plain_result(uploaded_ctx.axes())
-        assert isinstance(result, (list, tuple))  # actually might be dict with 'index'/'columns'
-        # adjust expectation: from log it seems to be a dict with keys
-        if isinstance(result, dict):
-            assert "index" in result or "columns" in result
-
     def test_columns(self, uploaded_ctx, sample_df):
         result = get_plain_result(uploaded_ctx.columns())
         # May be list or dict with 'columns'
@@ -1019,17 +992,6 @@ class TestInspectionOperations:
         assert isinstance(result, dict)
         assert "id" in result
 
-    def test_first_valid_index(self, uploaded_ctx):
-        result = uploaded_ctx.first_valid_index()
-        # For a non-empty table, should return something like the first row index (0 or 1)
-        assert result is not None
-
-    def test_memory_usage(self, uploaded_ctx):
-        result = uploaded_ctx.memory_usage()
-        # Should return int or dict
-        assert isinstance(result, (int, float, dict))
-
-        
     def test_values(self, uploaded_ctx, sample_df):
         result = uploaded_ctx.values()
         # Returns {"values": [[...]]} with one row of column values each
