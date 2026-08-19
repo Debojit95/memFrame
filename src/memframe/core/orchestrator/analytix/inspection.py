@@ -68,6 +68,32 @@ class TableOpsOrchestrator:
 
     
 
+    # ── data quality ─────────────────────────────────
+    @record_call(deep_cache=False)
+    async def data_quality_missing_values(self, columns: List[str]) -> Dict[str, Any]:
+        ops = await self._ensure_ops()
+        table, schema = await self._get_context()
+        return await ops.data_quality_missing_values(table, schema, columns)
+
+    @record_call(deep_cache=False)
+    async def data_quality_completeness_score(self, columns: List[str]) -> Dict[str, Any]:
+        ops = await self._ensure_ops()
+        table, schema = await self._get_context()
+        return await ops.data_quality_completeness_score(table, schema, columns)
+
+    # ── comprehensive ────────────────────────────────
+    @record_call(deep_cache=False)
+    async def comprehensive_numeric_summary(self, columns: List[str]) -> Dict[str, Any]:
+        ops = await self._ensure_ops()
+        table, schema = await self._get_context()
+        return await ops.comprehensive_numeric_summary(table, schema, columns)
+
+    @record_call(deep_cache=False)
+    async def statistical_profile_report(self, columns: List[str]) -> Dict[str, Any]:
+        ops = await self._ensure_ops()
+        table, schema = await self._get_context()
+        return await ops.statistical_profile_report(table, schema, columns)
+
     async def full_table(self,  columns: Optional[List[str]] = None,chunk_size: Optional[int] = None,) -> Dict[str, Any]:    
         ops = await self._ensure_ops()
         table, schema = await self._get_context()

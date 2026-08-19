@@ -157,6 +157,74 @@ class TableOpsWrapper(TableOpsOrchestrator):
     # FULL TABLE
     # ==========================================================
 
+    # ==========================================================
+    # DATA QUALITY
+    # ==========================================================
+
+    async def adata_quality_missing_values(
+        self,
+        columns: List[str],
+    ) -> Dict[str, Any]:
+        """Asynchronously compute missing-value data-quality metrics."""
+        return await super().data_quality_missing_values(columns=columns)
+
+    @async_to_sync
+    async def data_quality_missing_values(
+        self,
+        columns: List[str],
+    ) -> Dict[str, Any]:
+        """Synchronously compute missing-value data-quality metrics."""
+        return await self.adata_quality_missing_values(columns=columns)
+
+    async def adata_quality_completeness_score(
+        self,
+        columns: List[str],
+    ) -> Dict[str, Any]:
+        """Asynchronously compute completeness scores for columns."""
+        return await super().data_quality_completeness_score(columns=columns)
+
+    @async_to_sync
+    async def data_quality_completeness_score(
+        self,
+        columns: List[str],
+    ) -> Dict[str, Any]:
+        """Synchronously compute completeness scores for columns."""
+        return await self.adata_quality_completeness_score(columns=columns)
+
+    # ==========================================================
+    # COMPREHENSIVE
+    # ==========================================================
+
+    async def acomprehensive_numeric_summary(
+        self,
+        columns: List[str],
+    ) -> Dict[str, Any]:
+        """Asynchronously generate a comprehensive numeric summary."""
+        return await super().comprehensive_numeric_summary(columns=columns)
+
+    @async_to_sync
+    async def comprehensive_numeric_summary(
+        self,
+        columns: List[str],
+    ) -> Dict[str, Any]:
+        """Synchronously generate a comprehensive numeric summary."""
+        return await self.acomprehensive_numeric_summary(columns=columns)
+
+    async def astatistical_profile_report(
+        self,
+        columns: List[str],
+    ) -> Dict[str, Any]:
+        """Asynchronously generate a statistical profile report."""
+        return await super().statistical_profile_report(columns=columns)
+
+    @async_to_sync
+    async def statistical_profile_report(
+        self,
+        columns: List[str],
+    ) -> Dict[str, Any]:
+        """Synchronously generate a statistical profile report."""
+        return await self.astatistical_profile_report(columns=columns)
+
     async def afull_table(
         self,
         columns: Optional[List[str]] = None,

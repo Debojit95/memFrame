@@ -95,30 +95,6 @@ def tools(session):
         return await normalize(await w.anotna(), session)
 
     # ----- data quality / reporting -----
-    async def data_quality_missing_values(columns: list[str]) -> dict:
-        """Per-column missing-value data-quality metrics for `columns`."""
-        return await normalize(
-            await w.adata_quality_missing_values(columns=columns), session
-        )
-
-    async def data_quality_completeness_score(columns: list[str]) -> dict:
-        """Per-column completeness score (non-null fraction) for `columns`."""
-        return await normalize(
-            await w.adata_quality_completeness_score(columns=columns), session
-        )
-
-    async def comprehensive_numeric_summary(columns: list[str]) -> dict:
-        """Full numeric summary across `columns` (count/mean/std/min/quartiles/max + skew/kurt)."""
-        return await normalize(
-            await w.acomprehensive_numeric_summary(columns=columns), session
-        )
-
-    async def statistical_profile_report(columns: list[str]) -> dict:
-        """Statistical profile report for `columns` (numeric stats + dtype/null overview)."""
-        return await normalize(
-            await w.astatistical_profile_report(columns=columns), session
-        )
-
     return [
         # fill / drop
         fillna, groupby_fillna, dropna, drop_duplicates, drop, drop_outliers,
@@ -126,7 +102,4 @@ def tools(session):
         clip, clip_dates, fix_dates, to_numeric, map_values, filter_valid, compress_rare,
         # null masks
         isna, notna,
-        # data quality / reporting
-        data_quality_missing_values, data_quality_completeness_score,
-        comprehensive_numeric_summary, statistical_profile_report,
     ]

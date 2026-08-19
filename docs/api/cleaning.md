@@ -46,10 +46,6 @@ Every cleaning operation has synchronous and asynchronous forms:
 | `isna()` | `await aisna()` | Boolean null mask |
 | `notna()` | `await anotna()` | Boolean non-null mask |
 | `drop_duplicates(subset=None, keep="first")` | `await adrop_duplicates(...)` | Remove duplicate rows |
-| `data_quality_missing_values(columns)` | `await adata_quality_missing_values(...)` | Missing-value counts |
-| `data_quality_completeness_score(columns)` | `await adata_quality_completeness_score(...)` | Completeness percentages |
-| `comprehensive_numeric_summary(columns)` | `await acomprehensive_numeric_summary(...)` | Numeric summary report |
-| `statistical_profile_report(columns)` | `await astatistical_profile_report(...)` | Combined profile report |
 
 Public methods return the operation value directly: usually a DataFrame, report
 dictionary, mask, or `None`. Invalid operations raise `OperationError`.
@@ -403,64 +399,6 @@ Parameters:
 | `subset` | `list[str]` or `None` | Columns used to identify duplicates. Defaults to all columns. |
 | `keep` | `"first"`, `"last"`, or `False` | Which duplicate row to keep. `False` keeps only rows with no duplicates. |
 
-## Data Quality Reports
-
-### `data_quality_missing_values`
-
-`data_quality_missing_values` returns per-column `total`, `non_null`,
-`missing`, and `missing_pct` values.
-
-```python
-result = dataset.data_quality_missing_values(
-    columns=["salary", "department"],
-)
-```
-
-```python
-result = await dataset.adata_quality_missing_values(
-    columns=["salary", "department"],
-)
-```
-
-### `data_quality_completeness_score`
-
-`data_quality_completeness_score` returns completeness percentages for each
-requested column.
-
-```python
-result = dataset.data_quality_completeness_score(columns=["salary"])
-```
-
-```python
-result = await dataset.adata_quality_completeness_score(columns=["salary"])
-```
-
-### `comprehensive_numeric_summary`
-
-`comprehensive_numeric_summary` generates numeric summaries for up to the first
-20 requested columns.
-
-```python
-result = dataset.comprehensive_numeric_summary(columns=["salary", "bonus"])
-```
-
-```python
-result = await dataset.acomprehensive_numeric_summary(columns=["salary", "bonus"])
-```
-
-### `statistical_profile_report`
-
-`statistical_profile_report` combines completeness scoring and numeric summary
-output into one response.
-
-```python
-result = dataset.statistical_profile_report(columns=["salary", "bonus"])
-```
-
-```python
-result = await dataset.astatistical_profile_report(columns=["salary", "bonus"])
-```
-
 ## Return Values and Errors
 
 Public cleaning methods return the underlying DataFrame, dictionary, mask, or
@@ -545,11 +483,3 @@ Cleaning methods raise `OperationError` for invalid input or backend failures.
         - notna
         - adrop_duplicates
         - drop_duplicates
-        - adata_quality_missing_values
-        - data_quality_missing_values
-        - adata_quality_completeness_score
-        - data_quality_completeness_score
-        - acomprehensive_numeric_summary
-        - comprehensive_numeric_summary
-        - astatistical_profile_report
-        - statistical_profile_report

@@ -40,6 +40,6 @@ def test_inspect_tool_covers_every_wrapper_async_method():
 
 def test_inspect_tool_returns_callables_with_unique_names():
     tool_funcs = inspect_tools.tools(_fake_session())
-    assert len(tool_funcs) >= 21, f"expected ≥21 inspection tools, got {len(tool_funcs)}"
+    assert len(tool_funcs) >= 25, f"expected ≥21 inspection tools, got {len(tool_funcs)}"
     names = [f.__name__ for f in tool_funcs]
     assert len(names) == len(set(names)), f"duplicate tool names: {names}"

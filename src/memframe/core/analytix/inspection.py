@@ -797,6 +797,163 @@ class GeneralTableOps:
             )
 
    
+    # ------------------------------------------------------------------
+    # Data Quality Reports
+    # ------------------------------------------------------------------
+    async def numeric_basic_summary(
+        self, table: str, schema: str, column: str
+    ) -> Dict[str, Any]:
+        try:
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
+                safe_col = SQLIdentifierSanitizer.sanitize(column)
+                q = self._qualified_table(table, schema)
+                if isinstance(self.db, PostgresAdapter):
+                    q25 = f'PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY "{safe_col}")'
+                    median_expr = f'PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY "{safe_col}")'
+                    q75 = f'PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY "{safe_col}")'
+                    std_expr = f'STDDEV_SAMP("{safe_col}")'
+                elif isinstance(self.db, DuckDBAdapter):
+                    q25 = f'QUANTILE_CONT("{safe_col}", 0.25)'
+                    median_expr = f'QUANTILE_CONT("{safe_col}", 0.5)'
+                    q75 = f'QUANTILE_CONT("{safe_col}", 0.75)'
+                    std_expr = f'STDDEV_SAMP("{safe_col}")'
+                elif isinstance(self.db, ClickHouseAdapter):
+                    q25 = f'quantile(0.25)("{safe_col}")'
+                    median_expr = f'quantile(0.5)("{safe_col}")'
+                    q75 = f'quantile(0.75)("{safe_col}")'
+                    std_expr = f'stddevSamp("{safe_col}")'
+                else:
+                    raise self._unsupported_backend_error()
+
+                stats_sql = f"""
+                    SELECT
+                        COUNT("{safe_col}") as count,
+                        AVG("{safe_col}") as mean,
+                        {std_expr} as std,
+                        MIN("{safe_col}") as min,
+                        {q25} as q25,
+                        {median_expr} as median,
+                        {q75} as q75,
+                        MAX("{safe_col}") as max,
+                        COUNT(*) - COUNT("{safe_col}") as nulls
+                    FROM {q}
+                """
+                row = await self._fetchrow(stats_sql)
+                if row is None:
+                    return self._error_response(f"No data returned for column '{column}'", [column])
+
+                summary = {
+                    "count": float(row["count"]) if row["count"] else 0,
+                    "mean": float(row["mean"]) if row["mean"] is not None else None,
+                    "std": float(row["std"]) if row["std"] is not None else None,
+                    "min": float(row["min"]) if row["min"] is not None else None,
+                    "25%": float(row["q25"]) if row["q25"] is not None else None,
+                    "50%": float(row["median"]) if row["median"] is not None else None,
+                    "75%": float(row["q75"]) if row["q75"] is not None else None,
+                    "max": float(row["max"]) if row["max"] is not None else None,
+                    "nulls": int(row["nulls"]) if row["nulls"] else 0,
+                }
+                msg = f"Basic numeric summary for '{column}'"
+                return self._success_response(
+                    message=msg,
+                    involved_cols=[column],
+                    result=summary,
+                )
+            else:
+                raise self._unsupported_backend_error()
+        except Exception as e:
+            return self._error_response(f"numeric_basic_summary error: {str(e)}", [column])
+
+    async def data_quality_missing_values(
+        self, table: str, schema: str, columns: List[str]
+    ) -> Dict[str, Any]:
+        try:
+            q = self._qualified_table(table, schema)
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+                pass
+            elif isinstance(self.db, ClickHouseAdapter):
+                pass
+            else:
+                raise self._unsupported_backend_error()
+
+            total = await self._fetchval(f'SELECT COUNT(*) FROM {q}')
+            result = {}
+            for col in columns:
+                safe_col = SQLIdentifierSanitizer.sanitize(col)
+                non_null = await self._fetchval(f'SELECT COUNT("{safe_col}") FROM {q}')
+                missing = total - non_null
+                result[col] = {"total": total, "non_null": non_null, "missing": missing,
+                               "missing_pct": (missing/total*100) if total else 0}
+            high_missing = [c for c, v in result.items() if v["missing_pct"] > 50]
+            msg = (f"Missing value analysis: {len(columns)} columns, "
+                   f"{len(high_missing)} columns over 50% missing")
+            return self._success_response(message=msg, involved_cols=columns, result=result)
+        except Exception as e:
+            return self._error_response(str(e), columns)
+
+    async def data_quality_completeness_score(
+        self, table: str, schema: str, columns: List[str]
+    ) -> Dict[str, Any]:
+        try:
+            q = self._qualified_table(table, schema)
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+                pass
+            elif isinstance(self.db, ClickHouseAdapter):
+                pass
+            else:
+                raise self._unsupported_backend_error()
+
+            total = await self._fetchval(f'SELECT COUNT(*) FROM {q}')
+            scores = {}
+            for col in columns:
+                safe_col = SQLIdentifierSanitizer.sanitize(col)
+                non_null = await self._fetchval(f'SELECT COUNT("{safe_col}") FROM {q}')
+                scores[col] = {"completeness": (non_null/total*100) if total else 0}
+            avg_comp = sum(v["completeness"] for v in scores.values()) / len(scores) if scores else 0
+            msg = f"Completeness scores: {len(columns)} columns, average {avg_comp:.1f}%"
+            return self._success_response(message=msg, involved_cols=columns, result=scores)
+        except Exception as e:
+            return self._error_response(str(e), columns)
+
+    async def comprehensive_numeric_summary(
+        self, table: str, schema: str, columns: List[str]
+    ) -> Dict[str, Any]:
+        try:
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+                pass
+            elif isinstance(self.db, ClickHouseAdapter):
+                pass
+            else:
+                raise self._unsupported_backend_error()
+
+            summaries = {}
+            for col in columns[:20]:  # performance limit
+                res = await self.numeric_basic_summary(table, schema, col)
+                if not res["is_error"]:
+                    summaries[col] = res["result"]
+            msg = f"Comprehensive numeric summary for {len(summaries)} columns"
+            return self._success_response(message=msg, involved_cols=columns[:20], result=summaries)
+        except Exception as e:
+            return self._error_response(str(e), columns)
+
+    async def statistical_profile_report(
+        self, table: str, schema: str, columns: List[str]
+    ) -> Dict[str, Any]:
+        try:
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+                pass
+            elif isinstance(self.db, ClickHouseAdapter):
+                pass
+            else:
+                raise self._unsupported_backend_error()
+
+            comp = await self.data_quality_completeness_score(table, schema, columns)
+            num = await self.comprehensive_numeric_summary(table, schema, columns)
+            msg = f"Statistical profile for '{table}': {len(columns)} columns"
+            return self._success_response(message=msg, involved_cols=columns, result={"completeness": comp, "numeric": num})
+        except Exception as e:
+            return self._error_response(str(e), columns)
+
     async def dataframe_full_table(self, table: str, schema: str,columns: Optional[List[str]] = None, chunk_size: Optional[int] = None,**kwargs,) -> Dict[str, Any]:
         try:
             if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):

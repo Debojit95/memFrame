@@ -158,6 +158,46 @@ class TableOpsWrapper(TableOpsOrchestrator):
         closed: str = "left",
     ) -> Dict[str, Any]: ...
 
+    async def adata_quality_missing_values(
+        self,
+        columns: List[str],
+    ) -> Dict[str, Any]: ...
+
+    def data_quality_missing_values(
+        self,
+        columns: List[str],
+    ) -> Dict[str, Any]: ...
+
+    async def adata_quality_completeness_score(
+        self,
+        columns: List[str],
+    ) -> Dict[str, Any]: ...
+
+    def data_quality_completeness_score(
+        self,
+        columns: List[str],
+    ) -> Dict[str, Any]: ...
+
+    async def acomprehensive_numeric_summary(
+        self,
+        columns: List[str],
+    ) -> Dict[str, Any]: ...
+
+    def comprehensive_numeric_summary(
+        self,
+        columns: List[str],
+    ) -> Dict[str, Any]: ...
+
+    async def astatistical_profile_report(
+        self,
+        columns: List[str],
+    ) -> Dict[str, Any]: ...
+
+    def statistical_profile_report(
+        self,
+        columns: List[str],
+    ) -> Dict[str, Any]: ...
+
     async def acolumns(self) -> Dict[str, Any]: ...
     def columns(self) -> Dict[str, Any]: ...
 

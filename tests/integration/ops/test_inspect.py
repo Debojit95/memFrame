@@ -1012,3 +1012,41 @@ class TestInspectionOperations:
         result = uploaded_ctx.itertuples(index=False)
         # Should be an async iterator of namedtuples
         assert hasattr(result, "__aiter__")
+    # ----------------------------------------------------
+    # Data Quality Reports
+    # ----------------------------------------------------
+    def test_data_quality_missing_values(self, uploaded_ctx, sample_df, backend_config):
+        cols = ["salary", "bonus"]
+        resp = uploaded_ctx.data_quality_missing_values(columns=cols)
+        assert isinstance(resp, dict) and not resp.get("is_error"), resp
+        result = resp["result"]
+        for col in cols:
+            assert result[col]["missing"] == int(sample_df[col].isna().sum())
+            assert abs((result[col]["missing_pct"] / 100.0) - sample_df[col].isna().mean()) < 1e-6
+
+    def test_data_quality_completeness_score(self, uploaded_ctx, sample_df, backend_config):
+        cols = ["salary", "bonus"]
+        resp = uploaded_ctx.data_quality_completeness_score(columns=cols)
+        assert isinstance(resp, dict) and not resp.get("is_error"), resp
+        result = resp["result"]
+        expected = {col: (1 - sample_df[col].isna().mean()) * 100.0 for col in cols}
+        for col in cols:
+            assert abs(result[col]["completeness"] - expected[col]) < 1e-6
+
+    def test_comprehensive_numeric_summary(self, uploaded_ctx, sample_df, backend_config):
+        cols = ["salary", "bonus"]
+        resp = uploaded_ctx.comprehensive_numeric_summary(columns=cols)
+        assert isinstance(resp, dict) and not resp.get("is_error"), resp
+        result = resp["result"]
+        assert isinstance(result, dict)
+        for col in cols:
+            assert col in result and isinstance(result[col], dict)
+            assert "count" in result[col]
+
+    def test_statistical_profile_report(self, uploaded_ctx, sample_df, backend_config):
+        cols = ["salary", "bonus"]
+        resp = uploaded_ctx.statistical_profile_report(columns=cols)
+        assert isinstance(resp, dict) and not resp.get("is_error"), resp
+        result = resp["result"]
+        assert "completeness" in result
+        assert "numeric" in result

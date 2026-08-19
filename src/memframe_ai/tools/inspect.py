@@ -42,6 +42,23 @@ def tools(session):
             await w.anull_analysis(columns=columns), session, advance=False
         )
 
+    # ----- data quality / reporting -----
+    async def data_quality_missing_values(columns: list[str]) -> dict:
+        """Per-column missing-value counts and percentages."""
+        return await normalize(await w.adata_quality_missing_values(columns=columns), session, advance=False)
+
+    async def data_quality_completeness_score(columns: list[str]) -> dict:
+        """Completeness percentage for each column."""
+        return await normalize(await w.adata_quality_completeness_score(columns=columns), session, advance=False)
+
+    async def comprehensive_numeric_summary(columns: list[str]) -> dict:
+        """Count/mean/std/min/median/max/nulls for each numeric column."""
+        return await normalize(await w.acomprehensive_numeric_summary(columns=columns), session, advance=False)
+
+    async def statistical_profile_report(columns: list[str]) -> dict:
+        """Combined completeness + numeric profile for the columns."""
+        return await normalize(await w.astatistical_profile_report(columns=columns), session, advance=False)
+
     # ----- structural property getters -----
     async def columns() -> dict:
         """Return column labels."""
@@ -143,6 +160,9 @@ def tools(session):
         head, tail, sample, full_table,
         # summaries
         info, describe, null_analysis,
+        # data quality / reporting
+        data_quality_missing_values, data_quality_completeness_score,
+        comprehensive_numeric_summary, statistical_profile_report,
         # structural property getters
         columns, dtypes, shape, values, items, iterrows, itertuples,
         # write ops
