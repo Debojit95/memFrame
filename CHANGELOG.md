@@ -6,7 +6,7 @@ to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-## [0.2.2rc1] - 2026-08-19
+## [0.2.2] - 2026-08-19
 
 ### Changed
 - Data Quality Reports (missing-values, completeness, numeric summary, profile report) relocated from the cleaning module to the inspect module.
