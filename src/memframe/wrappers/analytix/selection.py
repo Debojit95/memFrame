@@ -144,72 +144,6 @@ class SelectionWrapper(SelectionOrchestrator):
         )
 
     # ------------------------------------------------------------------
-    # loc
-    # ------------------------------------------------------------------
-
-    async def aloc(
-        self,
-        row_selector,
-        columns=None,
-        index_column: str = None,
-        chunk_size: int = None,
-    ):
-        """Asynchronously select rows/columns by label-based indexing."""
-        return await super().loc(
-            row_selector=row_selector,
-            columns=columns,
-            index_column=index_column,
-            chunk_size=chunk_size,
-        )
-
-    @async_to_sync
-    async def loc(
-        self,
-        row_selector,
-        columns=None,
-        index_column: str = None,
-        chunk_size: int = None,
-    ):
-        """Synchronously select rows/columns by label-based indexing."""
-        return await self.aloc(
-            row_selector=row_selector,
-            columns=columns,
-            index_column=index_column,
-            chunk_size=chunk_size,
-        )
-
-    # ------------------------------------------------------------------
-    # where
-    # ------------------------------------------------------------------
-
-    async def awhere(
-        self,
-        cond: str,
-        other: Optional[Any] = None,
-        chunk_size: int = None,
-    ):
-        """Asynchronously filter/replace values based on a condition."""
-        return await super().where(
-            cond=cond,
-            other=other,
-            chunk_size=chunk_size,
-        )
-
-    @async_to_sync
-    async def where(
-        self,
-        cond: str,
-        other: Optional[Any] = None,
-        chunk_size: int = None,
-    ):
-        """Synchronously filter/replace values based on a condition."""
-        return await self.awhere(
-            cond=cond,
-            other=other,
-            chunk_size=chunk_size,
-        )
-
-    # ------------------------------------------------------------------
     # select_dtypes
     # ------------------------------------------------------------------
 
@@ -249,12 +183,14 @@ class SelectionWrapper(SelectionOrchestrator):
         row_indexer: Union[int, List[int], slice, list, str, tuple] = None,
         col_indexer: Union[int, List[int], slice, list, str] = None,
         columns: Optional[Union[str, List[str], Tuple[str, ...]]] = None,
+        index_column: str = None,
     ):
         """Asynchronously select rows/columns by integer-location indexing."""
         return await super().iloc(
             row_indexer=row_indexer,
             col_indexer=col_indexer,
             columns=columns,
+            index_column=index_column,
         )
 
     @async_to_sync
@@ -263,40 +199,14 @@ class SelectionWrapper(SelectionOrchestrator):
         row_indexer: Union[int, List[int], slice, list, str, tuple] = None,
         col_indexer: Union[int, List[int], slice, list, str] = None,
         columns: Optional[Union[str, List[str], Tuple[str, ...]]] = None,
+        index_column: str = None,
     ):
         """Synchronously select rows/columns by integer-location indexing."""
         return await self.ailoc(
             row_indexer=row_indexer,
             col_indexer=col_indexer,
             columns=columns,
+            index_column=index_column,
         )
-
-    # ------------------------------------------------------------------
-    # take
-    # ------------------------------------------------------------------
-
-    async def atake(
-        self,
-        indices: List[int],
-        axis: int = 0,
-    ):
-        """Asynchronously take rows or columns by integer indices."""
-        return await super().take(
-            indices=indices,
-            axis=axis,
-        )
-
-    @async_to_sync
-    async def take(
-        self,
-        indices: List[int],
-        axis: int = 0,
-    ):
-        """Synchronously take rows or columns by integer indices."""
-        return await self.atake(
-            indices=indices,
-            axis=axis,
-        )
-
 
 SelectionAccessor = SelectionWrapper

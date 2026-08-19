@@ -5,8 +5,7 @@ Source: `src/wrappers/analytix/selection.py`
 `SelectionWrapper` is the public selection interface exposed through a
 `ContextManager`. It provides pandas-like row and column access against the
 active backend table, including scalar lookup, column retrieval,
-integer-location selection, conditional replacement, dtype-based column
-selection, and row/column taking.
+integer-location selection, and dtype-based column selection.
 
 Users normally call selection methods directly on a dataset context returned by
 an upload operation:
@@ -36,11 +35,8 @@ Every selection operation has synchronous and asynchronous forms:
 | `at(row_label, column_label, index_column=None)` | `await aat(...)` | Scalar by row label and column name |
 | `iat(row_position, column_label, order_by)` | `await aiat(...)` | Scalar by integer row position |
 | `get(keys, default=None)` | `await aget(...)` | One or more columns |
-| `loc(row_selector, columns=None, index_column=None, chunk_size=None)` | `await aloc(...)` | Named-column wrapper over iloc-style row selection |
-| `iloc(row_indexer=None, col_indexer=None, columns=None)` | `await ailoc(...)` | Integer-location row and column selection |
-| `where(cond, other=None, chunk_size=None)` | `await awhere(...)` | Conditional replacement |
+| `iloc(row_indexer=None, col_indexer=None, columns=None, index_column=None)` | `await ailoc(...)` | Integer/label-location row and column selection, or raw SQL `WHERE` |
 | `select_dtypes(include=None, exclude=None, chunk_size=None)` | `await aselect_dtypes(...)` | Columns by database type category |
-| `take(indices, axis=0)` | `await atake(...)` | Rows or columns by integer indices |
 
 Public methods return DataFrames, Series, scalars, dictionaries, or iterators
 directly. Invalid operations raise `OperationError`.
@@ -198,8 +194,8 @@ requested keys filled with `default`.
 
 ### `iloc`
 
-`iloc` selects rows and columns by integer position. It can return either a
-DataFrame or a scalar.
+`iloc` selects rows and columns by integer position, by label list, or by a raw
+SQL `WHERE` clause. It can return either a DataFrame or a scalar.
 
 ```python
 result = dataset.iloc(
@@ -219,13 +215,28 @@ result = await dataset.ailoc(
 result = dataset.iloc(row_indexer=("1:4", "0:2"))
 ```
 
+```python
+# Raw SQL WHERE (read-only against the active table)
+result = dataset.iloc(row_indexer="age > 24 AND city = 'NYC'")
+```
+
+```python
+# Label-list selection against an index column
+result = dataset.iloc(
+    row_indexer=["a", "c", "d"],
+    index_column="name",
+)
+```
+
 Parameters:
 
 | Parameter | Type | Description |
 | --- | --- | --- |
-| `row_indexer` | `int`, `list[int]`, `slice`, boolean list, slice string, tuple, or `None` | Row selector. `None` selects all rows. A tuple must be `(rows, cols)`. |
+| `row_indexer` | `int`, `list[int]`, `slice`, boolean list, slice string, tuple, `list[str]`, `str`, or `None` | Row selector. Integer/positional forms select by row position. A `list[str]` selects rows whose `index_column` value is in the list. A `str` is treated as a raw SQL `WHERE` clause evaluated against the active table (read-only). `None` selects all rows. A tuple must be `(rows, cols)`. |
 | `col_indexer` | `int`, `list[int]`, `slice`, `list[str]`, slice string, or `None` | Column selector by position, or by names when a string/list of strings is provided. `None` selects all columns. |
 | `columns` | `str`, `list[str]`, `tuple[str, ...]`, or `None` | Named-column alternative to `col_indexer`. Cannot be combined with `col_indexer`. |
+| | | |
+| `index_column` | `str` or `None` | Column used to resolve a `list[str]` `row_indexer` to matching rows. Required when `row_indexer` is a label list. |
 
 Supported selector forms:
 
@@ -238,95 +249,11 @@ Supported selector forms:
 | Boolean mask | `[True, False, True]` | Select rows/columns where mask is true. Length must match the axis. |
 | Tuple style | `("0:3", "1:4")` | Provides row and column indexers together. |
 | Named columns | `columns=["name"]` | Converts names to column positions. |
+| Label list | `row_indexer=["a", "c"], index_column="name"` | Selects rows whose `index_column` value is in the list. |
+| Raw SQL `WHERE` | `row_indexer="age > 24"` | Evaluated as a SQL `WHERE` against the active table (read-only). |
 
 When both row and column indexers resolve to a single cell, the response
 contains the scalar under `result`.
-
-### `loc`
-
-The public `loc` wrapper accepts row selectors plus optional named columns, then
-routes the request through the same integer-position path used by `iloc`.
-
-```python
-result = dataset.loc(
-    row_selector="0:3",
-    columns=["name", "score"],
-)
-```
-
-```python
-result = await dataset.aloc(
-    row_selector=([0, 2, 4], ["name", "score"]),
-)
-```
-
-Parameters:
-
-| Parameter | Type | Description |
-| --- | --- | --- |
-| `row_selector` | int/list/slice/boolean mask/slice string/tuple | Row selector passed through the iloc-style path. A tuple must be `(rows, columns)`. |
-| `columns` | `list[str]`, tuple of strings, `"*"`, or `None` | Named columns to select. `None` or `"*"` selects all columns. |
-| `index_column` | `str` or `None` | Accepted for compatibility. When the wrapper succeeds, it is reported as ignored. |
-| `chunk_size` | `int` or `None` | Currently rejected by the public wrapper. |
-
-Current limitations:
-
-- `columns` must be `None`, `"*"`, or a list/tuple of column names.
-- Public `loc` does not support SQL `WHERE` strings as row selectors.
-- Passing `chunk_size` raises `OperationError`.
-
-### `take`
-
-`take` is a convenience method over `iloc`.
-
-```python
-rows = dataset.take(indices=[0, 2], axis=0)
-columns = dataset.take(indices=[1, 3], axis=1)
-```
-
-```python
-rows = await dataset.atake(indices=[0, 2], axis=0)
-columns = await dataset.atake(indices=[1, 3], axis=1)
-```
-
-Parameters:
-
-| Parameter | Type | Description |
-| --- | --- | --- |
-| `indices` | `list[int]` | Row or column positions to select. Negative row indices are supported by `iloc`. |
-| `axis` | `0` or `1` | `0` selects rows; `1` selects columns. |
-
-Invalid `axis` values raise `OperationError`.
-
-## Transforming Selections
-
-### `where`
-
-`where` applies a SQL condition across all columns. Values in rows that match
-`cond` are kept. Values in rows that do not match are replaced with `other`, or
-`NULL` when `other` is omitted.
-
-```python
-result = dataset.where(cond="score > 85")
-```
-
-```python
-result = await dataset.awhere(
-    cond="score > 85",
-    other=0,
-)
-```
-
-Parameters:
-
-| Parameter | Type | Description |
-| --- | --- | --- |
-| `cond` | `str` | SQL boolean expression evaluated per row. |
-| `other` | scalar, SQL expression, or `None` | Replacement for rows that do not satisfy `cond`. `None` becomes SQL `NULL`. |
-| `chunk_size` | `int` or `None` | If supported by the core path, returns an async chunk iterator instead of a DataFrame sample. |
-
-The operation creates a generated table internally when backend context is
-available and returns the selected value directly.
 
 ### `select_dtypes`
 
@@ -375,7 +302,7 @@ and AI execution. Failed operations raise `OperationError`.
 Table-producing selection methods create generated tables internally when
 called through a connected context.
 
-`iloc`, `take`, `where`, and `select_dtypes` commonly create generated tables.
+`iloc` and `select_dtypes` commonly create generated tables.
 `at`, `iat`, `get`, and scalar `asof` are read-oriented operations.
 
 When `chunk_size` is supported, the method returns an async iterator.
@@ -402,9 +329,8 @@ Selection methods raise `OperationError` for invalid input or backend failures.
 - Invalid selector shapes return `ValueError` or `TypeError` details.
 - Boolean masks must match the selected axis length.
 - `iloc` rejects simultaneous `col_indexer` and `columns`.
-- `loc` rejects invalid `columns`, tuple shape errors, and `chunk_size`.
+- `iloc` rejects a `str` row_indexer (raw `WHERE`) when backend context is missing, and a `list[str]` row_indexer when `index_column` is missing.
 - `select_dtypes` requires at least one of `include` or `exclude`.
-- `take` requires `axis` to be `0` or `1`.
 
 ## API Reference
 
@@ -421,13 +347,7 @@ Selection methods raise `OperationError` for invalid input or backend failures.
         - iat
         - aget
         - get
-        - aloc
-        - loc
-        - awhere
-        - where
         - aselect_dtypes
         - select_dtypes
         - ailoc
         - iloc
-        - atake
-        - take

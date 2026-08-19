@@ -38,7 +38,6 @@ Every inspect operation has synchronous and asynchronous forms:
 | `info()` | `await ainfo()` | Per-column table information |
 | `describe(columns=None)` | `await adescribe(...)` | Numeric descriptive statistics |
 | `null_analysis(columns=None)` | `await anull_analysis(...)` | Null distribution by column |
-| `corr(columns=None, method="pearson")` | `await acorr(...)` | Numeric correlation matrix |
 | `full_table(columns=None, chunk_size=None)` | `await afull_table(...)` | Full table or chunk iterator |
 | `astype(columns=None, dtypes=None, dtype_map=None)` | `await aastype(...)` | Cast selected columns |
 | `insert(column, value)` | `await ainsert(...)` | Add a column from a value list |
@@ -234,28 +233,6 @@ Parameters:
 
 The result DataFrame is indexed by column name when data is available and
 contains `contains_null` and `percent_missing` columns.
-
-### `corr`
-
-`corr` computes a numeric correlation matrix.
-
-```python
-result = dataset.corr(columns=["amount", "score"])
-```
-
-```python
-result = await dataset.acorr()
-```
-
-Parameters:
-
-| Parameter | Type | Description |
-| --- | --- | --- |
-| `columns` | `list[str]`, `"*"`, or `None` | Numeric columns to include. Defaults to all numeric columns. |
-| `method` | `str` | Accepted by the wrapper. The current core implementation computes Pearson correlation with SQL `CORR`. |
-
-At least two numeric columns are required. Metadata includes the analyzed
-columns and up to ten strong correlations.
 
 ## Table Utilities
 
@@ -520,7 +497,7 @@ Failed operations raise `OperationError`.
 
 Some inspect methods create generated summary tables internally when method-call
 logging receives backend context. This is most visible for `info`, `describe`,
-`null_analysis`, and `corr`.
+`null_analysis`, and `sample`.
 
 Preview methods such as `head`, `tail`, `sample`, and unchunked `full_table`
 are read-oriented and return a DataFrame sample directly.
@@ -532,7 +509,6 @@ Inspect supports DuckDB and PostgreSQL adapters:
 - Both backends use quoted identifiers and schema-aware table names.
 - Schema discovery is delegated to the active database adapter.
 - `describe` uses backend-specific percentile functions.
-- `corr` uses SQL `CORR` over numeric columns.
 - `sample` uses backend `RANDOM()` ordering.
 - PostgreSQL can report relation memory usage through `info`; DuckDB currently
   returns `None` for `memory_usage`.
@@ -544,7 +520,6 @@ Inspect methods raise `OperationError` for invalid input or backend failures.
 
 - Invalid `chunk_size` in `full_table` raises `OperationError`.
 - `describe` raises an error when no numeric columns are available.
-- `corr` raises an error when fewer than two numeric columns are available.
 - `astype` raises an error for missing columns or unsupported dtype aliases.
 - `astype` requires either `dtype_map` or matching `columns` and `dtypes`.
 - `insert` raises an error when `value` is not a list or its length does not
@@ -573,8 +548,6 @@ Inspect methods raise `OperationError` for invalid input or backend failures.
         - describe
         - anull_analysis
         - null_analysis
-        - acorr
-        - corr
         - afull_table
         - full_table
         - aastype

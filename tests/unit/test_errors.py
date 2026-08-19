@@ -57,29 +57,29 @@ class TestUploadErrorPaths:
 
 
 class TestSelectionErrorResponses:
-    def test_loc_tuple_and_columns_conflict(self, uploaded):
+    def test_iloc_tuple_and_columns_conflict(self, uploaded):
         with pytest.raises(OperationError, match="not both"):
-            uploaded.loc(("1:2", "a"), columns=["a"])
+            uploaded.iloc(("1:2", "a"), columns=["a"])
 
-    def test_loc_tuple_bad_length(self, uploaded):
+    def test_iloc_tuple_bad_length(self, uploaded):
         with pytest.raises(OperationError, match="exactly two items"):
-            uploaded.loc(("1:2", "a", "extra"))
+            uploaded.iloc(("1:2", "a", "extra"))
 
-    def test_loc_columns_not_str_list(self, uploaded):
+    def test_iloc_columns_not_str_list(self, uploaded):
         with pytest.raises(OperationError, match="list of column names"):
-            uploaded.loc("1:2", columns=42)
+            uploaded.iloc("1:2", columns=42)
 
-    def test_loc_columns_empty_list(self, uploaded):
+    def test_iloc_columns_empty_list(self, uploaded):
         with pytest.raises(OperationError, match="cannot be empty"):
-            uploaded.loc("1:2", columns=[])
+            uploaded.iloc("1:2", columns=[])
 
-    def test_loc_columns_non_str_elements(self, uploaded):
+    def test_iloc_columns_non_str_elements(self, uploaded):
         with pytest.raises(OperationError, match="list of column names"):
-            uploaded.loc("1:2", columns=[1, 2])
+            uploaded.iloc("1:2", columns=[1, 2])
 
-    def test_loc_unknown_column_raises(self, uploaded):
+    def test_iloc_unknown_column_raises(self, uploaded):
         with pytest.raises(OperationError, match="Unknown column"):
-            uploaded.loc("1:2", columns=["nope"])
+            uploaded.iloc("1:2", columns=["nope"])
 
     def test_iloc_col_indexer_and_columns_conflict(self, uploaded):
         with pytest.raises(OperationError, match="not both"):

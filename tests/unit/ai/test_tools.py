@@ -38,15 +38,6 @@ def test_head_returns_records(session):
     assert set(r["result"][0]) == {"name", "age", "score"}
 
 
-def test_where_advances_active_table(session):
-    base = session.table
-    r = asyncio.run(_tool(session, "where")(cond="age > 24"))
-    assert r["ok"] is True
-    assert r["new_table"] is not None
-    assert session.table != base
-    assert r["active_table"] == session.table
-
-
 def test_dropna_advances(session):
     r = asyncio.run(_tool(session, "dropna")(how="any"))
     assert r["ok"] is True

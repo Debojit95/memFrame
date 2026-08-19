@@ -56,4 +56,4 @@ def test_public_streaming_returns_iterator(context):
 
 def test_public_errors_raise_operation_error(context):
     with pytest.raises(OperationError, match="Unknown column"):
-        context.loc("1:2", columns=["missing"])
+        context.iloc("1:2", columns=["missing"])

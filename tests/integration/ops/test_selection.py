@@ -639,13 +639,13 @@ class TestSelectionOperations:
 
 
     def test_loc_scalar_label(self, uploaded_ctx, sample_df, backend_config):
-        # Workaround: use a string condition to get the row for id=102
-        result = uploaded_ctx.loc(row_selector="id = 102")
+        # Raw SQL WHERE is now handled by iloc
+        result = uploaded_ctx.iloc(row_indexer="id = 102")
         loc_df = result
         expected = sample_df[sample_df["id"] == 102].reset_index(drop=True)
         self._record_result(
             "loc_scalar_label",
-            'loc(row_selector="id = 102")',
+            'iloc(row_indexer="id = 102")',
             sample_df,
             loc_df,
             expected,
@@ -729,36 +729,6 @@ class TestSelectionOperations:
         assert (result["non_existent"] == "MISSING").all()
 
     # ------------------------------------------------------------------
-    # where
-    # ------------------------------------------------------------------
-    def test_where(self, uploaded_ctx, sample_df, backend_config):
-        result = uploaded_ctx.where(cond="score > 85", other=None)
-        wdf = result
-        expected = sample_df.where(sample_df["score"] > 85)
-        self._record_result(
-            "where",
-            'where(cond="score > 85", other=None)',
-            sample_df,
-            wdf,
-            expected.reset_index(drop=True),
-            backend_config["connection_type"],
-        )
-
-        # Alice (row 0) keeps her score
-        assert wdf.iloc[0]["score"] == 95.5
-
-        # Bob (row 1, score 88.0) matches and keeps his values
-        assert wdf.iloc[1]["id"] == 102
-        assert wdf.iloc[1]["score"] == 88.0
-
-        # Charlie (row 2) should have NULL score because his score is NaN (not > 85)
-        assert pd.isna(wdf.iloc[2]["score"])
-
-        # Non‑matching row (id=104, row 3) – all columns become NULL
-        assert pd.isna(wdf.iloc[3]["id"])
-        assert pd.isna(wdf.iloc[3]["score"])
-
-    # ------------------------------------------------------------------
     # select_dtypes
     # ------------------------------------------------------------------
     def test_select_dtypes(self, uploaded_ctx, sample_df, backend_config):
@@ -797,48 +767,6 @@ class TestSelectionOperations:
         )
         cols = result.columns.tolist()
         assert "join_date" in cols and "last_login" in cols
-
-    # ------------------------------------------------------------------
-    # take
-    # ------------------------------------------------------------------
-    def test_take(self, uploaded_ctx, sample_df, backend_config):
-        result = uploaded_ctx.take(indices=[0, 2], axis=0)
-        self._record_result(
-            "take_rows",
-            "take(indices=[0, 2], axis=0)",
-            sample_df,
-            result,
-            sample_df.take([0, 2], axis=0).reset_index(drop=True),
-            backend_config["connection_type"],
-        )
-        taken = result
-        assert taken.iloc[0]["id"] == 101 and taken.iloc[1]["id"] == 103
-
-        result = uploaded_ctx.take(indices=[1, 3], axis=1)
-        self._record_result(
-            "take_columns",
-            "take(indices=[1, 3], axis=1)",
-            sample_df,
-            result,
-            sample_df.take([1, 3], axis=1).reset_index(drop=True),
-            backend_config["connection_type"],
-        )
-        cols = result.columns.tolist()
-        assert cols == ["name", "active"]
-
-        result = uploaded_ctx.take(indices=[-1], axis=0)
-        self._record_result(
-            "take_negative_row",
-            "take(indices=[-1], axis=0)",
-            sample_df,
-            result,
-            sample_df.take([-1], axis=0).reset_index(drop=True),
-            backend_config["connection_type"],
-        )
-        assert result.iloc[0]["id"] == 105
-
-        with pytest.raises(OperationError):
-            uploaded_ctx.take(indices=[10], axis=0)
 
     # ------------------------------------------------------------------
     # iloc

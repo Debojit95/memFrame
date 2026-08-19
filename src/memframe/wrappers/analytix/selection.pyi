@@ -62,36 +62,6 @@ class SelectionWrapper:
         default: Any = None,
     ) -> Dict[str, Any]: ...
 
-    async def aloc(
-        self,
-        row_selector: Any,
-        columns: Any = None,
-        index_column: str = None,
-        chunk_size: int = None,
-    ) -> Dict[str, Any]: ...
-
-    def loc(
-        self,
-        row_selector: Any,
-        columns: Any = None,
-        index_column: str = None,
-        chunk_size: int = None,
-    ) -> Dict[str, Any]: ...
-
-    async def awhere(
-        self,
-        cond: str,
-        other: Optional[Any] = None,
-        chunk_size: int = None,
-    ) -> Dict[str, Any]: ...
-
-    def where(
-        self,
-        cond: str,
-        other: Optional[Any] = None,
-        chunk_size: int = None,
-    ) -> Dict[str, Any]: ...
-
     async def aselect_dtypes(
         self,
         include: Optional[Union[str, List[str]]] = None,
@@ -111,6 +81,7 @@ class SelectionWrapper:
         row_indexer: Union[int, List[int], slice, list, str, tuple] = None,
         col_indexer: Union[int, List[int], slice, list, str] = None,
         columns: Optional[Union[str, List[str], Tuple[str, ...]]] = None,
+        index_column: str = None,
     ) -> Dict[str, Any]: ...
 
     def iloc(
@@ -118,18 +89,7 @@ class SelectionWrapper:
         row_indexer: Union[int, List[int], slice, list, str, tuple] = None,
         col_indexer: Union[int, List[int], slice, list, str] = None,
         columns: Optional[Union[str, List[str], Tuple[str, ...]]] = None,
-    ) -> Dict[str, Any]: ...
-
-    async def atake(
-        self,
-        indices: List[int],
-        axis: int = 0,
-    ) -> Dict[str, Any]: ...
-
-    def take(
-        self,
-        indices: List[int],
-        axis: int = 0,
+        index_column: str = None,
     ) -> Dict[str, Any]: ...
 
 

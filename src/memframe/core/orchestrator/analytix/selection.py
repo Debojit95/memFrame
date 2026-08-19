@@ -89,92 +89,6 @@ class SelectionOrchestrator:
         )
 
     # ── DataFrame-returning methods ──────────────────────────────────
-    async def loc(
-        self,
-        row_selector,
-        columns=None,
-        index_column: str = None,
-        chunk_size: int = None,
-    ):
-        ops = await self._ensure_ops()
-        table, schema = await self._get_context()
-        backend = self._memframe._backend
-        data_id = self._data_id or self._memframe._active_id
-
-        if chunk_size is not None:
-            return fail("chunk_size is not supported for loc with iloc-style row indexers.")
-
-        if isinstance(row_selector, tuple):
-            if columns is not None:
-                return fail("Pass either tuple row_selector=(rows, columns) or columns separately, not both.")
-            if len(row_selector) != 2:
-                return fail("Tuple row_selector for loc must have exactly two items: (row_indexer, columns).")
-            row_selector, columns = row_selector
-
-        # Handle string conditions (WHERE clauses) directly via core loc
-        if isinstance(row_selector, str) and ":" not in row_selector:
-            # This is a SQL WHERE clause, pass directly to core loc
-            return await ops.loc(
-                table=table, schema=schema,
-                row_selector=row_selector,
-                column_selector=columns,
-                index_column=index_column,
-                backend=backend, data_id=data_id, chunk_size=chunk_size,
-            )
-
-        try:
-            row_indexer = self._parse_slice_text(row_selector)
-        except (OperationError, ValueError) as exc:
-            return fail(str(exc))
-        col_indexer = None
-        if columns in (None, "*", ["*"], ("*",)):
-            col_indexer = None
-        elif isinstance(columns, str):
-            return fail("columns must be a list of column names or '*'.")
-        elif isinstance(columns, (list, tuple)):
-            if not columns:
-                return fail("columns list cannot be empty.")
-            if not all(isinstance(c, str) for c in columns):
-                return fail("columns must be a list of column names or '*'.")
-            try:
-                col_indexer = await self._column_names_to_positions(
-                    ops=ops, table=table, schema=schema, columns=list(columns),
-                )
-            except (OperationError, ValueError) as exc:
-                return fail(str(exc))
-        else:
-            return fail("columns must be a list of column names or '*'.")
-
-        result = await ops.iloc(
-            table=table, schema=schema,
-            row_indexer=row_indexer, col_indexer=col_indexer,
-            backend=backend, data_id=data_id,
-        )
-
-        if index_column is not None and not result.get("is_error"):
-            result["index_column_ignored"] = index_column
-
-        return result
-
-    @record_call(deep_cache=True)
-    async def where(
-        self,
-        cond: str,
-        other: Optional[Any] = None,
-        chunk_size: int = None,
-    ):
-        ops = await self._ensure_ops()
-        table, schema = await self._get_context()
-        backend = self._memframe._backend
-        data_id = self._data_id or self._memframe._active_id
-
-        result = await ops.where(
-            table=table, schema=schema,
-            cond=cond, other=other,
-            backend=backend, data_id=data_id, chunk_size=chunk_size,
-        )
-        return result
-
     @record_call(deep_cache=True)
     async def select_dtypes(
         self,
@@ -199,6 +113,7 @@ class SelectionOrchestrator:
         row_indexer: Union[int, List[int], slice, list, str, tuple] = None,
         col_indexer: Union[int, List[int], slice, list, str] = None,
         columns: Optional[Union[str, List[str], Tuple[str, ...]]] = None,
+        index_column: str = None,
     ):
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
@@ -223,9 +138,18 @@ class SelectionOrchestrator:
 
         try:
             if columns is not None:
-                col_indexer = await self._column_names_to_positions(
-                    ops=ops, table=table, schema=schema, columns=columns,
-                )
+                if columns in ("*", ["*"], ("*",)):
+                    col_indexer = None
+                elif not isinstance(columns, (str, list, tuple)):
+                    return fail("columns must be a list of column names or '*'.")
+                elif isinstance(columns, (list, tuple)) and len(columns) == 0:
+                    return fail("columns list cannot be empty.")
+                elif isinstance(columns, (list, tuple)) and not all(isinstance(c, str) for c in columns):
+                    return fail("columns must be a list of column names or '*'.")
+                else:
+                    col_indexer = await self._column_names_to_positions(
+                        ops=ops, table=table, schema=schema, columns=columns,
+                    )
             elif isinstance(col_indexer, str) and ":" not in col_indexer:
                 col_indexer = await self._column_names_to_positions(
                     ops=ops, table=table, schema=schema, columns=[col_indexer],
@@ -244,24 +168,7 @@ class SelectionOrchestrator:
         result = await ops.iloc(
             table=table, schema=schema,
             row_indexer=row_indexer, col_indexer=col_indexer,
-            backend=backend, data_id=data_id,
-        )
-        return result
-
-    @record_call(deep_cache=True)
-    async def take(
-        self,
-        indices: List[int],
-        axis: int = 0,
-    ):
-        ops = await self._ensure_ops()
-        table, schema = await self._get_context()
-        backend = self._memframe._backend
-        data_id = self._data_id or self._memframe._active_id
-
-        result = await ops.take(
-            table=table, schema=schema,
-            indices=indices, axis=axis,
+            index_column=index_column,
             backend=backend, data_id=data_id,
         )
         return result

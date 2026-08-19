@@ -40,6 +40,6 @@ def test_select_tool_covers_every_wrapper_async_method():
 
 def test_select_tool_returns_callables_with_unique_names():
     tool_funcs = select_tools.tools(_fake_session())
-    assert len(tool_funcs) >= 10, f"expected ≥10 selection tools, got {len(tool_funcs)}"
+    assert len(tool_funcs) >= 7, f"expected ≥7 selection tools, got {len(tool_funcs)}"
     names = [f.__name__ for f in tool_funcs]
     assert len(names) == len(set(names)), f"duplicate tool names: {names}"

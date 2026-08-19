@@ -451,97 +451,6 @@ class DataSelectionOps:
             return self._error_response(f"iat error: {str(e)}\n{traceback.format_exc()}")
 
     # ------------------------------------------------------------------
-    # loc (creates transient table if backend provided)
-    # ------------------------------------------------------------------
-    async def loc(
-        self,
-        table: str,
-        schema: str,
-        row_selector: Union[str, List[str], slice, "pd.Series", Any],
-        column_selector: Optional[Union[str, List[str]]] = None,
-        index_column: Optional[str] = None,
-        backend=None,
-        data_id: str = None,
-        chunk_size: int = None,
-    ) -> Dict[str, Any]:
-        try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
-                quoted_cols = "*"
-                if column_selector is not None:
-                    if isinstance(column_selector, str):
-                        column_selector = [column_selector]
-                    col_names = [self._quote(c) for c in column_selector]
-                    quoted_cols = ", ".join(col_names)
-
-                where_clause = ""
-                params = []
-
-                if isinstance(row_selector, str):
-                    where_clause = f"WHERE {row_selector}"
-                elif isinstance(row_selector, (list, tuple)):
-                    if not index_column:
-                        raise OperationError("list row_selector requires index_column")
-                    placeholder_list = ", ".join(self.db.placeholder(i+1) for i in range(len(row_selector)))
-                    where_clause = f"WHERE {self._quote(index_column)} IN ({placeholder_list})"
-                    params = list(row_selector)
-                elif isinstance(row_selector, slice):
-                    if not index_column:
-                        raise OperationError("slice row_selector requires index_column")
-                    start = row_selector.start
-                    stop = row_selector.stop
-                    if start is None or stop is None:
-                        raise OperationError("Slice must have start and stop for label-based range")
-                    where_clause = f"WHERE {self._quote(index_column)} BETWEEN {self.db.placeholder(1)} AND {self.db.placeholder(2)}"
-                    params = [start, stop]
-                else:
-                    if not index_column:
-                        raise OperationError("scalar row_selector requires index_column")
-                    where_clause = f"WHERE {self._quote(index_column)} = {self.db.placeholder(1)}"
-                    params = [row_selector]
-
-                new_table = None
-                if backend is not None and data_id is not None:
-                    new_table = await self._generate_transient_table_name(table, backend, data_id)
-                    full_new = f"{self.db.quote_identifier(schema)}.{self._quote(new_table)}"
-                    create_sql = f"""
-                        CREATE TABLE {full_new} AS
-                        SELECT {quoted_cols}
-                        FROM {self._qualified_table(table, schema)}
-                        {where_clause}
-                    """
-                    await self._exec(create_sql, *params)
-                    if chunk_size is None:
-                        sample = await self._fetch_sample(new_table, schema, columns=column_selector or "*")
-                    else:
-                        async def iterator():
-                            async for chunk in self._fetch_in_chunks(
-                                new_table, schema, chunk_size, columns=column_selector or "*"
-                            ):
-                                yield chunk
-                        return self._success_response(
-                            "loc selection (streaming)",
-                            sample_df=None,
-                            iterator=iterator(),
-                            chunk_size=chunk_size,
-                            new_table=new_table,
-                        )
-                    return self._success_response(
-                        "loc selection",
-                        sample,
-                        new_table=new_table,
-                        output_columns=column_selector or "*",
-                    )
-                else:
-                    sql = f"SELECT {quoted_cols} FROM {self._qualified_table(table, schema)} {where_clause}"
-                    rows = await self._fetch(sql, *params)
-                    df = pd.DataFrame([dict(r) for r in rows])
-                    return self._success_response("loc selection (read-only)", sample_df=df)
-            else:
-                raise self._unsupported_backend_error()
-        except Exception as e:
-            return self._error_response(f"loc error: {str(e)}\n{traceback.format_exc()}")
-
-    # ------------------------------------------------------------------
     # get (read‑only)
     # ------------------------------------------------------------------
     async def get(
@@ -576,82 +485,6 @@ class DataSelectionOps:
                 raise self._unsupported_backend_error()
         except Exception as e:
             return self._error_response(f"get error: {str(e)}\n{traceback.format_exc()}")
-
-    # ------------------------------------------------------------------
-    # where (creates transient table)
-    # ------------------------------------------------------------------
-    async def where(
-        self,
-        table: str,
-        schema: str,
-        cond: str,
-        other: Optional[Any] = None,
-        backend=None,
-        data_id: str = None,
-        chunk_size: int = None,
-    ) -> Dict[str, Any]:
-        try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
-                columns = await self._get_all_columns(table, schema)
-                cased = []
-                for col in columns:
-                    q = self._quote(col)
-                    if other is None:
-                        replacement = "NULL"
-                    elif isinstance(other, (int, float, str)):
-                        replacement = f"{self.db.placeholder(1)}"
-                    else:
-                        replacement = other
-                    cased.append(f"CASE WHEN ({cond}) THEN {q} ELSE {replacement} END AS {q}")
-
-                new_table = None
-                if backend is not None and data_id is not None:
-                    new_table = await self._generate_transient_table_name(table, backend, data_id)
-                    full_new = f"{self.db.quote_identifier(schema)}.{self._quote(new_table)}"
-                    select_expr = ", ".join(cased)
-                    create_sql = f"""
-                        CREATE TABLE {full_new} AS
-                        SELECT {select_expr}
-                        FROM {self._qualified_table(table, schema)}
-                    """
-                    if other is not None and isinstance(other, (int, float, str)):
-                        await self._exec(create_sql, other)
-                    else:
-                        await self._exec(create_sql)
-
-                    if chunk_size is None:
-                        sample = await self._fetch_sample(new_table, schema)
-                    else:
-                        async def iterator():
-                            async for chunk in self._fetch_in_chunks(new_table, schema, chunk_size):
-                                yield chunk
-                        return self._success_response(
-                            "where (streaming)",
-                            sample_df=None,
-                            iterator=iterator(),
-                            chunk_size=chunk_size,
-                            new_table=new_table,
-                        )
-                    return self._success_response(
-                        "where applied",
-                        sample,
-                        new_table=new_table,
-                        cond=cond,
-                        other=other,
-                    )
-                else:
-                    # No backend: compute directly (won't create table)
-                    sql = f"SELECT {select_expr} FROM {self._qualified_table(table, schema)}"
-                    if other is not None and isinstance(other, (int, float, str)):
-                        rows = await self._fetch(sql, other)
-                    else:
-                        rows = await self._fetch(sql)
-                    df = pd.DataFrame([dict(r) for r in rows])
-                    return self._success_response("where applied (read-only)", sample_df=df)
-            else:
-                raise self._unsupported_backend_error()
-        except Exception as e:
-            return self._error_response(f"where error: {str(e)}\n{traceback.format_exc()}")
 
     # ------------------------------------------------------------------
     # select_dtypes (creates transient table)
@@ -751,39 +584,81 @@ class DataSelectionOps:
         self,
         table: str,
         schema: str,
-        row_indexer: Optional[Union[int, List[int], slice, list]] = None,
-        col_indexer: Optional[Union[int, List[int], slice, list]] = None,
+        row_indexer: Optional[Union[int, List[int], slice, list, str, tuple]] = None,
+        col_indexer: Optional[Union[int, List[int], slice, list, str]] = None,
+        index_column: Optional[str] = None,
         backend=None,
         data_id: str = None,
     ) -> Dict[str, Any]:
         try:
             if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
+                qualified = self._qualified_table(table, schema)
                 total_rows = int(
-                    self._first_value_from_rows(
-                        await self._fetch(
-                            f"SELECT COUNT(*) FROM {self._qualified_table(table, schema)}"
-                        )
-                    )
+                    self._first_value_from_rows(await self._fetch(f"SELECT COUNT(*) FROM {qualified}"))
                 )
                 all_cols = await self._get_all_columns(table, schema)
                 total_cols = len(all_cols)
-
-                if row_indexer is not None:
-                    row_pos = self._convert_iloc_indexer(row_indexer, total_rows, "row")
-                else:
-                    row_pos = list(range(total_rows))
 
                 if col_indexer is not None:
                     col_pos = self._convert_iloc_indexer(col_indexer, total_cols, "column")
                 else:
                     col_pos = list(range(total_cols))
 
+                selected_col_names = [all_cols[i] for i in col_pos]
+                quoted_cols = ", ".join(self._quote(c) for c in selected_col_names)
+
+                # --- row selection: positional, raw-SQL WHERE, or label list ---
+                row_where = None
+                row_params: List[Any] = []
+                if row_indexer is None:
+                    row_pos = list(range(total_rows))
+                elif isinstance(row_indexer, str):
+                    row_where = row_indexer  # raw SQL WHERE condition
+                elif (
+                    isinstance(row_indexer, (list, tuple))
+                    and index_column is not None
+                    and len(row_indexer) > 0
+                    and all(isinstance(x, str) for x in row_indexer)
+                ):
+                    placeholders = ", ".join(
+                        self.db.placeholder(i + 1) for i in range(len(row_indexer))
+                    )
+                    row_where = f"{self._quote(index_column)} IN ({placeholders})"
+                    row_params = list(row_indexer)
+                else:
+                    row_pos = self._convert_iloc_indexer(row_indexer, total_rows, "row")
+
+                # --- WHERE-based path (raw SQL condition or label list) ---
+                if row_where is not None:
+                    sql = f"SELECT {quoted_cols} FROM {qualified} WHERE {row_where}"
+                    if backend is not None and data_id is not None:
+                        new_table = await self._resolve_transient_table_name(
+                            "iloc_sel", backend, data_id
+                        )
+                        full_new = f"{self.db.quote_identifier('transient')}.{self._quote(new_table)}"
+                        await self._exec(f"CREATE TABLE {full_new} AS {sql}", *row_params)
+                        sample = await self._fetch_sample(
+                            new_table, "transient", columns=selected_col_names
+                        )
+                        return self._success_response(
+                            "iloc selection (filtered)",
+                            sample,
+                            new_table=new_table,
+                            row_filter=row_where,
+                        )
+                    rows = await self._fetch(sql, *row_params)
+                    df = pd.DataFrame([dict(r) for r in rows])
+                    return self._success_response(
+                        "iloc selection (read-only, filtered)", sample_df=df
+                    )
+
+                # --- positional path ---
                 if len(row_pos) == 1 and len(col_pos) == 1:
                     row_idx = row_pos[0]
-                    col_name = all_cols[col_pos[0]]
+                    col_name = selected_col_names[0]
                     sql = f"""
                         SELECT {self._quote(col_name)}
-                        FROM {self._qualified_table(table, schema)}
+                        FROM {qualified}
                         LIMIT 1 OFFSET {row_idx}
                     """
                     row = await self._fetch(sql)
@@ -796,8 +671,6 @@ class DataSelectionOps:
                         result=scalar,
                     )
 
-                selected_col_names = [all_cols[i] for i in col_pos]
-                quoted_cols = ", ".join(self._quote(c) for c in selected_col_names)
                 row_pos_list = [p + 1 for p in row_pos]   # 1‑based
                 ord_list = list(range(1, len(row_pos_list) + 1))
 
@@ -837,7 +710,7 @@ class DataSelectionOps:
                 SELECT {quoted_cols}
                 FROM (
                     SELECT {quoted_cols}, ROW_NUMBER() OVER () AS _rn
-                    FROM {self._qualified_table(table, schema)}
+                    FROM {qualified}
                 ) t
                 {join_clause}
                 """
@@ -915,38 +788,3 @@ class DataSelectionOps:
         else:
             raise self._unsupported_backend_error()
 
-    # ------------------------------------------------------------------
-    # take 
-    # ------------------------------------------------------------------
-    async def take(
-        self,
-        table: str,
-        schema: str,
-        indices: List[int],
-        axis: int = 0,
-        backend=None,
-        data_id: str = None,
-    ) -> Dict[str, Any]:
-        """Select rows (axis=0) or columns (axis=1) by integer indices, creating a transient table."""
-        try:
-            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter) or isinstance(self.db, ClickHouseAdapter):
-                if axis == 0:
-                    # row selection by indices
-                    return await self.iloc(
-                        table=table, schema=schema,
-                        row_indexer=indices, col_indexer=None,
-                        backend=backend, data_id=data_id,
-                    )
-                elif axis == 1:
-                    # column selection by indices
-                    return await self.iloc(
-                        table=table, schema=schema,
-                        row_indexer=None, col_indexer=indices,
-                        backend=backend, data_id=data_id,
-                    )
-                else:
-                    return self._error_response(f"axis must be 0 or 1, got {axis}")
-            else:
-                raise self._unsupported_backend_error()
-        except Exception as e:
-            return self._error_response(f"take error: {str(e)}\n{traceback.format_exc()}")

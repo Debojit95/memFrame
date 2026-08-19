@@ -39,13 +39,12 @@ def test_selection_scalar_result_uses_result(selection_context):
     assert "value" not in response
 
 
-def test_selection_streaming_response_keeps_iterator(selection_context):
-    response = SelectionWrapper(selection_context).where("value > 10", chunk_size=2)
+def test_selection_filtered_result_returns_dataframe(selection_context):
+    response = SelectionWrapper(selection_context).iloc(row_indexer="value > 10")
 
     assert response["is_error"] is False
-    assert response["result"] is None
-    assert response["iterator"]
-    assert response["chunk_size"] == 2
+    assert isinstance(response["result"], pd.DataFrame)
+    assert len(response["result"]) == 2  # rows with value > 10
 
 
 def test_selection_failure_has_result_key():

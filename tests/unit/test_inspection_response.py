@@ -53,7 +53,7 @@ def test_inspection_streaming_response_keeps_iterator(inspection_context):
 
 
 def test_inspection_failure_has_result_key():
-    response = asyncio.run(GeneralTableOps(object()).dataframe_ndim("table", "schema"))
+    response = asyncio.run(GeneralTableOps(object()).dataframe_shape("table", "schema"))
 
     assert response["is_error"] is True
     assert response["error_message"]

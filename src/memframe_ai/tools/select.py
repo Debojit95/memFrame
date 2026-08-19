@@ -12,16 +12,6 @@ def tools(session):
             session,
         )
 
-    async def loc(row_selector, columns: list[str] | None = None, index_column: str | None = None, chunk_size: int | None = None) -> dict:
-        """Label-based row/column selection. Pass `row_selector` (e.g. slice) and optional `columns`."""
-        return await normalize(
-            await w.aloc(
-                row_selector=row_selector, columns=columns,
-                index_column=index_column, chunk_size=chunk_size,
-            ),
-            session,
-        )
-
     # ----- integer-position -----
     async def iat(row_position: int, column_label: str, order_by) -> dict:
         """Scalar access by integer row position; specify `order_by` columns to define row order."""
@@ -30,18 +20,15 @@ def tools(session):
             session,
         )
 
-    async def iloc(row_indexer=None, col_indexer=None, columns: list[str] | None = None) -> dict:
-        """Integer-location row/column selection. Pass integer indices/slice via `row_indexer`/`col_indexer`."""
+    async def iloc(row_indexer=None, col_indexer=None, columns: list[str] | None = None, index_column: str | None = None) -> dict:
+        """Row/column selection by integer position, label list (with `index_column`), or raw SQL `row_indexer` (e.g. 'age > 30')."""
         return await normalize(
             await w.ailoc(
                 row_indexer=row_indexer, col_indexer=col_indexer, columns=columns,
+                index_column=index_column,
             ),
             session,
         )
-
-    async def take(indices: list[int], axis: int = 0) -> dict:
-        """Select rows (axis=0) or columns (axis=1) by integer indices."""
-        return await normalize(await w.atake(indices=indices, axis=axis), session)
 
     # ----- column-level -----
     async def get(keys, default=None) -> dict:
@@ -51,7 +38,7 @@ def tools(session):
     async def select_columns(columns: list[str]) -> dict:
         """Create a transient table containing only the named columns."""
         return await normalize(
-            await w.aloc(row_selector=slice(None), columns=columns), session
+            await w.ailoc(row_indexer=slice(None), columns=columns), session
         )
 
     async def select_dtypes(include: list[str] | str | None = None, exclude: list[str] | str | None = None, chunk_size: int | None = None) -> dict:
@@ -59,13 +46,6 @@ def tools(session):
         return await normalize(
             await w.aselect_dtypes(include=include, exclude=exclude, chunk_size=chunk_size),
             session,
-        )
-
-    # ----- condition-based -----
-    async def where(cond: str, other=None, chunk_size: int | None = None) -> dict:
-        """Filter rows by SQL condition (e.g. 'age > 30'); create a transient table."""
-        return await normalize(
-            await w.awhere(cond=cond, other=other, chunk_size=chunk_size), session
         )
 
     async def asof(where, on: str, subset=None, chunk_size: int | None = None) -> dict:
@@ -79,7 +59,7 @@ def tools(session):
         )
 
     return [
-        at, loc, iat, iloc, take,
+        at, iat, iloc,
         get, select_columns, select_dtypes,
-        where, asof,
+        asof,
     ]
