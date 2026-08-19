@@ -25,7 +25,7 @@ jobs:
           VERSION: ${{ github.ref_name }}
         run: |
           ver="${VERSION#v}"
-          awk -v v="## [$ver]" '$0==v{f=1;next} /^## \[/{if(f)exit} f' CHANGELOG.md > release_notes.md
+          awk -v v="## [$ver]" '$0 ~ "^## \\[" ver "\\]"{f=1;next} /^## \[/{if(f)exit} f' CHANGELOG.md > release_notes.md
           cat release_notes.md
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2

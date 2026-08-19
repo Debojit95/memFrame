@@ -6,6 +6,14 @@ to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.2rc1] - 2026-08-19
+
+### Changed
+- Data Quality Reports (missing-values, completeness, numeric summary, profile report) relocated from the cleaning module to the inspect module.
+- Removed bivariate association methods (chi_square, cramers_v, theil_u, mutual_information) and their categorical wrappers.
+- CONTRIBUTING.md: added a distinct `[refactor]` commit tag (pure restructuring, no behavior/public-API change) separate from `[upgrade]`.
+- README and docs: documented that every call compiles to backend-native SQL; added Open-in-Colab badge.
+
 ## [0.2.1] - 2026-08-17
 
 ### Fixed
