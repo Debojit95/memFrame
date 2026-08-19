@@ -1,15 +1,5 @@
 # Getting Started
 
-memFrame works with database-backed datasets. You connect once, upload a CSV,
-Parquet file, or pandas DataFrame, and then use the returned dataset context for
-inspection, selection, cleaning, statistics, and plots.
-
-Supported backends:
-
-- DuckDB for local file-backed analytics.
-- PostgreSQL for server-backed workflows.
-- ClickHouse for HTTP-backed analytical workloads.
-
 ## Install
 
 ```bash

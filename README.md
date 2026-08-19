@@ -10,12 +10,14 @@
 [![Tox](https://img.shields.io/github/actions/workflow/status/Debojit95/memFrame/tox.yml?label=tox)](https://github.com/Debojit95/memFrame/actions/workflows/tox.yml)
 [![License - AGPL-3.0](https://img.shields.io/github/license/Debojit95/memFrame)](https://github.com/Debojit95/memFrame/blob/main/LICENSE)
 [![PyPI - Downloads](https://img.shields.io/pypi/dm/memframe)](https://pypi.org/project/memframe/)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1UtoPjzTmia4Cr6y2btDmV8mINgXaBPGP?usp=sharing)
 
 > *memFrame brings a pandas-like DataFrame API to DuckDB, PostgreSQL, and ClickHouse — async-first, with an optional AI agent for natural-language data work.*
 
 ## Features
 
 - Database-backed DataFrame API across DuckDB, PostgreSQL, and ClickHouse.
+- Compiles every pandas-style call to backend-native SQL (DuckDB / PostgreSQL / ClickHouse) and runs it in-engine — your data never leaves the database.
 - Async-first surface with sync equivalents for every operation.
 - Upload from CSV, Parquet, or pandas DataFrame.
 - Inspection, selection, cleaning, statistics, arithmetic, Plotly charts.

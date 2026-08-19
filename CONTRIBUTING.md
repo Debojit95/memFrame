@@ -48,7 +48,8 @@ tidy. The full set:
 | ----------- | ----------------------------------------------------------------------------------------- |
 | `[feat]`    | New feature addition. **Fork the repo and open a PR from a feature branch** — never commit `[feat]` directly to `main`. |
 | `[fix]`     | Any bug fix — incorrect behavior, broken test, wrong SQL, etc.                           |
-| `[upgrade]` | Existing feature rewritten, refactored, or extended into a new shape (e.g. expanding the cleaning tool surface). |
+| `[upgrade]` | Existing feature rewritten or extended into a new shape — **behavior or public-API change** (e.g. expanding the cleaning tool surface, moving a public method between classes). |
+| `[refactor]` | Pure restructuring with **no behavior or public-API change** — moving private helpers, renaming internals, reorganizing files/modules. Can land directly on `main`. |
 | `[ci]`      | CI / GitHub Actions / pre-commit / hooks / workflow changes only.                        |
 | `[docs]`    | Documentation-only changes (README, `docs/`, docstrings).                                |
 | `[add]`     | Adding a supporting file that does not introduce a feature (fixture, config, isolated helper). |
@@ -64,7 +65,7 @@ tidy. The full set:
 
 - Tag is lowercase, bracketed, single space, then the summary.
 - Summary is imperative mood, ≤72 chars, no trailing period.
-- The seven tags above are exhaustive. If a change genuinely fits none of them, prefer the closest tag and explain in the body. `[update]` is **not** a valid tag — use `[upgrade]` or `[docs]` instead.
+- The eight tags above are exhaustive. If a change genuinely fits none of them, prefer the closest tag and explain in the body. `[update]` is **not** a valid tag — use `[upgrade]` or `[docs]` instead.
 
 ### Examples
 
@@ -72,6 +73,7 @@ tidy. The full set:
 git commit -m "[feat] Add ClickHouse adapter for cache reload"
 git commit -m "[fix] Avoid double COUNT(*) on empty select_dtypes result"
 git commit -m "[upgrade] Stats tool surface to full wrapper parity"
+git commit -m "[refactor] Move data-quality reports into the inspect module"
 git commit -m "[ci] Remove integration job from ci workflow"
 git commit -m "[docs] Slim README and add agent section"
 git commit -m "[add] tests/datasets/sample.parquet fixture"
@@ -99,7 +101,8 @@ branch + pull request — never commit directly to `main`):
 Direct commits to `main` are reserved for the maintainer's small,
 self-contained changes that don't need another pair of eyes: single-file
 `[fix]`, single-file `[docs]`, single-file `[add]`, single-file
-`[remove]`, and small single-workflow `[ci]` tweaks.
+`[remove]`, small `[refactor]` (no public-API change), and small
+single-workflow `[ci]` tweaks.
 
 When in doubt, open a branch.
 

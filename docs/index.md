@@ -9,6 +9,7 @@
 ## What It Provides
 
 - Database-backed DataFrame API across DuckDB, PostgreSQL, and ClickHouse.
+- Each pandas-style call is compiled to backend-native SQL and executed on the engine — your data never leaves the database.
 - Async-first surface with sync equivalents for every operation.
 - Upload from CSV, Parquet, or pandas DataFrame.
 - Inspection, selection, cleaning, statistics, arithmetic, Plotly charts.
