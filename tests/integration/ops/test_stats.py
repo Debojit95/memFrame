@@ -794,31 +794,6 @@ class TestStatsOperations:
         assert value == pytest.approx(expected, rel=1e-3)
         self._record_result("proportions", 'proportions("category")', sample_df, value, expected, backend_config["connection_type"])
 
-    def test_chi_square(self, uploaded_ctx, sample_df, backend_config):
-        result = uploaded_ctx.chi_square("category", "category2")
-        value = get_result_value(result)
-        assert isinstance(value, (dict, float))
-        self._record_result("chi_square", 'chi_square("category","category2")', sample_df, value, "computed", backend_config["connection_type"])
-
-    def test_cramers_v(self, uploaded_ctx, sample_df, backend_config):
-        result = uploaded_ctx.cramers_v("category", "category2")
-        value = get_result_value(result)
-        assert isinstance(value, (float, dict))
-        self._record_result("cramers_v", 'cramers_v("category","category2")', sample_df, value, "association", backend_config["connection_type"])
-
-    def test_theil_u(self, uploaded_ctx, sample_df, backend_config):
-        result = uploaded_ctx.theil_u("category", "category2")
-        value = get_result_value(result)
-        assert isinstance(value, (float, dict))
-        self._record_result("theil_u", 'theil_u("category","category2")', sample_df, value, "association", backend_config["connection_type"])
-
-    def test_mutual_information(self, uploaded_ctx, sample_df, backend_config):
-        result = uploaded_ctx.mutual_information("category", "category2")
-        value = get_result_value(result)
-        assert isinstance(value, (float, dict))
-        self._record_result("mutual_information", 'mutual_information("category","category2")', sample_df, value, "association", backend_config["connection_type"])
-
-    
     # ------------------------------------------------------------------
     # Datetime statistics
     # ------------------------------------------------------------------

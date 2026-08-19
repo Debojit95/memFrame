@@ -59,10 +59,6 @@ Every stats operation has synchronous and asynchronous forms:
 | `corr(columns=None)` | `await acorr(...)` | Numeric correlation matrix |
 | `cov(columns=None)` | `await acov(...)` | Numeric covariance matrix |
 | `proportions(column)` | `await aproportions(...)` | Category proportions |
-| `chi_square(column1, column2)` | `await achi_square(...)` | Chi-square association statistic |
-| `cramers_v(column1, column2)` | `await acramers_v(...)` | Cramer's V association score |
-| `theil_u(column1, column2)` | `await atheil_u(...)` | Theil's U asymmetric association score |
-| `mutual_information(column1, column2)` | `await amutual_information(...)` | Mutual information |
 | `datetime_diff(column, target_col=None, new_table=None)` | `await adatetime_diff(...)` | Adds a `{column}__diff_seconds` column and returns the result DataFrame |
 | `time_delta_stats(column)` | `await atime_delta_stats(...)` | Summary stats over datetime deltas |
 | `event_rate(column, unit="day")` | `await aevent_rate(...)` | Event rate per time unit |
@@ -378,38 +374,6 @@ Parameters:
 | Parameter | Type | Description |
 | --- | --- | --- |
 | `column` | `str` | Categorical column to summarize. |
-
-### Pairwise Association Methods
-
-```python
-chi2 = dataset.chi_square(column1="department", column2="region")
-v = dataset.cramers_v(column1="department", column2="region")
-u = dataset.theil_u(column1="department", column2="region")
-mi = dataset.mutual_information(column1="department", column2="region")
-```
-
-```python
-result = await dataset.acramers_v(
-    column1="department",
-    column2="region",
-)
-```
-
-Parameters:
-
-| Parameter | Type | Description |
-| --- | --- | --- |
-| `column1` | `str` | First categorical column. Rows with nulls in either column are ignored. |
-| `column2` | `str` | Second categorical column. Rows with nulls in either column are ignored. |
-
-Method behavior:
-
-| Method | Result |
-| --- | --- |
-| `chi_square` | Dictionary with `chi2` and `df`. |
-| `cramers_v` | Scalar Cramer's V value. |
-| `theil_u` | Scalar Theil's U value for `column1 -> column2`. This measure is asymmetric. |
-| `mutual_information` | Scalar mutual information value. |
 
 ## Datetime Statistics
 

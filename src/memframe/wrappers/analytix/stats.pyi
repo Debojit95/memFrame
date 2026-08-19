@@ -157,50 +157,6 @@ class StatsWrapper:
         column: str,
     ) -> Dict[str, Any]: ...
 
-    async def achi_square(
-        self,
-        column1: str,
-        column2: str,
-    ) -> Dict[str, Any]: ...
-    def chi_square(
-        self,
-        column1: str,
-        column2: str,
-    ) -> Dict[str, Any]: ...
-
-    async def acramers_v(
-        self,
-        column1: str,
-        column2: str,
-    ) -> Dict[str, Any]: ...
-    def cramers_v(
-        self,
-        column1: str,
-        column2: str,
-    ) -> Dict[str, Any]: ...
-
-    async def atheil_u(
-        self,
-        column1: str,
-        column2: str,
-    ) -> Dict[str, Any]: ...
-    def theil_u(
-        self,
-        column1: str,
-        column2: str,
-    ) -> Dict[str, Any]: ...
-
-    async def amutual_information(
-        self,
-        column1: str,
-        column2: str,
-    ) -> Dict[str, Any]: ...
-    def mutual_information(
-        self,
-        column1: str,
-        column2: str,
-    ) -> Dict[str, Any]: ...
-
 
     async def adatetime_diff(
         self,

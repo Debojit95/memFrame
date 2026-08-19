@@ -281,26 +281,6 @@ class StatsOrchestrator:
         table, schema = await self._get_context()
         return await ops.categorical_proportions(table, schema, column)
 
-    async def chi_square(self, column1: str, column2: str) -> Dict[str, Any]:
-        ops = await self._ensure_ops()
-        table, schema = await self._get_context()
-        return await ops.categorical_chi_square(table, schema, column1, column2)
-
-    async def cramers_v(self, column1: str, column2: str) -> Dict[str, Any]:
-        ops = await self._ensure_ops()
-        table, schema = await self._get_context()
-        return await ops.categorical_cramers_v(table, schema, column1, column2)
-
-    async def theil_u(self, column1: str, column2: str) -> Dict[str, Any]:
-        ops = await self._ensure_ops()
-        table, schema = await self._get_context()
-        return await ops.categorical_theil_u(table, schema, column1, column2)
-
-    async def mutual_information(self, column1: str, column2: str) -> Dict[str, Any]:
-        ops = await self._ensure_ops()
-        table, schema = await self._get_context()
-        return await ops.categorical_mutual_information(table, schema, column1, column2)
-
 
     # ── datetime-specific methods ──────────────────────────────────────
     @record_call(deep_cache=True)

@@ -120,24 +120,6 @@ def tools(session):
         """Proportion of each category in `column`."""
         return await normalize(await w.aproportions(column=column), session)
 
-    async def chi_square(column1: str, column2: str) -> dict:
-        """Chi-square test of independence between `column1` and `column2`."""
-        return await normalize(await w.achi_square(column1=column1, column2=column2), session)
-
-    async def cramers_v(column1: str, column2: str) -> dict:
-        """Cramér's V association score between `column1` and `column2`."""
-        return await normalize(await w.acramers_v(column1=column1, column2=column2), session)
-
-    async def theil_u(column1: str, column2: str) -> dict:
-        """Theil's U (uncertainty coefficient) of `column1` given `column2`."""
-        return await normalize(await w.atheil_u(column1=column1, column2=column2), session)
-
-    async def mutual_information(column1: str, column2: str) -> dict:
-        """Mutual information between `column1` and `column2`."""
-        return await normalize(
-            await w.amutual_information(column1=column1, column2=column2), session
-        )
-
     # ----- datetime -----
     async def datetime_diff(column: str) -> dict:
         """Add a `{column}__diff_seconds` column (seconds vs previous row) and return the result DataFrame."""
@@ -172,7 +154,7 @@ def tools(session):
         # multi-col
         corr, cov,
         # categorical
-        proportions, chi_square, cramers_v, theil_u, mutual_information,
+        proportions,
         # datetime
         datetime_diff, time_delta_stats, event_rate, time_unit_counts,
         weekday_weekend_counts, holiday_counts,
