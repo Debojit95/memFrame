@@ -81,7 +81,8 @@ class ClickHouseBackend(DatabaseBackend):
                 uploaded_at DateTime DEFAULT now(),
                 is_upload_success UInt8 DEFAULT 1,
                 table_name String,
-                row_count Int64
+                row_count Int64,
+                schema Nullable(String)
             ) ENGINE = MergeTree()
             ORDER BY data_id
         """)
@@ -102,6 +103,7 @@ class ClickHouseBackend(DatabaseBackend):
             ORDER BY (data_id, opidx)
         """)
         await self._migrate_transient_registry_schema()
+        await self._migrate_csv_registry_schema()
 
     def get_upload_table_name(self, data_id: str) -> str:
         return self._clickhouse_qualified_table_name(data_id)

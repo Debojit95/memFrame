@@ -142,6 +142,30 @@ class DatabaseBackend(ABC):
             except Exception:
                 pass
 
+    async def _migrate_csv_registry_schema(self) -> None:
+        schema_name = self.registry_schema
+        table_name = "csv_registry"
+        fq_table_name = f"{schema_name}.{table_name}"
+
+        if not await self._column_exists(schema_name, table_name, "schema"):
+            column_type = "Nullable(String)" if self.backend == "clickhouse" else "TEXT"
+            await self.execute(
+                f"ALTER TABLE {fq_table_name} ADD COLUMN schema {column_type}"
+            )
+
+        if self.backend == "clickhouse":
+            try:
+                await self.execute(
+                    f"ALTER TABLE {fq_table_name} UPDATE schema = 'upload' WHERE schema IS NULL"
+                )
+            except Exception:
+                pass
+        else:
+            await self.execute(
+                f"UPDATE {fq_table_name} SET schema = {self.placeholder(1)} WHERE schema IS NULL",
+                self.upload_schema,
+            )
+
     async def _resolve_encoding(self, file_path: str) -> str:
         detected = self._type_detector._detect_encoding(file_path)
 

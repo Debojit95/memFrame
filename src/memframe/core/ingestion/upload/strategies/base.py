@@ -41,14 +41,15 @@ class UploadStrategy(ABC):
     ) -> None:
         await self._uploader._backend.execute(
             f"""
-            INSERT INTO {self._uploader._backend.csv_registry_table} (data_id, filename, table_name, row_count, is_upload_success)
-            VALUES ({self._uploader._placeholder(1)}, {self._uploader._placeholder(2)}, {self._uploader._placeholder(3)}, {self._uploader._placeholder(4)}, {self._uploader._placeholder(5)})
+            INSERT INTO {self._uploader._backend.csv_registry_table} (data_id, filename, table_name, row_count, is_upload_success, schema)
+            VALUES ({self._uploader._placeholder(1)}, {self._uploader._placeholder(2)}, {self._uploader._placeholder(3)}, {self._uploader._placeholder(4)}, {self._uploader._placeholder(5)}, {self._uploader._placeholder(6)})
             """,
             data_id,
             filename,
             table_name,
             row_count,
             True,
+            self._uploader._backend.upload_schema,
         )
 
     async def _require_connection(self) -> None:

@@ -142,11 +142,11 @@ class ContextManager:
             raise DataNotFound("No active dataset and no explicit data_id provided.")
         backend = self.memframe._backend
         rows = await backend.fetch(
-            f"SELECT table_name FROM {backend.csv_registry_table} WHERE data_id = {backend.placeholder(1)}",
+            f"SELECT table_name, schema FROM {backend.csv_registry_table} WHERE data_id = {backend.placeholder(1)}",
             data_id,
         )
         if not rows:
             raise DataNotFound(f"No registry entry for {data_id}")
         table_name = rows[0][0]
-        schema = backend.upload_schema
+        schema = rows[0][1] or backend.upload_schema
         return table_name, schema

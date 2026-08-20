@@ -48,7 +48,7 @@ class TestActiveContext:
 
             async def fetch(self, q, *params):
                 assert params == ("abc123",)
-                return [("abc123",)]
+                return [("abc123", "upload")]
 
         mf._backend = _Backend()
         ctx, _ = _make_ctx(mf)

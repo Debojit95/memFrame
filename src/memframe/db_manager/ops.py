@@ -30,8 +30,17 @@ class OpsMixin:
         return await self.alist_tables()
 
     async def aset_active(self, data_id: str) -> str:
-        table_name = self._backend.get_upload_table_name(data_id)
-        if not await self._backend.table_exists(table_name):
+        row = await self._backend.fetch_row(
+            f"SELECT table_name, schema FROM {self._backend.csv_registry_table} "
+            f"WHERE data_id = {self._placeholder(1)}",
+            data_id,
+        )
+        if not row:
+            raise DataNotFound(f"No registry entry for {data_id}")
+        table_name = row[0]
+        schema = row[1] or self._backend.upload_schema
+        qualified = f"{schema}.{table_name}" if schema else table_name
+        if not await self._backend.table_exists(qualified):
             raise DataNotFound(f"Table for data_id '{data_id}' does not exist")
         self._active_id = data_id
         logger.info(f"Active CSV set to {data_id}")

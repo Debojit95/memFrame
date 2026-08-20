@@ -35,7 +35,8 @@ class PostgresBackend(DatabaseBackend):
                 uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 is_upload_success BOOLEAN DEFAULT TRUE,
                 table_name TEXT NOT NULL,
-                row_count BIGINT
+                row_count BIGINT,
+                schema TEXT
             )
         """)
         await self.execute(f"""
@@ -53,6 +54,7 @@ class PostgresBackend(DatabaseBackend):
             )
         """)
         await self._migrate_transient_registry_schema()
+        await self._migrate_csv_registry_schema()
         await self.execute(
             f"CREATE INDEX IF NOT EXISTS idx_transient_registry_lookup "
             f"ON {self.registry_schema}.transient_registry (data_id, class_name, method_name)"
