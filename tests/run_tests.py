@@ -218,7 +218,7 @@ def main() -> int:
 
     # Unit tests need no database; run once, not per backend.
     if "unit" in scopes:
-        check("unit", PYTEST + ["tests/unit"])
+        check("unit", PYTEST + ["tests/unit", "-n", "auto"])
 
     run_tox = args.tox and not args.dry_run
 
