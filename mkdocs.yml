@@ -16,7 +16,11 @@ markdown_extensions:
   - md_in_html
   - pymdownx.highlight:
       anchor_linenums: true
-  - pymdownx.superfences
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
   - toc:
       permalink: true
 
@@ -36,6 +40,7 @@ plugins:
 
 nav:
   - Home: index.md
+  - Architecture: architecture.md
   - Getting Started: getting-started.md
   - Testing: testing.md
   - Contributing: CONTRIBUTING.md

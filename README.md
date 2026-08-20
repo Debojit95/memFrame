@@ -82,6 +82,17 @@ Each upload returns a dataset context; chain inspection, selection, cleaning,
 arithmetic, statistics, and plotting on it. Sync methods drop the `a` prefix
 (`head`, `iloc`, `fillna`, …).
 
+## Architecture
+
+Every pandas-style call compiles to backend-native SQL and runs in-engine — your
+data never leaves the database. The call path is a four-layer stack (public API →
+orchestrator → core SQL engine → backend adapter), with connection, ingestion,
+and a two-level cache as cross-cutting subsystems, plus an optional
+[`memframe_ai`](docs/architecture.md#optional-ai-layer-memframe_ai) agent layer on top.
+
+See the full [Architecture](docs/architecture.md) page for the component diagram
+and a per-layer breakdown.
+
 ## AI Agent
 
 `memframe_ai` adds a Pydantic AI agent fleet on top of memFrame. After enabling
