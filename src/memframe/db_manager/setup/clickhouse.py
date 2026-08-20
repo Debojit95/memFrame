@@ -1,5 +1,5 @@
 import logging
-from typing import Any, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from memframe.db_manager.setup.base import DatabaseBackend
 from memframe.exceptions import ConfigurationError, ConnectionNotReady
@@ -118,6 +118,21 @@ class ClickHouseBackend(DatabaseBackend):
     @property
     def csv_registry_table(self) -> str:
         return f"`{self.registry_schema}`.csv_registry"
+
+    async def list_user_tables(self) -> Dict[str, List[str]]:
+        rows = await self.fetch(
+            "SELECT database, name FROM system.tables "
+            "WHERE engine NOT LIKE 'System%' ORDER BY database, name"
+        )
+        # ponytail: exclude ClickHouse's preset/system databases (case-insensitive)
+        # plus memFrame's own bookkeeping databases so only user tables sync.
+        excluded = {"system", "information_schema", "default", "upload", "transient", "registry"}
+        result: Dict[str, List[str]] = {}
+        for database, name in rows:
+            if database.lower() in excluded:
+                continue
+            result.setdefault(database, []).append(name)
+        return result
 
     async def drop_table(self, table_name: str) -> None:
         qualified = self._clickhouse_qualified_table_name(table_name)

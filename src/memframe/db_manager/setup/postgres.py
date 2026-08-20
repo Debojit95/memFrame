@@ -1,5 +1,5 @@
 import logging
-from typing import Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from memframe.db_manager.setup.base import DatabaseBackend
 
@@ -73,6 +73,19 @@ class PostgresBackend(DatabaseBackend):
     @property
     def csv_registry_table(self) -> str:
         return f"{self.registry_schema}.csv_registry"
+
+    async def list_user_tables(self) -> Dict[str, List[str]]:
+        rows = await self.fetch(
+            "SELECT table_schema, table_name FROM information_schema.tables "
+            "WHERE table_type = 'BASE TABLE' ORDER BY table_schema, table_name"
+        )
+        excluded = {"information_schema", "pg_catalog", "upload", "transient", "registry"}
+        result: Dict[str, List[str]] = {}
+        for schema, table in rows:
+            if schema in excluded or schema.startswith("pg_"):
+                continue
+            result.setdefault(schema, []).append(table)
+        return result
 
     async def table_exists(self, table_name: str) -> bool:
         schema, tbl = self._split_qualified_table_name(table_name)

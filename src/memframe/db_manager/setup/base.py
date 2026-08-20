@@ -1,6 +1,6 @@
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from memframe.core.ingestion.datatype_detector import DatatypeDetector
 from memframe.exceptions import ConnectionNotReady
@@ -166,6 +166,18 @@ class DatabaseBackend(ABC):
                 self.upload_schema,
             )
 
+        # is_external marks tables registered via SyncDB (pre-existing in the
+        # DB, not uploaded by memFrame). DELETE must not drop the real table.
+        if not await self._column_exists(schema_name, table_name, "is_external"):
+            if self.backend == "clickhouse":
+                await self.execute(
+                    f"ALTER TABLE {fq_table_name} ADD COLUMN IF NOT EXISTS is_external UInt8 DEFAULT 0"
+                )
+            else:
+                await self.execute(
+                    f"ALTER TABLE {fq_table_name} ADD COLUMN is_external BOOLEAN DEFAULT FALSE"
+                )
+
     async def _resolve_encoding(self, file_path: str) -> str:
         detected = self._type_detector._detect_encoding(file_path)
 
@@ -217,4 +229,13 @@ class DatabaseBackend(ABC):
     @property
     @abstractmethod
     def csv_registry_table(self) -> str:
+        pass
+
+    @abstractmethod
+    async def list_user_tables(self) -> Dict[str, List[str]]:
+        """Return {schema: [table_name, ...]} for user tables only.
+
+        Excludes system schemas and memFrame-managed schemas (upload,
+        transient, registry) so SyncDB only surfaces real user data.
+        """
         pass

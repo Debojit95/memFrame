@@ -2,6 +2,7 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from memframe.exceptions import ConfigurationError, ConnectionNotReady, DataNotFound
+from memframe.core.ingestion.datatype_detector import _generate_6char_id
 from memframe.utils.async_sync import async_to_sync
 
 logger = logging.getLogger("memFrame")
@@ -28,6 +29,69 @@ class OpsMixin:
     @async_to_sync
     async def list_tables(self) -> List[Dict[str, str]]:
         return await self.alist_tables()
+
+    # ── SyncDB: register pre-existing tables ──────────────────────
+
+    async def _alloc_sync_id(self) -> str:
+        """Generate a data_id not already present in csv_registry."""
+        registry = self._backend.csv_registry_table
+        ph = self._placeholder
+        while True:
+            data_id = _generate_6char_id()
+            row = await self._backend.fetch_row(
+                f"SELECT data_id FROM {registry} WHERE data_id = {ph(1)}",
+                data_id,
+            )
+            if not row:
+                return data_id
+
+    async def aregister_tables(self) -> Dict[str, List[Dict[str, Any]]]:
+        """Register every non-empty user table in the DB into csv_registry.
+
+        Enumerates schemas → tables via the backend, skips already-registered
+        and empty tables, and inserts a fresh ``data_id`` for each so it can be
+        activated with ``aset_active`` exactly like an upload. Returns
+        ``{schema: [{data_id, table_name, row_count}, ...]}`` for what was
+        registered this call.
+        """
+        if not self._backend:
+            raise ConnectionNotReady("Not connected.")
+        registry = self._backend.csv_registry_table
+        ph = self._placeholder
+
+        table_dict = await self._backend.list_user_tables()
+        registered: Dict[str, List[Dict[str, Any]]] = {}
+
+        for schema, tables in table_dict.items():
+            for table in tables:
+                existing = await self._backend.fetch_row(
+                    f"SELECT data_id FROM {registry} "
+                    f"WHERE schema = {ph(1)} AND table_name = {ph(2)}",
+                    schema, table,
+                )
+                if existing:
+                    continue
+                qualified = f"{schema}.{table}" if schema else table
+                if not await self._backend.table_exists(qualified):
+                    continue
+                row_count = await self._backend.fetchval(f"SELECT COUNT(*) FROM {qualified}")
+                if not row_count or row_count == 0:
+                    continue
+                data_id = await self._alloc_sync_id()
+                await self._backend.execute(
+                    f"INSERT INTO {registry} "
+                    f"(data_id, filename, table_name, row_count, is_upload_success, schema, is_external) "
+                    f"VALUES ({ph(1)}, {ph(2)}, {ph(3)}, {ph(4)}, {ph(5)}, {ph(6)}, {ph(7)})",
+                    data_id, table, table, row_count, True, schema, True,
+                )
+                registered.setdefault(schema, []).append(
+                    {"data_id": data_id, "table_name": table, "row_count": row_count}
+                )
+        return registered
+
+    @async_to_sync
+    async def register_tables(self) -> Dict[str, List[Dict[str, Any]]]:
+        return await self.aregister_tables()
 
     async def aset_active(self, data_id: str) -> str:
         row = await self._backend.fetch_row(
@@ -74,13 +138,14 @@ class OpsMixin:
                 raise DataNotFound(f"No table found for filename: {filename}")
             data_id = row[0]
         row = await self._backend.fetch_row(
-            f"SELECT table_name FROM {self._backend.csv_registry_table} "
+            f"SELECT table_name, is_external FROM {self._backend.csv_registry_table} "
             f"WHERE data_id = {self._placeholder(1)}",
             data_id,
         )
         if not row:
             raise DataNotFound(f"No table found for data_id: {data_id}")
         upload_table = row[0]
+        is_external = bool(row[1]) if len(row) > 1 else False
         transient_rows = await self._backend.fetch(
             f"SELECT generated_table_name FROM {self._backend.transient_registry_table} "
             f"WHERE data_id = {self._placeholder(1)}",
@@ -88,7 +153,10 @@ class OpsMixin:
         )
         for t in transient_rows:
             await self._backend.drop_table(t[0])
-        await self._backend.drop_table(upload_table)
+        # ponytail: synced tables live outside memFrame — never drop the
+        # user's real table, only its registry/transient entries.
+        if not is_external:
+            await self._backend.drop_table(upload_table)
         await self._backend.execute(
             f"DELETE FROM {self._backend.csv_registry_table} WHERE data_id = {self._placeholder(1)}",
             data_id,

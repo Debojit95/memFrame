@@ -110,3 +110,49 @@ class TestClearCache:
         asyncio.run(mf._arecord_operation(data_id, "op", "some_transient"))
         asyncio.run(mf._aclear_cache(data_id))
         assert asyncio.run(mf.alist_operations(data_id)) == []
+
+
+class TestRegisterTables:
+    """SyncDB: register pre-existing, non-empty tables into csv_registry."""
+
+    @staticmethod
+    def _seed(mf):
+        asyncio.run(mf._backend.execute(
+            "CREATE TABLE main.real_users (id INTEGER, name TEXT); "
+            "INSERT INTO main.real_users VALUES (1, 'a'), (2, 'b'), (3, 'c');"
+        ))
+        asyncio.run(mf._backend.execute(
+            "CREATE TABLE main.empty_tbl (id INTEGER);"
+        ))
+
+    def test_registers_only_non_empty(self, mf):
+        self._seed(mf)
+        registered = asyncio.run(mf.aregister_tables())
+        tables = {t["table_name"] for t in registered.get("main", [])}
+        assert "real_users" in tables
+        assert "empty_tbl" not in tables
+
+    def test_registered_usable_via_active(self, mf):
+        self._seed(mf)
+        registered = asyncio.run(mf.aregister_tables())
+        data_id = next(t["data_id"] for t in registered["main"] if t["table_name"] == "real_users")
+        asyncio.run(mf.aset_active(data_id))
+        ds = mf.memFrame()
+        head = asyncio.run(ds.ahead())
+        assert len(head) == 3
+
+    def test_idempotent(self, mf):
+        self._seed(mf)
+        asyncio.run(mf.aregister_tables())
+        again = asyncio.run(mf.aregister_tables())
+        assert again == {}
+
+    def test_delete_keeps_real_table(self, mf):
+        self._seed(mf)
+        registered = asyncio.run(mf.aregister_tables())
+        data_id = next(t["data_id"] for t in registered["main"] if t["table_name"] == "real_users")
+        asyncio.run(mf.adelete_table(data_id=data_id))
+        # is_external guard: the user's real table must survive delete.
+        remaining = asyncio.run(mf._backend.fetchval("SELECT COUNT(*) FROM main.real_users"))
+        assert remaining == 3
+        assert asyncio.run(mf.alist_tables()) == []
