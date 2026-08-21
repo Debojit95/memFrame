@@ -20,6 +20,7 @@
 - Compiles every pandas-style call to backend-native SQL (DuckDB / PostgreSQL / ClickHouse) and runs it in-engine — your data never leaves the database.
 - Async-first surface with sync equivalents for every operation.
 - Upload from CSV, Parquet, or pandas DataFrame.
+- Sync pre-existing DuckDB, PostgreSQL, or ClickHouse tables as datasets — no re-upload.
 - Inspection, selection, cleaning, statistics, arithmetic, Plotly charts.
 - Two-level cache: lineage audit + replayable result tables.
 - Optional AI agent layer (`memframe_ai`) for chatting with your CSV.
@@ -81,6 +82,18 @@ asyncio.run(main())
 Each upload returns a dataset context; chain inspection, selection, cleaning,
 arithmetic, statistics, and plotting on it. Sync methods drop the `a` prefix
 (`head`, `iloc`, `fillna`, …).
+
+Already have tables in your database? Register them as datasets without
+re-uploading:
+
+```python
+registered = mf.register_tables()
+# {'sales': [{'data_id': 'a1b2c3', 'table_name': 'orders', 'row_count': 100}, ...]}
+```
+
+Registered tables act like uploads — activate with `set_active(data_id)` and
+query via `memFrame()`. Deleting one only removes memFrame's registry entry;
+your real table is left untouched.
 
 ## Architecture
 
@@ -153,6 +166,7 @@ Full reference lives in [`docs/`](docs/):
 - [Getting Started](docs/getting-started.md) — connect, upload, first query.
 - [Connector & Connection](docs/api/connector.md) — DuckDB / Postgres / ClickHouse wiring.
 - [Upload Manager](docs/api/upload-manager.md) — CSV / Parquet / DataFrame ingestion.
+- [Sync Existing Tables](docs/api/syncdb.md) — register pre-existing DB tables as datasets.
 - [Dataset Operations](docs/api/database.md) — table and active-dataset management.
 - [Inspection](docs/api/inspect.md) · [Selection](docs/api/selection.md) · [Cleaning](docs/api/cleaning.md)
 - [Statistics](docs/api/stats.md) · [Arithmetic](docs/api/arithmetic.md)

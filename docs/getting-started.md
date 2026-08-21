@@ -166,10 +166,25 @@ Each upload creates backend tables and records a six-character `data_id` in the
 registry. Dataset management APIs use that `data_id` when listing, activating,
 or deleting datasets.
 
+### Sync existing tables
+
+Already have tables in your database? Register them as datasets without
+re-uploading — works across DuckDB, PostgreSQL, and ClickHouse:
+
+```python
+registered = mf.register_tables()
+# {'sales': [{'data_id': 'a1b2c3', 'table_name': 'orders', 'row_count': 100}, ...]}
+```
+
+Registered tables act like uploads: activate with `set_active(data_id)` and
+query via `memFrame()`. Deleting one only removes memFrame's registry entry;
+your real table is left untouched.
+
 ## Next Steps
 
 - [Connector](api/connector.md): configure DuckDB, PostgreSQL, or ClickHouse.
 - [Upload Manager](api/upload-manager.md): understand ingestion behavior.
+- [Sync Existing Tables](api/syncdb.md): register pre-existing DB tables as datasets.
 - [Dataset Operations](api/database.md): list, activate, and delete datasets.
 - [Inspect](api/inspect.md), [Cleaning](api/cleaning.md), [Selection](api/selection.md), and [Stats](api/stats.md): work with uploaded data.
 - [Bar Plots](api/bar.md): create Plotly-backed bar charts.

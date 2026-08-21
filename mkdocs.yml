@@ -51,6 +51,7 @@ nav:
       - DB Manager:
           - Connector: api/connector.md
           - Upload Manager: api/upload-manager.md
+          - Sync Existing Tables: api/syncdb.md
           - Dataset Operations: api/database.md
       - memFrame:
           - Inspect: api/inspect.md
