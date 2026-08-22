@@ -51,35 +51,58 @@ def setup_plotly_renderer():
 
 
 def smart_show(fig, filename="plot.html"):
-    """
-    Smart Plotly display function.
+    """Smart Plotly display function.
 
-    Behavior:
+    - ``str`` input is treated as raw HTML (a rendered dashboard) and shown via
+      :func:`_smart_show_html` (notebook inline, else browser).
     - Colab/Jupyter/VSCode -> inline render
     - Terminal/PowerShell/CMD -> browser
     - Fallback -> save HTML and open manually
     """
+    if isinstance(fig, str):
+        _smart_show_html(fig, filename)
+        return
 
     setup_plotly_renderer()
-
     try:
         fig.show()
-
+        return
     except Exception as e:
         print(f"[Plotly] fig.show() failed: {e}")
-
         print("[Plotly] Falling back to HTML export...")
 
-        abs_path = os.path.abspath(filename)
-        abs_uri = f"file://{abs_path}"
-        fig.write_html(abs_path)
-
+    abs_path = os.path.abspath(filename)
+    abs_uri = f"file://{abs_path}"
     try:
-        webbrowser.open(abs_uri,1)
+        fig.write_html(abs_path)
+    except Exception as write_err:
+        print(f"[Plotly] HTML write failed: {write_err}")
+        return
+    try:
+        webbrowser.open(abs_uri, 1)
         print(f"[Plotly] Opened: {abs_path}")
     except Exception as browser_error:
         print(f"[Plotly] Browser open failed: {browser_error}")
         print(f"[Plotly] HTML saved at: {abs_path}")
+
+
+def _smart_show_html(html: str, filename: str = "dashboard.html") -> None:
+    """Env-agnostic display of a rendered HTML dashboard (raw HTML string)."""
+    if in_notebook():
+        try:
+            from IPython.display import HTML, display
+
+            display(HTML(html))
+            return
+        except Exception:
+            pass
+    abs_path = os.path.abspath(filename)
+    try:
+        with open(abs_path, "w", encoding="utf-8") as fh:
+            fh.write(html)
+        webbrowser.open(f"file://{abs_path}", 1)
+    except Exception:
+        pass
 
 
 def in_notebook() -> bool:

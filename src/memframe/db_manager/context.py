@@ -136,6 +136,61 @@ class ContextManager:
     async def enable_agent(self, api_key: str, provider: Optional[str] = None, model: Optional[str] = None, **overrides):
         return await self.aenable_agent(api_key, provider, model, **overrides)
 
+    async def adashboard(
+        self,
+        sentence: str,
+        show: bool = True,
+        filename: str = "dashboard.html",
+    ) -> str:
+        # ponytail: reuses the planner->specialist pipeline (.achat) for the
+        # heavy lifting; only compact summaries (DashboardManager.summarize)
+        # ever reach the dashboard LLM, so raw data values are never tokenized.
+        from memframe_ai.entrypoints import _get_settings
+        from memframe.dashboard import DashboardManager
+        import json
+        import plotly.io as pio
+
+        settings = _get_settings(self.memframe)  # raises if agent not enabled
+        if not (self._data_id or getattr(self, "_active_id", None)):
+            raise RuntimeError(
+                "No active dataset. Call aset_active(data_id) or run on a dataset context."
+            )
+        resp = await self.achat(sentence)
+
+        # ponytail: plots already carry their figure; results may ALSO contain
+        # figures (plot sub-queries record both), so skip figures there to avoid
+        # duplicates. Only DataFrames/scalars from results become new widgets.
+        dm = DashboardManager()
+        seen: set = set()
+        for p in resp.get("plots", []):
+            fig = pio.from_json(json.dumps(p["spec"]))
+            dm.add(p.get("title") or "Plot", fig)
+        for r in resp.get("results", []) or []:
+            if hasattr(r, "to_plotly_json") and hasattr(r, "to_html"):
+                continue  # figure already captured via resp["plots"]
+            if hasattr(r, "shape") and hasattr(r, "columns"):
+                if id(r) in seen:
+                    continue
+                seen.add(id(r))
+                dm.add(f"Result {r.shape[0]}x{r.shape[1]}", r)
+            else:
+                dm.add("Result", r)
+
+        design = await dm.design(settings)
+        html = dm.render(design)
+        if show:
+            dm.show(html=html, filename=filename)
+        return html
+
+    @async_to_sync
+    async def dashboard(
+        self,
+        sentence: str,
+        show: bool = True,
+        filename: str = "dashboard.html",
+    ) -> str:
+        return await self.adashboard(sentence, show=show, filename=filename)
+
     async def _get_active_context(self):
         data_id = self._data_id or self.memframe._active_id
         if not data_id:
