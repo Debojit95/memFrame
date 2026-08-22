@@ -87,6 +87,37 @@ Synchronous:
 result = ds.chat("describe the score distribution")
 ```
 
+## Dashboard
+
+`adashboard()` (async) / `dashboard()` (sync) collapses the chat pipeline into a
+one-shot visualization: it runs `.achat(sentence)` against the **active dataset**,
+harvests the returned results and plots, then feeds them through the Dashboard
+designer agent and renders a single full-screen Plotly-figure dashboard.
+
+```python
+await mf.aset_active("my_dataset")
+await mf.aenable_agent(api_key="sk-...")
+
+html = await mf.adashboard(
+    "fillna C with mean then value counts of D and add B with the cleaned C",
+)
+# html is a complete dashboard page; in a notebook it renders inline,
+# otherwise it is written to dashboard.html and opened in the browser.
+```
+
+- Returns the HTML string; pass `show=False` to skip the env-agnostic display
+  (`smart_show` renders inline in notebooks/Colab/VSCode, opens the browser in a
+  terminal).
+- **Token safety**: only compact summaries (shape, columns, 2-row sample, capped
+  Plotly spec) reach the dashboard LLM — never raw data values. The full
+  DataFrames and figures stay local and are consumed solely by the renderer.
+- **Type → widget contract**: a `DataFrame` always renders as a table, a pre-built
+  `Figure` as a plot, and a `dict`/`number` as a metric (KPI). The whole dashboard
+  is one responsive Plotly figure filling the viewport.
+
+See [Dashboard Builder](dashboard.md) for the lower-level `DashboardManager` API
+(build a design by hand, no agent required).
+
 ## How it works
 
 1. The prompt is sent to a Planner agent which produces a typed `SubQueryPlan`
@@ -107,6 +138,8 @@ Key source files:
 
 - `src/memframe_ai/agents/analytics.py` — orchestrator + specialist fleet, packaging
 - `src/memframe_ai/agents/planning.py` — Planner agent
+- `src/memframe_ai/agents/dashboard.py` — Dashboard designer agent
+- `src/memframe/dashboard/` — `DashboardManager`, renderer, design models
 - `src/memframe_ai/sessions.py` — chat session state, pinned table, per-sub-query results
 - `src/memframe_ai/gateway.py` — provider/model resolution
 - `src/memframe_ai/observe.py` — model / tool call observability
