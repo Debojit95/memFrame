@@ -5,8 +5,8 @@ Source: `src/memframe/dashboard/`
 Turn a batch of query results into a self-contained dashboard. You collect the
 results memFrame already produced (DataFrames, Plotly figures, dicts/metrics,
 scalars), an optional Pydantic-AI agent designs the layout, and the builder
-renders a **zero-dependency HTML page** (Plotly figures inline, tables as HTML,
-metrics as cards) — no Dash or web server required.
+renders a **single full-screen Plotly figure** (the "canvas") composed of
+subplots/domains — no Dash or web server required.
 
 ## Public API
 
@@ -82,17 +82,24 @@ stay local and are consumed solely by the renderer.
 
 ## Layout rules (enforced by the agent + renderer)
 
-- **Maximum two widgets per row** — the renderer greedily packs widgets by
-  `col_span` (1–12) and never places more than two in a row.
-- **Auto-charting**: for a raw `DataFrame` with no figure, the agent picks a
-  chart type (`bar`/`line`/`scatter`/`pie`/`histogram`/`box`) and the `x`/`y`
-  columns; the renderer builds the figure with `plotly.express`. A pre-built
-  `Figure` is kept as-is (`chart_type="keep_existing"`) with only its
-  title/size/labels adjusted.
-- **Metrics**: a `dict` or scalar becomes a KPI card with optional
-  `prefix`/`suffix`/`decimal_places`.
-- **Themes**: `global_theme="light"` (default) or `"dark"`, applied via a
-  small inline stylesheet.
+- **Type → widget (hard contract)**: a `DataFrame` always renders as a **table**,
+  a pre-built Plotly `Figure` always renders as a **plot** (`keep_existing`), and
+  a `dict`/`number` always renders as a **metric**. A DataFrame can never be
+  charted — both the agent prompt and the renderer coerce `kind` from the actual
+  result type, so a mislabel cannot produce a wrong widget.
+- **Single-figure canvas**: the whole dashboard is ONE responsive Plotly figure.
+  `DataFrame` → `go.Table` trace, `Figure` → its traces placed in a subplot cell,
+  `dict`/number → `go.Indicator` (single value) or `go.Table` (multi-key dict).
+  The figure fills the viewport (`100vw`/`100vh`, `config={"responsive": True}`).
+- **Maximum two widgets per row** — the renderer greedily packs widgets into rows
+  of one (full width) or two (paired) cells; each cell becomes a subplot.
+- **Plots**: for a raw `DataFrame` the renderer builds a chart with
+  `plotly.express` using the agent's `chart_type`/`x`/`y`; a pre-built `Figure`
+  is kept as-is with only its title/size/labels adjusted.
+- **Metrics**: a `dict`/`scalar` becomes a KPI (`go.Indicator`) with optional
+  `prefix`/`suffix`/`decimal_places`; a multi-key dict becomes a small table.
+- **Themes**: `global_theme="light"` (default) or `"dark"`, applied via the
+  Plotly `plotly_white`/`plotly_dark` template.
 
 ## Design model
 

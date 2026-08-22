@@ -1,3 +1,4 @@
+import asyncio
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
@@ -49,7 +50,9 @@ def test_pack_rows_max_two():
     assert [len(r) for r in rows] == [2, 1]
 
 
-def test_render_html_with_figure_table_metric():
+def test_render_single_figure_canvas():
+    # ponytail: the whole dashboard must be ONE Plotly figure (the "canvas"),
+    # not one embedded figure per widget.
     df = _df()
     items = [
         {"title": "chart", "result": px.bar(df, x="region", y="sales")},
@@ -76,26 +79,37 @@ def test_render_html_with_figure_table_metric():
     )
     html = render_mod.render_html(items, design)
     assert "Sales by region" in html
-    assert "0.4%" in html
-    assert html.count("<div class='memframe-row'>") == 2
+    assert "0.42" in html
     assert "plotly" in html.lower()
+    # exactly one plotly graph div => a single composed figure
+    assert html.count('class="plotly-graph-div"') == 1
+    # full-screen viewport wrapper
+    assert "100vh" in html
+    # composed figure has exactly one trace per widget (bar / table / indicator)
+    fig = render_mod.build_canvas(items, design)
+    kinds = [t.type for t in fig.data]
+    assert kinds == ["bar", "table", "indicator"]
 
 
-def test_render_auto_chart_from_df():
+def test_dataframe_renders_as_table():
+    # ponytail: a DataFrame result must render as a Plotly TABLE, never a chart.
+    # Here the design wrongly says kind='plot' for a DataFrame — the renderer
+    # must coerce it to a table and emit no cartesian chart.
     df = _df()
     items = [{"title": "raw", "result": df}]
     design = DashboardDesign(
         widgets=[
             WidgetDesign(
                 result_index=0,
-                kind="plot",
+                kind="plot",  # intentionally wrong to lock the bug fix
                 col_span=12,
                 plot_design=FigureDesign(chart_type=ChartType.BAR, x="region", y="sales"),
             )
         ]
     )
-    html = render_mod.render_html(items, design)
-    assert "plotly" in html.lower()
+    fig = render_mod.build_canvas(items, design)
+    kinds = [t.type for t in fig.data]
+    assert kinds == ["table"]
 
 
 def test_render_existing_figure_layout():
@@ -114,6 +128,17 @@ def test_render_existing_figure_layout():
     )
     html = render_mod.render_html(items, design)
     assert "My Chart" in html
+    fig = render_mod.build_canvas(items, design)
+    assert [t.type for t in fig.data] == ["bar"]
+
+
+def test_render_metric_multikey_dict_as_table():
+    items = [{"title": "breakdown", "result": {"a": 1, "b": 2, "c": 3}}]
+    design = DashboardDesign(
+        widgets=[WidgetDesign(result_index=0, kind="metric", col_span=12)]
+    )
+    fig = render_mod.build_canvas(items, design)
+    assert [t.type for t in fig.data] == ["table"]
 
 
 def test_manager_render_end_to_end():
@@ -135,7 +160,34 @@ def test_manager_render_end_to_end():
     )
     html = dm.render(design)
     assert "Demo" in html
-    assert html.count("<div class='memframe-row'>") == 1
+    assert html.count('class="plotly-graph-div"') == 1
+
+
+def test_manager_design_coerces_dataframe_to_table():
+    # ponytail: design() must flip a DataFrame result to kind='table' even if the
+    # (stubbed) agent returned kind='plot'.
+    import memframe_ai.agents.dashboard as dash_mod
+
+    df = _df()
+    dm = DashboardManager()
+    dm.add("raw", df)
+    real = dash_mod.DashboardAgent
+
+    class _Stub:
+        def __init__(self, settings):
+            pass
+
+        async def design(self, summaries):
+            return DashboardDesign(
+                widgets=[WidgetDesign(result_index=0, kind="plot", col_span=12)]
+            )
+
+    dash_mod.DashboardAgent = _Stub
+    try:
+        plan = asyncio.run(dm.design(object()))
+    finally:
+        dash_mod.DashboardAgent = real
+    assert plan.widgets[0].kind == "table"
 
 
 def test_summarize_is_data_light_dataframe():

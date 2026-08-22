@@ -7,7 +7,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional, Tuple
 
 from memframe.dashboard import render as _render
-from memframe.dashboard.models import DashboardDesign
+from memframe.dashboard.models import ChartType, DashboardDesign
 
 
 def _is_figure(obj: Any) -> bool:
@@ -72,7 +72,22 @@ class DashboardManager:
         from memframe_ai.agents.dashboard import DashboardAgent
 
         agent = DashboardAgent(settings)
-        return await agent.design(self.summarize())
+        plan = await agent.design(self.summarize())
+        # ponytail: coerce kind from the ACTUAL result type so a DataFrame can
+        # never be charted and a pre-built figure is never shown as a table,
+        # even if the LLM mislabels it.
+        for w in plan.widgets:
+            res = self._items[w.result_index]["result"]
+            if _is_dataframe(res):
+                w.kind = "table"
+                w.plot_design = None
+            elif _is_figure(res):
+                w.kind = "plot"
+                if w.plot_design:
+                    w.plot_design.chart_type = ChartType.KEEP_EXISTING
+            elif isinstance(res, dict) or isinstance(res, (int, float)):
+                w.kind = "metric"
+        return plan
 
     def render(self, design: DashboardDesign) -> str:
         return _render.render_html(self._items, design)
