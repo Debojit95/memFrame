@@ -284,6 +284,19 @@ class AnalyticsAgent:
             for label, payload in self._session.subquery_results
         )
         results = list(self._session.results)
+        # ponytail: scalar/dict/list sub-query results are stored (jsonable) in
+        # subquery_results but dropped from the structured response above. Surface
+        # them so consumers like adashboard() can render them. DataFrames are
+        # excluded (already in `results` as full frames) and plots (in `plots`).
+        values = [
+            (label, payload.get("result"))
+            for label, payload in self._session.subquery_results
+            if payload.get("ok")
+            and not payload.get("is_dataframe")
+            and payload.get("plot_id") is None
+            and "spec" not in payload
+            and payload.get("result") is not None
+        ]
         resp = {
             "session_id": self._session.session_id,
             "answer": answer,
@@ -291,6 +304,7 @@ class AnalyticsAgent:
             "schema": self._session.schema,
             "result": results[-1] if results else None,
             "results": results,
+            "values": values,
             "plots": [
                 # ponytail: full spec shipped for re-render; spec_preview for lightweight clients
                 {

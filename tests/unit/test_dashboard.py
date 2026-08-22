@@ -141,6 +141,37 @@ def test_render_metric_multikey_dict_as_table():
     assert [t.type for t in fig.data] == ["table"]
 
 
+def test_render_scalar_metric():
+    items = [{"title": "rate", "result": 0.42}]
+    design = DashboardDesign(
+        widgets=[
+            WidgetDesign(
+                result_index=0,
+                kind="metric",
+                col_span=12,
+                metric_design=MetricDesign(suffix="%", decimal_places=1),
+            )
+        ]
+    )
+    fig = render_mod.build_canvas(items, design)
+    assert [t.type for t in fig.data] == ["indicator"]
+
+
+def test_render_list_as_table():
+    # ponytail: a list sub-query result must render as a table, not crash.
+    items = [{"title": "vals", "result": [1, 2, 3]}]
+    design = DashboardDesign(widgets=[WidgetDesign(result_index=0, kind="metric", col_span=12)])
+    fig = render_mod.build_canvas(items, design)
+    assert [t.type for t in fig.data] == ["table"]
+
+
+def test_render_string_as_table():
+    items = [{"title": "note", "result": "all good"}]
+    design = DashboardDesign(widgets=[WidgetDesign(result_index=0, kind="metric", col_span=12)])
+    fig = render_mod.build_canvas(items, design)
+    assert [t.type for t in fig.data] == ["table"]
+
+
 def test_manager_render_end_to_end():
     df = _df()
     dm = DashboardManager()

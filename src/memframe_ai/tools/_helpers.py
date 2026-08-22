@@ -48,6 +48,7 @@ async def normalize(op_result: dict, session, *, include_result: bool = True, ad
                 # + returned all rows). The model still gets only a capped
                 # sample via df_to_records below, so the LLM context stays small.
                 session.add_result(value)
+                payload["is_dataframe"] = True
                 payload["result"] = df_to_records(value, session)
             elif value is not None:
                 payload["result"] = _jsonable(value)

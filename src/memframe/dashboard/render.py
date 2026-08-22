@@ -128,6 +128,29 @@ def _df_to_table(df: Any, max_rows: Optional[int]) -> go.Table:
     )
 
 
+def _result_to_table(res: Any, max_rows: Optional[int]) -> go.Table:
+    """Build a go.Table from a DataFrame, dict, list, or single scalar value."""
+    if _is_dataframe(res):
+        return _df_to_table(res, max_rows)
+    if isinstance(res, dict):
+        keys = list(res.keys())
+        return go.Table(
+            header=dict(values=keys),
+            cells=dict(values=[[res[k] for k in keys]]),
+        )
+    if isinstance(res, (list, tuple)):
+        vals = list(res)[:max_rows] if max_rows else list(res)
+        return go.Table(
+            header=dict(values=["value"]),
+            cells=dict(values=[vals]),
+        )
+    # str / bool / other scalar -> single-cell table
+    return go.Table(
+        header=dict(values=["value"]),
+        cells=dict(values=[[res]]),
+    )
+
+
 def _fmt_prefix_suffix(md: MetricDesign) -> Dict[str, str]:
     return {"prefix": md.prefix or "", "suffix": md.suffix or ""}
 
@@ -200,8 +223,12 @@ def build_canvas(items: List[Dict[str, Any]], design: DashboardDesign) -> go.Fig
             w.kind = "table"
         elif _is_figure(res):
             w.kind = "plot"
-        elif isinstance(res, dict) or isinstance(res, (int, float)):
+        elif isinstance(res, (int, float)):
             w.kind = "metric"
+        elif isinstance(res, (dict, list, str, bool)):
+            # ponytail: dict -> metric (single KPI) or table (multi-key); list /
+            # str / bool -> table. Renderer resolves dict single- vs multi-key.
+            w.kind = "table" if isinstance(res, (list, str, bool)) else "metric"
 
     rows = _pack_rows(design.widgets)
     R = len(rows)
@@ -236,7 +263,7 @@ def build_canvas(items: List[Dict[str, Any]], design: DashboardDesign) -> go.Fig
 
     for w, res, r, c in cell_map:
         if w.kind == "table":
-            fig.add_trace(_df_to_table(res, (w.table_design or TableDesign()).max_rows), row=r, col=c)
+            fig.add_trace(_result_to_table(res, (w.table_design or TableDesign()).max_rows), row=r, col=c)
         elif w.kind == "metric":
             fig.add_trace(_metric_trace(res, w), row=r, col=c)
         else:  # plot

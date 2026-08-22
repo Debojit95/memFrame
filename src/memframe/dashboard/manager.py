@@ -85,8 +85,10 @@ class DashboardManager:
                 w.kind = "plot"
                 if w.plot_design:
                     w.plot_design.chart_type = ChartType.KEEP_EXISTING
-            elif isinstance(res, dict) or isinstance(res, (int, float)):
+            elif isinstance(res, (int, float)):
                 w.kind = "metric"
+            elif isinstance(res, (dict, list, str, bool)):
+                w.kind = "table" if isinstance(res, (list, str, bool)) else "metric"
         return plan
 
     def render(self, design: DashboardDesign) -> str:

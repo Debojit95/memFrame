@@ -175,6 +175,10 @@ class ContextManager:
                 dm.add(f"Result {r.shape[0]}x{r.shape[1]}", r)
             else:
                 dm.add("Result", r)
+        # ponytail: scalar/dict/list sub-query results are surfaced in resp["values"]
+        # (DataFrames/plots are handled above); harvest them so they render as metrics.
+        for label, val in resp.get("values", []) or []:
+            dm.add(label, val)
 
         design = await dm.design(settings)
         html = dm.render(design)
