@@ -80,6 +80,9 @@ class MemFrame(ContextManager, OpsMixin):
             kwargs["model"] = model
         kwargs.update(overrides)
         self._ai_settings = AISettings(**kwargs)
+        from memframe_ai.instrument import configure_logfire
+
+        configure_logfire(self._ai_settings)
         return self._ai_settings
 
     @async_to_sync

@@ -111,4 +111,6 @@ whole flow into one call: they reuse `achat()` on the **active dataset**, harves
 the returned results and plots, and feed them to `DashboardManager`, which renders
 a **single full-screen Plotly figure** ("canvas") of subplot widgets. Only compact
 summaries (shape, columns, 2-row sample, capped Plotly spec) reach the dashboard
-LLM — never raw data values.
+LLM — never raw data values. The entire pipeline is opt-in Logfire-instrumentable
+(see the agent docs): every agent run, LLM call, and tool call is traced, plus a
+top-level request span.

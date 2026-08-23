@@ -134,6 +134,9 @@ class ContextManager:
         kwargs.update(overrides)
         settings = AISettings(**kwargs)
         self.memframe._ai_settings = settings
+        from memframe_ai.instrument import configure_logfire
+
+        configure_logfire(settings)
         return settings
 
     @async_to_sync
@@ -159,51 +162,55 @@ class ContextManager:
             raise RuntimeError(
                 "No active dataset. Call aset_active(data_id) or run on a dataset context."
             )
-        resp = await self.achat(sentence)
+        from memframe_ai.instrument import span as _lf_span, flush_logfire
 
-        # ponytail: a guardrail-blocked query must not produce an empty dashboard;
-        # return a graceful, themed page explaining why execution stopped instead.
-        if resp.get("guardrail_blocked"):
-            reason = (
-                resp.get("guardrail_reason")
-                or resp.get("answer")
-                or "Query blocked by the guardrail."
-            )
-            from memframe.dashboard.render import render_guardrail_blocked
+        with _lf_span("adashboard", sentence=sentence[:200], show=show):
+            resp = await self.achat(sentence)
 
-            html = render_guardrail_blocked(reason)
+            # ponytail: a guardrail-blocked query must not produce an empty dashboard;
+            # return a graceful, themed page explaining why execution stopped instead.
+            if resp.get("guardrail_blocked"):
+                reason = (
+                    resp.get("guardrail_reason")
+                    or resp.get("answer")
+                    or "Query blocked by the guardrail."
+                )
+                from memframe.dashboard.render import render_guardrail_blocked
+
+                html = render_guardrail_blocked(reason)
+                if show:
+                    DashboardManager().show(html=html, filename=filename)
+                return html
+
+            # ponytail: plots already carry their figure; results may ALSO contain
+            # figures (plot sub-queries record both), so skip figures there to avoid
+            # duplicates. Only DataFrames/scalars from results become new widgets.
+            dm = DashboardManager()
+            seen: set = set()
+            for p in resp.get("plots", []):
+                fig = pio.from_json(json.dumps(p["spec"]))
+                dm.add(p.get("title") or "Plot", fig)
+            for r in resp.get("results", []) or []:
+                if hasattr(r, "to_plotly_json") and hasattr(r, "to_html"):
+                    continue  # figure already captured via resp["plots"]
+                if hasattr(r, "shape") and hasattr(r, "columns"):
+                    if id(r) in seen:
+                        continue
+                    seen.add(id(r))
+                    dm.add(f"Result {r.shape[0]}x{r.shape[1]}", r)
+                else:
+                    dm.add("Result", r)
+            # ponytail: scalar/dict/list sub-query results are surfaced in resp["values"]
+            # (DataFrames/plots are handled above); harvest them so they render as metrics.
+            for label, val in resp.get("values", []) or []:
+                dm.add(label, val)
+
+            design = await dm.design(settings)
+            html = dm.render(design)
             if show:
-                DashboardManager().show(html=html, filename=filename)
+                dm.show(html=html, filename=filename)
+            flush_logfire()
             return html
-
-        # ponytail: plots already carry their figure; results may ALSO contain
-        # figures (plot sub-queries record both), so skip figures there to avoid
-        # duplicates. Only DataFrames/scalars from results become new widgets.
-        dm = DashboardManager()
-        seen: set = set()
-        for p in resp.get("plots", []):
-            fig = pio.from_json(json.dumps(p["spec"]))
-            dm.add(p.get("title") or "Plot", fig)
-        for r in resp.get("results", []) or []:
-            if hasattr(r, "to_plotly_json") and hasattr(r, "to_html"):
-                continue  # figure already captured via resp["plots"]
-            if hasattr(r, "shape") and hasattr(r, "columns"):
-                if id(r) in seen:
-                    continue
-                seen.add(id(r))
-                dm.add(f"Result {r.shape[0]}x{r.shape[1]}", r)
-            else:
-                dm.add("Result", r)
-        # ponytail: scalar/dict/list sub-query results are surfaced in resp["values"]
-        # (DataFrames/plots are handled above); harvest them so they render as metrics.
-        for label, val in resp.get("values", []) or []:
-            dm.add(label, val)
-
-        design = await dm.design(settings)
-        html = dm.render(design)
-        if show:
-            dm.show(html=html, filename=filename)
-        return html
 
     @async_to_sync
     async def dashboard(

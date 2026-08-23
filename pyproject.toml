@@ -37,6 +37,9 @@ ai = [
     "pydantic-ai-harness[codemode]>=0.1",
     "pydantic-settings>=2.0",
 ]
+logfire = [
+    "logfire[system-metrics]",
+]
 dev = [
     "build>=1.0",
     "matplotlib>=3.10.9",

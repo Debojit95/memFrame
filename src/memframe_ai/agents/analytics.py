@@ -13,6 +13,7 @@ from memframe_ai.agents.planning import SubQuery
 from memframe_ai.agents.guardrail import GuardrailAgent, GuardrailVerdict
 from memframe_ai.config import AISettings
 from memframe_ai.gateway import ModelGateway
+from memframe_ai.instrument import span as _lf_span, flush_logfire
 from memframe_ai.observe import logger, make_hooks
 from memframe_ai.tools import arithmetic, clean, context, inspect, plot, select, stats, upload
 
@@ -193,52 +194,58 @@ class AnalyticsAgent:
 
     async def achat(self, prompt: str) -> dict:
         t0 = time.perf_counter()
-        await self._session.ensure()
-        self._session.reset_subquery_results()
-        self._session.reset_results()
-        logger.info(
-            "chat start session=%s table=%s.%s prompt='%s'",
-            self._session.session_id, self._session.schema, self._session.table, prompt,
-        )
+        with _lf_span("achat", prompt=prompt[:200], session_id=self._session.session_id):
+            await self._session.ensure()
+            self._session.reset_subquery_results()
+            self._session.reset_results()
+            logger.info(
+                "chat start session=%s table=%s.%s prompt='%s'",
+                self._session.session_id, self._session.schema, self._session.table, prompt,
+            )
 
-        # Capture the BASE context for this chat. Forced refresh: every achat
-        # call rebuilds context so it reflects current table state, and the
-        # result becomes this chat's frozen base_ctx.
-        base_ctx = await self._session.domain_context(lightweight=False, force_refresh=True)
+            # Capture the BASE context for this chat. Forced refresh: every achat
+            # call rebuilds context so it reflects current table state, and the
+            # result becomes this chat's frozen base_ctx.
+            base_ctx = await self._session.domain_context(lightweight=False, force_refresh=True)
 
-        # Guardrail: reject invalid / off-topic / cross-dataset queries before
-        # spending a planner + specialist pass. Fail-open on guardrail errors.
-        if self._settings.guardrails_enabled:
-            try:
-                verdict = await self._guardrail_agent().verify(
-                    prompt, base_ctx, self._session.table
-                )
-            except Exception as exc:  # pragma: no cover - defensive
-                logger.warning("guardrail error (fail-open): %s", exc)
+            # Guardrail: reject invalid / off-topic / cross-dataset queries before
+            # spending a planner + specialist pass. Fail-open on guardrail errors.
+            if self._settings.guardrails_enabled:
+                try:
+                    with _lf_span("guardrail.verify", prompt=prompt[:200]):
+                        verdict = await self._guardrail_agent().verify(
+                            prompt, base_ctx, self._session.table
+                        )
+                except Exception as exc:  # pragma: no cover - defensive
+                    logger.warning("guardrail error (fail-open): %s", exc)
+                else:
+                    if not verdict.is_valid:
+                        logger.info("guardrail blocked: %s", verdict.reason)
+                        flush_logfire()
+                        return self._refusal(prompt, verdict)
+
+            # Planner: one structured-output model call
+            with _lf_span("planner.plan", prompt=prompt[:200]):
+                subquery_head = await self._planner_agent().plan_with_dependencies(prompt, base_ctx)
+
+            # Execute sub-queries. The session table stays pinned to the original
+            # ctx table for the whole chat; dependent steps force-refresh the
+            # domain context on that original table, which now carries any new
+            # columns produced by earlier steps.
+            if subquery_head:
+                self._session.pin_table()
+                try:
+                    with _lf_span("execute_subqueries"):
+                        await self._execute_subqueries(subquery_head, base_ctx)
+                finally:
+                    self._session.unpin_table()
             else:
-                if not verdict.is_valid:
-                    logger.info("guardrail blocked: %s", verdict.reason)
-                    return self._refusal(prompt, verdict)
+                logger.info("No sub-queries produced — nothing to execute")
 
-        # Planner: one structured-output model call
-        subquery_head = await self._planner_agent().plan_with_dependencies(prompt, base_ctx)
-
-        # Execute sub-queries. The session table stays pinned to the original
-        # ctx table for the whole chat; dependent steps force-refresh the
-        # domain context on that original table, which now carries any new
-        # columns produced by earlier steps.
-        if subquery_head:
-            self._session.pin_table()
-            try:
-                await self._execute_subqueries(subquery_head, base_ctx)
-            finally:
-                self._session.unpin_table()
-        else:
-            logger.info("No sub-queries produced — nothing to execute")
-
-        self._render_results()
-        logger.info("chat done %.1fs", time.perf_counter() - t0)
-        return self._package()
+            self._render_results()
+            logger.info("chat done %.1fs", time.perf_counter() - t0)
+            flush_logfire()
+            return self._package()
 
     def _render_results(self) -> None:
         """Render stashed DataFrame results inline, from the main kernel loop.
