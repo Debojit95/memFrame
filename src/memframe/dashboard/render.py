@@ -31,15 +31,27 @@ _DOMAIN_TYPES = {"pie", "sunburst", "treemap", "funnelarea", "table", "indicator
 
 
 def _pack_rows(widgets: List[WidgetDesign]) -> List[List[WidgetDesign]]:
-    """Greedily group widgets into rows: at most 2 widgets per row."""
+    """Group widgets into rows of at most 2, never mixing a metric with a visual.
+
+    Metrics are kept in their own (compact) rows so a KPI never shares a tall
+    chart row and wastes vertical space.
+    """
     ordered = sorted(widgets, key=lambda w: w.result_index)
     rows: List[List[WidgetDesign]] = []
     current: List[WidgetDesign] = []
+    cur_cat: Optional[str] = None
+
+    def _cat(w: WidgetDesign) -> str:
+        return "metric" if w.kind == "metric" else "visual"
+
     for w in ordered:
-        if current and len(current) >= 2:
+        cat = _cat(w)
+        if current and (len(current) >= 2 or cat != cur_cat):
             rows.append(current)
             current = []
+            cur_cat = None
         current.append(w)
+        cur_cat = cat
     if current:
         rows.append(current)
     return rows
@@ -167,8 +179,18 @@ def _metric_trace(result: Any, widget: WidgetDesign) -> go.Trace:
         )
     else:
         val = result
-    number = dict(valueformat=f".{md.decimal_places}f", **_fmt_prefix_suffix(md))
-    return go.Indicator(mode="number", value=float(val) if isinstance(val, (int, float)) else 0, number=number, title={"text": widget.title})
+    number = dict(
+        valueformat=f".{md.decimal_places}f",
+        font=dict(size=md.font_size),
+        **_fmt_prefix_suffix(md),
+    )
+    return go.Indicator(
+        mode="number",
+        value=float(val) if isinstance(val, (int, float)) else 0,
+        number=number,
+        title={"text": widget.title},
+        domain=dict(y=[0.25, 0.85]),
+    )
 
 
 def _add_plot_traces(fig: go.Figure, widget: WidgetDesign, result: Any, row: int, col: int) -> None:
@@ -208,8 +230,21 @@ def _widget_title(widget: WidgetDesign) -> str:
 def render_html(items: List[Dict[str, Any]], design: DashboardDesign) -> str:
     """Render a DashboardDesign + its raw result items into a single-figure HTML page."""
     fig = build_canvas(items, design)
-    fig_html = fig.to_html(include_plotlyjs=True, full_html=False, config={"responsive": True})
     bg = "#111827" if design.global_theme == "dark" else "#ffffff"
+    has_visual = any(w.kind in ("plot", "table") for w in design.widgets)
+    if not has_visual:
+        # ponytail: a KPI-only dashboard must not be stretched to fill the whole
+        # viewport (a tiny number in a giant empty cell). Size it to its content
+        # and center it instead.
+        R = max(1, len(_pack_rows(design.widgets)))
+        fig.update_layout(
+            height=max(160, 150 * R),
+            autosize=False,
+            margin=dict(l=20, r=20, t=50, b=20),
+        )
+        fig_html = fig.to_html(include_plotlyjs=True, full_html=False, config={"responsive": True})
+        return _PAGE_TEMPLATE_KPI.format(title=design.dashboard_title, bg=bg, figure=fig_html)
+    fig_html = fig.to_html(include_plotlyjs=True, full_html=False, config={"responsive": True})
     return _PAGE_TEMPLATE.format(title=design.dashboard_title, bg=bg, figure=fig_html)
 
 
@@ -252,12 +287,18 @@ def build_canvas(items: List[Dict[str, Any]], design: DashboardDesign) -> go.Fig
                 cell_map.append((w, res, ri, ci))
             specs.append(spec_row)
 
+    # ponytail: metric-only rows get a thin weight so a KPI strip doesn't eat a
+    # full chart-height row. Weights are relative; Plotly normalizes them.
+    row_heights = [
+        0.15 if all(w.kind == "metric" for w in row) else 1.0 for row in rows
+    ]
     fig = make_subplots(
         rows=R,
         cols=2,
         specs=specs,
         subplot_titles=titles,
-        vertical_spacing=0.08,
+        row_heights=row_heights,
+        vertical_spacing=0.05,
         horizontal_spacing=0.05,
     )
 
@@ -296,3 +337,65 @@ html, body {{ margin:0; padding:0; width:100vw; height:100vh; overflow:hidden; b
 </body>
 </html>
 """
+
+_PAGE_TEMPLATE_KPI = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>{title}</title>
+<style>
+html, body {{ margin:0; padding:0; width:100vw; height:100vh; overflow:hidden; background:{bg}; }}
+#memframe-canvas {{ width:100vw; height:100vh; display:flex; align-items:center; justify-content:center; }}
+#memframe-kpi {{ width:min(90vw, 760px); }}
+</style>
+</head>
+<body>
+<div id="memframe-canvas"><div id="memframe-kpi">{figure}</div></div>
+</body>
+</html>
+"""
+
+
+_GUARDRAIL_TEMPLATE = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>{title}</title>
+<style>
+html, body {{ margin:0; padding:0; width:100vw; height:100vh; overflow:hidden; }}
+#memframe-guardrail {{
+  width:100vw; height:100vh; display:flex; align-items:center; justify-content:center;
+  background:#0f172a; font-family:system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+}}
+#memframe-guardrail .card {{
+  width:min(90vw, 720px); padding:32px 36px; border-radius:14px;
+  background:#1e293b; color:#e2e8f0; box-shadow:0 10px 40px rgba(0,0,0,.35);
+}}
+#memframe-guardrail h2 {{ margin:0 0 12px; font-size:20px; color:#f87171; }}
+#memframe-guardrail p {{ margin:8px 0; line-height:1.5; font-size:15px; }}
+#memframe-guardrail .reason {{ color:#fbbf24; font-weight:600; }}
+#memframe-guardrail .hint {{ color:#94a3b8; font-size:13px; }}
+</style>
+</head>
+<body>
+<div id="memframe-guardrail">
+  <div class="card">
+    <h2>{title}</h2>
+    <p>Execution was stopped before planning.</p>
+    <p class="reason">{reason}</p>
+    <p class="hint">{hint}</p>
+  </div>
+</div>
+</body>
+</html>
+"""
+
+
+def render_guardrail_blocked(reason: str, title: str = "Query blocked by guardrail") -> str:
+    """Return a full-screen, themed HTML page explaining why a query was stopped."""
+    hint = "Rephrase your request so it refers to the active dataset's columns."
+    safe_reason = (reason or "Query blocked by the guardrail.").replace("{", "{{").replace("}", "}}")
+    return _GUARDRAIL_TEMPLATE.format(title=title, reason=safe_reason, hint=hint)
+

@@ -42,7 +42,7 @@ class MetricDesign(BaseModel):
     prefix: Optional[str] = None
     suffix: Optional[str] = None
     decimal_places: int = 2
-    font_size: int = 48
+    font_size: int = 40
     color: Literal["primary", "success", "danger", "warning", "info"] = "primary"
 
 

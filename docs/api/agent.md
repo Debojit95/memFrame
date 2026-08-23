@@ -120,6 +120,14 @@ See [Dashboard Builder](dashboard.md) for the lower-level `DashboardManager` API
 
 ## How it works
 
+0. **Guardrail (optional, on by default)**: before planning, a `GuardrailAgent`
+   validates the prompt against the **active table's columns** (the domain
+   context, rebuilt per query). It rejects cross-dataset confusion (e.g. asking
+   about `ops2`'s columns while chatting on `ops1`) and off-topic requests (e.g.
+   "who is the president of Kenya"). Disable via `AISettings(guardrails_enabled=False)`.
+   A blocked query short-circuits gracefully: `chat()` returns a refusal answer,
+   and `adashboard()`/`dashboard()` return a styled HTML page explaining why
+   execution stopped (no exception is raised).
 1. The prompt is sent to a Planner agent which produces a typed `SubQueryPlan`
    (a linked list of ordered sub-queries, each tagged with a specialist
    agent).

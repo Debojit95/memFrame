@@ -12,3 +12,4 @@ class AISettings(BaseModel):
     base_url: Optional[str] = None
     max_output_rows: int = 20
     max_output_cols: int = 20
+    guardrails_enabled: bool = True

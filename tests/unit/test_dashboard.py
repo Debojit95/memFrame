@@ -172,6 +172,51 @@ def test_render_string_as_table():
     assert [t.type for t in fig.data] == ["table"]
 
 
+def test_metric_rows_are_compact(monkeypatch):
+    # ponytail: a metric-only row must get a thin row weight, not a full
+    # chart-height row. Spy on make_subplots to capture the row_heights arg.
+    captured = {}
+    orig = render_mod.make_subplots
+
+    def _spy(*a, **k):
+        captured.update(k)
+        return orig(*a, **k)
+
+    monkeypatch.setattr(render_mod, "make_subplots", _spy)
+    df = _df()
+    items = [
+        {"title": "kpi", "result": 0.42},
+        {"title": "chart", "result": px.bar(df, x="region", y="sales")},
+    ]
+    design = DashboardDesign(
+        widgets=[
+            WidgetDesign(result_index=0, kind="metric", col_span=12),
+            WidgetDesign(
+                result_index=1,
+                kind="plot",
+                col_span=12,
+                plot_design=FigureDesign(chart_type=ChartType.KEEP_EXISTING),
+            ),
+        ]
+    )
+    render_mod.build_canvas(items, design)
+    assert captured.get("row_heights") == [0.15, 1.0]
+
+
+def test_render_only_metrics_is_centered():
+    # ponytail: a KPI-only dashboard must not be stretched full-viewport.
+    items = [{"title": "a", "result": 1}, {"title": "b", "result": 2}]
+    design = DashboardDesign(
+        widgets=[
+            WidgetDesign(result_index=0, kind="metric", col_span=6),
+            WidgetDesign(result_index=1, kind="metric", col_span=6),
+        ]
+    )
+    html = render_mod.render_html(items, design)
+    assert "memframe-kpi" in html
+    assert "100vh" in html
+
+
 def test_manager_render_end_to_end():
     df = _df()
     dm = DashboardManager()

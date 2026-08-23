@@ -10,6 +10,7 @@ from pydantic_ai_harness import CodeMode
 from memframe.utils.async_sync import async_to_sync
 
 from memframe_ai.agents.planning import SubQuery
+from memframe_ai.agents.guardrail import GuardrailAgent, GuardrailVerdict
 from memframe_ai.config import AISettings
 from memframe_ai.gateway import ModelGateway
 from memframe_ai.observe import logger, make_hooks
@@ -157,12 +158,18 @@ class AnalyticsAgent:
         self._gateway = ModelGateway(settings)
         self._specialists: dict[str, Agent] = {}
         self._planner = None
+        self._guardrail = None
 
     def _planner_agent(self):
         from memframe_ai.agents.planning import PlannerAgent
         if self._planner is None:
             self._planner = PlannerAgent(self._settings)
         return self._planner
+
+    def _guardrail_agent(self):
+        if self._guardrail is None:
+            self._guardrail = GuardrailAgent(self._settings)
+        return self._guardrail
 
     def specialist_agents(self) -> dict[str, Agent]:
         if self._specialists:
@@ -198,6 +205,20 @@ class AnalyticsAgent:
         # call rebuilds context so it reflects current table state, and the
         # result becomes this chat's frozen base_ctx.
         base_ctx = await self._session.domain_context(lightweight=False, force_refresh=True)
+
+        # Guardrail: reject invalid / off-topic / cross-dataset queries before
+        # spending a planner + specialist pass. Fail-open on guardrail errors.
+        if self._settings.guardrails_enabled:
+            try:
+                verdict = await self._guardrail_agent().verify(
+                    prompt, base_ctx, self._session.table
+                )
+            except Exception as exc:  # pragma: no cover - defensive
+                logger.warning("guardrail error (fail-open): %s", exc)
+            else:
+                if not verdict.is_valid:
+                    logger.info("guardrail blocked: %s", verdict.reason)
+                    return self._refusal(prompt, verdict)
 
         # Planner: one structured-output model call
         subquery_head = await self._planner_agent().plan_with_dependencies(prompt, base_ctx)
@@ -276,6 +297,26 @@ class AnalyticsAgent:
             )
         except Exception as exc:
             logger.warning("Sub-query failed (%s): %s", sq.agent, exc)
+
+    def _refusal(self, prompt: str, verdict: GuardrailVerdict) -> dict:
+        """Build a chat response for a guardrail-blocked query (no planner run)."""
+        reason = verdict.reason or "Request did not pass the query guardrail."
+        return {
+            "session_id": self._session.session_id,
+            "answer": (
+                f"Execution stopped by the query guardrail: {reason}. "
+                "Please rephrase your request so it refers to the active dataset's columns."
+            ),
+            "table": self._session.table,
+            "schema": self._session.schema,
+            "result": None,
+            "results": [],
+            "values": [],
+            "plots": [],
+            "guardrail_blocked": True,
+            "guardrail_reason": reason,
+            "error": None,
+        }
 
     def _package(self) -> dict:
         sep = "\n............\n"

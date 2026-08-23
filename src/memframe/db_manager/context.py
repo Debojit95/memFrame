@@ -8,7 +8,11 @@ from memframe.db_manager.adapters.base import DatabaseAdapter
 from memframe.db_manager.adapters.postgresql import PostgresAdapter
 from memframe.db_manager.adapters.duckdb import DuckDBAdapter
 from memframe.db_manager.adapters.clickhouse import ClickHouseAdapter
-from memframe.exceptions import BackendNotSupported, ConnectionNotReady, DataNotFound
+from memframe.exceptions import (
+    BackendNotSupported,
+    ConnectionNotReady,
+    DataNotFound,
+)
 from memframe.utils.async_sync import async_to_sync
 from memframe.core.analytix._response import unwrap_response
 
@@ -156,6 +160,21 @@ class ContextManager:
                 "No active dataset. Call aset_active(data_id) or run on a dataset context."
             )
         resp = await self.achat(sentence)
+
+        # ponytail: a guardrail-blocked query must not produce an empty dashboard;
+        # return a graceful, themed page explaining why execution stopped instead.
+        if resp.get("guardrail_blocked"):
+            reason = (
+                resp.get("guardrail_reason")
+                or resp.get("answer")
+                or "Query blocked by the guardrail."
+            )
+            from memframe.dashboard.render import render_guardrail_blocked
+
+            html = render_guardrail_blocked(reason)
+            if show:
+                DashboardManager().show(html=html, filename=filename)
+            return html
 
         # ponytail: plots already carry their figure; results may ALSO contain
         # figures (plot sub-queries record both), so skip figures there to avoid
