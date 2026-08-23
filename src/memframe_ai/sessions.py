@@ -6,7 +6,12 @@ from typing import Any, Optional
 from memframe.exceptions import DataNotFound
 from memframe_ai.domain import build_domain_context
 
-logger = logging.getLogger("memFrame")
+logger = logging.getLogger("memframe.ai")
+logger.setLevel(logging.INFO)
+if not logger.handlers:
+    _handler = logging.StreamHandler()
+    _handler.setFormatter(logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s"))
+    logger.addHandler(_handler)
 
 
 @dataclass
