@@ -118,16 +118,91 @@ html = await mf.adashboard(
 See [Dashboard Builder](dashboard.md) for the lower-level `DashboardManager` API
 (build a design by hand, no agent required).
 
+## Guardrail
+
+Source: `src/memframe_ai/agents/guardrail.py`
+
+`GuardrailAgent` validates a user prompt against the **active table's columns
+before** the planner runs. It is a single structured-output model call with no
+tools — it never touches your data, it only reasons about whether the request is
+a valid analytics task for the table you are currently chatting on.
+
+### When it runs
+
+The guardrail lives inside `AnalyticsAgent.achat()`, so **both** `chat()` and
+`adashboard()` are gated by it. It receives `base_ctx` — the domain context
+rebuilt on every query via `build_domain_context`, which lists the active
+table's real columns and types. Because the context is rebuilt per query, a
+request about dataset `ops2`'s columns while you are on `ops1` is caught (those
+columns are absent from `ops1`'s context).
+
+### Verdict
+
+The agent returns a `GuardrailVerdict`:
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `is_valid` | `bool` | Whether the request may proceed to planning |
+| `reason` | `str` | Short explanation (used in the graceful message) |
+| `missing_terms` | `list[str]` | Request keywords absent from the active table's columns |
+
+### What it blocks / allows
+
+- **Blocked** — CROSS-DATASET (references another table/dataset or its columns
+  that are absent from the active table), OFF-TOPIC (not a data task at all, e.g.
+  `"who is the president of Kenya"`), or UNRELATED (entities with no plausible
+  relation to the table).
+- **Allowed** — paraphrases, aggregations, filtering, cleaning, and visualization
+  over the table's present columns. The guardrail is deliberately lenient: only
+  reject when there is clearly no relation to the active table's data.
+
+### Configuration
+
+`guardrails_enabled` lives on `AISettings` and defaults to `True`:
+
+```python
+from memframe_ai import AISettings
+
+# disable the guardrail entirely
+await mf.aenable_agent(
+    provider="openai", model="gpt-5.5", api_key="sk-...",
+    guardrails_enabled=False,
+)
+```
+
+It is also **fail-open**: if the guardrail model call itself errors, the failure
+is logged and the request proceeds to planning — the guardrail can never block a
+legitimate query because of an infrastructure hiccup.
+
+### Blocked queries are graceful (no exception)
+
+A blocked query short-circuits without raising:
+
+- `chat()` / `achat()` return a refusal answer dict —
+  `guardrail_blocked: True`, `guardrail_reason`, and empty `results` / `plots` /
+  `values`.
+- `adashboard()` / `dashboard()` return a **styled HTML page** (built by
+  `render_guardrail_blocked(reason)` in `src/memframe/dashboard/render.py`)
+  explaining why execution stopped. With `show=True` it still renders inline in a
+  notebook / opens in the browser.
+
+```python
+# active table "ops1" has columns a, b, c
+await ds.achat("who is the president of Kenya")
+# -> refused: off-topic, no exception raised
+
+await ds.achat("average b grouped by c")
+# -> valid, proceeds to planning
+
+await ds.achat("sum the revenue column of ops2")
+# -> blocked: 'revenue' / 'ops2' are not columns of ops1
+```
+
 ## How it works
 
-0. **Guardrail (optional, on by default)**: before planning, a `GuardrailAgent`
-   validates the prompt against the **active table's columns** (the domain
-   context, rebuilt per query). It rejects cross-dataset confusion (e.g. asking
-   about `ops2`'s columns while chatting on `ops1`) and off-topic requests (e.g.
-   "who is the president of Kenya"). Disable via `AISettings(guardrails_enabled=False)`.
-   A blocked query short-circuits gracefully: `chat()` returns a refusal answer,
-   and `adashboard()`/`dashboard()` return a styled HTML page explaining why
-   execution stopped (no exception is raised).
+0. **Guardrail** gates the prompt first — see [Guardrail](#guardrail). A blocked
+   query short-circuits gracefully (no exception): `chat()` returns a refusal
+   answer, `adashboard()`/`dashboard()` return a styled HTML page.
 1. The prompt is sent to a Planner agent which produces a typed `SubQueryPlan`
    (a linked list of ordered sub-queries, each tagged with a specialist
    agent).
@@ -146,6 +221,7 @@ Key source files:
 
 - `src/memframe_ai/agents/analytics.py` — orchestrator + specialist fleet, packaging
 - `src/memframe_ai/agents/planning.py` — Planner agent
+- `src/memframe_ai/agents/guardrail.py` — pre-plan query validation (GuardrailAgent)
 - `src/memframe_ai/agents/dashboard.py` — Dashboard designer agent
 - `src/memframe/dashboard/` — `DashboardManager`, renderer, design models
 - `src/memframe_ai/sessions.py` — chat session state, pinned table, per-sub-query results

@@ -38,10 +38,14 @@ flowchart TD
 
     subgraph AI["Optional AI · memframe_ai"]
       CHAT["achat / enable_agent"]
+      GUARD["GuardrailAgent<br/>pre-plan validation"]
       AGT["Planner + Analytics specialists"]
       TOOLS["Agent tools → core ops"]
       GW["ModelGateway<br/>OpenAI · Anthropic · Google · Ollama"]
+      CANVAS["DashboardManager<br/>single-figure canvas"]
     end
+
+    ADASH["adashboard / dashboard<br/>one-shot AI dashboard"]
 
     U --> CM --> WR --> OR
     OR -. cache lookup .-> CACHE
@@ -50,7 +54,11 @@ flowchart TD
     SQL --> RESP
     CONN -. owns .-> ADAPT
     ING -. feeds .-> CONN
-    CHAT --> AGT --> TOOLS --> SQL
+    CHAT --> GUARD
+    ADASH --> GUARD
+    GUARD --> AGT --> TOOLS --> SQL
+    AGT -. results/plots .-> CANVAS
+    CANVAS -. design agent .-> GW
     GW -. models for .-> AGT
 ```
 
@@ -85,8 +93,22 @@ flowchart TD
 ## Optional AI layer (`memframe_ai`)
 
 `MemFrame.aenable_agent` / `ContextManager.achat` route natural-language prompts
-through `entrypoints` into a fleet of Pydantic-AI agents — a `PlannerAgent` and
-`AnalyticsAgent` specialists (inspect, select, clean, stats, arithmetic, plots).
-Each agent tool calls the **same core ops engine** the API uses. `ModelGateway`
-maps a provider to a Pydantic-AI model (OpenAI, Anthropic, Google, Ollama), with
-`FallbackModel` support.
+through `entrypoints` into a fleet of Pydantic-AI agents. A **`GuardrailAgent`**
+runs first and validates the prompt against the active table's columns (rebuilt
+per query via `build_domain_context`); cross-dataset or off-topic requests are
+rejected gracefully — `chat()` returns a refusal answer and `adashboard()` returns
+a styled HTML page, never an exception. Toggle it with
+`AISettings(guardrails_enabled=False)` (default on; fail-open on guardrail errors).
+
+A `PlannerAgent` then decomposes the accepted prompt into a typed `SubQueryPlan`,
+and `AnalyticsAgent` specialists (inspect, select, clean, stats, arithmetic,
+plots) execute each sub-query by calling the **same core ops engine** the API
+uses. `ModelGateway` maps a provider to a Pydantic-AI model (OpenAI, Anthropic,
+Google, Ollama), with `FallbackModel` support.
+
+For visualization, `ContextManager.adashboard()` / `dashboard()` collapse the
+whole flow into one call: they reuse `achat()` on the **active dataset**, harvest
+the returned results and plots, and feed them to `DashboardManager`, which renders
+a **single full-screen Plotly figure** ("canvas") of subplot widgets. Only compact
+summaries (shape, columns, 2-row sample, capped Plotly spec) reach the dashboard
+LLM — never raw data values.

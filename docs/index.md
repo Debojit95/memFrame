@@ -14,7 +14,7 @@
 - Upload from CSV, Parquet, or pandas DataFrame.
 - Inspection, selection, cleaning, statistics, arithmetic, Plotly charts.
 - Two-level cache: lineage audit + replayable result tables.
-- Optional AI agent layer (`memframe_ai`) for natural-language data work.
+- Optional AI agent layer (`memframe_ai`) for natural-language data work, including one-shot AI dashboards (`adashboard`) with a built-in query guardrail.
 
 
 ## Start Here
