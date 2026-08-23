@@ -18,6 +18,8 @@ pip install "memframe[ai]"
 uv add "memframe[ai]"
 ```
 
+For Logfire tracing of the agents, install `memframe[logfire]` instead — it includes this `[ai]` runtime plus Logfire.
+
 ## Enable
 
 Enable the agent once per `MemFrame` instance. Async:

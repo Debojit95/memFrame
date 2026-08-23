@@ -29,10 +29,12 @@
 ## Installation
 
 ```bash
-pip install memframe              # core
-uv add memframe                   # alt: uv
-pip install "memframe[ai]"        # + Pydantic AI agent layer
-uv add "memframe[ai]"             # alt: uv
+pip install memframe                      # core
+uv add memframe                          # alt: uv
+pip install "memframe[ai]"               # + Pydantic AI agent layer
+uv add "memframe[ai]"                    # alt: uv
+pip install "memframe[logfire]"          # + AI agent layer AND Logfire observability
+pip install "memframe[ai,logfire]"       # explicit equivalent of the above
 ```
 
 Local development from this repository:

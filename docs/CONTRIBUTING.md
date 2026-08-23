@@ -71,8 +71,8 @@ uv run ruff check src/
 
 1. `scripts/release.sh <version> "<message>" --dry-run` to preview.
 2. `scripts/release.sh <version> "<message>"` — runs the full gate, bumps, tags, and pushes.
-3. Verify the TestPyPI install:
-   `pip install --index-url https://test.pypi.org/simple memframe`
+3. Verify the TestPyPI install (dependencies come from real PyPI via `--extra-index-url`):
+   `pip install --index-url https://test.pypi.org/simple --extra-index-url https://pypi.org/simple "memframe[ai,logfire]"`
 4. Promote to PyPI via the `Release to PyPI` workflow (Actions → workflow_dispatch).
 
 ## Code of Conduct

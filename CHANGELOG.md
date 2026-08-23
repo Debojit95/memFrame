@@ -6,6 +6,23 @@ to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.0rc1] - 2026-08-23
+
+### Added
+- **AI Dashboard**: one-shot natural-language sentence produces an auto dashboard; renders as a single full-screen Plotly canvas with every DataFrame shown as a table (scalar/dict/list sub-query results now render correctly).
+- **Query guardrail**: validates requests and returns a graceful "blocked" message instead of failing on unsupported queries.
+- **Opt-in Logfire observability**: bring-your-own-key tracing across all agents (enable via `logfire_enabled`/`logfire_token`); host metrics via the optional `system-metrics` extra; traces flushed at the end of `achat`/`adashboard`.
+- **SyncDB**: register pre-existing DuckDB/PostgreSQL/ClickHouse tables into the csv_registry as datasets.
+- Unit-test parallelism via `pytest-xdist`.
+
+### Changed
+- Renamed the `memframe_ai` logger name to `memframe.ai`.
+- `memframe_ai` docs reorganized under `docs/memframe-ai/` (agent, dashboard, observability).
+- The `[logfire]` extra now installs the `[ai]` runtime, so `pip install "memframe[logfire]"` pulls in `pydantic-ai` automatically.
+
+### Fixed
+- Logfire configuration is resilient when the `system-metrics` extra is absent (host metrics are skipped instead of disabling all tracing).
+
 ## [0.2.2] - 2026-08-19
 
 ### Changed

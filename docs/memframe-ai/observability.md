@@ -7,7 +7,7 @@ fail-open: if the `logfire` extra isn't installed, the token is missing, or
 configuration errors, logging just continues normally and your chat is never
 blocked.
 
-Install the extra:
+Install the extra (it also includes the `[ai]` agent runtime, so this single command is enough to trace the agents):
 
 ```bash
 pip install "memframe[logfire]"
@@ -22,7 +22,7 @@ token, or set the `LOGFIRE_TOKEN` environment variable):
 
 ```bash
 pip install "memframe[logfire]"
-# or: uv add "memframe[logfire]"   (pulls logfire[system-metrics])
+# or: uv add "memframe[logfire]"   (includes the [ai] agent runtime and logfire[system-metrics])
 ```
 
 ```python

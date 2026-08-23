@@ -4,8 +4,13 @@
 
 ```bash
 pip install memframe
-or 
+# or
 uv add memframe
+
+# With the AI agent layer:
+pip install "memframe[ai]"
+# With the AI agent layer + Logfire observability:
+pip install "memframe[logfire]"
 ```
 
 For local development from this repository:
