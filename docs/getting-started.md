@@ -188,7 +188,7 @@ your real table is left untouched.
 - [Dataset Operations](api/database.md): list, activate, and delete datasets.
 - [Inspect](api/inspect.md), [Cleaning](api/cleaning.md), [Selection](api/selection.md), and [Stats](api/stats.md): work with uploaded data.
 - [Bar Plots](api/bar.md): create Plotly-backed bar charts.
-- [AI Agent](api/agent.md): `memframe_ai` for natural-language data work.
+- [AI Agent](memframe-ai/agent.md): `memframe_ai` for natural-language data work.
 
 ## Developer Setup
 

@@ -47,12 +47,10 @@ nav:
   - Code of Conduct: CODE_OF_CONDUCT.md
   - API:
       - Caching: api/caching.md
-      - Agent: api/agent.md
       - DB Manager:
           - Connector: api/connector.md
           - Upload Manager: api/upload-manager.md
           - Sync Existing Tables: api/syncdb.md
-          - Dashboard Builder: api/dashboard.md
           - Dataset Operations: api/database.md
       - memFrame:
           - Inspect: api/inspect.md
@@ -67,3 +65,7 @@ nav:
           - Line: api/line.md
           - Scatter: api/scatter.md
           - Scatter 3D: api/scatter3d.md
+  - memframe_ai:
+      - Agent: memframe-ai/agent.md
+      - Dashboard: memframe-ai/dashboard.md
+      - Observability: memframe-ai/observability.md

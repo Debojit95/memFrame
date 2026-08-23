@@ -24,6 +24,7 @@
 - Inspection, selection, cleaning, statistics, arithmetic, Plotly charts.
 - Two-level cache: lineage audit + replayable result tables.
 - Optional AI agent layer (`memframe_ai`) for chatting with your CSV.
+- Optional **Logfire observability** for the AI agent layer — traces every agent run, LLM call, and tool call, plus host metrics. Opt-in via `logfire_enabled` (local console needs no token; bring-your-own-key for the cloud).
 
 ## Installation
 

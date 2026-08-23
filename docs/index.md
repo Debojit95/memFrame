@@ -21,6 +21,6 @@
 
 1. Read [Architecture](architecture.md) for a map of the call path and subsystems.
 2. Follow [Getting Started](getting-started.md) to connect and upload data.
-3. Try the [AI Agent](api/agent.md) for natural-language data work.
+3. Try the [AI Agent](memframe-ai/agent.md) for natural-language data work.
 4. Read [Upload Manager](api/upload-manager.md) for ingestion behavior.
 5. Read [Dataset Operations](api/database.md) to manage uploaded datasets.
