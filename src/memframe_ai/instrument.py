@@ -60,10 +60,14 @@ def configure_logfire(settings: Any) -> bool:
         # stdlib logs differently, so skip gracefully if absent.
         if hasattr(logfire, "instrument_logging"):
             logfire.instrument_logging()
-        # Host metrics (CPU/mem/disk) for the Logfire "Hosts" view; requires the
-        # system-metrics extra. Guarded so it's a no-op if unavailable.
+        # Host metrics (CPU/mem/disk) for the Logfire "Hosts" view. This needs the
+        # optional `system-metrics` extra; if it isn't installed the call raises,
+        # so catch it and skip rather than disabling all tracing.
         if hasattr(logfire, "instrument_system_metrics"):
-            logfire.instrument_system_metrics()
+            try:
+                logfire.instrument_system_metrics()
+            except Exception as exc:  # pragma: no cover - optional dependency
+                logger.debug("logfire host metrics skipped (system-metrics extra not installed): %s", exc)
     except Exception as exc:  # pragma: no cover - defensive
         logger.warning("logfire configure failed (disabled): %s", exc)
         return False
