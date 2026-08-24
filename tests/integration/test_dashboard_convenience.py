@@ -34,7 +34,7 @@ def mf():
         }
     )
     ctx = asyncio.run(m.aupload_df(df, filename="dash_conv"))
-    asyncio.run(m.aset_active(ctx.data_id))
+    asyncio.run(m.aset_active(ctx._data_id))
     yield m
     asyncio.run(m.aclose())
 

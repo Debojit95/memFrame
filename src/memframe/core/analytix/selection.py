@@ -226,10 +226,11 @@ class DataSelectionOps:
             "smallint", "integer", "bigint", "int2", "int4", "int8",
             "decimal", "numeric", "real", "float4", "float8", "double precision",
             "double", "float",
-            # ClickHouse numeric types
-            "int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64",
+            # ClickHouse numeric types (UInt8 is reserved for booleans, see below)
+            "int8", "int16", "int32", "int64", "uint16", "uint32", "uint64",
             "float32", "float64"
         }
+        boolean_types = {"bool", "boolean", "uint8"}  # ponytail: ClickHouse stores bool as UInt8
         categorical_types = {
             "varchar", "character varying", "char", "character", "text",
             "nchar", "nvarchar", "clob",
@@ -244,6 +245,8 @@ class DataSelectionOps:
 
         if t in numeric_types:
             return "numeric"
+        elif t in boolean_types:
+            return "boolean"
         elif t in categorical_types:
             return "categorical"
         elif t in date_types:

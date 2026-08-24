@@ -1019,7 +1019,7 @@ class TestInspectionOperations:
         cols = ["salary", "bonus"]
         resp = uploaded_ctx.data_quality_missing_values(columns=cols)
         assert isinstance(resp, dict) and not resp.get("is_error"), resp
-        result = resp["result"]
+        result = resp
         for col in cols:
             assert result[col]["missing"] == int(sample_df[col].isna().sum())
             assert abs((result[col]["missing_pct"] / 100.0) - sample_df[col].isna().mean()) < 1e-6
@@ -1028,7 +1028,7 @@ class TestInspectionOperations:
         cols = ["salary", "bonus"]
         resp = uploaded_ctx.data_quality_completeness_score(columns=cols)
         assert isinstance(resp, dict) and not resp.get("is_error"), resp
-        result = resp["result"]
+        result = resp
         expected = {col: (1 - sample_df[col].isna().mean()) * 100.0 for col in cols}
         for col in cols:
             assert abs(result[col]["completeness"] - expected[col]) < 1e-6
@@ -1037,7 +1037,7 @@ class TestInspectionOperations:
         cols = ["salary", "bonus"]
         resp = uploaded_ctx.comprehensive_numeric_summary(columns=cols)
         assert isinstance(resp, dict) and not resp.get("is_error"), resp
-        result = resp["result"]
+        result = resp
         assert isinstance(result, dict)
         for col in cols:
             assert col in result and isinstance(result[col], dict)
@@ -1047,6 +1047,6 @@ class TestInspectionOperations:
         cols = ["salary", "bonus"]
         resp = uploaded_ctx.statistical_profile_report(columns=cols)
         assert isinstance(resp, dict) and not resp.get("is_error"), resp
-        result = resp["result"]
+        result = resp
         assert "completeness" in result
         assert "numeric" in result
