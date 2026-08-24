@@ -6,6 +6,9 @@ to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- **Schema/table rename**: the three auto-created namespaces and their inner tables are now prefixed `memframe_` to avoid collisions in shared databases — `upload` → `memframe_upload`, `transient` → `memframe_transient`, `registry` → `memframe_csv_registry`; inner tables `csv_registry` → `memframe_csv_registry` and `transient_registry` → `memframe_transient_registry` (the transient-registry table lives in the `memframe_csv_registry` schema). Existing databases are not auto-migrated; fresh databases pick up the new names.
+
 ## [0.3.0rc2] - 2026-08-24
 
 ### Fixed

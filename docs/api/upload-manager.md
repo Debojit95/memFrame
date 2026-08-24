@@ -5,7 +5,7 @@ Source: `src/wrappers/upload.py`
 `UploadWrapper` is the public upload interface exposed through `MemFrame`. It
 ingests CSV files, Parquet files, and pandas DataFrames into the connected
 DuckDB or PostgreSQL backend. Successful uploads are recorded in
-`registry.csv_registry` and return a `ContextManager` bound to the new dataset.
+`memframe_csv_registry.memframe_csv_registry` and return a `ContextManager` bound to the new dataset.
 
 Users normally call these methods on a connected `MemFrame` instance. The
 lower-level uploader methods in `src/core/ingestion/upload_manager.py` are
@@ -39,7 +39,7 @@ CSV ingestion:
 2. Cleans and deduplicates column names.
 3. Samples values to infer column types.
 4. Loads values into a text staging table.
-5. Safely casts each column into the final `upload` table.
+5. Safely casts each column into the final `memframe_upload` table.
 6. Drops the staging table and records the upload.
 
 Values that cannot be cast to an inferred type become `NULL` instead of

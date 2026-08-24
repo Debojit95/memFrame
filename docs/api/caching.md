@@ -11,7 +11,7 @@ so repeat work is either recorded (cheap signature logging) or fully reused
 `record_call` is a `CacheManager` instance (`from memframe.cache import
 record_call, CacheManager`). Every analytics orchestrator method (`selection`,
 `inspection`, `cleaning`, `stats`, `arithmetic`) is decorated with it. The
-decorator wraps the method, records the call into the `transient_registry`
+decorator wraps the method, records the call into the `memframe_transient_registry`
 table, and — for deep cache — persists the returned DataFrame as a transient
 table.
 
@@ -37,7 +37,7 @@ requests and disables deep caching for the whole session.
 
 ### Level 1 — signature-only (default)
 
-Every call records its identity into `transient_registry`:
+Every call records its identity into `memframe_transient_registry`:
 
 - `data_id` — the dataset the call ran on
 - `opidx` — monotonically increasing operation index per dataset
@@ -84,13 +84,13 @@ method**:
 ### Table relocation
 
 Methods that generate a table (e.g. a cleaned dataset) normally produce it in
-the upload schema. With deep caching, that table is moved into
+the memframe_upload schema. With deep caching, that table is moved into
 `transient_schema` so it can be reloaded on later calls and cleaned up with
 `aclear_cache`. The relocation mechanism is backend-specific:
 
-- DuckDB — `CREATE TABLE transient AS SELECT * FROM upload...` then `DROP`.
-- PostgreSQL — `ALTER TABLE upload... SET SCHEMA transient`.
-- ClickHouse — `RENAME TABLE upload... TO transient...`.
+- DuckDB — `CREATE TABLE memframe_transient AS SELECT * FROM memframe_upload...` then `DROP`.
+- PostgreSQL — `ALTER TABLE memframe_upload... SET SCHEMA memframe_transient`.
+- ClickHouse — `RENAME TABLE memframe_upload... TO memframe_transient...`.
 
 ### Cache invalidation
 
@@ -99,20 +99,20 @@ clears its registry rows. The original uploaded table is left untouched.
 
 ## Backend registry
 
-The transient registry lives in the backend registry schema:
+The transient registry lives in the backend `memframe_csv_registry` schema:
 
 | Backend | Registry table | Transient schema |
 | --- | --- | --- |
-| DuckDB | `registry.transient_registry` | `transient` |
-| PostgreSQL | `registry.transient_registry` | `transient` |
-| ClickHouse | `registry.transient_registry` | `transient` |
+| DuckDB | `memframe_csv_registry.memframe_transient_registry` | `memframe_transient` |
+| PostgreSQL | `memframe_csv_registry.memframe_transient_registry` | `memframe_transient` |
+| ClickHouse | `memframe_csv_registry.memframe_transient_registry` | `memframe_transient` |
 
-Registry and transient schemas are fixed: `registry`, `transient`, and
-`upload`.
+Registry and transient schemas are fixed: `memframe_csv_registry`, `memframe_transient`, and
+`memframe_upload`.
 
 ## Cache-key and registry index
 
-Lookups filter `transient_registry` by `data_id`, `class_name`, `method_name`,
+Lookups filter `memframe_transient_registry` by `data_id`, `class_name`, `method_name`,
 `args`, `kwargs`. DuckDB and PostgreSQL backends install an index on
 `(data_id, class_name, method_name)` so repeated lookups do not scan the whole
 registry.

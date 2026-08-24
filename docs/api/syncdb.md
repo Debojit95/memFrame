@@ -3,7 +3,7 @@
 Source: `src/memframe/db_manager/ops.py`
 
 `MemFrame` can register tables that **already exist** in your connected
-DuckDB, PostgreSQL, or ClickHouse database into `csv_registry`, so they behave
+DuckDB, PostgreSQL, or ClickHouse database into `memframe_csv_registry`, so they behave
 exactly like uploaded datasets — activatable, queryable, and deletable through
 the normal dataset APIs, with no re-ingestion.
 
@@ -28,7 +28,7 @@ registered = await mf.aregister_tables()
 
 - Enumerates every schema → table via the backend's `list_user_tables`,
   **skipping system schemas** (e.g. `pg_catalog`, ClickHouse `system` /
-  `INFORMATION_SCHEMA`, and memFrame's own `upload` / `transient` / `registry`).
+  `INFORMATION_SCHEMA`, and memFrame's own `memframe_upload` / `memframe_transient` / `memframe_csv_registry`).
 - Skips tables that are already registered or empty.
 - Assigns a fresh 6-char `data_id` per table and returns only what was
   registered **this call**.

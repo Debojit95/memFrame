@@ -69,7 +69,7 @@ flowchart TD
   wrapper; each wrapper exposes an `async`/`sync` twin (`ahead`/`head`) and
   delegates via `super()`.
 - **Orchestration** — the `*Orchestrator` resolves the active `data_id` to a
-  `table_name, schema` from the `csv_registry`, lazily builds the core ops
+  `table_name, schema` from the `memframe_csv_registry`, lazily builds the core ops
   engine, and applies the `@record_call` two-level cache.
 - **Core engine** — `GeneralTableOps` builds and runs the backend-native SQL,
   returning a structured `{is_error, result, ...}` envelope; `unwrap_response`
@@ -81,7 +81,7 @@ flowchart TD
 ## Cross-cutting subsystems
 
 - **Connection** — `ConnectorManager` owns the lifecycle: connection pool, the
-  `DatabaseBackend` (creates `csv_registry` / `transient_registry`, runs schema
+  `DatabaseBackend` (creates `memframe_csv_registry` / `memframe_transient_registry`, runs schema
   migrations), and the uploader.
 - **Ingestion** — upload strategies for CSV / Parquet / pandas DataFrame plus a
   `DatatypeDetector` (encoding, delimiter, type inference).
