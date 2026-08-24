@@ -1,7 +1,31 @@
+import contextvars
 import os
 import webbrowser
 
 import plotly.io as pio
+
+# ponytail: when building a dashboard, the chat pipeline runs first and would
+# otherwise render every plot/table inline before the composed dashboard shows.
+# This contextvar (env-agnostic: notebook, terminal, browser) silences those
+# inline renders for the duration of the dashboard build.
+_SUPPRESS_INLINE_DISPLAY = contextvars.ContextVar(
+    "memframe_suppress_inline_display", default=False
+)
+
+
+class suppress_inline_display:
+    """Context manager: silence inline plot/table renders during a dashboard build."""
+
+    def __enter__(self) -> "suppress_inline_display":
+        self._token = _SUPPRESS_INLINE_DISPLAY.set(True)
+        return self
+
+    def __exit__(self, *exc) -> None:
+        _SUPPRESS_INLINE_DISPLAY.reset(self._token)
+
+
+def inline_display_suppressed() -> bool:
+    return _SUPPRESS_INLINE_DISPLAY.get()
 
 
 def setup_plotly_renderer():
@@ -61,6 +85,9 @@ def smart_show(fig, filename="plot.html"):
     """
     if isinstance(fig, str):
         _smart_show_html(fig, filename)
+        return
+
+    if inline_display_suppressed():
         return
 
     setup_plotly_renderer()
@@ -139,6 +166,8 @@ def display_df(df, max_rows: int = 0, max_cols: int = 0):
     live notebook kernel. Must be called from the main kernel context, not from
     inside CodeMode tool dispatch where rich display does not propagate.
     """
+    if inline_display_suppressed():
+        return
     if not in_notebook():
         return
     try:

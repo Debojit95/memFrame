@@ -165,7 +165,12 @@ class ContextManager:
         from memframe_ai.instrument import span as _lf_span, flush_logfire
 
         with _lf_span("adashboard", sentence=sentence[:200], show=show):
-            resp = await self.achat(sentence)
+            # ponytail: silence the chat pipeline's inline plot/table renders
+            # while we collect them; only the composed dashboard figure is shown.
+            from memframe.utils.plot_renderer import suppress_inline_display
+
+            with suppress_inline_display():
+                resp = await self.achat(sentence)
 
             # ponytail: a guardrail-blocked query must not produce an empty dashboard;
             # return a graceful, themed page explaining why execution stopped instead.
