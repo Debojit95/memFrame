@@ -42,19 +42,19 @@ class TestActiveContext:
         mf = _FakeMemFrame(active_id="abc123")
 
         class _Backend:
-            csv_registry_table = "registry.csv_registry"
-            upload_schema = "upload"
+            csv_registry_table = "memframe_csv_registry.memframe_csv_registry"
+            upload_schema = "memframe_upload"
             placeholder = lambda self, i: "?"
 
             async def fetch(self, q, *params):
                 assert params == ("abc123",)
-                return [("abc123", "upload")]
+                return [("abc123", "memframe_upload")]
 
         mf._backend = _Backend()
         ctx, _ = _make_ctx(mf)
         table, schema = asyncio.run(ctx._get_active_context())
         assert table == "abc123"
-        assert schema == "upload"
+        assert schema == "memframe_upload"
 
 
 class TestEnsureAdapter:

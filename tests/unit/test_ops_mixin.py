@@ -81,7 +81,7 @@ class TestOperationRecording:
         data_id = uploaded._data_id
         op = asyncio.run(mf._arecord_method_call(
             data_id, "Class", "method", "[]", "{}",
-            generated_table_name="tbl_y", is_deep_cache=True, schema="transient",
+            generated_table_name="tbl_y", is_deep_cache=True, schema="memframe_transient",
         ))
         assert op == 1
         ops = asyncio.run(mf.alist_operations(data_id))

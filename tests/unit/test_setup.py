@@ -12,9 +12,9 @@ def duckdb_backend():
 
 class TestSchemaNaming:
     def test_default_schemas(self, duckdb_backend):
-        assert duckdb_backend.upload_schema == "upload"
-        assert duckdb_backend.transient_schema == "transient"
-        assert duckdb_backend.registry_schema == "registry"
+        assert duckdb_backend.upload_schema == "memframe_upload"
+        assert duckdb_backend.transient_schema == "memframe_transient"
+        assert duckdb_backend.registry_schema == "memframe_csv_registry"
 
 
 class TestTableNaming:
@@ -22,11 +22,11 @@ class TestTableNaming:
         assert duckdb_backend.get_upload_table_name("abc123") == "abc123"
 
     def test_get_transient_table_name(self, duckdb_backend):
-        assert duckdb_backend.get_transient_table_name("abc123", 5) == 'transient."abc123_5"'
+        assert duckdb_backend.get_transient_table_name("abc123", 5) == 'memframe_transient."abc123_5"'
 
     def test_registry_table_properties(self, duckdb_backend):
-        assert duckdb_backend.transient_registry_table == "registry.transient_registry"
-        assert duckdb_backend.csv_registry_table == "registry.csv_registry"
+        assert duckdb_backend.transient_registry_table == "memframe_csv_registry.memframe_transient_registry"
+        assert duckdb_backend.csv_registry_table == "memframe_csv_registry.memframe_csv_registry"
 
     def test_placeholder(self, duckdb_backend):
         assert duckdb_backend.placeholder(1) == "?"

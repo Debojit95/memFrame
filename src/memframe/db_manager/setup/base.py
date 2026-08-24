@@ -17,8 +17,8 @@ class DatabaseBackend(ABC):
     def __init__(
         self,
         conn_params: dict,
-        registry_schema: str = "public",
-        registry_table: str = "csv_registry",
+        registry_schema: str = "memframe_csv_registry",
+        registry_table: str = "memframe_csv_registry",
     ):
         self.conn_params = conn_params
         self.registry_schema = registry_schema
@@ -92,7 +92,7 @@ class DatabaseBackend(ABC):
 
     async def _migrate_transient_registry_schema(self) -> None:
         schema_name = self.registry_schema
-        table_name = "transient_registry"
+        table_name = "memframe_transient_registry"
         fq_table_name = f"{schema_name}.{table_name}"
 
         required_columns = {
@@ -144,7 +144,7 @@ class DatabaseBackend(ABC):
 
     async def _migrate_csv_registry_schema(self) -> None:
         schema_name = self.registry_schema
-        table_name = "csv_registry"
+        table_name = "memframe_csv_registry"
         fq_table_name = f"{schema_name}.{table_name}"
 
         if not await self._column_exists(schema_name, table_name, "schema"):
@@ -156,7 +156,7 @@ class DatabaseBackend(ABC):
         if self.backend == "clickhouse":
             try:
                 await self.execute(
-                    f"ALTER TABLE {fq_table_name} UPDATE schema = 'upload' WHERE schema IS NULL"
+                    f"ALTER TABLE {fq_table_name} UPDATE schema = '{self.upload_schema}' WHERE schema IS NULL"
                 )
             except Exception:
                 pass

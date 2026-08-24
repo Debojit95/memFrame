@@ -33,7 +33,7 @@ TABLE_SPECS: List[Tuple[str, str, int]] = [
     ("inventory", "stock", 1800),
 ]
 
-MEMFRAME_SCHEMAS = ["upload", "transient", "registry"]
+MEMFRAME_SCHEMAS = ["memframe_upload", "memframe_transient", "memframe_csv_registry"]
 
 
 def _make_df(row_count: int) -> pd.DataFrame:

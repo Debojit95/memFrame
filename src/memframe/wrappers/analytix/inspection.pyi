@@ -124,7 +124,7 @@ class TableOpsWrapper(TableOpsOrchestrator):
         self,
         on: str,
         other_table: str,
-        other_schema: str = "upload",
+        other_schema: str = "memframe_upload",
         overwrite: bool = True,
         errors: str = "ignore",
     ) -> Dict[str, Any]: ...
@@ -133,7 +133,7 @@ class TableOpsWrapper(TableOpsOrchestrator):
         self,
         on: str,
         other_table: str,
-        other_schema: str = "upload",
+        other_schema: str = "memframe_upload",
         overwrite: bool = True,
         errors: str = "ignore",
     ) -> Dict[str, Any]: ...

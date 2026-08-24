@@ -252,9 +252,9 @@ class CacheManager:
                         if await backend.table_exists(manager._qualify(backend.transient_schema, bare_table, backend)):
                             generated_table_name = bare_table
                             schema = backend.transient_schema
-                        elif await backend.table_exists(manager._qualify("transient", bare_table, backend)):
+                        elif await backend.table_exists(manager._qualify(backend.transient_schema, bare_table, backend)):
                             generated_table_name = bare_table
-                            schema = "transient"
+                            schema = backend.transient_schema
                         elif await backend.table_exists(manager._qualify(backend.upload_schema, bare_table, backend)):
                             be = getattr(backend, "backend", None)
                             if be == Backend.CLICKHOUSE:
@@ -291,7 +291,7 @@ class CacheManager:
                     # ponytail: drop any table the method created — deep_cache=False means no tables
                     bare_table = result.get("new_table") or result.get("generated_table_name")
                     if bare_table and backend:
-                        for sch in (backend.transient_schema, "transient", backend.upload_schema):
+                        for sch in (backend.transient_schema, backend.upload_schema):
                             q = manager._qualify(sch, bare_table, backend)
                             if q and await backend.table_exists(q):
                                 await backend.drop_table(q)

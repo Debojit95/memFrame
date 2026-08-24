@@ -157,9 +157,9 @@ class Session:
         """
         if self._pinned is not None:
             return
-        schema = self._schema or "transient"
-        if self._adapter is not None and await self._adapter.table_exists(new_table, "transient"):
-            schema = "transient"
+        schema = self._schema or self.memframe._backend.transient_schema
+        if self._adapter is not None and await self._adapter.table_exists(new_table, self.memframe._backend.transient_schema):
+            schema = self.memframe._backend.transient_schema
         self._table, self._schema = new_table, schema
         # Invalidate context cache when table changes
         self._context_cache = None

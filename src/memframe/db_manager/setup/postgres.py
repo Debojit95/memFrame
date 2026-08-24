@@ -11,9 +11,9 @@ class PostgresBackend(DatabaseBackend):
 
     def __init__(self, conn_params: dict):
         super().__init__(conn_params)
-        self.upload_schema = "upload"
-        self.transient_schema = "transient"
-        self.registry_schema = "registry"
+        self.upload_schema = "memframe_upload"
+        self.transient_schema = "memframe_transient"
+        self.registry_schema = "memframe_csv_registry"
 
     @property
     def placeholder(self) -> str:
@@ -29,7 +29,7 @@ class PostgresBackend(DatabaseBackend):
 
     async def _create_registry_tables(self) -> None:
         await self.execute(f"""
-            CREATE TABLE IF NOT EXISTS {self.registry_schema}.csv_registry (
+            CREATE TABLE IF NOT EXISTS {self.registry_schema}.memframe_csv_registry (
                 data_id CHAR(6) PRIMARY KEY,
                 filename TEXT NOT NULL,
                 uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -40,7 +40,7 @@ class PostgresBackend(DatabaseBackend):
             )
         """)
         await self.execute(f"""
-            CREATE TABLE IF NOT EXISTS {self.registry_schema}.transient_registry (
+            CREATE TABLE IF NOT EXISTS {self.registry_schema}.memframe_transient_registry (
                 data_id CHAR(6) NOT NULL,
                 opidx INTEGER NOT NULL,
                 generated_table_name TEXT,
@@ -57,7 +57,7 @@ class PostgresBackend(DatabaseBackend):
         await self._migrate_csv_registry_schema()
         await self.execute(
             f"CREATE INDEX IF NOT EXISTS idx_transient_registry_lookup "
-            f"ON {self.registry_schema}.transient_registry (data_id, class_name, method_name)"
+            f"ON {self.registry_schema}.memframe_transient_registry (data_id, class_name, method_name)"
         )
 
     def get_upload_table_name(self, data_id: str) -> str:
@@ -68,18 +68,18 @@ class PostgresBackend(DatabaseBackend):
 
     @property
     def transient_registry_table(self) -> str:
-        return f"{self.registry_schema}.transient_registry"
+        return f"{self.registry_schema}.memframe_transient_registry"
 
     @property
     def csv_registry_table(self) -> str:
-        return f"{self.registry_schema}.csv_registry"
+        return f"{self.registry_schema}.memframe_csv_registry"
 
     async def list_user_tables(self) -> Dict[str, List[str]]:
         rows = await self.fetch(
             "SELECT table_schema, table_name FROM information_schema.tables "
             "WHERE table_type = 'BASE TABLE' ORDER BY table_schema, table_name"
         )
-        excluded = {"information_schema", "pg_catalog", "upload", "transient", "registry"}
+        excluded = {"information_schema", "pg_catalog", "memframe_upload", "memframe_transient", "memframe_csv_registry"}
         result: Dict[str, List[str]] = {}
         for schema, table in rows:
             if schema in excluded or schema.startswith("pg_"):

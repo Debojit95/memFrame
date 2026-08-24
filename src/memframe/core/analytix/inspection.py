@@ -167,7 +167,7 @@ class GeneralTableOps:
 
     async def _generate_transient_table_name(self, base_table: str, backend, data_id: str) -> str:
         transient_registry_table = getattr(
-            backend, "transient_registry_table", "registry.transient_registry"
+            backend, "transient_registry_table", "memframe_csv_registry.memframe_transient_registry"
         )
 
         max_op = await backend.fetchval(

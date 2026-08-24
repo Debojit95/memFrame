@@ -125,7 +125,7 @@ def tools(session):
     async def update(
         on: str,
         other_table: str,
-        other_schema: str = "upload",
+        other_schema: str = "memframe_upload",
         overwrite: bool = True,
         errors: str = "ignore",
     ) -> dict:

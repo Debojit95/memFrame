@@ -27,7 +27,7 @@ def test_create_and_resolve_active_table(uploaded):
     try:
         asyncio.run(session.ensure())
         assert session.table is not None
-        assert session.schema == "upload"
+        assert session.schema == "memframe_upload"
         assert session.adapter is not None
         assert store.get("s1") is session
     finally:

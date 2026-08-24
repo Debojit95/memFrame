@@ -12,9 +12,9 @@ class ClickHouseBackend(DatabaseBackend):
 
     def __init__(self, conn_params: dict):
         super().__init__(conn_params)
-        self.upload_schema = "upload"
-        self.transient_schema = "transient"
-        self.registry_schema = "registry"
+        self.upload_schema = "memframe_upload"
+        self.transient_schema = "memframe_transient"
+        self.registry_schema = "memframe_csv_registry"
 
     @property
     def placeholder(self) -> str:
@@ -75,7 +75,7 @@ class ClickHouseBackend(DatabaseBackend):
 
     async def _create_registry_tables(self) -> None:
         await self.execute(f"""
-            CREATE TABLE IF NOT EXISTS {self.registry_schema}.csv_registry (
+            CREATE TABLE IF NOT EXISTS {self.registry_schema}.memframe_csv_registry (
                 data_id String,
                 filename String,
                 uploaded_at DateTime DEFAULT now(),
@@ -87,7 +87,7 @@ class ClickHouseBackend(DatabaseBackend):
             ORDER BY data_id
         """)
         await self.execute(f"""
-            CREATE TABLE IF NOT EXISTS {self.registry_schema}.transient_registry (
+            CREATE TABLE IF NOT EXISTS {self.registry_schema}.memframe_transient_registry (
                 data_id String,
                 opidx Int32,
                 generated_table_name Nullable(String),
@@ -113,11 +113,11 @@ class ClickHouseBackend(DatabaseBackend):
 
     @property
     def transient_registry_table(self) -> str:
-        return f"`{self.registry_schema}`.transient_registry"
+        return f"`{self.registry_schema}`.memframe_transient_registry"
 
     @property
     def csv_registry_table(self) -> str:
-        return f"`{self.registry_schema}`.csv_registry"
+        return f"`{self.registry_schema}`.memframe_csv_registry"
 
     async def list_user_tables(self) -> Dict[str, List[str]]:
         rows = await self.fetch(
@@ -126,7 +126,7 @@ class ClickHouseBackend(DatabaseBackend):
         )
         # ponytail: exclude ClickHouse's preset/system databases (case-insensitive)
         # plus memFrame's own bookkeeping databases so only user tables sync.
-        excluded = {"system", "information_schema", "default", "upload", "transient", "registry"}
+        excluded = {"system", "information_schema", "default", "memframe_upload", "memframe_transient", "memframe_csv_registry"}
         result: Dict[str, List[str]] = {}
         for database, name in rows:
             if database.lower() in excluded:

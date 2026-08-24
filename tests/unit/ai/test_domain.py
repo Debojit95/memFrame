@@ -65,7 +65,7 @@ def test_domain_context_reflects_advance_table(session):
     asyncio.run(session.ensure())
     adapter = session.adapter
     asyncio.run(adapter.execute(
-        'CREATE TABLE "transient"."other_tbl" (num BIGINT, cat VARCHAR)'
+        'CREATE TABLE "memframe_transient"."other_tbl" (num BIGINT, cat VARCHAR)'
     ))
     asyncio.run(session.advance_table("other_tbl"))
     after = asyncio.run(session.domain_context(force_refresh=True))

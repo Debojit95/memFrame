@@ -168,10 +168,10 @@ class TableOpsOrchestrator:
         return await ops.dataframe_set_index(table, schema, columns=columns)
 
     @record_call(deep_cache=True)
-    async def update(self, on: str, other_table: str, other_schema: str = "upload",overwrite: bool = True, errors: str = "ignore",) -> Dict[str, Any]:
+    async def update(self, on: str, other_table: str, other_schema: str = "memframe_upload",overwrite: bool = True, errors: str = "ignore",) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
-        if other_schema == "upload":
+        if other_schema == "memframe_upload":
             other_schema = schema
 
         return await ops.dataframe_update(
