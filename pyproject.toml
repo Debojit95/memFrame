@@ -1,6 +1,6 @@
 [project]
 name = "memframe"
-version = "0.3.0rc1"
+version = "0.3.0rc2"
 description = "memFrame is a Python package for working with database-backed DataFrame operations. It lets you upload CSV files, Parquet files, and pandas DataFrames into a local DuckDB database or a remote PostgreSQL/Clickhouse database, then run DataFrame-style inspection, selection, cleaning, and table-management operations through one consistent API."
 readme = "README.md"
 authors = [

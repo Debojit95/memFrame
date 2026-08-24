@@ -6,6 +6,11 @@ to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.0rc2] - 2026-08-24
+
+### Fixed
+- **Dashboard now renders in notebooks (Colab/Jupyter)**: the dashboard was composed as one Plotly figure but displayed via `display(HTML(...))`, whose `<script>` is stripped by notebook sanitization (blank dashboard). It now displays the native `go.Figure` via Plotly's mimebundle in a live kernel. Terminal/browser rendering unchanged.
+
 ## [0.3.0rc1] - 2026-08-23
 
 ### Added
