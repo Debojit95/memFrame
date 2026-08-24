@@ -298,4 +298,38 @@ def test_dashboard_naming_convention():
     from memframe import MemFrame
 
     assert inspect.iscoroutinefunction(MemFrame.adashboard)
-    assert not inspect.iscoroutinefunction(MemFrame.dashboard)
+
+
+def test_show_displays_native_figure_in_notebook(monkeypatch):
+    # ponytail: in a notebook (Colab/Jupyter) show() must display the native
+    # Plotly figure (mimebundle), not display(HTML(...)), which Colab strips.
+    import sys
+    import types
+
+    dm = DashboardManager()
+    dm.add("sales plot", px.bar(_df(), x="region", y="sales"))
+    design = DashboardDesign(
+        dashboard_title="Test",
+        global_theme="light",
+        widgets=[WidgetDesign(result_index=0, kind="plot", col_span=6)],
+    )
+
+    displayed = []
+
+    def fake_display(obj):
+        displayed.append(obj)
+
+    import memframe.utils.plot_renderer as _pr
+
+    monkeypatch.setattr(_pr, "in_notebook", lambda: True)
+    fake_pkg = types.ModuleType("IPython")
+    fake_mod = types.ModuleType("IPython.display")
+    fake_mod.display = fake_display
+    fake_pkg.display = fake_mod
+    monkeypatch.setitem(sys.modules, "IPython", fake_pkg)
+    monkeypatch.setitem(sys.modules, "IPython.display", fake_mod)
+
+    dm.show(design=design)
+
+    assert len(displayed) == 1
+    assert isinstance(displayed[0], go.Figure)

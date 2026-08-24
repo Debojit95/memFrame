@@ -248,6 +248,16 @@ def render_html(items: List[Dict[str, Any]], design: DashboardDesign) -> str:
     return _PAGE_TEMPLATE.format(title=design.dashboard_title, bg=bg, figure=fig_html)
 
 
+def render_figure(items: List[Dict[str, Any]], design: DashboardDesign) -> "go.Figure":
+    """The single composed dashboard figure (the same object render_html serializes).
+
+    Returning the native figure lets notebooks (Colab/Jupyter) display it via
+    Plotly's mimebundle, avoiding the ``<script>`` sanitization that breaks
+    ``display(HTML(fig.to_html(...)))``.
+    """
+    return build_canvas(items, design)
+
+
 def build_canvas(items: List[Dict[str, Any]], design: DashboardDesign) -> go.Figure:
     """Compose the whole dashboard as ONE Plotly figure (subplots/domains)."""
     # ponytail: coerce kind from the actual result type so a DataFrame is never

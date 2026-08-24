@@ -208,7 +208,7 @@ class ContextManager:
             design = await dm.design(settings)
             html = dm.render(design)
             if show:
-                dm.show(html=html, filename=filename)
+                dm.show(design=design, filename=filename)
             flush_logfire()
             return html
 

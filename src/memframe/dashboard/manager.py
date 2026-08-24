@@ -100,6 +100,10 @@ class DashboardManager:
             fh.write(html)
         return filename
 
+    def render_figure(self, design: "DashboardDesign"):
+        """The composed dashboard figure for native notebook display."""
+        return _render.render_figure(self._items, design)
+
     def show(
         self,
         design: Optional["DashboardDesign"] = None,
@@ -109,11 +113,22 @@ class DashboardManager:
         """Env-agnostic display (notebook inline / browser) of the dashboard.
 
         Pass a pre-rendered ``html`` string, or a ``design`` to render first.
+        In a live notebook (Colab/Jupyter/VSCode) the composed Plotly figure is
+        displayed natively so it isn't broken by HTML ``<script>`` sanitization.
         """
-        from memframe.utils.plot_renderer import smart_show
+        from memframe.utils.plot_renderer import in_notebook, smart_show
 
         if html is None:
             if design is None:
                 raise ValueError("show() requires either `design` or `html`.")
             html = self.render(design)
+
+        if design is not None and in_notebook():
+            try:
+                from IPython.display import display
+
+                display(self.render_figure(design))
+                return
+            except Exception:
+                pass
         smart_show(html, filename)
