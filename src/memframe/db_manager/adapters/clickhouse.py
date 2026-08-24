@@ -1,3 +1,4 @@
+import asyncio
 import json
 import io
 import logging
@@ -47,9 +48,18 @@ class HttpxClickHouseClient:
         self._base_url = f"{scheme}://{host}:{port}"
         self._auth = (username, password)
         self._timeout = timeout
+        # ponytail: one httpx client per event loop so connections (and
+        # keep-alive) are reused within an operation; async_to_sync spins a
+        # fresh loop per call (async_sync.py), hence the per-loop cache.
+        self._clients: dict[int, "httpx.AsyncClient"] = {}
 
     async def close(self) -> None:
-        return None
+        for client in list(self._clients.values()):
+            try:
+                await client.aclose()
+            except Exception:
+                pass
+        self._clients.clear()
 
     async def command(
         self, query: str, parameters: Optional[Sequence[Any]] = None
@@ -128,6 +138,28 @@ class HttpxClickHouseClient:
             data=buffer.getvalue(),
         )
 
+    def _get_client(self) -> "httpx.AsyncClient":
+        loop = asyncio.get_running_loop()
+        if loop.is_closed():
+            raise RuntimeError("cannot create ClickHouse client on a closed event loop")
+        # Key by the loop OBJECT, not id(): loop ids are reused after a prior
+        # loop is closed/GC'd, which would otherwise return a stale client bound
+        # to a dead loop (and fail with "Event loop is closed").
+        self._clients = {
+            lp: c for lp, c in self._clients.items()
+            if not lp.is_closed() and not c.is_closed
+        }
+        client = self._clients.get(loop)
+        if client is None:
+            client = httpx.AsyncClient(
+                base_url=self._base_url,
+                auth=self._auth,
+                timeout=self._timeout,
+                limits=httpx.Limits(max_keepalive_connections=10, keepalive_expiry=30.0),
+            )
+            self._clients[loop] = client
+        return client
+
     async def _post(
         self, query: str, data: Optional[Any] = None
     ) -> httpx.Response:
@@ -142,17 +174,15 @@ class HttpxClickHouseClient:
             content = data if isinstance(data, bytes) else data.encode("utf-8")
 
         try:
-            async with httpx.AsyncClient(
-                base_url=self._base_url,
-                auth=self._auth,
-                timeout=self._timeout,
-            ) as client:
-                response = await client.post(
-                    "/",
-                    params=params,
-                    content=content,
-                )
+            client = self._get_client()
+            response = await client.post(
+                "/",
+                params=params,
+                content=content,
+            )
             response.raise_for_status()
+            # consume the body so the connection returns to the pool for reuse
+            await response.aread()
         except httpx.HTTPStatusError as exc:
             detail = exc.response.text.strip()
             message = f"ClickHouse HTTP {exc.response.status_code}"
