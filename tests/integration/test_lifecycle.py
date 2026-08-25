@@ -30,7 +30,11 @@ class TestUploadLifecycle:
 class TestActiveLifecycle:
     def test_set_active_then_get_active(self, connected_memframe, uploaded_ctx):
         data_id = uploaded_ctx._data_id
-        assert asyncio.run(connected_memframe.aset_active(data_id)) == data_id
+        result = asyncio.run(connected_memframe.aset_active(data_id))
+        from memframe.db_manager.context import ContextManager
+
+        assert isinstance(result, ContextManager)
+        assert result._data_id == data_id
         assert asyncio.run(connected_memframe.aget_active_table()) == data_id
 
     def test_set_active_unknown_raises(self, connected_memframe):

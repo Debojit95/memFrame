@@ -3,6 +3,7 @@ from typing import Any, Dict, List, Optional
 
 from memframe.exceptions import ConfigurationError, ConnectionNotReady, DataNotFound
 from memframe.core.ingestion.datatype_detector import _generate_6char_id
+from memframe.db_manager.context import ContextManager
 from memframe.utils.async_sync import async_to_sync
 
 logger = logging.getLogger("memFrame")
@@ -93,7 +94,7 @@ class OpsMixin:
     async def register_tables(self) -> Dict[str, List[Dict[str, Any]]]:
         return await self.aregister_tables()
 
-    async def aset_active(self, data_id: str) -> str:
+    async def aset_active(self, data_id: str) -> ContextManager:
         row = await self._backend.fetch_row(
             f"SELECT table_name, schema FROM {self._backend.csv_registry_table} "
             f"WHERE data_id = {self._placeholder(1)}",
@@ -108,10 +109,12 @@ class OpsMixin:
             raise DataNotFound(f"Table for data_id '{data_id}' does not exist")
         self._active_id = data_id
         logger.info(f"Active CSV set to {data_id}")
-        return data_id
+        # ponytail: return a context bound to this data_id, matching the
+        # ContextManager that upload_df/ops() hand back from main.py.
+        return ContextManager(self, data_id=data_id)
 
     @async_to_sync
-    async def set_active(self, data_id: str) -> str:
+    async def set_active(self, data_id: str) -> ContextManager:
         return await self.aset_active(data_id)
 
     async def aget_active_table(self) -> Optional[str]:

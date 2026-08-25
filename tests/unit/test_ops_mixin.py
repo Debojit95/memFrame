@@ -40,7 +40,11 @@ class TestListTables:
 
 class TestActiveManagement:
     def test_set_and_get_active(self, mf, uploaded):
-        assert asyncio.run(mf.aset_active(uploaded._data_id)) == uploaded._data_id
+        result = asyncio.run(mf.aset_active(uploaded._data_id))
+        from memframe.db_manager.context import ContextManager
+
+        assert isinstance(result, ContextManager)
+        assert result._data_id == uploaded._data_id
         assert asyncio.run(mf.aget_active_table()) == uploaded._data_id
 
     def test_set_active_unknown_data_id_raises(self, mf):
