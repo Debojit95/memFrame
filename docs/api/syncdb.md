@@ -26,14 +26,15 @@ registered = await mf.aregister_tables()
 
 ## Behavior
 
-- Enumerates every schema → table via the backend's `list_user_tables`,
-  **skipping system schemas** (e.g. `pg_catalog`, ClickHouse `system` /
-  `INFORMATION_SCHEMA`, and memFrame's own `memframe_upload` / `memframe_transient` / `memframe_csv_registry`).
+- Enumerates every schema → table (database → table on ClickHouse) via the backend's `list_user_tables`,
+  **skipping system schemas/databases** (e.g. `pg_catalog` and `INFORMATION_SCHEMA` schemas, the
+  ClickHouse `system` database, and memFrame's own namespaces — `memframe_upload` / `memframe_transient` /
+  `memframe_csv_registry`, which are schemas on DuckDB/PostgreSQL and databases on ClickHouse).
 - Skips tables that are already registered or empty.
 - Assigns a fresh 6-char `data_id` per table and returns only what was
   registered **this call**.
 - **Idempotent:** a second call returns `{}`.
 - Registered tables are marked `is_external=True`. Deleting one removes only
   the registry entry — **your real table is never dropped**.
-- After registering + `set_active(data_id)`, use the normal dataset context
-  (`memFrame()`) exactly as with uploads.
+- After registering + `set_active(data_id)`, use the returned `ContextManager`
+  (or `memFrame()`) exactly as with uploads.

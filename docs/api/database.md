@@ -14,7 +14,7 @@ the connection lifecycle lives on its `ConnectorManager`.
 | Synchronous | Asynchronous | Purpose |
 | --- | --- | --- |
 | `list_tables()` | `await alist_tables()` | List successful uploads |
-| `set_active(data_id)` | `await aset_active(data_id)` | Set the active dataset |
+| `set_active(data_id)` | `await aset_active(data_id)` | Set the active dataset (returns a `ContextManager`) |
 | `get_active_table()` | `await aget_active_table()` | Read the active dataset ID |
 | `delete_table(data_id=None, filename=None)` | `await adelete_table(data_id=None, filename=None)` | Delete an uploaded dataset |
 | `list_operations(data_id=None)` | `await alist_operations(data_id=None)` | List operation history |
@@ -46,17 +46,21 @@ Only registry entries whose upload completed successfully are returned.
 ### Select the Active Dataset
 
 ```python
-mf.set_active("a1b2c3")
-active_id = mf.get_active_table()
+# set_active returns a ContextManager bound to the dataset
+ctx = mf.set_active("a1b2c3")
+ctx.select_dtypes(include="numeric")   # operate directly on the returned context
+active_id = mf.get_active_table()      # still returns the active data_id string
 ```
 
 ```python
-await mf.aset_active("a1b2c3")
-active_id = await mf.aget_active_table()
+ctx = await mf.aset_active("a1b2c3")
 ```
 
-Setting an active dataset first verifies that its upload table exists. Methods
-that accept an optional `data_id` use the active dataset when no ID is given.
+Setting an active dataset first verifies that its upload table exists.
+`set_active`/`aset_active` return a `ContextManager` you can use for subsequent
+operations; methods that accept an optional `data_id` use the active dataset
+when no ID is given. `get_active_table()` continues to return the active
+`data_id` string.
 
 ### Delete a Dataset
 
@@ -102,7 +106,7 @@ create generated tables.
 ## Errors
 
 - Operations that require a database raise `RuntimeError` when not connected.
-- Selecting an unknown `data_id` raises `ValueError`.
+- Selecting an unknown `data_id` raises `DataNotFound`.
 - Deletion requires either `data_id` or `filename`.
 - Listing operations without a supplied or active dataset raises `ValueError`.
 

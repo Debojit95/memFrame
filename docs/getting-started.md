@@ -181,9 +181,10 @@ registered = mf.register_tables()
 # {'sales': [{'data_id': 'a1b2c3', 'table_name': 'orders', 'row_count': 100}, ...]}
 ```
 
-Registered tables act like uploads: activate with `set_active(data_id)` and
-query via `memFrame()`. Deleting one only removes memFrame's registry entry;
-your real table is left untouched.
+Registered tables act like uploads: activate with `set_active(data_id)`
+(returns a dataset `ContextManager`) and query via the returned context or
+`memFrame()`. Deleting one only removes memFrame's registry entry; your real
+table is left untouched.
 
 ## Next Steps
 

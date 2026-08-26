@@ -84,8 +84,9 @@ method**:
 ### Table relocation
 
 Methods that generate a table (e.g. a cleaned dataset) normally produce it in
-the memframe_upload schema. With deep caching, that table is moved into
-`transient_schema` so it can be reloaded on later calls and cleaned up with
+the memframe_upload schema (DuckDB/PostgreSQL) or database (ClickHouse). With deep
+caching, that table is moved into `transient_schema` (the transient schema on
+DuckDB/PostgreSQL, database on ClickHouse) so it can be reloaded on later calls and cleaned up with
 `aclear_cache`. The relocation mechanism is backend-specific:
 
 - DuckDB — `CREATE TABLE memframe_transient AS SELECT * FROM memframe_upload...` then `DROP`.
@@ -99,15 +100,15 @@ clears its registry rows. The original uploaded table is left untouched.
 
 ## Backend registry
 
-The transient registry lives in the backend `memframe_csv_registry` schema:
+The transient registry lives in the backend `memframe_csv_registry` schema (DuckDB/PostgreSQL) or database (ClickHouse):
 
-| Backend | Registry table | Transient schema |
+| Backend | Registry table | Transient schema/database |
 | --- | --- | --- |
 | DuckDB | `memframe_csv_registry.memframe_transient_registry` | `memframe_transient` |
 | PostgreSQL | `memframe_csv_registry.memframe_transient_registry` | `memframe_transient` |
 | ClickHouse | `memframe_csv_registry.memframe_transient_registry` | `memframe_transient` |
 
-Registry and transient schemas are fixed: `memframe_csv_registry`, `memframe_transient`, and
+Registry and transient schemas/databases are fixed: `memframe_csv_registry`, `memframe_transient`, and
 `memframe_upload`.
 
 ## Cache-key and registry index

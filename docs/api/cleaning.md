@@ -408,7 +408,7 @@ response envelope still carries `new_table`, column metadata, and fill metrics.
 ## Generated Tables
 
 Most cleaning operations are non-destructive to the source upload table. They
-create a generated table internally, usually in the same active schema.
+create a generated table internally, usually in the same active schema (or database on ClickHouse).
 
 Column-cleaning operations usually:
 

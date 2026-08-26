@@ -6,61 +6,7 @@ leaves the database. The call path is a four-layer stack, with connection,
 ingestion, and cache as cross-cutting subsystems, and an optional AI agent layer
 on top.
 
-```mermaid
-flowchart TD
-    U["User code<br/>ds.head() / await ds.ahead()"]
-
-    subgraph PUBLIC["Public API · MemFrame / ContextManager"]
-      CM["ContextManager.__getattr__<br/>resolves method on wrapper"]
-      WR["Wrapper layer<br/>*Wrapper · async/sync twins"]
-    end
-
-    subgraph ORCH["Orchestration"]
-      OR["*Orchestrator<br/>resolve table + schema"]
-      CACHE[("Two-level Cache<br/>L1 signature log · L2 deep tables")]
-    end
-
-    subgraph CORE["Core Engine · GeneralTableOps"]
-      SQL["Build backend-native SQL<br/>envelope ok() / fail()"]
-      RESP["unwrap_response<br/>raise on error / return result"]
-    end
-
-    subgraph ADAPT["Adapter · DatabaseAdapter (ABC)"]
-      D[("DuckDB")]
-      P[("PostgreSQL")]
-      C[("ClickHouse")]
-    end
-
-    subgraph SUBS["Cross-cutting"]
-      CONN["ConnectorManager<br/>pool + backend + uploader"]
-      ING["Ingestion<br/>CSV · Parquet · DF · DatatypeDetector"]
-    end
-
-    subgraph AI["Optional AI · memframe_ai"]
-      CHAT["achat / enable_agent"]
-      GUARD["GuardrailAgent<br/>pre-plan validation"]
-      AGT["Planner + Analytics specialists"]
-      TOOLS["Agent tools → core ops"]
-      GW["ModelGateway<br/>OpenAI · Anthropic · Google · Ollama"]
-      CANVAS["DashboardManager<br/>single-figure canvas"]
-    end
-
-    ADASH["adashboard / dashboard<br/>one-shot AI dashboard"]
-
-    U --> CM --> WR --> OR
-    OR -. cache lookup .-> CACHE
-    OR --> SQL --> ADAPT
-    ADAPT --> D & P & C
-    SQL --> RESP
-    CONN -. owns .-> ADAPT
-    ING -. feeds .-> CONN
-    CHAT --> GUARD
-    ADASH --> GUARD
-    GUARD --> AGT --> TOOLS --> SQL
-    AGT -. results/plots .-> CANVAS
-    CANVAS -. design agent .-> GW
-    GW -. models for .-> AGT
-```
+![memFrame architecture](assets/memframe-arch.png)
 
 ## Layers
 
@@ -69,7 +15,7 @@ flowchart TD
   wrapper; each wrapper exposes an `async`/`sync` twin (`ahead`/`head`) and
   delegates via `super()`.
 - **Orchestration** — the `*Orchestrator` resolves the active `data_id` to a
-  `table_name, schema` from the `memframe_csv_registry`, lazily builds the core ops
+  `table_name`, `schema` (DuckDB/PostgreSQL) or `database` (ClickHouse) from the `memframe_csv_registry`, lazily builds the core ops
   engine, and applies the `@record_call` two-level cache.
 - **Core engine** — `GeneralTableOps` builds and runs the backend-native SQL,
   returning a structured `{is_error, result, ...}` envelope; `unwrap_response`
@@ -81,8 +27,8 @@ flowchart TD
 ## Cross-cutting subsystems
 
 - **Connection** — `ConnectorManager` owns the lifecycle: connection pool, the
-  `DatabaseBackend` (creates `memframe_csv_registry` / `memframe_transient_registry`, runs schema
-  migrations), and the uploader.
+  `DatabaseBackend` (creates `memframe_csv_registry` / `memframe_transient_registry` — schemas on
+  DuckDB/PostgreSQL, databases on ClickHouse — and runs migrations), and the uploader.
 - **Ingestion** — upload strategies for CSV / Parquet / pandas DataFrame plus a
   `DatatypeDetector` (encoding, delimiter, type inference).
 - **Cache** — `record_call` is a `CacheManager` decorator. L1 (`deep_cache=False`,

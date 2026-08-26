@@ -54,6 +54,7 @@ tidy. The full set:
 | `[docs]`    | Documentation-only changes (README, `docs/`, docstrings).                                |
 | `[add]`     | Adding a supporting file that does not introduce a feature (fixture, config, isolated helper). |
 | `[remove]`  | Removing a tracked file from the repo (untracking / deletion of source, doc, or config).  |
+| `[chore]`   | Routine maintenance that doesn't fit another tag — dependency bumps, build/packaging housekeeping, misc repo upkeep. Use `[upgrade]`/`[docs]`/`[ci]` for behavior/doc/CI changes. |
 
 ### Format
 
@@ -65,7 +66,7 @@ tidy. The full set:
 
 - Tag is lowercase, bracketed, single space, then the summary.
 - Summary is imperative mood, ≤72 chars, no trailing period.
-- The eight tags above are exhaustive. If a change genuinely fits none of them, prefer the closest tag and explain in the body. `[update]` is **not** a valid tag — use `[upgrade]` or `[docs]` instead.
+- The tags above are exhaustive. If a change genuinely fits none of them, prefer the closest tag and explain in the body. `[update]` is **not** a valid tag — use `[upgrade]` or `[docs]` instead.
 
 ### Examples
 
@@ -78,6 +79,7 @@ git commit -m "[ci] Remove integration job from ci workflow"
 git commit -m "[docs] Slim README and add agent section"
 git commit -m "[add] tests/datasets/sample.parquet fixture"
 git commit -m "[remove] deprecated commands.md scratchpad"
+git commit -m "[chore] Bump httpx and widen pyarrow range"
 ```
 
 ### Branch-required changes
@@ -101,7 +103,8 @@ branch + pull request — never commit directly to `main`):
 Direct commits to `main` are reserved for the maintainer's small,
 self-contained changes that don't need another pair of eyes: single-file
 `[fix]`, single-file `[docs]`, single-file `[add]`, single-file
-`[remove]`, small `[refactor]` (no public-API change), and small
+`[remove]`, small `[refactor]` (no public-API change), small `[chore]`
+maintenance (dependency bumps, build/packaging housekeeping), and small
 single-workflow `[ci]` tweaks.
 
 When in doubt, open a branch.
