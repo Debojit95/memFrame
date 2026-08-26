@@ -39,7 +39,11 @@ def mf():
     asyncio.run(m.aclose())
 
 
-async def test_dashboard_one_sentence(mf):
+def test_dashboard_one_sentence(mf):
+    asyncio.run(_run_dashboard_one_sentence(mf))
+
+
+async def _run_dashboard_one_sentence(mf):
     await mf.aenable_agent(
         api_key=os.getenv("OPENAI_API_KEY"),
         provider=os.getenv("MEMFRAME_TEST_PROVIDER", "openai"),

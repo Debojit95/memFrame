@@ -68,9 +68,7 @@ def _connection_config(db_backend: str | None, db_params: Dict[str, Any]) -> tup
 
 
 def _requested_upload(request) -> tuple[str, Path | None]:
-    upload_type = request.config.getoption("upload_type")
-    if not upload_type:
-        pytest.skip("Provide --upload-type to run upload integration tests")
+    upload_type = request.config.getoption("upload_type") or "df"
 
     path_arg = request.config.getoption("filepath")
     if upload_type in {"csv", "parquet"}:
