@@ -35,8 +35,8 @@ if [[ -z "$cur_version" ]]; then
   exit 1
 fi
 
-if [[ ! "$new_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-  echo "Version '$new_version' must be X.Y.Z" >&2
+if [[ ! "$new_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(rc[0-9]+)?$ ]]; then
+  echo "Version '$new_version' must be X.Y.Z or X.Y.ZrcN" >&2
   exit 1
 fi
 
