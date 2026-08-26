@@ -6,6 +6,8 @@ to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.0rc3] - 2026-08-26
+
 ### Changed
 - **Schema/table rename**: the three auto-created namespaces and their inner tables are now prefixed `memframe_` to avoid collisions in shared databases — `upload` → `memframe_upload`, `transient` → `memframe_transient`, `registry` → `memframe_csv_registry`; inner tables `csv_registry` → `memframe_csv_registry` and `transient_registry` → `memframe_transient_registry` (the transient-registry table lives in `memframe_csv_registry` — a schema on DuckDB/PostgreSQL, a database on ClickHouse). Existing databases are not auto-migrated; fresh databases pick up the new names.
 - `aset_active`/`set_active` now return the dataset `ContextManager` (instead of the bare `data_id` string), so activation flows straight into operations: `ctx = mf.set_active(data_id); ctx.select_dtypes(...)`. `get_active_table()` still returns the active `data_id`.
