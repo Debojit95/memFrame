@@ -2128,7 +2128,7 @@ wheels = [
 
 [[package]]
 name = "memframe"
-version = "0.3.0rc2"
+version = "0.3.0rc3"
 source = { editable = "." }
 dependencies = [
     { name = "asyncpg" },
