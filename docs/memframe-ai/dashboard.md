@@ -61,15 +61,18 @@ await mf.aenable_agent(api_key="sk-...")
 html = await mf.adashboard(
     "fillna C with mean then calculate the value counts of D and add B with the cleaned C",
 )
-# html is a complete dashboard page; in a notebook it also renders inline,
-# otherwise it is written to dashboard.html and opened in the browser.
+# In a notebook `adashboard` returns a native Plotly figure (renders inline via
+# its mimebundle); in a terminal it returns the self-contained HTML string.
 ```
 
 - **Async** (`adashboard`) and requires the agent enabled (`aenable_agent`). Raises a clear
   error otherwise, or if there is no active dataset.
 - Set `show=False` to skip the env-agnostic display and just get the HTML back.
-- The final display uses `memframe.utils.plot_renderer.smart_show`, which is
-  env-agnostic: notebook/Colab/VSCode render inline, terminal opens the browser.
+- The return value is env-aware: in a notebook (Jupyter/Colab/VSCode) it returns
+  the native Plotly `Figure` so the cell renders it inline; in a terminal it
+  returns the self-contained HTML string. The display step uses
+  `memframe.utils.plot_renderer.smart_show` (notebook renders inline, terminal
+  writes `dashboard.html` and opens the browser).
 
 ### Token safety
 

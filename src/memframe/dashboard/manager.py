@@ -115,6 +115,9 @@ class DashboardManager:
         Pass a pre-rendered ``html`` string, or a ``design`` to render first.
         In a live notebook (Colab/Jupyter/VSCode) the composed Plotly figure is
         displayed natively so it isn't broken by HTML ``<script>`` sanitization.
+        The native-figure path never falls back to ``display(HTML(...))`` — the
+        dashboard HTML embeds a Plotly ``<script>`` that Jupyter frontends strip
+        or crash on.
         """
         from memframe.utils.plot_renderer import in_notebook, smart_show
 
@@ -124,11 +127,15 @@ class DashboardManager:
             html = self.render(design)
 
         if design is not None and in_notebook():
+            # ponytail: notebook -> show the native figure via its mimebundle.
+            # On any display failure we return (not fall back to HTML), because
+            # display(HTML(...)) on the embedded Plotly script crashes the kernel.
             try:
                 from IPython.display import display
 
                 display(self.render_figure(design))
-                return
             except Exception:
                 pass
+            return
+
         smart_show(html, filename)

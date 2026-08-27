@@ -332,4 +332,91 @@ def test_show_displays_native_figure_in_notebook(monkeypatch):
     dm.show(design=design)
 
     assert len(displayed) == 1
-    assert isinstance(displayed[0], go.Figure)
+
+
+def test_adashboard_returns_figure_in_notebook(monkeypatch):
+    # ponytail: in a notebook adashboard() must return the native Plotly figure,
+    # not the HTML string, so the cell renders it via its mimebundle.
+    import types
+
+    from memframe.db_manager.context import ContextManager
+    import memframe.dashboard.manager as _mgr
+
+    import json
+
+    ctx = ContextManager(types.SimpleNamespace(), "d1")
+    fig = px.bar(_df(), x="region", y="sales")
+    spec = json.loads(fig.to_json())
+    resp = {
+        "guardrail_blocked": False,
+        "plots": [{"title": "p", "spec": spec}],
+        "results": [],
+        "values": [],
+    }
+
+    async def fake_achat(sentence):
+        return resp
+
+    monkeypatch.setattr(ContextManager, "achat", staticmethod(fake_achat))
+    monkeypatch.setattr(
+        "memframe_ai.entrypoints._get_settings", lambda memframe: object()
+    )
+
+    design = DashboardDesign(
+        dashboard_title="T",
+        widgets=[WidgetDesign(result_index=0, kind="plot", col_span=6)],
+    )
+
+    async def fake_design(settings):
+        return design
+
+    monkeypatch.setattr(_mgr.DashboardManager, "design", staticmethod(fake_design))
+    monkeypatch.setattr("memframe.utils.plot_renderer.in_notebook", lambda: True)
+
+    # show=False: we only assert the RETURN value, not the display side effects.
+    result = asyncio.run(ctx.adashboard("q", show=False))
+    assert isinstance(result, go.Figure)
+
+
+def test_adashboard_returns_html_in_terminal(monkeypatch):
+    # ponytail: outside a notebook adashboard() still returns the self-contained
+    # HTML string (terminals have no mimebundle renderer).
+    import types
+
+    from memframe.db_manager.context import ContextManager
+    import memframe.dashboard.manager as _mgr
+
+    import json
+
+    ctx = ContextManager(types.SimpleNamespace(), "d1")
+    fig = px.bar(_df(), x="region", y="sales")
+    spec = json.loads(fig.to_json())
+    resp = {
+        "guardrail_blocked": False,
+        "plots": [{"title": "p", "spec": spec}],
+        "results": [],
+        "values": [],
+    }
+
+    async def fake_achat(sentence):
+        return resp
+
+    monkeypatch.setattr(ContextManager, "achat", staticmethod(fake_achat))
+    monkeypatch.setattr(
+        "memframe_ai.entrypoints._get_settings", lambda memframe: object()
+    )
+
+    design = DashboardDesign(
+        dashboard_title="T",
+        widgets=[WidgetDesign(result_index=0, kind="plot", col_span=6)],
+    )
+
+    async def fake_design(settings):
+        return design
+
+    monkeypatch.setattr(_mgr.DashboardManager, "design", staticmethod(fake_design))
+    monkeypatch.setattr("memframe.utils.plot_renderer.in_notebook", lambda: False)
+
+    result = asyncio.run(ctx.adashboard("q", show=False))
+    assert isinstance(result, str)
+    assert "<html" in result.lower()

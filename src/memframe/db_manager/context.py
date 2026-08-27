@@ -167,7 +167,7 @@ class ContextManager:
         with _lf_span("adashboard", sentence=sentence[:200], show=show):
             # ponytail: silence the chat pipeline's inline plot/table renders
             # while we collect them; only the composed dashboard figure is shown.
-            from memframe.utils.plot_renderer import suppress_inline_display
+            from memframe.utils.plot_renderer import in_notebook, suppress_inline_display
 
             with suppress_inline_display():
                 resp = await self.achat(sentence)
@@ -212,9 +212,14 @@ class ContextManager:
 
             design = await dm.design(settings)
             html = dm.render(design)
-            if show:
-                dm.show(design=design, filename=filename)
             flush_logfire()
+            # ponytail: notebooks auto-render the returned figure via its mimebundle,
+            # so skip the explicit display there (it would double-render). Terminals
+            # have no renderer, so show() writes the HTML and opens a browser.
+            if show and not in_notebook():
+                dm.show(design=design, filename=filename)
+            if design is not None and in_notebook():
+                return dm.render_figure(design)
             return html
 
     @async_to_sync
