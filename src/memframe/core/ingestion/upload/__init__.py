@@ -1,9 +1,9 @@
 """Upload package for memFrame."""
 
 from .base import Uploader
-from .duckdb import DuckDBUploader
-from .postgres import PostgresUploader
-from .clickhouse import ClickHouseUploader
+from .duckdb_impl import DuckDBUploadImpl
+from .postgres_impl import PostgresUploadImpl
+from .clickhouse_impl import ClickHouseUploadImpl
 from .strategies.base import UploadStrategy
 from .strategies.csv import CsvUploadStrategy
 from .strategies.parquet import ParquetUploadStrategy
@@ -11,9 +11,9 @@ from .strategies.df import DfUploadStrategy
 
 __all__ = [
     "Uploader",
-    "DuckDBUploader",
-    "PostgresUploader",
-    "ClickHouseUploader",
+    "DuckDBUploadImpl",
+    "PostgresUploadImpl",
+    "ClickHouseUploadImpl",
     "UploadStrategy",
     "CsvUploadStrategy",
     "ParquetUploadStrategy",
