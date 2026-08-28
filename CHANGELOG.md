@@ -6,6 +6,15 @@ to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-08-28
+
+### Added
+- **Ollama Cloud support**: the AI gateway now forwards an explicit `base_url`/`api_key` (e.g. `https://ollama.com/v1`) for Ollama Cloud instead of assuming a local daemon; `OLLAMA_BASE_URL` remains a fallback and the `localhost:11434` default is preserved.
+
+### Fixed
+- **Plots and dashboards render in Colab/Jupyter**: figures now embed plotly.js **inline**, so `df.bar`/`df.scatter`/`df.line`/`df.pie`/`df.scatter_3d`/`df.bar_polar` and the dashboard API render interactively without fetching plotly.js from the blocked `cdn.plot.ly` CDN. `smart_show()` no longer calls `fig.show()` inside a notebook; the kernel auto-displays the returned figure.
+- **AI agent dynamic re-enable**: `AnalyticsAgent` rebuilds when memframe AI settings change, preserving chat history.
+
 ## [0.3.0rc3] - 2026-08-26
 
 ### Changed
