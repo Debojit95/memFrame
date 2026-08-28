@@ -54,6 +54,23 @@ both explicitly when switching providers or pinning a model version.
 | Google    | `"google"`     | `"gemini-..."` |
 | Ollama    | `"ollama"`     | `"llama3.2"`   |
 
+Ollama works both **locally** (defaults to `http://localhost:11434`) and as
+**Ollama Cloud**. For the cloud, point `base_url` at the OpenAI-compatible
+endpoint `https://ollama.com/v1` (the `/api` path is native-only) and pass its
+`api_key` — both are forwarded to the provider, so the cloud request is
+authenticated instead of using the local placeholder key. You can also set the
+`OLLAMA_BASE_URL` environment variable; it is used automatically when `base_url`
+is not passed:
+
+```python
+await mf.aenable_agent(
+    provider="ollama",
+    model="qwen3",
+    base_url="https://ollama.com/v1",  # Ollama Cloud OpenAI-compatible endpoint
+    api_key="c7-...",                  # Ollama Cloud key
+)
+```
+
 ```python
 await mf.aenable_agent(
     provider="anthropic",

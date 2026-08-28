@@ -4,6 +4,7 @@ from typing import Any
 
 from memframe.core.plots.pie import PiePlotCore
 from memframe.exceptions import OperationError
+from memframe.utils.plot_renderer import smart_show
 
 
 class PieOrchestrator:
@@ -58,7 +59,7 @@ class PieOrchestrator:
     ):
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
-        return await ops.pie(
+        fig = await ops.pie(
             table,
             schema,
             names=names,
@@ -85,6 +86,9 @@ class PieOrchestrator:
             hole=hole,
             **kwargs,
         )
+
+        smart_show(fig)
+        return fig
 
 
 __all__ = ["PieOrchestrator"]

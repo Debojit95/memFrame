@@ -28,6 +28,27 @@ def inline_display_suppressed() -> bool:
     return _SUPPRESS_INLINE_DISPLAY.get()
 
 
+def _enable_colab_inline() -> None:
+    # ponytail: Colab blocks the plot.ly CDN (sandbox + 3rd-party-cookie block),
+    # so fig.show(renderer="colab") and the plain auto-display both fail with
+    # "Could not load the JavaScript files". The only CDN-free render is to embed
+    # plotly.js inline. Patch the figure repr once so every returned figure is
+    # auto-displayed by the kernel with plotly.js bundled locally (no external fetch).
+    import plotly.graph_objects as go
+
+    if getattr(go.Figure, "_memframe_colab_inline", False):
+        return
+
+    def _repr_mimebundle(self, *args, **kwargs):
+        return {"text/html": self.to_html(include_plotlyjs="inline")}
+
+    go.Figure._repr_mimebundle_ = _repr_mimebundle
+    go.Figure._repr_html_ = lambda self, *a, **k: self.to_html(
+        include_plotlyjs="inline"
+    )
+    go.Figure._memframe_colab_inline = True
+
+
 def setup_plotly_renderer():
     """
     Universal Plotly renderer setup.
@@ -46,8 +67,9 @@ def setup_plotly_renderer():
     # --------------------------------------------------
     # Google Colab
     # --------------------------------------------------
-    if "COLAB_GPU" in os.environ:
+    if in_colab():
         renderer = "colab"
+        _enable_colab_inline()
 
     # --------------------------------------------------
     # VSCode notebook
@@ -91,6 +113,14 @@ def smart_show(fig, filename="plot.html"):
         return
 
     setup_plotly_renderer()
+    if in_notebook():
+        # ponytail: in a live notebook the kernel auto-displays the returned figure.
+        # In Colab, setup_plotly_renderer() already patched the figure repr to embed
+        # plotly.js inline (the CDN is blocked there), so the auto-display renders
+        # with no external fetch. We must NOT call fig.show() here: the colab output
+        # path crashes on the multi-MB inline HTML and would also double-render.
+        return
+
     try:
         fig.show()
         return
@@ -139,6 +169,33 @@ def in_notebook() -> bool:
     except Exception:
         return False
     return ip() is not None
+
+
+def in_colab() -> bool:
+    """True when running inside Google Colab.
+
+    Colab renders a returned Plotly figure via its ``_repr_html_``, which fetches
+    plotly.js from the CDN by default; that fetch fails in the Colab sandbox and
+    yields "Could not load the JavaScript files needed to display output". Callers
+    use this to embed plotly.js inline instead.
+    """
+    if "COLAB_GPU" in os.environ or "COLAB_RELEASE_TAG" in os.environ:
+        return True
+    try:
+        import sys
+
+        return "google.colab" in sys.modules
+    except Exception:
+        return False
+
+
+def ensure_colab_renderer() -> None:
+    """Legacy alias kept for back-compat.
+
+    Setup is now handled by :func:`setup_plotly_renderer`, which also neutralises
+    the broken auto-display repr in notebook frontends.
+    """
+    setup_plotly_renderer()
 
 
 def slice_for_display(df, max_rows: int = 0, max_cols: int = 0):

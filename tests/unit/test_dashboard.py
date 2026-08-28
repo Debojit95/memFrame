@@ -301,10 +301,19 @@ def test_dashboard_naming_convention():
 
 
 def test_show_displays_native_figure_in_notebook(monkeypatch):
-    # ponytail: in a notebook (Colab/Jupyter) show() must display the native
-    # Plotly figure (mimebundle), not display(HTML(...)), which Colab strips.
-    import sys
-    import types
+    # ponytail: in a notebook (Colab/Jupyter) show() must return the native Plotly
+    # figure so the kernel auto-displays it via the plotly extension's LOCAL
+    # plotly.js (no CDN). It must NOT call fig.show() (which embeds the blocked
+    # CDN script and crashes the kernel) -- this is the 0.2.2 behaviour.
+    import memframe.utils.plot_renderer as _pr
+
+    monkeypatch.setattr(_pr, "in_notebook", lambda: True)
+
+    shown = []
+    monkeypatch.setattr(
+        "plotly.graph_objects.Figure.show",
+        lambda self, *a, **k: shown.append(self),
+    )
 
     dm = DashboardManager()
     dm.add("sales plot", px.bar(_df(), x="region", y="sales"))
@@ -314,24 +323,10 @@ def test_show_displays_native_figure_in_notebook(monkeypatch):
         widgets=[WidgetDesign(result_index=0, kind="plot", col_span=6)],
     )
 
-    displayed = []
+    result = dm.show(design=design)
 
-    def fake_display(obj):
-        displayed.append(obj)
-
-    import memframe.utils.plot_renderer as _pr
-
-    monkeypatch.setattr(_pr, "in_notebook", lambda: True)
-    fake_pkg = types.ModuleType("IPython")
-    fake_mod = types.ModuleType("IPython.display")
-    fake_mod.display = fake_display
-    fake_pkg.display = fake_mod
-    monkeypatch.setitem(sys.modules, "IPython", fake_pkg)
-    monkeypatch.setitem(sys.modules, "IPython.display", fake_mod)
-
-    dm.show(design=design)
-
-    assert len(displayed) == 1
+    assert isinstance(result, go.Figure)
+    assert len(shown) == 0
 
 
 def test_adashboard_returns_figure_in_notebook(monkeypatch):
@@ -420,3 +415,83 @@ def test_adashboard_returns_html_in_terminal(monkeypatch):
     result = asyncio.run(ctx.adashboard("q", show=False))
     assert isinstance(result, str)
     assert "<html" in result.lower()
+
+
+def test_in_colab_false_by_default():
+    # ponytail: the Colab-gated path must stay off in normal test/CI environments.
+    from memframe.utils.plot_renderer import in_colab
+
+    assert in_colab() is False
+
+
+def test_adashboard_returns_figure_in_colab(monkeypatch):
+    # ponytail: in Colab adashboard() must return the native Plotly figure (so
+    # Colab renders it via its native plotly.js), not inline HTML (which embeds a
+    # ~3MB bundle and crashes the runtime).
+    import types
+
+    import memframe.dashboard.manager as _mgr
+    from memframe.db_manager.context import ContextManager
+
+    import json
+
+    ctx = ContextManager(types.SimpleNamespace(), "d1")
+    fig = px.bar(_df(), x="region", y="sales")
+    spec = json.loads(fig.to_json())
+    resp = {
+        "guardrail_blocked": False,
+        "plots": [{"title": "p", "spec": spec}],
+        "results": [],
+        "values": [],
+    }
+
+    async def fake_achat(sentence):
+        return resp
+
+    monkeypatch.setattr(ContextManager, "achat", staticmethod(fake_achat))
+    monkeypatch.setattr(
+        "memframe_ai.entrypoints._get_settings", lambda memframe: object()
+    )
+    design = DashboardDesign(
+        dashboard_title="T",
+        widgets=[WidgetDesign(result_index=0, kind="plot", col_span=6)],
+    )
+
+    async def fake_design(settings):
+        return design
+
+    monkeypatch.setattr(_mgr.DashboardManager, "design", staticmethod(fake_design))
+    monkeypatch.setattr("memframe.utils.plot_renderer.in_notebook", lambda: True)
+    monkeypatch.setattr("memframe.utils.plot_renderer.in_colab", lambda: True)
+
+    result = asyncio.run(ctx.adashboard("q", show=False))
+    assert isinstance(result, go.Figure)
+
+
+def test_show_displays_figure_in_colab(monkeypatch):
+    # ponytail: in Colab show() must return the native Plotly figure so the kernel
+    # auto-displays it via the plotly extension's LOCAL plotly.js (no CDN). It must
+    # NOT call fig.show() (which embeds the blocked CDN script and crashes the
+    # kernel); this matches the 0.2.2 behaviour.
+    import memframe.utils.plot_renderer as _pr
+
+    monkeypatch.setattr(_pr, "in_notebook", lambda: True)
+    monkeypatch.setattr(_pr, "in_colab", lambda: True)
+
+    shown = []
+    monkeypatch.setattr(
+        "plotly.graph_objects.Figure.show",
+        lambda self, *a, **k: shown.append(self),
+    )
+
+    dm = DashboardManager()
+    dm.add("sales plot", px.bar(_df(), x="region", y="sales"))
+    design = DashboardDesign(
+        dashboard_title="Test",
+        global_theme="light",
+        widgets=[WidgetDesign(result_index=0, kind="plot", col_span=6)],
+    )
+    result = dm.show(design=design)
+    assert isinstance(result, go.Figure)
+    assert len(shown) == 0
+

@@ -119,6 +119,8 @@ class DashboardManager:
         dashboard HTML embeds a Plotly ``<script>`` that Jupyter frontends strip
         or crash on.
         """
+        # ponytail: imported in-function so tests can monkeypatch the notebook
+        # detectors on memframe.utils.plot_renderer at runtime.
         from memframe.utils.plot_renderer import in_notebook, smart_show
 
         if html is None:
@@ -127,15 +129,13 @@ class DashboardManager:
             html = self.render(design)
 
         if design is not None and in_notebook():
-            # ponytail: notebook -> show the native figure via its mimebundle.
-            # On any display failure we return (not fall back to HTML), because
-            # display(HTML(...)) on the embedded Plotly script crashes the kernel.
-            try:
-                from IPython.display import display
-
-                display(self.render_figure(design))
-            except Exception:
-                pass
-            return
+            # ponytail: render the native figure and RETURN it so the notebook cell
+            # auto-displays it via the plotly extension's LOCAL plotly.js (no CDN).
+            # smart_show() is a no-op in a live notebook (calling fig.show() embeds
+            # the blocked CDN script and crashes the kernel) -- this matches the 0.2.2
+            # behaviour where plots were simply returned for auto-display.
+            fig = self.render_figure(design)
+            smart_show(fig, filename)
+            return fig
 
         smart_show(html, filename)

@@ -4,6 +4,7 @@ from typing import Any
 
 from memframe.core.plots.line import LinePlotCore
 from memframe.exceptions import OperationError
+from memframe.utils.plot_renderer import smart_show
 
 
 class LineOrchestrator:
@@ -55,7 +56,7 @@ class LineOrchestrator:
     ):
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
-        return await ops.line(
+        fig = await ops.line(
             table,
             schema,
             x=x,
@@ -78,3 +79,6 @@ class LineOrchestrator:
             custom_data=custom_data,
             **kwargs,
         )
+
+        smart_show(fig)
+        return fig

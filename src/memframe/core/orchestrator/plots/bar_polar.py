@@ -4,6 +4,7 @@ from typing import Any
 
 from memframe.core.plots.bar_polar import BarPolarPlotCore
 from memframe.exceptions import OperationError
+from memframe.utils.plot_renderer import smart_show
 
 
 class BarPolarOrchestrator:
@@ -68,7 +69,7 @@ class BarPolarOrchestrator:
     ):
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
-        return await ops.bar_polar(
+        fig = await ops.bar_polar(
             table,
             schema,
             r=r,
@@ -104,6 +105,9 @@ class BarPolarOrchestrator:
             height=height,
             **kwargs,
         )
+
+        smart_show(fig)
+        return fig
 
 
 __all__ = ["BarPolarOrchestrator"]

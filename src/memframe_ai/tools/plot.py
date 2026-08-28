@@ -1,8 +1,6 @@
 import json
 import uuid
 
-from memframe.utils.plot_renderer import smart_show
-
 
 _PLOT_WRAPPERS = (
     "bar",
@@ -115,11 +113,6 @@ def tools(session):
                 "ok": False,
                 "hint": f"{plot_type} plot failed: {type(exc).__name__}: {exc}",
             }
-
-        try:
-            smart_show(fig)
-        except Exception:
-            pass
 
         try:
             spec = json.loads(fig.to_json())

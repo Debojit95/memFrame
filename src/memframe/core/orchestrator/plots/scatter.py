@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 from memframe.core.plots.scatter import ScatterPlotCore
 from memframe.exceptions import OperationError
+from memframe.utils.plot_renderer import smart_show
 
 
 class ScatterOrchestrator:
@@ -53,7 +54,7 @@ class ScatterOrchestrator:
     ):
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
-        return await ops.scatter(
+        fig = await ops.scatter(
             table,
             schema,
             x=x,
@@ -75,3 +76,6 @@ class ScatterOrchestrator:
             custom_data=custom_data,
             **kwargs,
         )
+
+        smart_show(fig)
+        return fig

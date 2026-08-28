@@ -4,6 +4,7 @@ from typing import Any
 
 from memframe.core.plots.scatter_3d import Scatter3DPlotCore
 from memframe.exceptions import OperationError
+from memframe.utils.plot_renderer import smart_show
 
 
 class Scatter3DOrchestrator:
@@ -76,7 +77,7 @@ class Scatter3DOrchestrator:
     ):
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
-        return await ops.scatter_3d(
+        fig = await ops.scatter_3d(
             table,
             schema,
             x=x,
@@ -121,6 +122,9 @@ class Scatter3DOrchestrator:
             height=height,
             **kwargs,
         )
+
+        smart_show(fig)
+        return fig
 
 
 __all__ = ["Scatter3DOrchestrator"]

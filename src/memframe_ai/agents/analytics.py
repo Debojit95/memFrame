@@ -371,8 +371,15 @@ class AnalyticsAgent:
 
 
 def agent_for(session) -> AnalyticsAgent:
+    # ponytail: rebuild the agent/model whenever the live AI settings change
+    # (e.g. mf.enable_agent re-run with a different provider/model/api_key/base_url).
+    # The Session caches settings at first achat, so compare against
+    # memframe._ai_settings rather than session.settings; otherwise re-enabling
+    # silently keeps the stale model/provider. Conversation history is preserved.
+    live = session.memframe._ai_settings
     agent = getattr(session, "_agent", None)
-    if agent is None:
-        agent = AnalyticsAgent(session, session.settings)
+    if agent is None or agent._settings is not live:
+        agent = AnalyticsAgent(session, live)
         session._agent = agent
+        session.settings = live
     return agent

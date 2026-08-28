@@ -1,3 +1,4 @@
+import os
 from typing import Callable, Dict
 
 from memframe_ai.config import AISettings
@@ -30,8 +31,18 @@ def _ollama(s: AISettings):
     from pydantic_ai.models.ollama import OllamaModel
     from pydantic_ai.providers.ollama import OllamaProvider
 
+    # ponytail: support both a local Ollama (default localhost) and Ollama Cloud
+    # (custom base_url + api_key). OllamaProvider already falls back to the
+    # OLLAMA_API_KEY env / a placeholder when api_key is None, so only forward
+    # s.api_key when actually set. base_url honors the OLLAMA_BASE_URL env (the
+    # same var OllamaProvider reads) before the localhost default, so cloud works
+    # whenever that env var is set.
     return OllamaModel(
-        s.model, provider=OllamaProvider(base_url=s.base_url or "http://localhost:11434")
+        s.model,
+        provider=OllamaProvider(
+            base_url=s.base_url or os.getenv("OLLAMA_BASE_URL") or "http://localhost:11434",
+            api_key=s.api_key or None,
+        ),
     )
 
 
