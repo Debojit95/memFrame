@@ -15,6 +15,46 @@ from memframe.exceptions import ConfigurationError, ConnectionNotReady
 logger = logging.getLogger("memFrame")
 
 
+def _render_clickhouse_query(query: str, parameters: Optional[Sequence[Any]] = None) -> str:
+    """Render `?`-style positional placeholders into a literal ClickHouse query."""
+    if not parameters:
+        return query
+    rendered = query
+    for value in parameters:
+        placeholder_index = rendered.find("?")
+        if placeholder_index == -1:
+            raise ConfigurationError("Too many parameters for ClickHouse query")
+        rendered = (
+            rendered[:placeholder_index]
+            + _to_clickhouse_literal(value)
+            + rendered[placeholder_index + 1 :]
+        )
+    if "?" in rendered:
+        raise ConfigurationError("Not enough parameters for ClickHouse query")
+    return rendered
+
+
+def _to_clickhouse_literal(value: Any) -> str:
+    if value is None:
+        return "NULL"
+    if isinstance(value, bool):
+        return "1" if value else "0"
+    if isinstance(value, (int, float, Decimal)):
+        return str(value)
+    if isinstance(value, (datetime, date)):
+        encoded = (
+            value.isoformat(sep=" ")
+            if isinstance(value, datetime)
+            else value.isoformat()
+        )
+        return _quote_string(encoded)
+    return _quote_string(str(value))
+
+
+def _quote_string(value: str) -> str:
+    return "'" + value.replace("\\", "\\\\").replace("'", "\\'") + "'"
+
+
 @dataclass
 class ClickHouseQueryResult:
     result_rows: List[tuple]
@@ -208,41 +248,7 @@ class HttpxClickHouseClient:
     def _render_query(
         self, query: str, parameters: Optional[Sequence[Any]] = None
     ) -> str:
-        if not parameters:
-            return query
-
-        rendered = query
-        for value in parameters:
-            placeholder_index = rendered.find("?")
-            if placeholder_index == -1:
-                raise ConfigurationError("Too many parameters for ClickHouse query")
-            rendered = (
-                rendered[:placeholder_index]
-                + self._to_clickhouse_literal(value)
-                + rendered[placeholder_index + 1 :]
-            )
-        if "?" in rendered:
-            raise ConfigurationError("Not enough parameters for ClickHouse query")
-        return rendered
-
-    def _to_clickhouse_literal(self, value: Any) -> str:
-        if value is None:
-            return "NULL"
-        if isinstance(value, bool):
-            return "1" if value else "0"
-        if isinstance(value, (int, float, Decimal)):
-            return str(value)
-        if isinstance(value, (datetime, date)):
-            encoded = (
-                value.isoformat(sep=" ")
-                if isinstance(value, datetime)
-                else value.isoformat()
-            )
-            return self._quote_string(encoded)
-        return self._quote_string(str(value))
-
-    def _quote_string(self, value: str) -> str:
-        return "'" + value.replace("\\", "\\\\").replace("'", "\\'") + "'"
+        return _render_clickhouse_query(query, parameters)
 
     def _quote_identifier(self, identifier: str) -> str:
         return "`" + identifier.replace("`", "``") + "`"
@@ -266,6 +272,101 @@ class HttpxClickHouseClient:
             return str(value)
         type_name = type(value).__name__
         raise ConfigurationError(f"Object of type {type_name} is not JSON serializable")
+
+
+class ClickHouseConnectClient:
+    """Async wrapper around the clickhouse-connect client.
+
+    Implements the same surface as ``HttpxClickHouseClient`` so the pool,
+    adapter and upload code are agnostic to which connector is active.
+    clickhouse-connect is synchronous, so its blocking calls are offloaded to a
+    worker thread via ``asyncio.to_thread``.
+    """
+
+    def __init__(
+        self,
+        host: str,
+        port: int = 8123,
+        username: str = "default",
+        password: str = "",
+        database: Optional[str] = None,
+        secure: bool = False,
+        timeout: float = 300.0,
+    ) -> None:
+        try:
+            import clickhouse_connect
+        except ImportError as exc:  # pragma: no cover - dependency guard
+            raise ConnectionNotReady(
+                "clickhouse-connect is not installed; falling back to httpx"
+            ) from exc
+
+        self._client = clickhouse_connect.get_client(
+            host=host,
+            port=port,
+            username=username,
+            password=password,
+            database=database,
+            secure=secure,
+            autoconnect=False,
+            settings={"send_receive_timeout": int(timeout)},
+        )
+        self.database = database
+
+    async def close(self) -> None:
+        await asyncio.to_thread(self._client.close)
+
+    async def command(
+        self, query: str, parameters: Optional[Sequence[Any]] = None
+    ) -> None:
+        rendered = _render_clickhouse_query(query, parameters)
+        await asyncio.to_thread(self._client.command, rendered)
+
+    async def query(
+        self, query: str, parameters: Optional[Sequence[Any]] = None
+    ) -> ClickHouseQueryResult:
+        rendered = _render_clickhouse_query(query, parameters)
+        result = await asyncio.to_thread(self._client.query, rendered)
+        return ClickHouseQueryResult(result.result_rows, result.column_names)
+
+    async def insert(
+        self,
+        table: str,
+        rows: Sequence[Sequence[Any]],
+        database: Optional[str] = None,
+        column_names: Optional[Sequence[str]] = None,
+    ) -> None:
+        if not rows:
+            return
+        if not column_names:
+            raise ConfigurationError("column_names are required for ClickHouse inserts")
+        database = database or self.database
+        if not database:
+            raise ConfigurationError("ClickHouse inserts require a database-qualified table")
+        await asyncio.to_thread(
+            self._client.insert,
+            table,
+            list(rows),
+            database=database,
+            column_names=list(column_names),
+        )
+
+    async def insert_arrow(
+        self,
+        table: str,
+        arrow_table: Any,
+        database: Optional[str] = None,
+    ) -> None:
+        if arrow_table.num_rows == 0:
+            return
+        database = database or self.database
+        if not database:
+            raise ConfigurationError("ClickHouse inserts require a database-qualified table")
+        await asyncio.to_thread(
+            self._client.insert_arrow,
+            table,
+            arrow_table,
+            database=database,
+        )
 
 
 class ClickHouseAdapter(DatabaseAdapter):

@@ -196,14 +196,42 @@ class ClickHousePool(BasePool):
         self._client = None
 
     async def connect(self):
+        client = None
+        try:
+            from memframe.db_manager.adapters.clickhouse import ClickHouseConnectClient
+
+            client = ClickHouseConnectClient(
+                host=self.host, port=self.port,
+                username=self.user, password=self.password,
+                database=self.database,
+                secure=self.secure, timeout=self.timeout,
+            )
+            # Validate reachability so the httpx fallback is genuinely reachable
+            # (clickhouse-connect connects lazily, so a SELECT 1 proves the server
+            # accepts this client before we commit to it).
+            await client.command("SELECT 1")
+            self._client = client
+            logger.info(f"ClickHouse client created (clickhouse-connect): {self.host}:{self.port}")
+            return
+        except Exception as exc:  # ImportError, auth, network, protocol mismatch, ...
+            if client is not None:
+                try:
+                    await client.close()
+                except Exception:
+                    pass
+            logger.warning(
+                "clickhouse-connect unavailable (%s); falling back to httpx", exc
+            )
+
         from memframe.db_manager.adapters.clickhouse import HttpxClickHouseClient
+
         self._client = HttpxClickHouseClient(
             host=self.host, port=self.port,
             username=self.user, password=self.password,
             database=self.database,
             secure=self.secure, timeout=self.timeout,
         )
-        logger.info(f"ClickHouse client created: {self.host}:{self.port}")
+        logger.info(f"ClickHouse client created (httpx fallback): {self.host}:{self.port}")
 
     async def close(self):
         if self._client:
