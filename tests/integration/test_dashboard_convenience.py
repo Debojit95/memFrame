@@ -15,8 +15,8 @@ from memframe.main import MemFrame
 pytestmark = [
     pytest.mark.integration,
     pytest.mark.skipif(
-        not os.getenv("OPENAI_API_KEY"),
-        reason="live agent run requires OPENAI_API_KEY",
+        not os.getenv("OLLAMA_API_KEY"),
+        reason="live agent run requires OLLAMA_API_KEY",
     ),
 ]
 
@@ -45,9 +45,10 @@ def test_dashboard_one_sentence(mf):
 
 async def _run_dashboard_one_sentence(mf):
     await mf.aenable_agent(
-        api_key=os.getenv("OPENAI_API_KEY"),
-        provider=os.getenv("MEMFRAME_TEST_PROVIDER", "openai"),
-        model=os.getenv("MEMFRAME_TEST_MODEL", "gpt-5.5"),
+        provider="ollama",
+        model="minimax-m3:cloud",
+        api_key=os.getenv("OLLAMA_API_KEY"),
+        base_url=os.getenv("OLLAMA_BASE_URL", "https://ollama.com/v1"),
     )
     html = await mf.adashboard(
         "calculate the value counts of D and show the correlation of A and B",
