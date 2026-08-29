@@ -1,6 +1,6 @@
 from typing import Any, Dict, Optional, Union
 
-from memframe.core.analytix.arithmetic import ArithmeticOps
+from memframe.core.analytix.arithmetic import ArithmeticOps, make_arithmetic_ops
 from memframe.cache import record_call
 
 
@@ -20,7 +20,7 @@ class ArithmeticOrchestrator:
     async def _ensure_ops(self) -> ArithmeticOps:
         if self._arithmetic_ops is None:
             await self._ops_parent._ensure_adapter()
-            self._arithmetic_ops = ArithmeticOps(self._ops_parent._adapter)
+            self._arithmetic_ops = make_arithmetic_ops(self._ops_parent._adapter)
         return self._arithmetic_ops
 
     async def _get_context(self):

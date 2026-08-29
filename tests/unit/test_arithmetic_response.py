@@ -3,7 +3,7 @@ import asyncio
 import pandas as pd
 import pytest
 
-from memframe.core.analytix.arithmetic import ArithmeticOps
+from memframe.core.analytix.arithmetic import DuckDBArithmeticOps
 from memframe.main import MemFrame
 from memframe.wrappers.analytix.arithmetic import ArithmeticWrapper
 
@@ -39,7 +39,7 @@ def test_arithmetic_success_returns_dataframe_result(arithmetic_context):
 
 def test_arithmetic_failure_returns_common_error_shape():
     response = asyncio.run(
-        ArithmeticOps(object()).add("table", "schema", "value", 2)
+        DuckDBArithmeticOps(object()).add("table", "schema", "value", 2)
     )
 
     assert response["is_error"] is True
