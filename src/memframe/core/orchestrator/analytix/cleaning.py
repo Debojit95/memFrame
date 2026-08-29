@@ -3,7 +3,7 @@ from typing import Any, Dict, List, Optional, Union
 import numpy as np
 
 from memframe.core.ingestion.datatype_detector import DatatypeDetector
-from memframe.core.analytix.cleaning import DataCleaningOps
+from memframe.core.analytix.cleaning import DataCleaningOps, make_cleaning_ops
 from memframe.core.analytix._response import fail
 from memframe.cache import record_call
 
@@ -25,7 +25,7 @@ class CleaningOrchestrator:
     async def _ensure_ops(self) -> DataCleaningOps:
         if self._cleaning_ops is None:
             await self._ops_parent._ensure_adapter()
-            self._cleaning_ops = DataCleaningOps(self._ops_parent._adapter)
+            self._cleaning_ops = make_cleaning_ops(self._ops_parent._adapter)
         return self._cleaning_ops
 
     async def _get_context(self):
