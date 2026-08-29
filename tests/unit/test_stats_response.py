@@ -3,7 +3,7 @@ import asyncio
 import pandas as pd
 import pytest
 
-from memframe.core.analytix.stats import DataStatsOps
+from memframe.core.analytix.stats import DuckDBDataStatsOps
 from memframe.main import MemFrame
 from memframe.wrappers.analytix.stats import StatsWrapper
 
@@ -47,7 +47,7 @@ def test_stats_dict_result_uses_common_envelope(stats_context):
 
 def test_stats_failure_has_result_key():
     response = asyncio.run(
-        DataStatsOps(object()).categorical_count("table", "schema", "value")
+        DuckDBDataStatsOps(object()).categorical_count("table", "schema", "value")
     )
 
     assert response["is_error"] is True

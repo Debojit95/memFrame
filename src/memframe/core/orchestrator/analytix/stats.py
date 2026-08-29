@@ -1,7 +1,7 @@
 from typing import Any, Dict, List
 import numpy as np
 from memframe.core.ingestion.datatype_detector import DatatypeDetector
-from memframe.core.analytix.stats import DataStatsOps
+from memframe.core.analytix.stats import DataStatsOps, make_stats_ops
 from memframe.cache import record_call
 
 
@@ -19,7 +19,7 @@ class StatsOrchestrator:
     async def _ensure_ops(self) -> DataStatsOps:
         if self._stats_ops is None:
             await self._ops_parent._ensure_adapter()
-            self._stats_ops = DataStatsOps(self._ops_parent._adapter)
+            self._stats_ops = make_stats_ops(self._ops_parent._adapter)
         return self._stats_ops
 
     async def _get_context(self):
