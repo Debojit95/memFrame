@@ -1191,3 +1191,348 @@ class PostgresCleaningOps(DataCleaningOps):
             return fail(
                 f"datetime_fillna_groupby error: {str(e)}\n{traceback.format_exc()}", [column], [],
             )
+
+    async def numeric_enforce_range(
+        self,
+        table: str,
+        schema: str,
+        column: str,
+        min_value: int | float = None,
+        max_value: int | float = None,
+        backend=None,
+        data_id: Optional[str] = None,
+        new_table: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        try:
+            original = table
+            table = await self._prepare_operation_table(
+                table, schema, backend=backend, data_id=data_id, new_table=new_table,
+            )
+            new_col = self._generate_cleaned_column_name(column, f"range_{min_value}_{max_value}")
+            col_type = await self._get_column_type(table, schema, column)
+            await self._add_new_column(table, schema, new_col, col_type)
+
+            qualified = self._qualified_table(table, schema)
+            safe_col = SQLIdentifierSanitizer.sanitize(column)
+            safe_new = SQLIdentifierSanitizer.sanitize(new_col)
+
+            case_parts = []
+            if min_value is not None:
+                case_parts.append(f'WHEN "{safe_col}" < {min_value} THEN NULL')
+            if max_value is not None:
+                case_parts.append(f'WHEN "{safe_col}" > {max_value} THEN NULL')
+            case_expr = f"CASE {' '.join(case_parts)} ELSE \"{safe_col}\" END" if case_parts else f'"{safe_col}"'
+
+            async def _apply(tq):
+                await self._exec(f'UPDATE {tq} SET "{safe_new}" = {case_expr}')
+
+            await _apply(qualified)
+
+            await self._add_new_column_if_not_exists(original, schema, new_col, col_type)
+            await _apply(self._qualified_table(original, schema))
+
+            affected = 0
+            if min_value is not None or max_value is not None:
+                cond = []
+                if min_value is not None:
+                    cond.append(f'"{safe_col}" < {min_value}')
+                if max_value is not None:
+                    cond.append(f'"{safe_col}" > {max_value}')
+                where_clause = " OR ".join(cond)
+                affected = await self._fetchval(
+                    f'SELECT COUNT(*) FROM {qualified} WHERE {where_clause}'
+                ) or 0
+
+            sample = await self._fetch_data(table, schema, columns=[safe_col, safe_new])
+            msg = f"Enforced range on '{column}': {affected} values set to NULL"
+            return ok(msg, [column], [new_col], sample, new_table=table)
+
+        except Exception as e:
+            return fail(f"numeric_enforce_range error: {str(e)}\n{traceback.format_exc()}")
+
+    async def numeric_drop_outliers_zscore(
+        self,
+        table: str,
+        schema: str,
+        column: str,
+        z_thresh: float = 3.0,
+        backend=None,
+        data_id: Optional[str] = None,
+        new_table: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        try:
+            original = table
+            table = await self._prepare_operation_table(
+                table, schema, backend=backend, data_id=data_id, new_table=new_table,
+            )
+            new_col = self._generate_cleaned_column_name(column, f"zscore_filtered_{z_thresh}")
+            col_type = await self._get_column_type(table, schema, column)
+            await self._add_new_column(table, schema, new_col, col_type)
+
+            qualified = self._qualified_table(table, schema)
+            safe_col = SQLIdentifierSanitizer.sanitize(column)
+            safe_new = SQLIdentifierSanitizer.sanitize(new_col)
+
+            async def _apply(tq):
+                await self._exec(f"""
+                    WITH stats AS (
+                        SELECT AVG("{safe_col}") AS mean, STDDEV_POP("{safe_col}") AS sd
+                        FROM {tq}
+                        WHERE "{safe_col}" IS NOT NULL
+                    )
+                    UPDATE {tq}
+                    SET "{safe_new}" = CASE
+                        WHEN ABS(("{safe_col}" - stats.mean) / NULLIF(stats.sd, 0)) > {z_thresh} THEN NULL
+                        ELSE "{safe_col}"
+                    END
+                    FROM stats
+                """)
+
+            await _apply(qualified)
+
+            await self._add_new_column_if_not_exists(original, schema, new_col, col_type)
+            await _apply(self._qualified_table(original, schema))
+
+            outlier_count = await self._fetchval(f"""
+                WITH stats AS (
+                    SELECT AVG("{safe_col}") AS mean, STDDEV_POP("{safe_col}") AS sd
+                    FROM {qualified}
+                    WHERE "{safe_col}" IS NOT NULL
+                )
+                SELECT COUNT(*)
+                FROM {qualified}, stats
+                WHERE "{safe_col}" IS NOT NULL
+                  AND ABS(("{safe_col}" - stats.mean) / NULLIF(stats.sd, 0)) > {z_thresh}
+            """) or 0
+
+            sample = await self._fetch_data(table, schema, columns=[safe_col, safe_new])
+            msg = f"Removed {outlier_count} outliers from '{column}' using Z-score (threshold={z_thresh})"
+            return ok(msg, [column], [new_col], sample, new_table=table)
+
+        except Exception as e:
+            return fail(f"numeric_drop_outliers_zscore error: {str(e)}\n{traceback.format_exc()}")
+
+    async def categorical_map_values(
+        self,
+        table: str,
+        schema: str,
+        column: str,
+        mapping: Dict[Any, Any],
+        backend=None,
+        data_id: Optional[str] = None,
+        new_table: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        try:
+            original = table
+            table = await self._prepare_operation_table(
+                table, schema, backend=backend, data_id=data_id, new_table=new_table,
+            )
+            if not mapping:
+                return fail("No mapping provided")
+
+            new_col = self._generate_cleaned_column_name(column, f"mapped_{'_'.join(list(mapping.keys()))}")
+            col_type = await self._get_column_type(table, schema, column)
+            await self._add_new_column(table, schema, new_col, col_type)
+
+            qualified = self._qualified_table(table, schema)
+            safe_col = SQLIdentifierSanitizer.sanitize(column)
+            safe_new = SQLIdentifierSanitizer.sanitize(new_col)
+
+            case_parts = []
+            for old, new in mapping.items():
+                old_esc = str(old).replace("'", "''")
+                new_esc = str(new).replace("'", "''")
+                case_parts.append(f'WHEN "{safe_col}" = \'{old_esc}\' THEN \'{new_esc}\'')
+            case_expr = f"CASE {' '.join(case_parts)} ELSE \"{safe_col}\" END"
+
+            async def _apply(tq):
+                await self._exec(f'UPDATE {tq} SET "{safe_new}" = {case_expr}')
+
+            await _apply(qualified)
+
+            await self._add_new_column_if_not_exists(original, schema, new_col, col_type)
+            await _apply(self._qualified_table(original, schema))
+
+            sample = await self._fetch_data(table, schema, columns=[safe_col, safe_new])
+            msg = f"Mapped {len(mapping)} value categories in '{column}'"
+            return ok(msg, [column], [new_col], sample, new_table=table)
+
+        except Exception as e:
+            return fail(f"categorical_map_values error: {str(e)}\n{traceback.format_exc()}")
+
+    async def categorical_filter_invalid(
+        self,
+        table: str,
+        schema: str,
+        column: str,
+        valid_values: List[Any],
+        backend=None,
+        data_id: Optional[str] = None,
+        new_table: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        try:
+            original = table
+            table = await self._prepare_operation_table(
+                table, schema, backend=backend, data_id=data_id, new_table=new_table,
+            )
+            if not valid_values:
+                return fail("No valid_values provided")
+
+            new_col = self._generate_cleaned_column_name(column, f"valid_values_{'_'.join(valid_values)}")
+            col_type = await self._get_column_type(table, schema, column)
+            await self._add_new_column(table, schema, new_col, col_type)
+
+            qualified = self._qualified_table(table, schema)
+            safe_col = SQLIdentifierSanitizer.sanitize(column)
+            safe_new = SQLIdentifierSanitizer.sanitize(new_col)
+
+            escaped = [f"'{str(v).replace(chr(39), chr(39)+chr(39))}'" for v in valid_values]
+            in_list = ",".join(escaped)
+
+            async def _apply(tq):
+                await self._exec(f"""
+                    UPDATE {tq}
+                    SET "{safe_new}" = CASE WHEN "{safe_col}" IN ({in_list}) THEN "{safe_col}" ELSE NULL END
+                """)
+
+            await _apply(qualified)
+
+            await self._add_new_column_if_not_exists(original, schema, new_col, col_type)
+            await _apply(self._qualified_table(original, schema))
+
+            invalid = await self._fetchval(f"""
+                SELECT COUNT(*) FROM {qualified}
+                WHERE "{safe_col}" IS NOT NULL AND "{safe_col}" NOT IN ({in_list})
+            """) or 0
+
+            sample = await self._fetch_data(table, schema, columns=[safe_col, safe_new])
+            msg = f"Set {invalid} invalid values in '{column}' to NULL. Valid values: {valid_values[:10]}..."
+            return ok(msg, [column], [new_col], sample, new_table=table)
+
+        except Exception as e:
+            return fail(f"categorical_filter_invalid error: {str(e)}\n{traceback.format_exc()}")
+
+    async def categorical_compress_rare(
+        self,
+        table: str,
+        schema: str,
+        column: str,
+        min_count: int = 10,
+        other_label: str = "other",
+        backend=None,
+        data_id: Optional[str] = None,
+        new_table: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        try:
+            original = table
+            table = await self._prepare_operation_table(
+                table, schema, backend=backend, data_id=data_id, new_table=new_table,
+            )
+            new_col = self._generate_cleaned_column_name(column, f"compressed_{min_count}_{other_label}")
+            col_type = await self._get_column_type(table, schema, column)
+            await self._add_new_column(table, schema, new_col, col_type)
+
+            qualified = self._qualified_table(table, schema)
+            safe_col = SQLIdentifierSanitizer.sanitize(column)
+            safe_new = SQLIdentifierSanitizer.sanitize(new_col)
+
+            other_esc = other_label.replace("'", "''")
+
+            async def _apply(tq):
+                await self._exec(f"""
+                    WITH freq AS (
+                        SELECT "{safe_col}", COUNT(*) AS cnt
+                        FROM {tq}
+                        WHERE "{safe_col}" IS NOT NULL
+                        GROUP BY "{safe_col}"
+                    )
+                    UPDATE {tq} AS tgt
+                    SET "{safe_new}" = CASE
+                        WHEN freq.cnt < {min_count} THEN '{other_esc}'
+                        ELSE tgt."{safe_col}"
+                    END
+                    FROM freq
+                    WHERE tgt."{safe_col}" = freq."{safe_col}"
+                """)
+
+            await _apply(qualified)
+
+            await self._add_new_column_if_not_exists(original, schema, new_col, col_type)
+            await _apply(self._qualified_table(original, schema))
+
+            rare_rows = await self._fetch(f"""
+                SELECT DISTINCT "{safe_col}"
+                FROM {qualified}
+                WHERE "{safe_col}" IS NOT NULL
+                GROUP BY "{safe_col}"
+                HAVING COUNT(*) < {min_count}
+            """)
+            rare_count = len(rare_rows)
+
+            sample = await self._fetch_data(table, schema, columns=[safe_col, safe_new])
+            msg = f"Compressed {rare_count} rare categories in '{column}' to '{other_label}' (min_count={min_count})"
+            return ok(msg, [column], [new_col], sample, new_table=table)
+
+        except Exception as e:
+            return fail(f"categorical_compress_rare error: {str(e)}\n{traceback.format_exc()}")
+
+    async def datetime_remove_out_of_range(
+        self,
+        table: str,
+        schema: str,
+        column: str,
+        min_dt: Optional[str] = None,
+        max_dt: Optional[str] = None,
+        backend=None,
+        data_id: Optional[str] = None,
+        new_table: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        try:
+            original = table
+            table = await self._prepare_operation_table(
+                table, schema, backend=backend, data_id=data_id, new_table=new_table,
+            )
+            new_col = self._generate_cleaned_column_name(column, "range_filtered")
+            new_col_type = "DATE"
+            await self._add_new_column(table, schema, new_col, new_col_type)
+
+            if min_dt is None and max_dt is None:
+                min_dt, max_dt = "1900-01-01", "2100-01-01"
+
+            qualified = self._qualified_table(table, schema)
+            safe_col = SQLIdentifierSanitizer.sanitize(column)
+            safe_new = SQLIdentifierSanitizer.sanitize(new_col)
+
+            case_parts = []
+            if min_dt:
+                case_parts.append(f'WHEN "{safe_col}" < \'{min_dt}\'::DATE THEN NULL')
+            if max_dt:
+                case_parts.append(f'WHEN "{safe_col}" > \'{max_dt}\'::DATE THEN NULL')
+            case_expr = f"CASE {' '.join(case_parts)} ELSE \"{safe_col}\" END" if case_parts else f'"{safe_col}"'
+
+            async def _apply(tq):
+                await self._exec(f'UPDATE {tq} SET "{safe_new}" = {case_expr}')
+
+            await _apply(qualified)
+
+            await self._add_new_column_if_not_exists(original, schema, new_col, new_col_type)
+            await _apply(self._qualified_table(original, schema))
+
+            affected = 0
+            if case_parts:
+                cond = []
+                if min_dt:
+                    cond.append(f'"{safe_col}" < \'{min_dt}\'::DATE')
+                if max_dt:
+                    cond.append(f'"{safe_col}" > \'{max_dt}\'::DATE')
+                where_clause = " OR ".join(cond)
+                affected = await self._fetchval(
+                    f'SELECT COUNT(*) FROM {qualified} WHERE {where_clause}'
+                ) or 0
+
+            sample = await self._fetch_data(table, schema, columns=[safe_col, safe_new])
+            msg = f"Set {affected} out-of-range dates in '{column}' to NULL"
+            return ok(msg, [column], [new_col], sample, new_table=table)
+
+        except Exception as e:
+            return fail(f"datetime_remove_out_of_range error: {str(e)}\n{traceback.format_exc()}")
