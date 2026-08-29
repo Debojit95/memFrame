@@ -1,6 +1,6 @@
 from typing import Optional, Dict, Any, List
 from memframe.cache import record_call
-from memframe.core.analytix.inspection import GeneralTableOps
+from memframe.core.analytix.inspection import GeneralTableOps, make_table_ops
 from memframe.core.analytix._response import fail
 
 
@@ -16,7 +16,7 @@ class TableOpsOrchestrator:
     async def _ensure_ops(self) -> GeneralTableOps:
         if self._table_ops is None:
             await self._ops_parent._ensure_adapter()
-            self._table_ops = GeneralTableOps(self._ops_parent._adapter)
+            self._table_ops = make_table_ops(self._ops_parent._adapter)
         return self._table_ops
 
     async def _get_context(self):
