@@ -1,12 +1,1193 @@
 """
 PostgreSQL cleaning operations.
 
-See duckdb.py: the shared logic in base.py branches on the adapter type, so no
-per-backend overrides are needed in this split.
+Only the methods where PostgreSQL diverges from the DuckDB default (which lives
+in base.py) are overridden here; everything else is inherited. Each override is
+the original PostgreSQL-specific branch copied verbatim, so behaviour is
+preserved exactly.
 """
 
+import traceback
+import pandas as pd
+from typing import Any, Dict, List, Optional
+
 from memframe.core.analytix.cleaning.base import DataCleaningOps
+from memframe.utils.helper import SQLIdentifierSanitizer
+from memframe.core.analytix._response import fail, ok
 
 
 class PostgresCleaningOps(DataCleaningOps):
-    pass
+
+    # ------------------------------------------------------------------
+    # Numeric
+    # ------------------------------------------------------------------
+    def _numeric_target_for(self, pg_type: str) -> str:
+        return {
+            "SMALLINT": "SMALLINT",
+            "INTEGER": "INTEGER",
+            "BIGINT": "BIGINT",
+            "FLOAT": "DOUBLE PRECISION",
+        }.get(pg_type, "NUMERIC")
+
+    async def numeric_convert_text(
+        self,
+        table: str,
+        schema: str,
+        column: str,
+        backend=None,
+        data_id: Optional[str] = None,
+        new_table: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        try:
+            original = table
+            table = await self._prepare_operation_table(
+                table, schema, backend=backend, data_id=data_id, new_table=new_table,
+            )
+
+            qualified = self._qualified_table(table, schema)
+            safe_col = SQLIdentifierSanitizer.sanitize(column)
+
+            cleaned_expr = f"""NULLIF(
+                REGEXP_REPLACE("{safe_col}"::TEXT, '[^0-9.+-]', '', 'g'),
+                ''
+            )"""
+            numeric_check = f"{cleaned_expr} ~ '^[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)$'"
+
+            target_type = await self._detect_numeric_target(qualified, cleaned_expr)
+
+            async def _apply(tq):
+                await self._exec(f"""
+                    ALTER TABLE {tq}
+                    ALTER COLUMN "{safe_col}" TYPE {target_type}
+                    USING (CASE
+                        WHEN {numeric_check}
+                            THEN CAST({cleaned_expr} AS {target_type})
+                        ELSE NULL
+                    END)
+                """)
+
+            await _apply(qualified)
+
+            # Mirror the in-place conversion onto the original table
+            await _apply(self._qualified_table(original, schema))
+
+            converted = await self._fetchval(
+                f'SELECT COUNT(*) FROM {qualified} WHERE "{safe_col}" IS NOT NULL'
+            ) or 0
+
+            sample = await self._fetch_data(table, schema, columns=[safe_col])
+            msg = f"Converted {converted} text values in '{column}' to numeric"
+            return ok(msg, [column], [], sample, new_table=table)
+
+        except Exception as e:
+            return fail(f"numeric_convert_text error: {str(e)}\n{traceback.format_exc()}")
+
+    # ------------------------------------------------------------------
+    # Categorical
+    # ------------------------------------------------------------------
+    async def categorical_fillna(
+        self,
+        table: str,
+        schema: str,
+        column: str,
+        mode: str = "mode",
+        value: Optional[Any] = None,
+        mapping: Optional[Dict[Any, Any]] = None,
+        backend=None,
+        data_id: Optional[str] = None,
+        new_table: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        try:
+            original = table
+            table = await self._prepare_column_operation_table(
+                table, schema, [column], backend=backend, data_id=data_id, new_table=new_table,
+            )
+            mode = mode.upper()
+
+            valid_modes = {"CONSTANT", "MODE", "MAP", "BFILL", "FFILL"}
+            if mode not in valid_modes:
+                return fail(f"Unsupported mode: {mode}")
+
+            suffix_map = {
+                "CONSTANT": "constant_filled",
+                "MODE": "mode_filled",
+                "MAP": "mapped",
+                "BFILL": "bfill_filled",
+                "FFILL": "ffill_filled"
+            }
+
+            new_col = self._generate_cleaned_column_name(column, suffix_map[mode])
+            col_type = await self._get_column_type(table, schema, column)
+            await self._add_new_column(table, schema, new_col, col_type)
+
+            qualified = self._qualified_table(table, schema)
+            safe_col = SQLIdentifierSanitizer.sanitize(column)
+            safe_new = SQLIdentifierSanitizer.sanitize(new_col)
+
+            fill_value = None
+
+            if mode == "CONSTANT" and value is None:
+                return fail("Value must be provided for CONSTANT mode")
+            if mode == "MAP" and not mapping:
+                return fail("Mapping must be provided for MAP mode")
+
+            async def _apply(tq):
+                if mode == "CONSTANT":
+                    val_str = str(value).replace("'", "''")
+
+                    await self._exec(
+                        f'UPDATE {tq} SET "{safe_new}" = COALESCE("{safe_col}", \'{val_str}\')'
+                    )
+
+                    return value
+
+                elif mode in ["FFILL", "BFILL"]:
+
+                    row_id = "ctid"
+
+                    if mode == "FFILL":
+                        window_expr = f'''
+                            MAX("{safe_col}") OVER (
+                                ORDER BY __idx
+                                ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                            )
+                        '''
+                    else:
+                        window_expr = f'''
+                            MIN("{safe_col}") OVER (
+                                ORDER BY __idx
+                                ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING
+                            )
+                        '''
+
+                    await self._exec(f"""
+                        WITH base AS (
+                            SELECT *,
+                                ROW_NUMBER() OVER () AS __idx,
+                                {row_id} AS __rid
+                            FROM {tq}
+                        ),
+                        filled AS (
+                            SELECT *,
+                                {window_expr} AS filled_val
+                            FROM base
+                        )
+                        UPDATE {tq} t
+                        SET "{safe_new}" = COALESCE(t."{safe_col}", f.filled_val)
+                        FROM filled f
+                        WHERE t.{row_id} = f.__rid
+                    """)
+
+                    return mode
+
+                elif mode == "MODE":
+                    await self._exec(f"""
+                        WITH mode_val AS (
+                            SELECT "{safe_col}" AS mode_value
+                            FROM {tq}
+                            WHERE "{safe_col}" IS NOT NULL
+                            GROUP BY "{safe_col}"
+                            ORDER BY COUNT(*) DESC
+                            LIMIT 1
+                        )
+                        UPDATE {tq}
+                        SET "{safe_new}" = COALESCE("{safe_col}", (SELECT mode_value FROM mode_val))
+                    """)
+
+                    return await self._fetchval(f"""
+                        SELECT "{safe_col}" AS mode_value
+                        FROM {tq}
+                        WHERE "{safe_col}" IS NOT NULL
+                        GROUP BY "{safe_col}"
+                        ORDER BY COUNT(*) DESC
+                        LIMIT 1
+                    """)
+
+                else:  # MAP
+                    case_parts = []
+                    for old, new in mapping.items():
+                        old_esc = str(old).replace("'", "''")
+                        new_esc = str(new).replace("'", "''")
+                        case_parts.append(f'WHEN "{safe_col}" = \'{old_esc}\' THEN \'{new_esc}\'')
+
+                    case_expr = f"CASE {' '.join(case_parts)} ELSE \"{safe_col}\" END"
+
+                    await self._exec(f"""
+                        UPDATE {tq}
+                        SET "{safe_new}" = COALESCE({case_expr}, "{safe_col}")
+                    """)
+
+                    return f"{len(mapping)} mappings applied"
+
+            fill_value = await _apply(qualified)
+
+            # Mirror the new column onto the original table (in-place mutation)
+            await self._add_new_column_if_not_exists(original, schema, new_col, col_type)
+            await _apply(self._qualified_table(original, schema))
+
+            null_count = await self._fetchval(
+                f'SELECT COUNT(*) FROM {qualified} WHERE "{safe_col}" IS NULL'
+            ) or 0
+
+            sample = await self._fetch_data(table, schema, columns=[safe_col, safe_new])
+            msg = f"Processed '{column}' using {mode} (fill={fill_value}), affected {null_count} nulls"
+
+            return ok(
+                msg, [column], [new_col], sample, fill_mode=mode, fill_value=fill_value, new_table=table,
+            )
+
+        except Exception as e:
+            return fail(
+                f"categorical_fillna error: {str(e)}\n{traceback.format_exc()}", [column], [],
+            )
+
+    async def numeric_fillna(
+        self,
+        table: str,
+        schema: str,
+        column: str,
+        value: Any = None,
+        mode: str = "mean",
+        backend=None,
+        data_id: Optional[str] = None,
+        new_table: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        try:
+            original = table
+            table = await self._prepare_column_operation_table(
+                table,
+                schema,
+                [column],
+                backend=backend,
+                data_id=data_id,
+                new_table=new_table,
+            )
+            mode = mode.upper()
+
+            suffix_map = {
+                "CONSTANT": f"constant_filled_{value}",
+                "MEAN": "mean_filled",
+                "AVG": "mean_filled",
+                "AVERAGE": "mean_filled",
+                "MEDIAN": "median_filled",
+                "MODE": "mode_filled",
+                "STD": "std_filled",
+                "VAR": "var_filled",
+                "VARIANCE": "var_filled",
+                "MIN": "min_filled",
+                "MAX": "max_filled",
+                "BFILL": "bfill_filled",
+                "FFILL": "ffill_filled"
+            }
+
+            if mode not in suffix_map:
+                return fail(f"Unsupported mode: {mode}")
+
+            new_col = self._generate_cleaned_column_name(column, suffix_map[mode])
+            col_type = await self._get_column_type(table, schema, column)
+            await self._add_new_column(table, schema, new_col, col_type)
+
+            qualified = self._qualified_table(table, schema)
+            safe_col = SQLIdentifierSanitizer.sanitize(column)
+            safe_new = SQLIdentifierSanitizer.sanitize(new_col)
+
+            if mode == "CONSTANT" and value is None:
+                return fail("Value must be provided for CONSTANT mode")
+
+            async def _apply(tq):
+                if mode == "CONSTANT":
+                    converted = f"'{value}'" if isinstance(value, str) else str(value)
+
+                    await self._exec(
+                        f'UPDATE {tq} SET "{safe_new}" = COALESCE("{safe_col}", {converted})'
+                    )
+
+                    return value
+
+                elif mode in ["FFILL", "BFILL"]:
+
+                    row_id = "ctid"
+
+                    if mode == "FFILL":
+                        window_expr = f'''
+                            MAX("{safe_col}") OVER (
+                                ORDER BY __idx
+                                ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                            )
+                        '''
+                    else:
+                        window_expr = f'''
+                            MIN("{safe_col}") OVER (
+                                ORDER BY __idx
+                                ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING
+                            )
+                        '''
+
+                    await self._exec(f"""
+                        WITH base AS (
+                            SELECT *,
+                                ROW_NUMBER() OVER () AS __idx,
+                                {row_id} AS __rid
+                            FROM {tq}
+                        ),
+                        filled AS (
+                            SELECT *,
+                                {window_expr} AS filled_val
+                            FROM base
+                        )
+                        UPDATE {tq} t
+                        SET "{safe_new}" = COALESCE(t."{safe_col}", f.filled_val)
+                        FROM filled f
+                        WHERE t.{row_id} = f.__rid
+                    """)
+
+                    return mode
+
+                else:
+                    stat_map = {
+                        "MEAN": f'AVG("{safe_col}")',
+                        "AVG": f'AVG("{safe_col}")',
+                        "AVERAGE": f'AVG("{safe_col}")',
+                        "MEDIAN": f'PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY "{safe_col}")',
+                        "MODE": f"""
+                            (SELECT "{safe_col}"
+                            FROM {tq}
+                            WHERE "{safe_col}" IS NOT NULL
+                            GROUP BY "{safe_col}"
+                            ORDER BY COUNT(*) DESC
+                            LIMIT 1)
+                        """,
+                        "STD": f'STDDEV_POP("{safe_col}")',
+                        "VAR": f'VAR_POP("{safe_col}")',
+                        "VARIANCE": f'VAR_POP("{safe_col}")',
+                        "MIN": f'MIN("{safe_col}")',
+                        "MAX": f'MAX("{safe_col}")',
+                    }
+
+                    stat_expr = stat_map[mode]
+
+                    await self._exec(f"""
+                        WITH stat_val AS (
+                            SELECT COALESCE({stat_expr}, 0) AS val
+                            FROM {tq}
+                            WHERE "{safe_col}" IS NOT NULL
+                        )
+                        UPDATE {tq}
+                        SET "{safe_new}" = COALESCE("{safe_col}", (SELECT val FROM stat_val))
+                    """)
+
+                    return await self._fetchval(f"""
+                        SELECT {stat_expr}
+                        FROM {tq}
+                        WHERE "{safe_col}" IS NOT NULL
+                    """)
+
+            fill_value = await _apply(qualified)
+
+            # Mirror the new column onto the original table (in-place mutation)
+            await self._add_new_column_if_not_exists(original, schema, new_col, col_type)
+            await _apply(self._qualified_table(original, schema))
+
+            null_count = await self._fetchval(
+                f'SELECT COUNT(*) FROM {qualified} WHERE "{safe_col}" IS NULL'
+            ) or 0
+
+            sample = await self._fetch_data(table, schema, columns=[safe_col, safe_new])
+            msg = f"Filled {null_count} null values in '{column}' using {mode} ({fill_value})"
+
+            return ok(
+                msg, [column], [new_col], sample, fill_mode=mode, fill_value=fill_value, new_table=table,
+            )
+
+        except Exception as e:
+            return fail(
+                f"numeric_fillna error: {str(e)}\n{traceback.format_exc()}", [column], [],
+            )
+
+    async def numeric_fillna_groupby(
+        self,
+        table: str,
+        schema: str,
+        column: str,
+        group_cols: Optional[List[str]] = None,
+        value: Any = None,
+        mode: str = "mean",
+        backend=None,
+        data_id: Optional[str] = None,
+        new_table: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        try:
+            original = table
+            involved_cols = [*(group_cols or []), column]
+            table = await self._prepare_column_operation_table(
+                table,
+                schema,
+                involved_cols,
+                backend=backend,
+                data_id=data_id,
+                new_table=new_table,
+            )
+            mode = mode.upper()
+
+            suffix_map = {
+                "CONSTANT": f"constant_filled_{value}",
+                "MEAN": "mean_filled",
+                "AVG": "mean_filled",
+                "AVERAGE": "mean_filled",
+                "MEDIAN": "median_filled",
+                "MODE": "mode_filled",
+                "STD": "std_filled",
+                "VAR": "var_filled",
+                "VARIANCE": "var_filled",
+                "MIN": "min_filled",
+                "MAX": "max_filled",
+                "BFILL": "bfill_filled",
+                "FFILL": "ffill_filled"
+            }
+
+            if mode not in suffix_map:
+                return fail(f"Unsupported mode: {mode}")
+
+            new_col = self._generate_cleaned_column_name(column, suffix_map[mode])
+            col_type = await self._get_column_type(table, schema, column)
+            await self._add_new_column(table, schema, new_col, col_type)
+
+            qualified = self._qualified_table(table, schema)
+            safe_col = SQLIdentifierSanitizer.sanitize(column)
+            safe_new = SQLIdentifierSanitizer.sanitize(new_col)
+            safe_group_cols = [SQLIdentifierSanitizer.sanitize(item) for item in group_cols] if group_cols else []
+
+            if group_cols:
+                group_cols = [SQLIdentifierSanitizer.sanitize(c) for c in group_cols]
+                group_expr = ", ".join([f'"{c}"' for c in group_cols])
+                join_cond = " AND ".join([
+                    f'(t."{c}" = g."{c}" OR (t."{c}" IS NULL AND g."{c}" IS NULL))'
+                    for c in group_cols
+                ])
+
+            if mode == "CONSTANT" and value is None:
+                return fail("Value must be provided")
+
+            async def _apply(tq):
+                if mode == "CONSTANT":
+                    converted = f"'{value}'" if isinstance(value, str) else str(value)
+
+                    await self._exec(
+                        f'UPDATE {tq} SET "{safe_new}" = COALESCE("{safe_col}", {converted})'
+                    )
+
+                    return value
+
+                elif mode in ["FFILL", "BFILL"]:
+
+                    row_id = "ctid"
+
+                    partition = f'PARTITION BY {group_expr}' if group_cols else ""
+
+                    if mode == "FFILL":
+                        window_expr = f'''
+                            MAX("{safe_col}") OVER (
+                                {partition}
+                                ORDER BY __idx
+                                ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                            )
+                        '''
+                    else:
+                        window_expr = f'''
+                            MIN("{safe_col}") OVER (
+                                {partition}
+                                ORDER BY __idx
+                                ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING
+                            )
+                        '''
+
+                    await self._exec(f"""
+                        WITH base AS (
+                            SELECT *,
+                                ROW_NUMBER() OVER () AS __idx,
+                                {row_id} AS __rid
+                            FROM {tq}
+                        ),
+                        filled AS (
+                            SELECT *,
+                                {window_expr} AS filled_val
+                            FROM base
+                        )
+                        UPDATE {tq} t
+                        SET "{safe_new}" = COALESCE(t."{safe_col}", f.filled_val)
+                        FROM filled f
+                        WHERE t.{row_id} = f.__rid
+                    """)
+
+                    return mode
+
+                else:
+                    stat_map = {
+                        "MEAN": f'AVG(CASE WHEN "{safe_col}" IS NOT NULL THEN "{safe_col}" END)',
+                        "AVG": f'AVG(CASE WHEN "{safe_col}" IS NOT NULL THEN "{safe_col}" END)',
+                        "AVERAGE": f'AVG(CASE WHEN "{safe_col}" IS NOT NULL THEN "{safe_col}" END)',
+                        "MEDIAN": f'PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY "{safe_col}")',
+                        "MODE": f"""
+                            (SELECT "{safe_col}"
+                            FROM {tq}
+                            WHERE "{safe_col}" IS NOT NULL
+                            GROUP BY "{safe_col}"
+                            ORDER BY COUNT(*) DESC
+                            LIMIT 1)
+                        """,
+                        "STD": f'STDDEV_POP("{safe_col}")',
+                        "VAR": f'VAR_POP("{safe_col}")',
+                        "VARIANCE": f'VAR_POP("{safe_col}")',
+                        "MIN": f'MIN("{safe_col}")',
+                        "MAX": f'MAX("{safe_col}")',
+                    }
+
+                    stat_expr = stat_map[mode]
+
+                    if group_cols:
+                        await self._exec(f"""
+                            WITH grouped AS (
+                                SELECT {group_expr},
+                                    {stat_expr} AS val
+                                FROM {tq}
+                                GROUP BY {group_expr}
+                            ),
+                            global_stat AS (
+                                SELECT {stat_expr} AS val FROM {tq}
+                            )
+                            UPDATE {tq} t
+                            SET "{safe_new}" = COALESCE(
+                                t."{safe_col}",
+                                g.val,
+                                (SELECT val FROM global_stat)
+                            )
+                            FROM grouped g
+                            WHERE {join_cond}
+                        """)
+                    else:
+                        await self._exec(f"""
+                            WITH stat_val AS (
+                                SELECT COALESCE({stat_expr}, 0) AS val
+                                FROM {tq}
+                            )
+                            UPDATE {tq}
+                            SET "{safe_new}" = COALESCE("{safe_col}", (SELECT val FROM stat_val))
+                        """)
+
+                    return mode
+
+            fill_value = await _apply(qualified)
+
+            # Mirror the new column onto the original table (in-place mutation)
+            await self._add_new_column_if_not_exists(original, schema, new_col, col_type)
+            await _apply(self._qualified_table(original, schema))
+
+            null_count = await self._fetchval(
+                f'SELECT COUNT(*) FROM {qualified} WHERE "{safe_col}" IS NULL'
+            ) or 0
+
+            sample = await self._fetch_data(
+                table, schema,
+                columns=safe_group_cols + [safe_col, safe_new]
+            )
+
+            msg = f"Filled {null_count} nulls in '{column}' using {mode} (grouped={bool(group_cols)})"
+
+            return ok(
+                msg,
+                involved_cols,
+                [new_col],
+                sample,
+                fill_mode=mode,
+                fill_value=fill_value,
+                new_table=table,
+            )
+
+        except Exception as e:
+            return fail(
+                f"numeric_fillna_groupby error: {str(e)}\n{traceback.format_exc()}", [column], [],
+            )
+
+    async def categorical_fillna_groupby(
+        self,
+        table: str,
+        schema: str,
+        column: str,
+        group_cols: Optional[List[str]] = None,
+        mode: str = "mode",
+        backend=None,
+        data_id: Optional[str] = None,
+        new_table: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        try:
+            original = table
+            involved_cols = [*(group_cols or []), column]
+            table = await self._prepare_column_operation_table(
+                table,
+                schema,
+                involved_cols,
+                backend=backend,
+                data_id=data_id,
+                new_table=new_table,
+            )
+            mode = mode.upper()
+
+            valid_modes = {"MODE", "BFILL", "FFILL"}
+            if mode not in valid_modes:
+                return fail(f"Unsupported mode: {mode}")
+
+            suffix_map = {
+                "MODE": "mode_filled",
+                "BFILL": "bfill_filled",
+                "FFILL": "ffill_filled"
+            }
+
+            new_col = self._generate_cleaned_column_name(column, suffix_map[mode])
+            col_type = await self._get_column_type(table, schema, column)
+            await self._add_new_column(table, schema, new_col, col_type)
+
+            qualified = self._qualified_table(table, schema)
+            safe_col = SQLIdentifierSanitizer.sanitize(column)
+            safe_new = SQLIdentifierSanitizer.sanitize(new_col)
+            safe_group_cols = [SQLIdentifierSanitizer.sanitize(c) for c in group_cols] if group_cols else []
+
+            if group_cols:
+                group_cols = [SQLIdentifierSanitizer.sanitize(c) for c in group_cols]
+                group_expr = ", ".join([f'"{c}"' for c in group_cols])
+                join_cond = " AND ".join([
+                    f'(t."{c}" = m."{c}" OR (t."{c}" IS NULL AND m."{c}" IS NULL))'
+                    for c in group_cols
+                ])
+                partition = f'PARTITION BY {group_expr}'
+            else:
+                partition = ""
+
+            fill_value = None
+
+            async def _apply(tq):
+                if mode in ["FFILL", "BFILL"]:
+
+                    row_id = "ctid"
+
+                    if mode == "FFILL":
+                        window_expr = f'''
+                            MAX("{safe_col}") OVER (
+                                {partition}
+                                ORDER BY __idx
+                                ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                            )
+                        '''
+                    else:
+                        window_expr = f'''
+                            MIN("{safe_col}") OVER (
+                                {partition}
+                                ORDER BY __idx
+                                ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING
+                            )
+                        '''
+
+                    await self._exec(f"""
+                        WITH base AS (
+                            SELECT *,
+                                ROW_NUMBER() OVER () AS __idx,
+                                {row_id} AS __rid
+                            FROM {tq}
+                        ),
+                        filled AS (
+                            SELECT *,
+                                {window_expr} AS filled_val
+                            FROM base
+                        )
+                        UPDATE {tq} t
+                        SET "{safe_new}" = COALESCE(t."{safe_col}", f.filled_val)
+                        FROM filled f
+                        WHERE t.{row_id} = f.__rid
+                    """)
+
+                    return mode
+
+                else:  # MODE
+                    if group_cols:
+                        await self._exec(f"""
+                            WITH mode_vals AS (
+                                SELECT {group_expr},
+                                    "{safe_col}" AS mode_val
+                                FROM (
+                                    SELECT {group_expr},
+                                        "{safe_col}",
+                                        COUNT(*) AS cnt,
+                                        ROW_NUMBER() OVER (
+                                            PARTITION BY {group_expr}
+                                            ORDER BY COUNT(*) DESC
+                                        ) AS rn
+                                    FROM {tq}
+                                    WHERE "{safe_col}" IS NOT NULL
+                                    GROUP BY {group_expr}, "{safe_col}"
+                                ) sub
+                                WHERE rn = 1
+                            )
+                            UPDATE {tq} t
+                            SET "{safe_new}" = COALESCE(t."{safe_col}", m.mode_val)
+                            FROM mode_vals m
+                            WHERE {join_cond}
+                        """)
+                    else:
+                        await self._exec(f"""
+                            WITH mode_val AS (
+                                SELECT "{safe_col}" AS mode_value
+                                FROM {tq}
+                                WHERE "{safe_col}" IS NOT NULL
+                                GROUP BY "{safe_col}"
+                                ORDER BY COUNT(*) DESC
+                                LIMIT 1
+                            )
+                            UPDATE {tq}
+                            SET "{safe_new}" = COALESCE("{safe_col}", (SELECT mode_value FROM mode_val))
+                        """)
+
+                    return "group_mode" if group_cols else "mode"
+
+            fill_value = await _apply(qualified)
+
+            # Mirror the new column onto the original table (in-place mutation)
+            await self._add_new_column_if_not_exists(original, schema, new_col, col_type)
+            await _apply(self._qualified_table(original, schema))
+
+            null_count = await self._fetchval(
+                f'SELECT COUNT(*) FROM {qualified} WHERE "{safe_col}" IS NULL'
+            ) or 0
+
+            sample = await self._fetch_data(
+                table, schema,
+                columns=safe_group_cols + [safe_col, safe_new]
+            )
+
+            msg = f"Processed '{column}' using {mode} (grouped={bool(group_cols)}), affected {null_count} nulls"
+
+            return ok(
+                msg,
+                involved_cols,
+                [new_col],
+                sample,
+                fill_mode=mode,
+                fill_value=fill_value,
+                new_table=table,
+            )
+
+        except Exception as e:
+            return fail(
+                f"categorical_fillna_groupby error: {str(e)}\n{traceback.format_exc()}", [column], [],
+            )
+
+    async def datetime_fillna(
+        self,
+        table: str,
+        schema: str,
+        column: str,
+        mode: str = "mean",
+        value: Optional[Any] = None,
+        backend=None,
+        data_id: Optional[str] = None,
+        new_table: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        try:
+            original = table
+            table = await self._prepare_column_operation_table(
+                table, schema, [column], backend=backend, data_id=data_id, new_table=new_table,
+            )
+            mode = mode.upper()
+
+            valid_modes = {"CONSTANT", "MIN", "MAX", "MEAN", "MEDIAN", "MODE", "NOW", "FFILL", "BFILL"}
+            if mode not in valid_modes:
+                return fail(f"Unsupported mode: {mode}")
+
+            suffix_map = {
+                "CONSTANT": "constant_filled",
+                "MIN": "min_filled",
+                "MAX": "max_filled",
+                "MEAN": "mean_filled",
+                "MEDIAN": "median_filled",
+                "MODE": "mode_filled",
+                "NOW": "now_filled",
+                "BFILL": "bfill_filled",
+                "FFILL": "ffill_filled"
+            }
+
+            new_col = self._generate_cleaned_column_name(column, suffix_map[mode])
+            await self._add_new_column(table, schema, new_col, "TIMESTAMP")
+
+            qualified = self._qualified_table(table, schema)
+            safe_col = SQLIdentifierSanitizer.sanitize(column)
+            safe_new = SQLIdentifierSanitizer.sanitize(new_col)
+
+            fill_value = None
+
+            if mode == "CONSTANT" and value is None:
+                return fail("Value must be provided for CONSTANT mode")
+
+            async def _apply(tq):
+                if mode == "CONSTANT":
+                    await self._exec(
+                        f'UPDATE {tq} SET "{safe_new}" = COALESCE("{safe_col}", $1::TIMESTAMP)',
+                        pd.Timestamp(value).to_pydatetime(),
+                    )
+                    return value
+
+                elif mode == "NOW":
+                    await self._exec(
+                        f'UPDATE {tq} SET "{safe_new}" = COALESCE("{safe_col}", CURRENT_TIMESTAMP)'
+                    )
+                    return "CURRENT_TIMESTAMP"
+
+                elif mode in ["FFILL", "BFILL"]:
+                    if mode == "FFILL":
+                        window_expr = f'''
+                            MAX("{safe_col}") OVER (
+                                ORDER BY __idx
+                                ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                            )
+                        '''
+                    else:
+                        window_expr = f'''
+                            MIN("{safe_col}") OVER (
+                                ORDER BY __idx
+                                ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING
+                            )
+                        '''
+
+                    temp_table = f"{table}__fill_temp"
+                    qualified_temp = self._qualified_table(temp_table, schema)
+                    cols = ", ".join(f'"{c}"' for c in [safe_col])
+                    bare_name = f"{tq}".split(".", 1)[-1]
+                    await self._exec(f"DROP TABLE IF EXISTS {qualified_temp}")
+                    await self._exec(f"""
+                        CREATE TABLE {qualified_temp} AS
+                        SELECT {cols}, COALESCE("{safe_col}", filled_val) AS "{safe_new}"
+                        FROM (
+                            WITH base AS (
+                                SELECT *,
+                                    ROW_NUMBER() OVER (ORDER BY ctid) AS __idx
+                                FROM {tq}
+                            ),
+                            filled AS (
+                                SELECT *, {window_expr} AS filled_val
+                                FROM base
+                            )
+                            SELECT * FROM filled
+                        ) sub
+                        ORDER BY __idx
+                    """)
+                    await self._exec(f"DROP TABLE {tq}")
+                    await self._exec(f"ALTER TABLE {qualified_temp} RENAME TO {bare_name}")
+
+                    return mode
+
+                else:
+                    stat_map = {
+                        "MIN": f'MIN("{safe_col}")',
+                        "MAX": f'MAX("{safe_col}")',
+                        "MEAN": f'TO_TIMESTAMP(AVG(EXTRACT(EPOCH FROM "{safe_col}")))',
+                        "MEDIAN": f'''
+                            TO_TIMESTAMP(
+                                PERCENTILE_CONT(0.5)
+                                WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM "{safe_col}"))
+                            )
+                        ''',
+                        "MODE": f"""
+                            (
+                                SELECT "{safe_col}"
+                                FROM {tq}
+                                WHERE "{safe_col}" IS NOT NULL
+                                GROUP BY "{safe_col}"
+                                ORDER BY COUNT(*) DESC
+                                LIMIT 1
+                            )
+                        """,
+                    }
+
+                    stat_expr = stat_map[mode]
+
+                    await self._exec(f"""
+                        WITH stat_val AS (
+                            SELECT {stat_expr} AS val
+                            FROM {tq}
+                            WHERE "{safe_col}" IS NOT NULL
+                        )
+                        UPDATE {tq}
+                        SET "{safe_new}" = COALESCE("{safe_col}", (SELECT val FROM stat_val))
+                    """)
+
+                    return await self._fetchval(f"""
+                        SELECT {stat_expr}
+                        FROM {tq}
+                        WHERE "{safe_col}" IS NOT NULL
+                    """)
+
+            fill_value = await _apply(qualified)
+
+            # Mirror the new column onto the original table (in-place mutation)
+            await self._add_new_column_if_not_exists(original, schema, new_col, "TIMESTAMP")
+            await _apply(self._qualified_table(original, schema))
+
+            null_count = await self._fetchval(
+                f'SELECT COUNT(*) FROM {qualified} WHERE "{safe_col}" IS NULL'
+            ) or 0
+
+            sample = await self._fetch_data(table, schema, columns=[safe_col, safe_new])
+            msg = f"Filled {null_count} null values in '{column}' using {mode} ({fill_value})"
+
+            return ok(
+                msg, [column], [new_col], sample, fill_mode=mode, fill_value=fill_value, new_table=table,
+            )
+
+        except Exception as e:
+            return fail(
+                f"datetime_fillna error: {str(e)}\n{traceback.format_exc()}", [column], [],
+            )
+
+    async def datetime_fix_invalid(
+        self,
+        table: str,
+        schema: str,
+        column: str,
+        backend=None,
+        data_id: Optional[str] = None,
+        new_table: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        try:
+            original = table
+            table = await self._prepare_operation_table(
+                table, schema, backend=backend, data_id=data_id, new_table=new_table,
+            )
+            new_col = self._generate_cleaned_column_name(column, "fixed")
+            await self._add_new_column(table, schema, new_col, "DATE")
+
+            qualified = self._qualified_table(table, schema)
+            safe_col = SQLIdentifierSanitizer.sanitize(column)
+            safe_new = SQLIdentifierSanitizer.sanitize(new_col)
+
+            text_expr = f'"{safe_col}"::TEXT'
+
+            async def _apply(tq):
+                await self._exec(f"""
+                    UPDATE {tq}
+                    SET "{safe_new}" = CASE
+                        WHEN {text_expr} = '0000-00-00' THEN NULL
+                        ELSE "{safe_col}"
+                    END
+                """)
+
+            await _apply(qualified)
+
+            # Mirror the new column onto the original table (in-place mutation)
+            await self._add_new_column_if_not_exists(original, schema, new_col, "DATE")
+            await _apply(self._qualified_table(original, schema))
+
+            invalid = await self._fetchval(
+                f"SELECT COUNT(*) FROM {qualified} WHERE {text_expr} = '0000-00-00'"
+            ) or 0
+
+            sample = await self._fetch_data(table, schema, columns=[safe_col, safe_new])
+            msg = f"Fixed {invalid} invalid dates in '{column}'"
+            return ok(msg, [column], [new_col], sample, new_table=table)
+
+        except Exception as e:
+            return fail(f"datetime_fix_invalid error: {str(e)}\n{traceback.format_exc()}")
+
+    async def datetime_fillna_groupby(
+        self,
+        table: str,
+        schema: str,
+        column: str,
+        group_cols: Optional[List[str]] = None,
+        mode: str = "mean",
+        backend=None,
+        data_id: Optional[str] = None,
+        new_table: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        try:
+            original = table
+            involved_cols = [*(group_cols or []), column]
+            table = await self._prepare_column_operation_table(
+                table,
+                schema,
+                involved_cols,
+                backend=backend,
+                data_id=data_id,
+                new_table=new_table,
+            )
+            mode = mode.upper()
+
+            valid_modes = {"MIN", "MAX", "MEAN", "MEDIAN", "MODE", "FFILL", "BFILL"}
+            if mode not in valid_modes:
+                return fail(f"Unsupported mode: {mode}")
+
+            suffix_map = {
+                "MIN": "min_filled",
+                "MAX": "max_filled",
+                "MEAN": "mean_filled",
+                "MEDIAN": "median_filled",
+                "MODE": "mode_filled",
+                "BFILL": "bfill_filled",
+                "FFILL": "ffill_filled"
+            }
+
+            new_col = self._generate_cleaned_column_name(column, suffix_map[mode])
+            await self._add_new_column(table, schema, new_col, "TIMESTAMP")
+
+            qualified = self._qualified_table(table, schema)
+            safe_col = SQLIdentifierSanitizer.sanitize(column)
+            safe_new = SQLIdentifierSanitizer.sanitize(new_col)
+            safe_group_cols = [SQLIdentifierSanitizer.sanitize(c) for c in group_cols] if group_cols else []
+
+            if group_cols:
+                group_cols = [SQLIdentifierSanitizer.sanitize(c) for c in group_cols]
+                group_expr = ", ".join([f'"{c}"' for c in group_cols])
+
+                join_cond = " AND ".join([
+                    f'(t."{c}" = g."{c}" OR (t."{c}" IS NULL AND g."{c}" IS NULL))'
+                    for c in group_cols
+                ])
+
+                partition = f'PARTITION BY {group_expr}'
+            else:
+                partition = ""
+
+            fill_value = None
+
+            async def _apply(tq):
+                if mode in ["FFILL", "BFILL"]:
+                    if mode == "FFILL":
+                        window_expr = f'''
+                            MAX("{safe_col}") OVER (
+                                {partition}
+                                ORDER BY __idx
+                                ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                            )
+                        '''
+                    else:
+                        window_expr = f'''
+                            MIN("{safe_col}") OVER (
+                                {partition}
+                                ORDER BY __idx
+                                ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING
+                            )
+                        '''
+
+                    temp_table = f"{table}__fill_temp"
+                    qualified_temp = self._qualified_table(temp_table, schema)
+                    cols = ", ".join(f'"{c}"' for c in (safe_group_cols + [safe_col]))
+                    bare_name = f"{tq}".split(".", 1)[-1]
+                    await self._exec(f"DROP TABLE IF EXISTS {qualified_temp}")
+                    await self._exec(f"""
+                        CREATE TABLE {qualified_temp} AS
+                        SELECT {cols}, COALESCE("{safe_col}", filled_val) AS "{safe_new}"
+                        FROM (
+                            WITH base AS (
+                                SELECT *,
+                                    ROW_NUMBER() OVER (ORDER BY ctid) AS __idx
+                                FROM {tq}
+                            ),
+                            filled AS (
+                                SELECT *, {window_expr} AS filled_val
+                                FROM base
+                            )
+                            SELECT * FROM filled
+                        ) sub
+                        ORDER BY __idx
+                    """)
+                    await self._exec(f"DROP TABLE {tq}")
+                    await self._exec(f"ALTER TABLE {qualified_temp} RENAME TO {bare_name}")
+
+                    return mode
+
+                else:
+                    stat_map = {
+                        "MIN": f'MIN("{safe_col}")',
+                        "MAX": f'MAX("{safe_col}")',
+                        "MEAN": f'TO_TIMESTAMP(AVG(EXTRACT(EPOCH FROM "{safe_col}")))',
+                        "MEDIAN": f'''
+                            TO_TIMESTAMP(
+                                PERCENTILE_CONT(0.5)
+                                WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM "{safe_col}"))
+                            )
+                        ''',
+                        "MODE": f'''
+                            (
+                                SELECT "{safe_col}"
+                                FROM {tq}
+                                WHERE "{safe_col}" IS NOT NULL
+                                GROUP BY "{safe_col}"
+                                ORDER BY COUNT(*) DESC
+                                LIMIT 1
+                            )
+                        ''',
+                    }
+
+                    stat_expr = stat_map[mode]
+
+                    if group_cols:
+                        await self._exec(f"""
+                            WITH grouped AS (
+                                SELECT {group_expr},
+                                    {stat_expr} AS val
+                                FROM {tq}
+                                GROUP BY {group_expr}
+                            ),
+                            global_stat AS (
+                                SELECT COALESCE({stat_expr}, CURRENT_TIMESTAMP) AS val
+                                FROM {tq}
+                            )
+                            UPDATE {tq} t
+                            SET "{safe_new}" = COALESCE(
+                                t."{safe_col}",
+                                g.val,
+                                (SELECT val FROM global_stat)
+                            )
+                            FROM grouped g
+                            WHERE {join_cond}
+                        """)
+                    else:
+                        await self._exec(f"""
+                            WITH stat_val AS (
+                                SELECT {stat_expr} AS val
+                                FROM {tq}
+                                WHERE "{safe_col}" IS NOT NULL
+                            )
+                            UPDATE {tq}
+                            SET "{safe_new}" = COALESCE("{safe_col}", (SELECT val FROM stat_val))
+                        """)
+
+                    return mode
+
+            fill_value = await _apply(qualified)
+
+            # Mirror the new column onto the original table (in-place mutation)
+            await self._add_new_column_if_not_exists(original, schema, new_col, "TIMESTAMP")
+            await _apply(self._qualified_table(original, schema))
+
+            null_count = await self._fetchval(
+                f'SELECT COUNT(*) FROM {qualified} WHERE "{safe_col}" IS NULL'
+            ) or 0
+
+            sample = await self._fetch_data(
+                table, schema,
+                columns=safe_group_cols + [safe_col, safe_new]
+            )
+
+            msg = f"Filled {null_count} nulls in '{column}' using {mode} (grouped={bool(group_cols)})"
+
+            return ok(
+                msg,
+                involved_cols,
+                [new_col],
+                sample,
+                fill_mode=mode,
+                fill_value=fill_value,
+                new_table=table,
+            )
+
+        except Exception as e:
+            return fail(
+                f"datetime_fillna_groupby error: {str(e)}\n{traceback.format_exc()}", [column], [],
+            )
