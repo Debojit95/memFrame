@@ -1,8 +1,9 @@
 """
 Selection operations subpackage.
 
-DataSelectionOps (base.py) holds all shared logic plus backend-specific hooks;
-DuckDB/Postgres/ClickHouse subclasses override only the divergent hooks.
+DataSelectionOps (base.py) holds only shared, backend-agnostic helpers.
+DuckDB/Postgres/ClickHouse subclasses each contain a self-contained copy of
+all selection methods plus their divergent hooks.
 Construct via make_selection_ops(db_adapter) rather than instantiating directly.
 """
 

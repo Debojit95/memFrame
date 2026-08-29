@@ -3,7 +3,7 @@ import asyncio
 import pandas as pd
 import pytest
 
-from memframe.core.analytix.selection import DataSelectionOps
+from memframe.core.analytix.selection import DuckDBSelectionOps
 from memframe.main import MemFrame
 from memframe.wrappers.analytix.selection import SelectionWrapper
 
@@ -49,7 +49,7 @@ def test_selection_filtered_result_returns_dataframe(selection_context):
 
 def test_selection_failure_has_result_key():
     response = asyncio.run(
-        DataSelectionOps(object()).at("row", "schema", 1, "value")
+        DuckDBSelectionOps(object()).at("row", "schema", 1, "value")
     )
 
     assert response["is_error"] is True
