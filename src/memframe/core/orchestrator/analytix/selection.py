@@ -1,5 +1,5 @@
 from typing import Any, List, Optional, Tuple, Union
-from memframe.core.analytix.selection import DataSelectionOps
+from memframe.core.analytix.selection import DataSelectionOps, make_selection_ops
 from memframe.core.analytix._response import fail
 from memframe.exceptions import OperationError
 from memframe.cache import record_call
@@ -21,7 +21,7 @@ class SelectionOrchestrator:
     async def _ensure_ops(self) -> DataSelectionOps:
         if self._selection_ops is None:
             await self._ops_parent._ensure_adapter()
-            self._selection_ops = DataSelectionOps(self._ops_parent._adapter)
+            self._selection_ops = make_selection_ops(self._ops_parent._adapter)
         return self._selection_ops
 
     async def _get_context(self):
