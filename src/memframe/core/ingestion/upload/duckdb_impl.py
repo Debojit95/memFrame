@@ -21,9 +21,12 @@ class DuckDBUploadImpl:
 
     # ── PyArrow Stream Upload ───────────────────────────────────
     async def _insert_arrow_table_duckdb(self, table_name: str, arrow_table: pa.Table) -> None:
-        self._backend.pool.conn.register("arrow_temp", arrow_table)
-        self._backend.pool.conn.execute(f"INSERT INTO {table_name} SELECT * FROM arrow_temp")
-        self._backend.pool.conn.unregister("arrow_temp")
+        conn = self._backend.pool.conn
+        conn.register("arrow_temp", arrow_table)
+        try:
+            conn.execute(f"INSERT INTO {table_name} SELECT * FROM arrow_temp")
+        finally:
+            conn.unregister("arrow_temp")
 
     # ── Sampling ────────────────────────────────────────────────
     async def _fetch_arrow_sample_duckdb(self, table_name: str, columns: List[str], limit: int) -> pa.Table:

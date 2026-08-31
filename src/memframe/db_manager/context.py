@@ -38,6 +38,11 @@ def _public_result(method):
 class ContextManager:
     def __init__(self, memframe_instance, data_id: Optional[str] = None):
         self.memframe = memframe_instance
+        if data_id is None and memframe_instance is not self:
+            # ponytail: bind the active dataset at creation so a later
+            # set_active() can't retarget an existing context mid-flight
+            # (upload/aset_active contexts already behave this way).
+            data_id = getattr(memframe_instance, "_active_id", None)
         self._data_id = data_id
         self._adapter: Optional[DatabaseAdapter] = None
         self._wrappers = None

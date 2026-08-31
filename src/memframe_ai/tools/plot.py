@@ -1,3 +1,4 @@
+import asyncio
 import json
 import uuid
 
@@ -124,10 +125,13 @@ def tools(session):
             }
 
         plot_id = uuid.uuid4().hex[:12]
-        # ponytail: PNG needs Chrome/kaleido; best-effort, spec renders client-side anyway
+        # ponytail: PNG needs Chrome/kaleido; best-effort, spec renders client-side
+        # anyway. to_thread + timeout so a hung Chromium can't freeze the loop.
         png = None
         try:
-            png = fig.to_image(format="png")
+            png = await asyncio.wait_for(
+                asyncio.to_thread(fig.to_image, format="png"), timeout=30.0
+            )
         except Exception:
             png = None
         session.add_plot(plot_id, title or f"{plot_type} of {x}", spec, png)

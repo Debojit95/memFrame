@@ -59,20 +59,38 @@ class ConnectorManager:
 
     async def aconnect(self) -> None:
         backend_type, params = resolve_backend_config(self.connection_type, self.conn_params)
-        self._pool = create_pool(backend_type, params)
-        await self._pool.connect()
-        self._backend = create_backend(backend_type, params)
-        self._backend.pool = self._pool
-        await self._backend.initialize()
+        # ponytail: close any prior pool first — a leaked DuckDB pool keeps the
+        # database file locked (single-writer), and reconnects must not orphan it.
+        if self._pool is not None:
+            await self._pool.close()
+            self._pool = None
+            self._backend = None
+        pool = create_pool(backend_type, params)
+        try:
+            await pool.connect()
+        except Exception:
+            self._pool = None
+            raise
+        self._pool = pool
+        try:
+            backend = create_backend(backend_type, params)
+            backend.pool = pool
+            await backend.initialize()
+        except Exception:
+            await pool.close()
+            self._pool = None
+            raise
+        self._backend = backend
         if self.__uploader:
             self.__uploader._backend = self._backend
             self.__uploader._type_detector = self._backend._type_detector
 
     async def aclose(self) -> None:
-        if self._pool is not None:
-            await self._pool.close()
-            self._pool = None
-            self._backend = None
+        # ponytail: clear refs before closing so a failed close can't leave a
+        # half-alive pool that callers would reuse.
+        pool, self._pool, self._backend = self._pool, None, None
+        if pool is not None:
+            await pool.close()
 
     @async_to_sync
     async def close(self) -> None:

@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from typing import Any, List, Optional, Tuple
 
 from memframe.core.ingestion.datatype_detector import Backend
-from memframe.exceptions import BackendNotSupported
+from memframe.exceptions import BackendNotSupported, ConnectionNotReady
 
 
 logger = logging.getLogger("memFrame")
@@ -45,6 +45,11 @@ class DuckDBPool(BasePool):
 
     async def connect(self):
         import duckdb
+        # ponytail: close any prior handle first — DuckDB is single-writer, so
+        # a leaked second connection keeps the database file locked.
+        if self._conn is not None:
+            self._conn.close()
+            self._conn = None
         self._conn = duckdb.connect(self.db_path)
         logger.info(f"DuckDB connected: {self.db_path}")
 
@@ -54,14 +59,20 @@ class DuckDBPool(BasePool):
             self._conn = None
             logger.info("DuckDB connection closed")
 
+    def _require_conn(self):
+        if self._conn is None:
+            raise ConnectionNotReady("DuckDB not connected. Call connect() first.")
+        return self._conn
+
     async def execute(self, sql: str, *args) -> None:
-        self._conn.execute(sql, list(args))
+        self._require_conn().execute(sql, list(args))
 
     async def fetch(self, sql: str, *args) -> List[Tuple]:
-        return [tuple(r) for r in self._conn.execute(sql, list(args)).fetchall()]
+        cursor = self._require_conn().execute(sql, list(args))
+        return [tuple(r) for r in cursor.fetchall()]
 
     async def fetchrow(self, sql: str, *args) -> Optional[Tuple]:
-        row = self._conn.execute(sql, list(args)).fetchone()
+        row = self._require_conn().execute(sql, list(args)).fetchone()
         return tuple(row) if row else None
 
     async def fetchval(self, sql: str, *args) -> Any:
@@ -98,6 +109,9 @@ class PostgresPool(BasePool):
         )
         self._pool = None
         self._loop = None
+        # ponytail: 3.10+ asyncio primitives grab the running loop at await
+        # time, so one lock instance works across sequential event loops.
+        self._ensure_lock = asyncio.Lock()
 
     async def connect(self):
         import asyncpg
@@ -107,12 +121,17 @@ class PostgresPool(BasePool):
 
     async def _ensure(self):
         import asyncpg
-        loop = asyncio.get_running_loop()
-        if self._pool is None or self._loop is not loop:
-            if self._pool:
-                await self._close_pool(self._pool, self._loop)
-            self._pool = await asyncpg.create_pool(**self._config)
-            self._loop = loop
+        # ponytail: recreate-on-loop-change stays as the fallback for mixed
+        # sync/async usage on foreign loops; the shared sync loop makes it a
+        # no-op for sync-driven workloads. The lock prevents the create race
+        # where two coroutines both see _pool=None and leak the loser's pool.
+        async with self._ensure_lock:
+            loop = asyncio.get_running_loop()
+            if self._pool is None or self._loop is not loop:
+                if self._pool:
+                    await self._close_pool(self._pool, self._loop)
+                self._pool = await asyncpg.create_pool(**self._config)
+                self._loop = loop
 
     async def _close_pool(self, pool, pool_loop):
         loop = asyncio.get_running_loop()
@@ -126,11 +145,12 @@ class PostgresPool(BasePool):
             _terminate_pool(pool)
 
     async def close(self):
-        if self._pool:
-            await self._close_pool(self._pool, self._loop)
-            self._pool = None
-            self._loop = None
-            logger.info("PostgreSQL pool closed")
+        async with self._ensure_lock:
+            if self._pool:
+                await self._close_pool(self._pool, self._loop)
+                self._pool = None
+                self._loop = None
+                logger.info("PostgreSQL pool closed")
 
     @property
     def pool(self):
@@ -194,6 +214,7 @@ class ClickHousePool(BasePool):
         self.secure = secure
         self.timeout = timeout
         self._client = None
+        self._ensure_lock = asyncio.Lock()
 
     async def connect(self):
         client = None
@@ -234,18 +255,22 @@ class ClickHousePool(BasePool):
         logger.info(f"ClickHouse client created (httpx fallback): {self.host}:{self.port}")
 
     async def close(self):
-        if self._client:
-            await self._client.close()
-            self._client = None
-            logger.info("ClickHouse client closed")
+        async with self._ensure_lock:
+            if self._client:
+                await self._client.close()
+                self._client = None
+                logger.info("ClickHouse client closed")
 
     @property
     def client(self):
         return self._client
 
     async def _ensure(self):
-        if self._client is None:
-            await self.connect()
+        # lock prevents the double-connect race where both coroutines see
+        # _client=None and the first-created client leaks
+        async with self._ensure_lock:
+            if self._client is None:
+                await self.connect()
 
     async def execute(self, sql: str, *args) -> None:
         await self._ensure()
