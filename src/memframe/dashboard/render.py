@@ -8,6 +8,7 @@ Uses only ``plotly`` (already a core dep). No Dash / web server required.
 
 from __future__ import annotations
 
+import html
 from typing import Any, Dict, List, Optional
 
 import plotly.express as px
@@ -406,6 +407,10 @@ html, body {{ margin:0; padding:0; width:100vw; height:100vh; overflow:hidden; }
 def render_guardrail_blocked(reason: str, title: str = "Query blocked by guardrail") -> str:
     """Return a full-screen, themed HTML page explaining why a query was stopped."""
     hint = "Rephrase your request so it refers to the active dataset's columns."
-    safe_reason = (reason or "Query blocked by the guardrail.").replace("{", "{{").replace("}", "}}")
-    return _GUARDRAIL_TEMPLATE.format(title=title, reason=safe_reason, hint=hint)
+    # ponytail: reason comes from LLM output; HTML-escape it so a <script>
+    # in it can't land raw in the page (values are inserted literally by
+    # .format(), so no brace escaping is needed)
+    safe_reason = html.escape(reason or "Query blocked by the guardrail.")
+    safe_title = html.escape(title)
+    return _GUARDRAIL_TEMPLATE.format(title=safe_title, reason=safe_reason, hint=hint)
 

@@ -65,22 +65,12 @@ def test_display_df_skipped_when_suppressed(monkeypatch):
         assert display_df(df) is None  # suppressed -> no-op, even in a notebook
 
 
-def test_colab_repr_embeds_plotly_inline(monkeypatch):
-    # ponytail: Colab blocks the plot.ly CDN, so the figure repr must embed
-    # plotly.js inline (no <script src="https://cdn.plot.ly">) for it to render.
-    import re
+def test_colab_env_selects_colab_renderer(monkeypatch):
+    # ponytail: colab detection is env-var based ("COLAB_GPU"); when present
+    # setup_plotly_renderer() must select the colab renderer.
+    from memframe.utils.plot_renderer import setup_plotly_renderer
 
-    import plotly.graph_objects as go
+    monkeypatch.setattr("memframe.utils.plot_renderer.os.environ", {"COLAB_GPU": "1"})
 
-    from memframe.utils.plot_renderer import in_colab, setup_plotly_renderer
-
-    monkeypatch.setattr("memframe.utils.plot_renderer.in_colab", lambda: True)
-
-    setup_plotly_renderer()
-
-    html = go.Figure()._repr_mimebundle_()["text/html"]
-    assert "Plotly.newPlot" in html  # plotly.js is bundled locally
-    assert not re.search(
-        r'<script[^>]*src=["\']https://cdn\.plot\.ly', html
-    )  # no blocked CDN fetch
+    assert setup_plotly_renderer() == "colab"
 

@@ -47,6 +47,22 @@ def test_selection_filtered_result_returns_dataframe(selection_context):
     assert len(response["result"]) == 2  # rows with value > 10
 
 
+def test_selection_accepts_trailing_semicolon(selection_context):
+    response = SelectionWrapper(selection_context).iloc(row_indexer="value > 10;")
+
+    assert response["is_error"] is False
+    assert isinstance(response["result"], pd.DataFrame)
+
+
+def test_selection_rejects_multistatement_row_indexer(selection_context):
+    response = SelectionWrapper(selection_context).iloc(
+        row_indexer="value > 10; DROP TABLE nothing"
+    )
+
+    assert response["is_error"] is True
+    assert "';'" in response["error_message"]
+
+
 def test_selection_failure_has_result_key():
     response = asyncio.run(
         DuckDBSelectionOps(object()).at("row", "schema", 1, "value")

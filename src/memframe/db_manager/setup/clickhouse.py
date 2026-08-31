@@ -53,7 +53,12 @@ class ClickHouseBackend(DatabaseBackend):
     def _clickhouse_qualified_table_name(self, table_name: str, default_database: Optional[str] = None) -> str:
         database, table = self._split_qualified_table_name(table_name)
         database = database or default_database or self.upload_schema
-        return f"`{database}`.`{table}`"
+        return f"{self._quote_backtick(database)}.{self._quote_backtick(table)}"
+
+    def _quote_backtick(self, name: str) -> str:
+        # ponytail: backtick isn't a Python string literal, so build it via chr
+        bt = chr(96)
+        return bt + name.replace(bt, bt * 2) + bt
 
     def _split_qualified_table_name(self, table_name: str) -> Tuple[Optional[str], str]:
         parts = table_name.split(".", 1)

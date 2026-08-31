@@ -232,7 +232,7 @@ Parameters:
 
 | Parameter | Type | Description |
 | --- | --- | --- |
-| `row_indexer` | `int`, `list[int]`, `slice`, boolean list, slice string, tuple, `list[str]`, `str`, or `None` | Row selector. Integer/positional forms select by row position. A `list[str]` selects rows whose `index_column` value is in the list. A `str` is treated as a raw SQL `WHERE` clause evaluated against the active table (read-only). `None` selects all rows. A tuple must be `(rows, cols)`. |
+| `row_indexer` | `int`, `list[int]`, `slice`, boolean list, slice string, tuple, `list[str]`, `str`, or `None` | Row selector. Integer/positional forms select by row position. A `list[str]` selects rows whose `index_column` value is in the list. A `str` is treated as a raw SQL `WHERE` clause evaluated against the active table (read-only; a single statement — `;` is rejected). `None` selects all rows. A tuple must be `(rows, cols)`. |
 | `col_indexer` | `int`, `list[int]`, `slice`, `list[str]`, slice string, or `None` | Column selector by position, or by names when a string/list of strings is provided. `None` selects all columns. |
 | `columns` | `str`, `list[str]`, `tuple[str, ...]`, or `None` | Named-column alternative to `col_indexer`. Cannot be combined with `col_indexer`. |
 | | | |

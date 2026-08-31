@@ -54,12 +54,16 @@ class PostgresAdapter(DatabaseAdapter):
         return {row["column_name"]: row["data_type"] for row in rows}
 
     async def get_table_info(self, table: str, schema: str) -> Dict[str, Any]:
-        count_sql = f'SELECT COUNT(*) FROM "{schema}"."{table}"'
+        quoted_full = f"{self.quote_identifier(schema)}.{self.quote_identifier(table)}"
+        count_sql = f"SELECT COUNT(*) FROM {quoted_full}"
         row_count = await self.fetchval(count_sql)
 
+        # ponytail: string-literal context (no bind params inside pg_* functions);
+        # escape single quotes on top of the quoted identifier
+        size_target = quoted_full.replace("'", "''")
         size_sql = f"""
-            SELECT pg_size_pretty(pg_total_relation_size('"{schema}"."{table}"')) as total_size,
-                   pg_size_pretty(pg_relation_size('"{schema}"."{table}"')) as table_size
+            SELECT pg_size_pretty(pg_total_relation_size('{size_target}')) as total_size,
+                   pg_size_pretty(pg_relation_size('{size_target}')) as table_size
         """
         size_row = await self.fetchrow(size_sql)
 
@@ -90,7 +94,7 @@ class PostgresAdapter(DatabaseAdapter):
         return f"${index}"
 
     def quote_identifier(self, name: str) -> str:
-        return f'"{name}"'
+        return '"' + name.replace('"', '""') + '"'
 
     async def fetch_iter(self, sql: str, *args, chunk_size: int = 1000):
         """

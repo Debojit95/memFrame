@@ -4,12 +4,16 @@ from typing import Callable, Dict
 from memframe_ai.config import AISettings
 
 
+def _key(s: AISettings) -> str:
+    return s.api_key.get_secret_value()
+
+
 def _openai(s: AISettings):
     from pydantic_ai.models.openai import OpenAIChatModel
     from pydantic_ai.providers.openai import OpenAIProvider
 
     return OpenAIChatModel(
-        s.model, provider=OpenAIProvider(base_url=s.base_url, api_key=s.api_key)
+        s.model, provider=OpenAIProvider(base_url=s.base_url, api_key=_key(s))
     )
 
 
@@ -17,14 +21,14 @@ def _anthropic(s: AISettings):
     from pydantic_ai.models.anthropic import AnthropicModel
     from pydantic_ai.providers.anthropic import AnthropicProvider
 
-    return AnthropicModel(s.model, provider=AnthropicProvider(api_key=s.api_key))
+    return AnthropicModel(s.model, provider=AnthropicProvider(api_key=_key(s)))
 
 
 def _google(s: AISettings):
     from pydantic_ai.models.google import GoogleModel
     from pydantic_ai.providers.google import GoogleProvider
 
-    return GoogleModel(s.model, provider=GoogleProvider(api_key=s.api_key))
+    return GoogleModel(s.model, provider=GoogleProvider(api_key=_key(s)))
 
 
 def _ollama(s: AISettings):
@@ -41,7 +45,7 @@ def _ollama(s: AISettings):
         s.model,
         provider=OllamaProvider(
             base_url=s.base_url or os.getenv("OLLAMA_BASE_URL") or "http://localhost:11434",
-            api_key=s.api_key or None,
+            api_key=_key(s) or None,
         ),
     )
 

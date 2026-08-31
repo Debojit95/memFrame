@@ -46,7 +46,8 @@ def configure_logfire(settings: Any) -> bool:
         params = set(inspect.signature(logfire.configure).parameters)
         cfg = {}
         if "token" in params:
-            cfg["token"] = getattr(settings, "logfire_token", None) or None
+            token = getattr(settings, "logfire_token", None)
+            cfg["token"] = token.get_secret_value() if token else None
         if "service_name" in params:
             cfg["service_name"] = getattr(settings, "logfire_service_name", "memframe-ai")
         if "environment" in params:

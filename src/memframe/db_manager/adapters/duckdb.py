@@ -54,7 +54,10 @@ class DuckDBAdapter(DatabaseAdapter):
         return {row["column_name"]: row["data_type"] for row in rows}
 
     async def get_table_info(self, table: str, schema: str) -> Dict[str, Any]:
-        quoted_full = f'"{schema}"."{table}"' if schema and schema != "main" else f'"{table}"'
+        if schema and schema != "main":
+            quoted_full = f"{self.quote_identifier(schema)}.{self.quote_identifier(table)}"
+        else:
+            quoted_full = self.quote_identifier(table)
         count_sql = f"SELECT COUNT(*) FROM {quoted_full}"
         row_count = await self.fetchval(count_sql)
         columns = await self.get_column_types(table, schema)
@@ -80,7 +83,7 @@ class DuckDBAdapter(DatabaseAdapter):
         return "?"
 
     def quote_identifier(self, name: str) -> str:
-        return f'"{name}"'
+        return '"' + name.replace('"', '""') + '"'
 
     async def fetch_iter(self, sql, *args, chunk_size=1000):
         cursor = self._ddb_pool.conn.execute(sql, list(args))

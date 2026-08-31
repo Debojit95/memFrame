@@ -1,4 +1,5 @@
 from typing import Dict, List, Any, Optional
+import re
 import traceback
 import pandas as pd
 from collections import namedtuple
@@ -7,6 +8,13 @@ from datetime import datetime
 from memframe.db_manager.adapters.base import DatabaseAdapter
 from memframe.utils.helper import SQLIdentifierSanitizer
 from memframe.core.analytix._response import fail, ok
+
+
+def _apply_map_placeholder(func: str, col_expr: str) -> str:
+    # ponytail: substitute the standalone "x" placeholder only, so letters
+    # inside function names (MAX(x), exp(x)) survive; string literals holding
+    # a bare x are the known ceiling — quote the literal if you need one.
+    return re.sub(r"\bx\b", col_expr, func)
 
 
 class GeneralTableOps:
@@ -1122,7 +1130,7 @@ class GeneralTableOps:
                 col_safe = SQLIdentifierSanitizer.sanitize(col)
                 dtype = column_types[col].lower()
 
-                expr = func.replace("x", f'"{col_safe}"')
+                expr = _apply_map_placeholder(func, f'"{col_safe}"')
 
                 if any(nt in dtype for nt in numeric_types):
                     final_expr = expr
@@ -1136,7 +1144,7 @@ class GeneralTableOps:
 
                 elif any(bt in dtype for bt in boolean_types):
                     if any(op in func for op in ["*", "+", "-", "/", "%"]):
-                        expr = func.replace("x", f'CAST("{col_safe}" AS INTEGER)')
+                        expr = _apply_map_placeholder(func, f'CAST("{col_safe}" AS INTEGER)')
                         final_expr = expr
                     else:
                         skipped_cols.append(col)
@@ -1154,11 +1162,11 @@ class GeneralTableOps:
                         continue
 
                     elif datetime_action == "cast_string":
-                        expr = func.replace("x", f'CAST("{col_safe}" AS TEXT)')
+                        expr = _apply_map_placeholder(func, f'CAST("{col_safe}" AS TEXT)')
                         final_expr = expr
 
                     elif datetime_action == "extract_epoch":
-                        expr = func.replace("x", f'EXTRACT(EPOCH FROM "{col_safe}")')
+                        expr = _apply_map_placeholder(func, f'EXTRACT(EPOCH FROM "{col_safe}")')
                         final_expr = expr
 
                     elif datetime_action == "error":

@@ -99,8 +99,11 @@ class PostgresBackend(DatabaseBackend):
 
     async def drop_table(self, table_name: str) -> None:
         schema, tbl = self._split_qualified_table_name(table_name)
-        qualified = f'{schema or self.upload_schema}."{tbl}"'
+        qualified = f"{schema or self.upload_schema}.{self._quote_ident(tbl)}"
         await self.execute(f"DROP TABLE IF EXISTS {qualified} CASCADE")
+
+    def _quote_ident(self, name: str) -> str:
+        return '"' + name.replace('"', '""') + '"'
 
     def _split_qualified_table_name(self, table_name: str) -> Tuple[Optional[str], str]:
         parts = table_name.split(".", 1)

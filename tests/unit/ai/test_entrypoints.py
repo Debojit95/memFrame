@@ -33,7 +33,7 @@ def test_aenable_agent_stores_settings():
     settings = asyncio.run(m.aenable_agent(api_key="k"))
     assert isinstance(settings, AISettings)
     assert m._ai_settings is settings
-    assert settings.api_key == "k"
+    assert settings.api_key.get_secret_value() == "k"  # SecretStr: masked in repr
     assert settings.provider == "openai"
     assert settings.model == "gpt-5.5"
 
@@ -69,4 +69,4 @@ def test_enable_agent_sync_form():
 def test_settings_requires_api_key():
     with pytest.raises(ValidationError):
         AISettings()
-    assert AISettings(api_key="k").api_key == "k"
+    assert AISettings(api_key="k").api_key.get_secret_value() == "k"

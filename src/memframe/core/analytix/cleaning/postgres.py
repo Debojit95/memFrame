@@ -11,7 +11,7 @@ import traceback
 import pandas as pd
 from typing import Any, Dict, List, Optional
 
-from memframe.core.analytix.cleaning.base import DataCleaningOps
+from memframe.core.analytix.cleaning.base import DataCleaningOps, _sql_literal
 from memframe.utils.helper import SQLIdentifierSanitizer
 from memframe.core.analytix._response import fail, ok
 
@@ -296,7 +296,7 @@ class PostgresCleaningOps(DataCleaningOps):
 
             async def _apply(tq):
                 if mode == "CONSTANT":
-                    converted = f"'{value}'" if isinstance(value, str) else str(value)
+                    converted = _sql_literal(value)
 
                     await self._exec(
                         f'UPDATE {tq} SET "{safe_new}" = COALESCE("{safe_col}", {converted})'
@@ -470,7 +470,7 @@ class PostgresCleaningOps(DataCleaningOps):
 
             async def _apply(tq):
                 if mode == "CONSTANT":
-                    converted = f"'{value}'" if isinstance(value, str) else str(value)
+                    converted = _sql_literal(value)
 
                     await self._exec(
                         f'UPDATE {tq} SET "{safe_new}" = COALESCE("{safe_col}", {converted})'

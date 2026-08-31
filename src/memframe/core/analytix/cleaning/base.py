@@ -11,6 +11,14 @@ from memframe.core.ingestion.datatype_detector import DatatypeDetector
 from memframe.core.analytix._response import fail, ok
 
 
+def _sql_literal(value: Any) -> str:
+    # ponytail: escape single quotes; switch to bind params where the backend
+    # supports them in UPDATE/CREATE TABLE AS contexts.
+    if isinstance(value, str):
+        return "'" + value.replace("'", "''") + "'"
+    return str(value)
+
+
 class DataCleaningOps:
     """
     Shared data-cleaning infrastructure executed directly on the database.

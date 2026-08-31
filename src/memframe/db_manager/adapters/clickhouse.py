@@ -438,7 +438,9 @@ class ClickHouseAdapter(DatabaseAdapter):
         return {row["name"]: row["type"] for row in rows}
 
     async def get_table_info(self, table: str, schema: str) -> Dict[str, Any]:
-        count_sql = f"SELECT count() FROM `{schema}`.`{table}`"
+        count_sql = (
+            f"SELECT count() FROM {self.quote_identifier(schema)}.{self.quote_identifier(table)}"
+        )
         row_count = await self.fetchval(count_sql)
         columns = await self.get_column_types(table, schema)
         return {
@@ -462,7 +464,7 @@ class ClickHouseAdapter(DatabaseAdapter):
         return "?"
 
     def quote_identifier(self, name: str) -> str:
-        return f"`{name}`"
+        return "`" + name.replace("`", "``") + "`"
 
     async def fetch_iter(self, sql: str, *args, chunk_size: int = 1000):
         offset = 0

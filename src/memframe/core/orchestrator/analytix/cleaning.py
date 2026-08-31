@@ -8,6 +8,31 @@ from memframe.core.analytix._response import fail
 from memframe.cache import record_call
 
 
+def _coerce_num(value: Any) -> float:
+    # ponytail: user numbers reach SQL by interpolation downstream; coerce
+    # here (accepts numeric strings like "3.0") so non-numerics fail cleanly
+    if value is None or isinstance(value, (int, float)) and not isinstance(value, bool):
+        return value
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"expected a number, got {value!r}")
+
+
+def _coerce_int(value: Any) -> int:
+    if isinstance(value, bool):
+        raise ValueError(f"expected an integer, got {value!r}")
+    if isinstance(value, int):
+        return value
+    try:
+        as_float = float(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"expected an integer, got {value!r}")
+    if not as_float.is_integer():
+        raise ValueError(f"expected an integer, got {value!r}")
+    return int(as_float)
+
+
 class CleaningOrchestrator:
     """
     User‑facing cleaning methods.
@@ -153,6 +178,12 @@ class CleaningOrchestrator:
                 **self._persistence_context(),
             )
 
+        try:
+            lower = _coerce_num(lower)
+            upper = _coerce_num(upper)
+        except ValueError as exc:
+            return fail(f"clip bounds must be numeric for numeric columns: {exc}")
+
         return await ops.numeric_enforce_range(
             table, schema, column, lower, upper, **self._persistence_context()
         )
@@ -171,6 +202,10 @@ class CleaningOrchestrator:
         """
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
+        try:
+            z_thresh = _coerce_num(z_thresh)
+        except ValueError as exc:
+            return fail(f"z_thresh must be numeric: {exc}")
         return await ops.numeric_drop_outliers_zscore(
             table, schema, column, z_thresh, **self._persistence_context()
         )
@@ -242,6 +277,10 @@ class CleaningOrchestrator:
         """
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
+        try:
+            min_count = _coerce_int(min_count)
+        except ValueError as exc:
+            return fail(f"min_count must be an integer: {exc}")
         return await ops.categorical_compress_rare(
             table, schema, column, min_count, other_label, **self._persistence_context()
         )
@@ -429,6 +468,12 @@ class CleaningOrchestrator:
         ops = await self._ensure_ops()
 
         table, schema = await self._get_context()
+
+        if index is not None:
+            try:
+                index = [_coerce_int(i) for i in index]
+            except (ValueError, TypeError) as exc:
+                return fail(f"index must be a list of integers: {exc}")
 
         return await ops.dataframe_drop(
             table=table,

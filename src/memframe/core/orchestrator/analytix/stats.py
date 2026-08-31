@@ -2,7 +2,33 @@ from typing import Any, Dict, List
 import numpy as np
 from memframe.core.ingestion.datatype_detector import DatatypeDetector
 from memframe.core.analytix.stats import DataStatsOps, make_stats_ops
+from memframe.core.analytix._response import fail
 from memframe.cache import record_call
+
+
+def _coerce_num(value):
+    # ponytail: user numbers reach SQL by interpolation downstream; coerce
+    # here (accepts numeric strings like "3.0") so non-numerics fail cleanly
+    if value is None or isinstance(value, (int, float)) and not isinstance(value, bool):
+        return value
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"expected a number, got {value!r}")
+
+
+def _coerce_int(value):
+    if isinstance(value, bool):
+        raise ValueError(f"expected an integer, got {value!r}")
+    if isinstance(value, int):
+        return value
+    try:
+        as_float = float(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"expected an integer, got {value!r}")
+    if not as_float.is_integer():
+        raise ValueError(f"expected an integer, got {value!r}")
+    return int(as_float)
 
 
 class StatsOrchestrator:
@@ -86,6 +112,11 @@ class StatsOrchestrator:
         table, schema = await self._get_context()
         detected_dtype = await self._detect_stats_dtype(ops, table, schema, column)
 
+        try:
+            top_n = _coerce_int(top_n)
+        except ValueError as exc:
+            return fail(f"top_n must be an integer: {exc}")
+
         if detected_dtype == "categorical":
             return await ops.categorical_mode(table, schema, column, top_n)
         return await ops.numeric_mode(table, schema, column, top_n)
@@ -114,6 +145,11 @@ class StatsOrchestrator:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
         detected_dtype = await self._detect_stats_dtype(ops, table, schema, column)
+
+        try:
+            top_n = _coerce_int(top_n)
+        except ValueError as exc:
+            return fail(f"top_n must be an integer: {exc}")
 
         if detected_dtype == "categorical":
             return await ops.categorical_value_counts(table, schema, column, top_n)
@@ -191,11 +227,20 @@ class StatsOrchestrator:
     async def quantile(self, column: str, q: List[float] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
+        if q is not None:
+            try:
+                q = [_coerce_num(x) for x in q]
+            except (ValueError, TypeError) as exc:
+                return fail(f"quantiles must be numbers: {exc}")
         return await ops.numeric_quantile(table, schema, column, quantiles=q)
 
     async def autocorr(self, column: str, lag: int = 1) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
+        try:
+            lag = _coerce_int(lag)
+        except ValueError as exc:
+            return fail(f"lag must be an integer: {exc}")
         return await ops.numeric_autocorr(table, schema, column, lag)
 
     async def coefficient_of_variation(self, column: str) -> Dict[str, Any]:

@@ -160,10 +160,11 @@ class SQLIdentifierSanitizer:
     """
     
     # Pattern for valid identifier segments (letters, digits, underscore, must start with letter/underscore)
-    _VALID_SEGMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+    # \Z (not $) so a trailing newline can't sneak past validation
+    _VALID_SEGMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*\Z")
     
     # Pattern for full qualified identifier (supports schema.table or db.schema.table)
-    _VALID_QUALIFIED = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$")
+    _VALID_QUALIFIED = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*\Z")
     
     # Pattern to detect dangerous characters (SQL injection attempts)
     _DANGEROUS_CHARS = re.compile(r"[;\"'\-\s\(\)\[\]\{\}\*\|\\\/\%\+\=\<\>\!\?\&\^\~\`]")

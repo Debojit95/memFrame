@@ -375,7 +375,15 @@ class DuckDBSelectionOps(DataSelectionOps):
             if row_indexer is None:
                 row_pos = list(range(total_rows))
             elif isinstance(row_indexer, str):
-                row_where = row_indexer  # raw SQL WHERE condition
+                # ponytail: documented raw-SQL WHERE escape hatch; block
+                # statement chaining (comments stay allowed, they can't escalate)
+                cond = row_indexer.strip().rstrip(";")
+                if ";" in cond or not cond:
+                    return self._error_response(
+                        "row_indexer string cannot contain ';' "
+                        "(multi-statement SQL is not allowed)"
+                    )
+                row_where = cond
             elif (
                 isinstance(row_indexer, (list, tuple))
                 and index_column is not None
