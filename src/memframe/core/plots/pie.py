@@ -5,7 +5,7 @@ from typing import Any
 import pandas as pd
 
 from memframe.db_manager.adapters.base import DatabaseAdapter
-from memframe.utils.helper import SQLIdentifierSanitizer
+from memframe.utils.helper import MAX_PLOT_ROWS, SQLIdentifierSanitizer
 from memframe.exceptions import OperationError
 
 try:
@@ -91,7 +91,9 @@ class PiePlotCore:
         else:
             column_clause = "*"
 
-        rows = await self.db.fetch(f"SELECT {column_clause} FROM {qualified}")
+        rows = await self.db.fetch(
+            f"SELECT {column_clause} FROM {qualified} LIMIT {MAX_PLOT_ROWS}"
+        )
         records = [dict(row) for row in rows]
         if not records and selected:
             return pd.DataFrame(columns=selected)

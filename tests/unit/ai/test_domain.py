@@ -71,3 +71,25 @@ def test_domain_context_reflects_advance_table(session):
     after = asyncio.run(session.domain_context(force_refresh=True))
     assert "other_tbl" in after
     assert "num [numeric]" in after and "cat [categorical]" in after
+
+
+def test_advance_table_invalidates_cached_context(session):
+    # regression: advance_table used to clear only _context_cache, which
+    # domain_context never read — the previous table's context was served
+    first = asyncio.run(session.domain_context())
+    asyncio.run(session.ensure())
+    adapter = session.adapter
+    asyncio.run(adapter.execute(
+        'CREATE TABLE "memframe_transient"."fresh_tbl" (num BIGINT)'
+    ))
+    asyncio.run(session.advance_table("fresh_tbl"))
+    after = asyncio.run(session.domain_context())  # no force_refresh
+    assert "fresh_tbl" in after
+    assert after is not first
+
+
+def test_invalidate_clears_cached_context(session):
+    first = asyncio.run(session.domain_context())
+    session.invalidate()
+    second = asyncio.run(session.domain_context())  # no force_refresh
+    assert second is not first

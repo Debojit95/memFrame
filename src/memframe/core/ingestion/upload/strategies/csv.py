@@ -392,6 +392,12 @@ class CsvUploadStrategy(UploadStrategy):
 
         max_fallbacks = 3  # TEXT -> larger numeric -> larger numeric -> TEXT
 
+        # ponytail: rows already inserted by flushed chunks of earlier retry
+        # attempts; skipped on re-read so a widened-type retry doesn't duplicate
+        # them. Ceiling: pyarrow's skip is row-based, quoted multi-line values
+        # inside a skipped region could desync — acceptable for retry paths.
+        total_flushed = 0
+
         while True:
             try:
                 convert_opts = get_convert_opts()
@@ -399,7 +405,11 @@ class CsvUploadStrategy(UploadStrategy):
                 # upgraded to string is cast back to its original type and fails
                 # (e.g. 'Failed to parse value: No' for a BOOLEAN target).
                 cast_schema = pa.schema([pa.field(col, col_types[col]) for col in columns])
-                reader = pcsv.open_csv(file_path, read_options=read_opts, parse_options=parse_opts, convert_options=convert_opts)
+                attempt_opts = pcsv.ReadOptions(
+                    encoding=encoding, use_threads=True, block_size=1 << 20,
+                    skip_rows_after_names=total_flushed,
+                )
+                reader = pcsv.open_csv(file_path, read_options=attempt_opts, parse_options=parse_opts, convert_options=convert_opts)
 
                 batches = []
                 rows_accumulated = 0
@@ -420,6 +430,7 @@ class CsvUploadStrategy(UploadStrategy):
                         if rows_accumulated >= CHUNK_SIZE:
                             table = pa.Table.from_batches(batches)
                             await self._uploader._insert_arrow_table(table_name, table)
+                            total_flushed += rows_accumulated
                             batches = []
                             rows_accumulated = 0
                     except StopIteration:

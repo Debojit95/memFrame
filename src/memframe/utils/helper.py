@@ -3,6 +3,11 @@ from typing import Dict
 
 from memframe.exceptions import ConfigurationError
 
+# ponytail: plot queries pull the raw columns into pandas; cap the fetch so a
+# million-row table can't be dragged into a single chart. First-N rows (no
+# ORDER BY — natural order is fine for plotting).
+MAX_PLOT_ROWS = 10_000
+
 
 _DATETIME_DIRECT_METHODS = {
         "aextract",

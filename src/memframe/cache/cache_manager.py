@@ -32,15 +32,31 @@ class CacheManager:
 
     # ── cache key (signature) ──────────────────────────────────────
     @staticmethod
+    def _content_hash(o: Any) -> Optional[int]:
+        """Content hash so two same-shape frames don't collide in signatures."""
+        try:
+            return int(pd.util.hash_pandas_object(o, index=True).sum())
+        except Exception:
+            return None  # ponytail: exotic dtypes fall back to shape-only
+
+    @staticmethod
     def _json_default(o: Any) -> Any:
         if isinstance(o, np.generic):
             return o.item()
         if isinstance(o, np.ndarray):
             return o.tolist()
         if isinstance(o, pd.DataFrame):
-            return {"__dataframe__": list(o.shape), "columns": list(o.columns)}
+            return {
+                "__dataframe__": list(o.shape),
+                "columns": list(o.columns),
+                "hash": CacheManager._content_hash(o),
+            }
         if isinstance(o, pd.Series):
-            return {"__series__": list(o.shape), "name": str(o.name)}
+            return {
+                "__series__": list(o.shape),
+                "name": str(o.name),
+                "hash": CacheManager._content_hash(o),
+            }
         return f"<{type(o).__name__}>"
 
     def _signature(self, value: Any) -> str:
@@ -250,9 +266,6 @@ class CacheManager:
                     bare_table = result.get("new_table") or result.get("generated_table_name")
                     if bare_table and backend:
                         if await backend.table_exists(manager._qualify(backend.transient_schema, bare_table, backend)):
-                            generated_table_name = bare_table
-                            schema = backend.transient_schema
-                        elif await backend.table_exists(manager._qualify(backend.transient_schema, bare_table, backend)):
                             generated_table_name = bare_table
                             schema = backend.transient_schema
                         elif await backend.table_exists(manager._qualify(backend.upload_schema, bare_table, backend)):

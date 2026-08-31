@@ -37,8 +37,8 @@ class Session:
     # ponytail: full-df stash for the USER (all rows). The model still only
     # sees a capped sample via normalize's df_to_records payload.
     _results: list = field(default_factory=list)
-    _context_cache: Optional[str] = None
-    _context_version: int = 0
+    _context_full: Optional[str] = None
+    _context_light: Optional[str] = None
     _pinned: Optional[tuple] = None
 
     @property
@@ -119,31 +119,37 @@ class Session:
             raise DataNotFound(f"No registered table for data_id {data_id}")
         return rows[0][0], backend.upload_schema
 
+    def _clear_context_cache(self) -> None:
+        self._context_full = None
+        self._context_light = None
+
     def invalidate(self) -> None:
         self._table = None
-        self._context_cache = None
-        self._context_version += 1
+        self._clear_context_cache()
 
     async def domain_context(self, force_refresh: bool = False, lightweight: bool = False) -> str:
         """Return the domain context for the current active table.
 
         The context is cached and reused unless the table changes or force_refresh is True.
         This avoids regenerating the same context for unchanged tables.
-        
+
         Args:
             force_refresh: If True, rebuilds the context even if cached.
             lightweight: If True, returns minimal context (column names + types only).
         """
         await self.ensure()
-        
+
         # Check if we have a cached context and it's still valid
-        cache_key = f"{'light' if lightweight else 'full'}_context"
-        if not force_refresh and hasattr(self, cache_key) and getattr(self, cache_key) is not None:
-            return getattr(self, cache_key)
-        
+        cached = self._context_light if lightweight else self._context_full
+        if not force_refresh and cached is not None:
+            return cached
+
         # Build fresh context
         ctx = await build_domain_context(self, lightweight=lightweight)
-        setattr(self, cache_key, ctx)
+        if lightweight:
+            self._context_light = ctx
+        else:
+            self._context_full = ctx
         logger.info("domain_context built table=%s.%s chars=%d lightweight=%s", self._schema, self._table, len(ctx), lightweight)
         return ctx
 
@@ -161,8 +167,8 @@ class Session:
         if self._adapter is not None and await self._adapter.table_exists(new_table, self.memframe._backend.transient_schema):
             schema = self.memframe._backend.transient_schema
         self._table, self._schema = new_table, schema
-        # Invalidate context cache when table changes
-        self._context_cache = None
+        # Invalidate context caches when the table changes
+        self._clear_context_cache()
 
     def pin_table(self) -> None:
         """Pin the active table so advance_table becomes a no-op."""
