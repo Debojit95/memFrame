@@ -46,7 +46,9 @@ def test_dashboard_one_sentence(mf):
 async def _run_dashboard_one_sentence(mf):
     await mf.aenable_agent(
         provider="ollama",
-        model="minimax-m3:cloud",
+        # ponytail: free-tier Ollama Cloud model (subscription models 402);
+        # override with OLLAMA_MODEL if gpt-oss:120b is ever retired
+        model=os.getenv("OLLAMA_MODEL", "gpt-oss:120b-cloud"),
         api_key=os.getenv("OLLAMA_API_KEY"),
         base_url=os.getenv("OLLAMA_BASE_URL", "https://ollama.com/v1"),
     )
