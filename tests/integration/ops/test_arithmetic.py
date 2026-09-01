@@ -324,12 +324,20 @@ def assert_series_equal_loose(
     expected: pd.Series,
     as_datetime: bool = False,
 ) -> None:
-    """Compare two Series while ignoring non-semantic metadata differences."""
+    """Compare two Series while ignoring non-semantic metadata differences.
+
+    Result samples come from SELECTs without ORDER BY, so row order is not
+    part of the API contract (ClickHouse background merges reorder rows under
+    load); compare sorted sequences — a permutation passes, missing or
+    duplicated values still fail.
+    """
     actual_series = actual.reset_index(drop=True)
     expected_series = expected.reset_index(drop=True)
     if as_datetime:
         actual_series = pd.to_datetime(actual_series, errors="coerce").dt.strftime("%Y-%m-%d %H:%M:%S")
         expected_series = pd.to_datetime(expected_series, errors="coerce").dt.strftime("%Y-%m-%d %H:%M:%S")
+    actual_series = actual_series.sort_values(kind="stable", na_position="last").reset_index(drop=True)
+    expected_series = expected_series.sort_values(kind="stable", na_position="last").reset_index(drop=True)
     pd.testing.assert_series_equal(
         actual_series,
         expected_series,

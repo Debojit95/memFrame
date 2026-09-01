@@ -175,7 +175,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_abs\"=ABS(TRY_CAST(TRIM((\"txt\")::TEXT)ASDOUBLEPRECISION))",
+    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_abs\"=ABS(CAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION))",
     []
    ],
    [
@@ -185,7 +185,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"SET\"txt_abs\"=ABS(TRY_CAST(TRIM((\"txt\")::TEXT)ASDOUBLEPRECISION))",
+    "UPDATE\"s\".\"t\"SET\"txt_abs\"=ABS(CAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION))",
     []
    ],
    [
@@ -371,7 +371,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_acos\"=ACOS(TRY_CAST(TRIM((\"txt\")::TEXT)ASDOUBLEPRECISION))",
+    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_acos\"=ACOS(CAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION))",
     []
    ],
    [
@@ -381,7 +381,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"SET\"txt_acos\"=ACOS(TRY_CAST(TRIM((\"txt\")::TEXT)ASDOUBLEPRECISION))",
+    "UPDATE\"s\".\"t\"SET\"txt_acos\"=ACOS(CAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION))",
     []
    ],
    [
@@ -861,7 +861,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_asin\"=ASIN(TRY_CAST(TRIM((\"txt\")::TEXT)ASDOUBLEPRECISION))",
+    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_asin\"=ASIN(CAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION))",
     []
    ],
    [
@@ -871,7 +871,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"SET\"txt_asin\"=ASIN(TRY_CAST(TRIM((\"txt\")::TEXT)ASDOUBLEPRECISION))",
+    "UPDATE\"s\".\"t\"SET\"txt_asin\"=ASIN(CAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION))",
     []
    ],
    [
@@ -1351,7 +1351,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_atan\"=ATAN(TRY_CAST(TRIM((\"txt\")::TEXT)ASDOUBLEPRECISION))",
+    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_atan\"=ATAN(CAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION))",
     []
    ],
    [
@@ -1361,7 +1361,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"SET\"txt_atan\"=ATAN(TRY_CAST(TRIM((\"txt\")::TEXT)ASDOUBLEPRECISION))",
+    "UPDATE\"s\".\"t\"SET\"txt_atan\"=ATAN(CAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION))",
     []
    ],
    [
@@ -1547,7 +1547,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_ceil\"=CEIL(TRY_CAST(TRIM((\"txt\")::TEXT)ASDOUBLEPRECISION))",
+    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_ceil\"=CEIL(CAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION))",
     []
    ],
    [
@@ -1557,7 +1557,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"SET\"txt_ceil\"=CEIL(TRY_CAST(TRIM((\"txt\")::TEXT)ASDOUBLEPRECISION))",
+    "UPDATE\"s\".\"t\"SET\"txt_ceil\"=CEIL(CAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION))",
     []
    ],
    [
@@ -1743,7 +1743,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_cos\"=COS(TRY_CAST(TRIM((\"txt\")::TEXT)ASDOUBLEPRECISION))",
+    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_cos\"=COS(CAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION))",
     []
    ],
    [
@@ -1753,7 +1753,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"SET\"txt_cos\"=COS(TRY_CAST(TRIM((\"txt\")::TEXT)ASDOUBLEPRECISION))",
+    "UPDATE\"s\".\"t\"SET\"txt_cos\"=COS(CAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION))",
     []
    ],
    [
@@ -2233,7 +2233,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_exp\"=EXP(TRY_CAST(TRIM((\"txt\")::TEXT)ASDOUBLEPRECISION))",
+    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_exp\"=EXP(CAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION))",
     []
    ],
    [
@@ -2243,7 +2243,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"SET\"txt_exp\"=EXP(TRY_CAST(TRIM((\"txt\")::TEXT)ASDOUBLEPRECISION))",
+    "UPDATE\"s\".\"t\"SET\"txt_exp\"=EXP(CAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION))",
     []
    ],
    [
@@ -2429,7 +2429,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_floor\"=FLOOR(TRY_CAST(TRIM((\"txt\")::TEXT)ASDOUBLEPRECISION))",
+    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_floor\"=FLOOR(CAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION))",
     []
    ],
    [
@@ -2439,7 +2439,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"SET\"txt_floor\"=FLOOR(TRY_CAST(TRIM((\"txt\")::TEXT)ASDOUBLEPRECISION))",
+    "UPDATE\"s\".\"t\"SET\"txt_floor\"=FLOOR(CAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION))",
     []
    ],
    [
@@ -2723,7 +2723,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_log10\"=CASEWHENTRY_CAST(TRIM((\"txt\")::TEXT)ASDOUBLEPRECISION)>0THENLOG(TRY_CAST(TRIM((\"txt\")::TEXT)ASDOUBLEPRECISION))ELSENULLEND",
+    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_log10\"=CASEWHENCAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION)>0THENLOG(CAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION))ELSENULLEND",
     []
    ],
    [
@@ -2733,7 +2733,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"SET\"txt_log10\"=CASEWHENTRY_CAST(TRIM((\"txt\")::TEXT)ASDOUBLEPRECISION)>0THENLOG(TRY_CAST(TRIM((\"txt\")::TEXT)ASDOUBLEPRECISION))ELSENULLEND",
+    "UPDATE\"s\".\"t\"SET\"txt_log10\"=CASEWHENCAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION)>0THENLOG(CAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION))ELSENULLEND",
     []
    ],
    [
@@ -2821,7 +2821,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_ln\"=CASEWHENTRY_CAST(TRIM((\"txt\")::TEXT)ASDOUBLEPRECISION)>0THENLN(TRY_CAST(TRIM((\"txt\")::TEXT)ASDOUBLEPRECISION))ELSENULLEND",
+    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_ln\"=CASEWHENCAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION)>0THENLN(CAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION))ELSENULLEND",
     []
    ],
    [
@@ -2831,7 +2831,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"SET\"txt_ln\"=CASEWHENTRY_CAST(TRIM((\"txt\")::TEXT)ASDOUBLEPRECISION)>0THENLN(TRY_CAST(TRIM((\"txt\")::TEXT)ASDOUBLEPRECISION))ELSENULLEND",
+    "UPDATE\"s\".\"t\"SET\"txt_ln\"=CASEWHENCAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION)>0THENLN(CAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION))ELSENULLEND",
     []
    ],
    [
@@ -3605,7 +3605,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_neg\"=-(TRY_CAST(TRIM((\"txt\")::TEXT)ASDOUBLEPRECISION))",
+    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_neg\"=-(CAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION))",
     []
    ],
    [
@@ -3615,7 +3615,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"SET\"txt_neg\"=-(TRY_CAST(TRIM((\"txt\")::TEXT)ASDOUBLEPRECISION))",
+    "UPDATE\"s\".\"t\"SET\"txt_neg\"=-(CAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION))",
     []
    ],
    [
@@ -3841,12 +3841,12 @@
   "postgres": [
    [
     "fetchval",
-    "SELECTMIN(TRY_CAST(TRIM((\"txt\")::TEXT)ASDOUBLEPRECISION))FROM\"s\".\"t\"",
+    "SELECTMIN(CAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION))FROM\"s\".\"t\"",
     []
    ],
    [
     "fetchval",
-    "SELECTMAX(TRY_CAST(TRIM((\"txt\")::TEXT)ASDOUBLEPRECISION))FROM\"s\".\"t\"",
+    "SELECTMAX(CAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION))FROM\"s\".\"t\"",
     []
    ],
    [
@@ -3861,7 +3861,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_norm\"=(1.0*TRY_CAST(TRIM((\"txt\")::TEXT)ASDOUBLEPRECISION)-0)/NULLIF((0-0),0)",
+    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_norm\"=(1.0*CAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION)-0)/NULLIF((0-0),0)",
     []
    ],
    [
@@ -3871,7 +3871,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"SET\"txt_norm\"=(1.0*TRY_CAST(TRIM((\"txt\")::TEXT)ASDOUBLEPRECISION)-0)/NULLIF((0-0),0)",
+    "UPDATE\"s\".\"t\"SET\"txt_norm\"=(1.0*CAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION)-0)/NULLIF((0-0),0)",
     []
    ],
    [
@@ -4057,7 +4057,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"n2_pctch_txt\"=((1.0*\"n2\"-1.0*TRY_CAST(TRIM((\"txt\")::TEXT)ASDOUBLEPRECISION))/NULLIF(ABS(1.0*TRY_CAST(TRIM((\"txt\")::TEXT)ASDOUBLEPRECISION)),0))*100",
+    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"n2_pctch_txt\"=((1.0*\"n2\"-1.0*CAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION))/NULLIF(ABS(1.0*CAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION)),0))*100",
     []
    ],
    [
@@ -4067,7 +4067,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"SET\"n2_pctch_txt\"=((1.0*\"n2\"-1.0*TRY_CAST(TRIM((\"txt\")::TEXT)ASDOUBLEPRECISION))/NULLIF(ABS(1.0*TRY_CAST(TRIM((\"txt\")::TEXT)ASDOUBLEPRECISION)),0))*100",
+    "UPDATE\"s\".\"t\"SET\"n2_pctch_txt\"=((1.0*\"n2\"-1.0*CAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION))/NULLIF(ABS(1.0*CAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION)),0))*100",
     []
    ],
    [
@@ -4547,7 +4547,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_round2\"=ROUND(CAST(TRY_CAST(TRIM((\"txt\")::TEXT)ASDOUBLEPRECISION)ASNUMERIC),2)",
+    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_round2\"=ROUND(CAST(CAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION)ASNUMERIC),2)",
     []
    ],
    [
@@ -4557,7 +4557,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"SET\"txt_round2\"=ROUND(CAST(TRY_CAST(TRIM((\"txt\")::TEXT)ASDOUBLEPRECISION)ASNUMERIC),2)",
+    "UPDATE\"s\".\"t\"SET\"txt_round2\"=ROUND(CAST(CAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION)ASNUMERIC),2)",
     []
    ],
    [
@@ -4743,7 +4743,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_sin\"=SIN(TRY_CAST(TRIM((\"txt\")::TEXT)ASDOUBLEPRECISION))",
+    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_sin\"=SIN(CAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION))",
     []
    ],
    [
@@ -4753,7 +4753,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"SET\"txt_sin\"=SIN(TRY_CAST(TRIM((\"txt\")::TEXT)ASDOUBLEPRECISION))",
+    "UPDATE\"s\".\"t\"SET\"txt_sin\"=SIN(CAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION))",
     []
    ],
    [
@@ -4939,7 +4939,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_sqrt\"=CASEWHENTRY_CAST(TRIM((\"txt\")::TEXT)ASDOUBLEPRECISION)>=0THENSQRT(TRY_CAST(TRIM((\"txt\")::TEXT)ASDOUBLEPRECISION))ELSENULLEND",
+    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_sqrt\"=CASEWHENCAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION)>=0THENSQRT(CAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION))ELSENULLEND",
     []
    ],
    [
@@ -4949,7 +4949,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"SET\"txt_sqrt\"=CASEWHENTRY_CAST(TRIM((\"txt\")::TEXT)ASDOUBLEPRECISION)>=0THENSQRT(TRY_CAST(TRIM((\"txt\")::TEXT)ASDOUBLEPRECISION))ELSENULLEND",
+    "UPDATE\"s\".\"t\"SET\"txt_sqrt\"=CASEWHENCAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION)>=0THENSQRT(CAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION))ELSENULLEND",
     []
    ],
    [
@@ -5429,7 +5429,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_tan\"=TAN(TRY_CAST(TRIM((\"txt\")::TEXT)ASDOUBLEPRECISION))",
+    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_tan\"=TAN(CAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION))",
     []
    ],
    [
@@ -5439,7 +5439,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"SET\"txt_tan\"=TAN(TRY_CAST(TRIM((\"txt\")::TEXT)ASDOUBLEPRECISION))",
+    "UPDATE\"s\".\"t\"SET\"txt_tan\"=TAN(CAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION))",
     []
    ],
    [
@@ -5625,7 +5625,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_trunc2\"=TRUNC(CAST(TRY_CAST(TRIM((\"txt\")::TEXT)ASDOUBLEPRECISION)ASNUMERIC),2)",
+    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_trunc2\"=TRUNC(CAST(CAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION)ASNUMERIC),2)",
     []
    ],
    [
@@ -5635,7 +5635,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"SET\"txt_trunc2\"=TRUNC(CAST(TRY_CAST(TRIM((\"txt\")::TEXT)ASDOUBLEPRECISION)ASNUMERIC),2)",
+    "UPDATE\"s\".\"t\"SET\"txt_trunc2\"=TRUNC(CAST(CAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION)ASNUMERIC),2)",
     []
    ],
    [
