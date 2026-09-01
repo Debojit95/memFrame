@@ -1,0 +1,1712 @@
+{
+ "categorical_count": {
+  "clickhouse": [
+   [
+    "fetchval",
+    "SELECTCOUNT(\"txt\")FROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetchval",
+    "SELECTCOUNT(\"txt\")FROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetchval",
+    "SELECTCOUNT(\"txt\")FROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL",
+    []
+   ]
+  ]
+ },
+ "categorical_mode": {
+  "clickhouse": [
+   [
+    "fetch",
+    "SELECT\"txt\"ASmode,COUNT(*)ASfreqFROM\"s\".\"t\"WHERE\"txt\"ISNOTNULLGROUPBY\"txt\"ORDERBYfreqDESCLIMIT1",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetch",
+    "SELECT\"txt\"ASmode,COUNT(*)ASfreqFROM\"s\".\"t\"WHERE\"txt\"ISNOTNULLGROUPBY\"txt\"ORDERBYfreqDESCLIMIT1",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetch",
+    "SELECT\"txt\"ASmode,COUNT(*)ASfreqFROM\"s\".\"t\"WHERE\"txt\"ISNOTNULLGROUPBY\"txt\"ORDERBYfreqDESCLIMIT1",
+    []
+   ]
+  ]
+ },
+ "categorical_multi_column_association": {
+  "clickhouse": [],
+  "duckdb": [],
+  "postgres": []
+ },
+ "categorical_multi_column_crosstab": {
+  "clickhouse": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECTconcat(\"txt\",'|',\"txt2\")AScombined_key,COUNT(*)ascntFROM\"s\".\"t\"WHERE\"txt\"ISNOTNULLAND\"txt2\"ISNOTNULLGROUPBYcombined_keyORDERBYcntDESC",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"t__op_20240101000000000000\"",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"txt\"||'|'||\"txt2\"AScombined_key,COUNT(*)ascntFROM\"s\".\"t\"WHERE\"txt\"ISNOTNULLAND\"txt2\"ISNOTNULLGROUPBYcombined_keyORDERBYcntDESC",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"t__op_20240101000000000000\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"txt\"||'|'||\"txt2\"AScombined_key,COUNT(*)ascntFROM\"s\".\"t\"WHERE\"txt\"ISNOTNULLAND\"txt2\"ISNOTNULLGROUPBYcombined_keyORDERBYcntDESC",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"t__op_20240101000000000000\"",
+    []
+   ]
+  ]
+ },
+ "categorical_nunique": {
+  "clickhouse": [
+   [
+    "fetchval",
+    "SELECTCOUNT(DISTINCT\"txt\")FROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetchval",
+    "SELECTCOUNT(DISTINCT\"txt\")FROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetchval",
+    "SELECTCOUNT(DISTINCT\"txt\")FROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL",
+    []
+   ]
+  ]
+ },
+ "categorical_proportions": {
+  "clickhouse": [
+   [
+    "fetchval",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT\"txt\"AScategory,COUNT(*)AScnt,(COUNT(*)*1.0/0.5)ASproportionFROM\"s\".\"t\"WHERE\"txt\"ISNOTNULLGROUPBY\"txt\"ORDERBYcntDESC",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetchval",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT\"txt\"AScategory,COUNT(*)AScnt,(COUNT(*)*1.0/0.5)ASproportionFROM\"s\".\"t\"WHERE\"txt\"ISNOTNULLGROUPBY\"txt\"ORDERBYcntDESC",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetchval",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT\"txt\"AScategory,COUNT(*)AScnt,(COUNT(*)*1.0/0.5)ASproportionFROM\"s\".\"t\"WHERE\"txt\"ISNOTNULLGROUPBY\"txt\"ORDERBYcntDESC",
+    []
+   ]
+  ]
+ },
+ "categorical_unique": {
+  "clickhouse": [
+   [
+    "fetch",
+    "SELECTDISTINCT\"txt\"FROM\"s\".\"t\"WHERE\"txt\"ISNOTNULLORDERBY\"txt\"",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetch",
+    "SELECTDISTINCT\"txt\"FROM\"s\".\"t\"WHERE\"txt\"ISNOTNULLORDERBY\"txt\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetch",
+    "SELECTDISTINCT\"txt\"FROM\"s\".\"t\"WHERE\"txt\"ISNOTNULLORDERBY\"txt\"",
+    []
+   ]
+  ]
+ },
+ "categorical_value_counts": {
+  "clickhouse": [
+   [
+    "fetch",
+    "SELECT\"txt\"ASvalue,COUNT(*)AScountFROM\"s\".\"t\"WHERE\"txt\"ISNOTNULLGROUPBY\"txt\"ORDERBYcountDESCLIMIT5",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetch",
+    "SELECT\"txt\"ASvalue,COUNT(*)AScountFROM\"s\".\"t\"WHERE\"txt\"ISNOTNULLGROUPBY\"txt\"ORDERBYcountDESCLIMIT5",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetch",
+    "SELECT\"txt\"ASvalue,COUNT(*)AScountFROM\"s\".\"t\"WHERE\"txt\"ISNOTNULLGROUPBY\"txt\"ORDERBYcountDESCLIMIT5",
+    []
+   ]
+  ]
+ },
+ "datetime_count": {
+  "clickhouse": [
+   [
+    "fetchval",
+    "SELECTCOUNT(\"ts\")FROM\"s\".\"t\"WHERE\"ts\"ISNOTNULL",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetchval",
+    "SELECTCOUNT(\"ts\")FROM\"s\".\"t\"WHERE\"ts\"ISNOTNULL",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetchval",
+    "SELECTCOUNT(\"ts\")FROM\"s\".\"t\"WHERE\"ts\"ISNOTNULL",
+    []
+   ]
+  ]
+ },
+ "datetime_delta_stats": {
+  "clickhouse": [
+   [
+    "fetch",
+    "WITHorderedAS(SELECT\"ts\",ROW_NUMBER()OVER(ORDERBY\"ts\")ASrnFROM\"s\".\"t\"WHERE\"ts\"ISNOTNULL),diffsAS(SELECT(toUnixTimestamp(b.\"ts\")-toUnixTimestamp(a.\"ts\"))ASdFROMorderedaJOINorderedbONa.rn+1=b.rn)SELECTCOUNT(d)AScnt,MIN(d)ASmin_d,MAX(d)ASmax_d,AVG(d)ASavg_d,quantile(0.5)(d)ASmedian_d,stddevPop(d)ASstd_dFROMdiffsWHEREdISNOTNULL",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetch",
+    "WITHorderedAS(SELECT\"ts\",ROW_NUMBER()OVER(ORDERBY\"ts\")ASrnFROM\"s\".\"t\"WHERE\"ts\"ISNOTNULL),diffsAS(SELECT(epoch(CAST(b.\"ts\"ASTIMESTAMP))-epoch(CAST(a.\"ts\"ASTIMESTAMP)))ASdFROMorderedaJOINorderedbONa.rn+1=b.rn)SELECTCOUNT(d)AScnt,MIN(d)ASmin_d,MAX(d)ASmax_d,AVG(d)ASavg_d,MEDIAN(d)ASmedian_d,STDDEV_POP(d)ASstd_dFROMdiffsWHEREdISNOTNULL",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetch",
+    "WITHorderedAS(SELECT\"ts\",ROW_NUMBER()OVER(ORDERBY\"ts\")ASrnFROM\"s\".\"t\"WHERE\"ts\"ISNOTNULL),diffsAS(SELECT(EXTRACT(EPOCHFROMCAST(b.\"ts\"ASTIMESTAMP))-EXTRACT(EPOCHFROMCAST(a.\"ts\"ASTIMESTAMP)))ASdFROMorderedaJOINorderedbONa.rn+1=b.rn)SELECTCOUNT(d)AScnt,MIN(d)ASmin_d,MAX(d)ASmax_d,AVG(d)ASavg_d,PERCENTILE_CONT(0.5)WITHINGROUP(ORDERBYd)ASmedian_d,STDDEV_POP(d)ASstd_dFROMdiffsWHEREdISNOTNULL",
+    []
+   ]
+  ]
+ },
+ "datetime_diff": {
+  "clickhouse": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*,(toUnixTimestamp(CAST(\"ts\"ASDateTime))-lagInFrame(toUnixTimestamp(CAST(\"ts\"ASDateTime)))OVER(ORDERBYCAST(\"ts\"ASDateTime)))AS\"ts__diff_seconds\"FROM\"s\".\"t\"",
+    []
+   ],
+   [
+    "exec",
+    "SELECT\"ts__diff_seconds\"FROM\"s\".\"t\"LIMIT1",
+    []
+   ],
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__tmp_mirror\"ASSELECT*,(toUnixTimestamp(CAST(\"ts\"ASDateTime))-lagInFrame(toUnixTimestamp(CAST(\"ts\"ASDateTime)))OVER(ORDERBYCAST(\"ts\"ASDateTime)))AS\"ts__diff_seconds\"FROM\"s\".\"t\"",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLE\"s\".\"t\"",
+    []
+   ],
+   [
+    "exec",
+    "RENAMETABLE\"s\".\"t__tmp_mirror\"TO\"s\".\"t\"",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT\"ts\",\"ts__diff_seconds\"FROM\"s\".\"t__op_20240101000000000000\"",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*,(epoch(CAST(\"ts\"ASTIMESTAMP))-LAG(epoch(CAST(\"ts\"ASTIMESTAMP)))OVER(ORDERBYCAST(\"ts\"ASTIMESTAMP)))AS\"ts__diff_seconds\"FROM\"s\".\"t\"",
+    []
+   ],
+   [
+    "exec",
+    "SELECT\"ts__diff_seconds\"FROM\"s\".\"t\"LIMIT1",
+    []
+   ],
+   [
+    "exec",
+    "UPDATE\"s\".\"t\"SET\"ts__diff_seconds\"=sub.dFROM(SELECTrowid,(epoch(CAST(\"ts\"ASTIMESTAMP))-LAG(epoch(CAST(\"ts\"ASTIMESTAMP)))OVER(ORDERBYCAST(\"ts\"ASTIMESTAMP)))ASdFROM\"s\".\"t\")subWHERE\"s\".\"t\".rowid=sub.rowid",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT\"ts\",\"ts__diff_seconds\"FROM\"s\".\"t__op_20240101000000000000\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*,(EXTRACT(EPOCHFROMCAST(\"ts\"ASTIMESTAMP))::DOUBLEPRECISION-LAG(EXTRACT(EPOCHFROMCAST(\"ts\"ASTIMESTAMP))::DOUBLEPRECISION)OVER(ORDERBYCAST(\"ts\"ASTIMESTAMP)))AS\"ts__diff_seconds\"FROM\"s\".\"t\"",
+    []
+   ],
+   [
+    "exec",
+    "SELECT\"ts__diff_seconds\"FROM\"s\".\"t\"LIMIT1",
+    []
+   ],
+   [
+    "exec",
+    "UPDATE\"s\".\"t\"SET\"ts__diff_seconds\"=sub.dFROM(SELECTctid,(EXTRACT(EPOCHFROMCAST(\"ts\"ASTIMESTAMP))::DOUBLEPRECISION-LAG(EXTRACT(EPOCHFROMCAST(\"ts\"ASTIMESTAMP))::DOUBLEPRECISION)OVER(ORDERBYCAST(\"ts\"ASTIMESTAMP)))ASdFROM\"s\".\"t\")subWHERE\"s\".\"t\".ctid=sub.ctid",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT\"ts\",\"ts__diff_seconds\"FROM\"s\".\"t__op_20240101000000000000\"",
+    []
+   ]
+  ]
+ },
+ "datetime_event_rate": {
+  "clickhouse": [
+   [
+    "fetch",
+    "SELECTCOUNT(*)AStotal,dateDiff('second',MIN(dt),MAX(dt))ASsecondsFROM(SELECTparseDateTimeBestEffortOrNull(toString(\"ts\"))ASdtFROM\"s\".\"t\"WHERE\"ts\"ISNOTNULL)WHEREdtISNOTNULL",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetch",
+    "SELECTMIN(\"ts\")asmin_dt,MAX(\"ts\")asmax_dtFROM\"s\".\"t\"WHERE\"ts\"ISNOTNULL",
+    []
+   ],
+   [
+    "fetchval",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"ts\"ISNOTNULL",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetch",
+    "SELECTMIN(\"ts\")asmin_dt,MAX(\"ts\")asmax_dtFROM\"s\".\"t\"WHERE\"ts\"ISNOTNULL",
+    []
+   ],
+   [
+    "fetchval",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"ts\"ISNOTNULL",
+    []
+   ]
+  ]
+ },
+ "datetime_holiday_counts": {
+  "clickhouse": [
+   [
+    "fetch",
+    "SELECTCASEWHENtoMonth(dt)=1ANDtoDayOfMonth(dt)=1THEN'NewYear'WHENtoMonth(dt)=12ANDtoDayOfMonth(dt)=25THEN'Christmas'ELSE'non-holiday'ENDASholiday,COUNT(*)ascntFROM(SELECTparseDateTimeBestEffortOrNull(toString(\"ts\"))ASdtFROM\"s\".\"t\"WHERE\"ts\"ISNOTNULL)WHEREdtISNOTNULLGROUPBYCASEWHENtoMonth(dt)=1ANDtoDayOfMonth(dt)=1THEN'NewYear'WHENtoMonth(dt)=12ANDtoDayOfMonth(dt)=25THEN'Christmas'ELSE'non-holiday'END",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetch",
+    "SELECTCASEWHENEXTRACT(MONTHFROM\"ts\")=1ANDEXTRACT(DAYFROM\"ts\")=1THEN'NewYear'WHENEXTRACT(MONTHFROM\"ts\")=12ANDEXTRACT(DAYFROM\"ts\")=25THEN'Christmas'ELSE'non-holiday'ENDASholiday,COUNT(*)ascntFROM\"s\".\"t\"WHERE\"ts\"ISNOTNULLGROUPBYholiday",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetch",
+    "SELECTCASEWHENEXTRACT(MONTHFROM\"ts\")=1ANDEXTRACT(DAYFROM\"ts\")=1THEN'NewYear'WHENEXTRACT(MONTHFROM\"ts\")=12ANDEXTRACT(DAYFROM\"ts\")=25THEN'Christmas'ELSE'non-holiday'ENDASholiday,COUNT(*)ascntFROM\"s\".\"t\"WHERE\"ts\"ISNOTNULLGROUPBYholiday",
+    []
+   ]
+  ]
+ },
+ "datetime_max": {
+  "clickhouse": [
+   [
+    "fetchval",
+    "SELECTMAX(\"ts\")FROM\"s\".\"t\"WHERE\"ts\"ISNOTNULL",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetchval",
+    "SELECTMAX(\"ts\")FROM\"s\".\"t\"WHERE\"ts\"ISNOTNULL",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetchval",
+    "SELECTMAX(\"ts\")FROM\"s\".\"t\"WHERE\"ts\"ISNOTNULL",
+    []
+   ]
+  ]
+ },
+ "datetime_mean": {
+  "clickhouse": [
+   [
+    "fetchval",
+    "WITHaggAS(SELECTAVG(toUnixTimestamp(\"ts\"))ASvalue_epochFROM\"s\".\"t\"WHERE\"ts\"ISNOTNULL)SELECTtoDateTime(value_epoch)ASmean_datetimeFROMagg",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetchval",
+    "WITHaggAS(SELECTAVG(epoch(CAST(\"ts\"ASTIMESTAMP)))ASvalue_epochFROM\"s\".\"t\"WHERE\"ts\"ISNOTNULL)SELECTTO_TIMESTAMP(value_epoch)ASmean_datetimeFROMagg",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetchval",
+    "WITHaggAS(SELECTAVG(EXTRACT(EPOCHFROM\"ts\"))ASvalue_epochFROM\"s\".\"t\"WHERE\"ts\"ISNOTNULL)SELECTTO_TIMESTAMP(value_epoch)ASmean_datetimeFROMagg",
+    []
+   ]
+  ]
+ },
+ "datetime_median": {
+  "clickhouse": [
+   [
+    "fetchval",
+    "WITHaggAS(SELECTquantile(0.5)(toUnixTimestamp(\"ts\"))ASvalue_epochFROM\"s\".\"t\"WHERE\"ts\"ISNOTNULL)SELECTtoDateTime(value_epoch)ASmedian_datetimeFROMagg",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetchval",
+    "WITHaggAS(SELECTMEDIAN(epoch(CAST(\"ts\"ASTIMESTAMP)))ASvalue_epochFROM\"s\".\"t\"WHERE\"ts\"ISNOTNULL)SELECTTO_TIMESTAMP(value_epoch)ASmedian_datetimeFROMagg",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetchval",
+    "WITHaggAS(SELECTPERCENTILE_CONT(0.5)WITHINGROUP(ORDERBYEXTRACT(EPOCHFROM\"ts\"))ASvalue_epochFROM\"s\".\"t\"WHERE\"ts\"ISNOTNULL)SELECTTO_TIMESTAMP(value_epoch)ASmedian_datetimeFROMagg",
+    []
+   ]
+  ]
+ },
+ "datetime_min": {
+  "clickhouse": [
+   [
+    "fetchval",
+    "SELECTMIN(\"ts\")FROM\"s\".\"t\"WHERE\"ts\"ISNOTNULL",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetchval",
+    "SELECTMIN(\"ts\")FROM\"s\".\"t\"WHERE\"ts\"ISNOTNULL",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetchval",
+    "SELECTMIN(\"ts\")FROM\"s\".\"t\"WHERE\"ts\"ISNOTNULL",
+    []
+   ]
+  ]
+ },
+ "datetime_nunique": {
+  "clickhouse": [
+   [
+    "fetchval",
+    "SELECTCOUNT(DISTINCT\"ts\")FROM\"s\".\"t\"WHERE\"ts\"ISNOTNULL",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetchval",
+    "SELECTCOUNT(DISTINCT\"ts\")FROM\"s\".\"t\"WHERE\"ts\"ISNOTNULL",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetchval",
+    "SELECTCOUNT(DISTINCT\"ts\")FROM\"s\".\"t\"WHERE\"ts\"ISNOTNULL",
+    []
+   ]
+  ]
+ },
+ "datetime_time_unit_counts": {
+  "clickhouse": [
+   [
+    "fetch",
+    "SELECTtoMonth(dt)astime_unit,COUNT(*)ascntFROM(SELECTparseDateTimeBestEffortOrNull(toString(\"ts\"))ASdtFROM\"s\".\"t\"WHERE\"ts\"ISNOTNULL)WHEREdtISNOTNULLGROUPBYtoMonth(dt)ORDERBYtime_unit",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetch",
+    "SELECTEXTRACT(MONTHFROM\"ts\")astime_unit,COUNT(*)ascntFROM\"s\".\"t\"WHERE\"ts\"ISNOTNULLGROUPBYtime_unitORDERBYtime_unit",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetch",
+    "SELECTEXTRACT(MONTHFROM\"ts\")astime_unit,COUNT(*)ascntFROM\"s\".\"t\"WHERE\"ts\"ISNOTNULLGROUPBYtime_unitORDERBYtime_unit",
+    []
+   ]
+  ]
+ },
+ "datetime_time_unit_counts_dow": {
+  "clickhouse": [
+   [
+    "fetch",
+    "SELECTtoDayOfWeek(dt)astime_unit,COUNT(*)ascntFROM(SELECTparseDateTimeBestEffortOrNull(toString(\"ts\"))ASdtFROM\"s\".\"t\"WHERE\"ts\"ISNOTNULL)WHEREdtISNOTNULLGROUPBYtoDayOfWeek(dt)ORDERBYtime_unit",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetch",
+    "SELECTEXTRACT(DOWFROM\"ts\")astime_unit,COUNT(*)ascntFROM\"s\".\"t\"WHERE\"ts\"ISNOTNULLGROUPBYtime_unitORDERBYtime_unit",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetch",
+    "SELECTEXTRACT(DOWFROM\"ts\")astime_unit,COUNT(*)ascntFROM\"s\".\"t\"WHERE\"ts\"ISNOTNULLGROUPBYtime_unitORDERBYtime_unit",
+    []
+   ]
+  ]
+ },
+ "datetime_weekday_weekend_counts": {
+  "clickhouse": [
+   [
+    "fetch",
+    "SELECTCASEWHENtoDayOfWeek(dt)IN(6,7)THEN'weekend'ELSE'weekday'ENDAStype,COUNT(*)ascntFROM(SELECTparseDateTimeBestEffortOrNull(toString(\"ts\"))ASdtFROM\"s\".\"t\"WHERE\"ts\"ISNOTNULL)WHEREdtISNOTNULLGROUPBYCASEWHENtoDayOfWeek(dt)IN(6,7)THEN'weekend'ELSE'weekday'END",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetch",
+    "SELECTCASEWHENEXTRACT(DOWFROM\"ts\")IN(0,6)THEN'weekend'ELSE'weekday'ENDAStype,COUNT(*)ascntFROM\"s\".\"t\"WHERE\"ts\"ISNOTNULLGROUPBYCASEWHENEXTRACT(DOWFROM\"ts\")IN(0,6)THEN'weekend'ELSE'weekday'END",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetch",
+    "SELECTCASEWHENEXTRACT(DOWFROM\"ts\")IN(0,6)THEN'weekend'ELSE'weekday'ENDAStype,COUNT(*)ascntFROM\"s\".\"t\"WHERE\"ts\"ISNOTNULLGROUPBYCASEWHENEXTRACT(DOWFROM\"ts\")IN(0,6)THEN'weekend'ELSE'weekday'END",
+    []
+   ]
+  ]
+ },
+ "numeric_autocorr": {
+  "clickhouse": [
+   [
+    "fetchval",
+    "WITHlaggedAS(SELECT\"num\"AScur,lagInFrame(\"num\",2)OVER(ORDERBY(SELECTNULL))ASprevFROM\"s\".\"t\")SELECTcorr(cur,prev)FROMlaggedWHEREcurISNOTNULLANDprevISNOTNULL",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetchval",
+    "WITHlaggedAS(SELECT\"num\"AScur,LAG(\"num\",2)OVER(ORDERBY(SELECTNULL))ASprevFROM\"s\".\"t\")SELECTCORR(cur,prev)FROMlaggedWHEREcurISNOTNULLANDprevISNOTNULL",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetchval",
+    "WITHlaggedAS(SELECT\"num\"AScur,LAG(\"num\",2)OVER(ORDERBY(SELECTNULL))ASprevFROM\"s\".\"t\")SELECTCORR(cur,prev)FROMlaggedWHEREcurISNOTNULLANDprevISNOTNULL",
+    []
+   ]
+  ]
+ },
+ "numeric_coefficient_of_variation": {
+  "clickhouse": [
+   [
+    "fetchval",
+    "SELECTstddevPop(\"num\")/avg(\"num\")FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetchval",
+    "SELECTSTDDEV_POP(\"num\")/AVG(\"num\")FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetchval",
+    "SELECTSTDDEV_POP(\"num\")/AVG(\"num\")FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL",
+    []
+   ]
+  ]
+ },
+ "numeric_coefficient_of_variation_txt": {
+  "clickhouse": [
+   [
+    "fetchval",
+    "SELECTstddevPop(\"txt\")/avg(\"txt\")FROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetchval",
+    "SELECTSTDDEV_POP(\"txt\")/AVG(\"txt\")FROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetchval",
+    "SELECTSTDDEV_POP(\"txt\")/AVG(\"txt\")FROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL",
+    []
+   ]
+  ]
+ },
+ "numeric_count": {
+  "clickhouse": [
+   [
+    "fetchval",
+    "SELECTCOUNT(\"num\")FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetchval",
+    "SELECTCOUNT(\"num\")FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetchval",
+    "SELECTCOUNT(\"num\")FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL",
+    []
+   ]
+  ]
+ },
+ "numeric_count_txt": {
+  "clickhouse": [
+   [
+    "fetchval",
+    "SELECTCOUNT(\"txt\")FROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetchval",
+    "SELECTCOUNT(\"txt\")FROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetchval",
+    "SELECTCOUNT(\"txt\")FROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL",
+    []
+   ]
+  ]
+ },
+ "numeric_entropy": {
+  "clickhouse": [
+   [
+    "fetchval",
+    "WITHcountsAS(SELECT\"num\",COUNT(*)AScntFROM\"s\".\"t\"WHERE\"num\"ISNOTNULLGROUPBY\"num\"),totalAS(SELECTSUM(cnt)AStotFROMcounts)SELECT-sum((1.0*cnt/tot)*log((1.0*cnt/tot)))FROMcounts,total",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetchval",
+    "WITHcountsAS(SELECT\"num\",COUNT(*)AScntFROM\"s\".\"t\"WHERE\"num\"ISNOTNULLGROUPBY\"num\"),totalAS(SELECTSUM(cnt)AStotFROMcounts)SELECT-SUM((cnt::float/tot)*LN(cnt::float/tot))FROMcounts,total",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetchval",
+    "WITHcountsAS(SELECT\"num\",COUNT(*)AScntFROM\"s\".\"t\"WHERE\"num\"ISNOTNULLGROUPBY\"num\"),totalAS(SELECTSUM(cnt)AStotFROMcounts)SELECT-SUM((cnt::float/tot)*LN(cnt::float/tot))FROMcounts,total",
+    []
+   ]
+  ]
+ },
+ "numeric_entropy_txt": {
+  "clickhouse": [
+   [
+    "fetchval",
+    "WITHcountsAS(SELECT\"txt\",COUNT(*)AScntFROM\"s\".\"t\"WHERE\"txt\"ISNOTNULLGROUPBY\"txt\"),totalAS(SELECTSUM(cnt)AStotFROMcounts)SELECT-sum((1.0*cnt/tot)*log((1.0*cnt/tot)))FROMcounts,total",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetchval",
+    "WITHcountsAS(SELECT\"txt\",COUNT(*)AScntFROM\"s\".\"t\"WHERE\"txt\"ISNOTNULLGROUPBY\"txt\"),totalAS(SELECTSUM(cnt)AStotFROMcounts)SELECT-SUM((cnt::float/tot)*LN(cnt::float/tot))FROMcounts,total",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetchval",
+    "WITHcountsAS(SELECT\"txt\",COUNT(*)AScntFROM\"s\".\"t\"WHERE\"txt\"ISNOTNULLGROUPBY\"txt\"),totalAS(SELECTSUM(cnt)AStotFROMcounts)SELECT-SUM((cnt::float/tot)*LN(cnt::float/tot))FROMcounts,total",
+    []
+   ]
+  ]
+ },
+ "numeric_iqr": {
+  "clickhouse": [
+   [
+    "fetchval",
+    "SELECTquantile(0.75)(\"num\")-quantile(0.25)(\"num\")FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetchval",
+    "SELECTQUANTILE_CONT(\"num\",0.75)-QUANTILE_CONT(\"num\",0.25)FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetchval",
+    "SELECTPERCENTILE_CONT(0.75)WITHINGROUP(ORDERBY\"num\")-PERCENTILE_CONT(0.25)WITHINGROUP(ORDERBY\"num\")FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL",
+    []
+   ]
+  ]
+ },
+ "numeric_iqr_txt": {
+  "clickhouse": [
+   [
+    "fetchval",
+    "SELECTquantile(0.75)(\"txt\")-quantile(0.25)(\"txt\")FROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetchval",
+    "SELECTQUANTILE_CONT(\"txt\",0.75)-QUANTILE_CONT(\"txt\",0.25)FROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetchval",
+    "SELECTPERCENTILE_CONT(0.75)WITHINGROUP(ORDERBY\"txt\")-PERCENTILE_CONT(0.25)WITHINGROUP(ORDERBY\"txt\")FROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL",
+    []
+   ]
+  ]
+ },
+ "numeric_kurtosis": {
+  "clickhouse": [
+   [
+    "fetchval",
+    "WITHstatsAS(SELECTavg(\"num\")ASmean_val,stddevSamp(\"num\")ASstd_val,count()ASnFROM\"s\".\"t\"WHERE\"num\"ISNOTNULL),deviationsAS(SELECTsum(power(\"num\"-(SELECTmean_valFROMstats),4))ASsum4FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL)SELECTCASEWHEN(SELECTnFROMstats)<4OR(SELECTstd_valFROMstats)=0OR(SELECTstd_valFROMstats)ISNULLTHENNULLELSE((SELECTnFROMstats)*((SELECTnFROMstats)+1))/((SELECTnFROMstats)-1)/((SELECTnFROMstats)-2)/((SELECTnFROMstats)-3)*(SELECTsum4FROMdeviations)/power((SELECTstd_valFROMstats),4)-(3.0*power((SELECTnFROMstats)-1,2))/(((SELECTnFROMstats)-2)*((SELECTnFROMstats)-3))END",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetchval",
+    "SELECTKURTOSIS(\"num\")FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetchval",
+    "WITHstatsAS(SELECTAVG(\"num\"::DOUBLEPRECISION)ASmean_val,STDDEV_SAMP(\"num\"::DOUBLEPRECISION)ASstd_val,COUNT(\"num\"::DOUBLEPRECISION)::DOUBLEPRECISIONASnFROM\"s\".\"t\"WHERE\"num\"ISNOTNULL)SELECTCASEWHENstats.n<4ORstats.std_val=0ORstats.std_valISNULLTHENNULLELSE((stats.n*(stats.n+1))/((stats.n-1)*(stats.n-2)*(stats.n-3)))*SUM(POWER(\"num\"::DOUBLEPRECISION-stats.mean_val,4))/POWER(stats.std_val,4)-(3.0*POWER(stats.n-1,2))/((stats.n-2)*(stats.n-3))ENDFROM\"s\".\"t\"CROSSJOINstatsWHERE\"num\"ISNOTNULLGROUPBYstats.n,stats.std_val,stats.mean_val",
+    []
+   ]
+  ]
+ },
+ "numeric_kurtosis_txt": {
+  "clickhouse": [
+   [
+    "fetchval",
+    "WITHstatsAS(SELECTavg(\"txt\")ASmean_val,stddevSamp(\"txt\")ASstd_val,count()ASnFROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL),deviationsAS(SELECTsum(power(\"txt\"-(SELECTmean_valFROMstats),4))ASsum4FROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL)SELECTCASEWHEN(SELECTnFROMstats)<4OR(SELECTstd_valFROMstats)=0OR(SELECTstd_valFROMstats)ISNULLTHENNULLELSE((SELECTnFROMstats)*((SELECTnFROMstats)+1))/((SELECTnFROMstats)-1)/((SELECTnFROMstats)-2)/((SELECTnFROMstats)-3)*(SELECTsum4FROMdeviations)/power((SELECTstd_valFROMstats),4)-(3.0*power((SELECTnFROMstats)-1,2))/(((SELECTnFROMstats)-2)*((SELECTnFROMstats)-3))END",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetchval",
+    "SELECTKURTOSIS(\"txt\")FROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetchval",
+    "WITHstatsAS(SELECTAVG(\"txt\"::DOUBLEPRECISION)ASmean_val,STDDEV_SAMP(\"txt\"::DOUBLEPRECISION)ASstd_val,COUNT(\"txt\"::DOUBLEPRECISION)::DOUBLEPRECISIONASnFROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL)SELECTCASEWHENstats.n<4ORstats.std_val=0ORstats.std_valISNULLTHENNULLELSE((stats.n*(stats.n+1))/((stats.n-1)*(stats.n-2)*(stats.n-3)))*SUM(POWER(\"txt\"::DOUBLEPRECISION-stats.mean_val,4))/POWER(stats.std_val,4)-(3.0*POWER(stats.n-1,2))/((stats.n-2)*(stats.n-3))ENDFROM\"s\".\"t\"CROSSJOINstatsWHERE\"txt\"ISNOTNULLGROUPBYstats.n,stats.std_val,stats.mean_val",
+    []
+   ]
+  ]
+ },
+ "numeric_mad": {
+  "clickhouse": [
+   [
+    "fetchval",
+    "SELECTavg(abs(\"num\"-sub.avg_val))FROM\"s\".\"t\",(SELECTavg(\"num\")ASavg_valFROM\"s\".\"t\"WHERE\"num\"ISNOTNULL)ASsubWHERE\"num\"ISNOTNULL",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetchval",
+    "SELECTAVG(ABS(\"num\"-sub.avg_val))FROM\"s\".\"t\",(SELECTAVG(\"num\")ASavg_valFROM\"s\".\"t\"WHERE\"num\"ISNOTNULL)ASsubWHERE\"num\"ISNOTNULL",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetchval",
+    "SELECTAVG(ABS(\"num\"-sub.avg_val))FROM\"s\".\"t\",(SELECTAVG(\"num\")ASavg_valFROM\"s\".\"t\"WHERE\"num\"ISNOTNULL)ASsubWHERE\"num\"ISNOTNULL",
+    []
+   ]
+  ]
+ },
+ "numeric_mad_txt": {
+  "clickhouse": [
+   [
+    "fetchval",
+    "SELECTavg(abs(\"txt\"-sub.avg_val))FROM\"s\".\"t\",(SELECTavg(\"txt\")ASavg_valFROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL)ASsubWHERE\"txt\"ISNOTNULL",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetchval",
+    "SELECTAVG(ABS(\"txt\"-sub.avg_val))FROM\"s\".\"t\",(SELECTAVG(\"txt\")ASavg_valFROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL)ASsubWHERE\"txt\"ISNOTNULL",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetchval",
+    "SELECTAVG(ABS(\"txt\"-sub.avg_val))FROM\"s\".\"t\",(SELECTAVG(\"txt\")ASavg_valFROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL)ASsubWHERE\"txt\"ISNOTNULL",
+    []
+   ]
+  ]
+ },
+ "numeric_max": {
+  "clickhouse": [
+   [
+    "fetchval",
+    "SELECTMAX(\"num\")FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetchval",
+    "SELECTMAX(\"num\")FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetchval",
+    "SELECTMAX(\"num\")FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL",
+    []
+   ]
+  ]
+ },
+ "numeric_max_txt": {
+  "clickhouse": [
+   [
+    "fetchval",
+    "SELECTMAX(\"txt\")FROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetchval",
+    "SELECTMAX(\"txt\")FROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetchval",
+    "SELECTMAX(\"txt\")FROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL",
+    []
+   ]
+  ]
+ },
+ "numeric_mean": {
+  "clickhouse": [
+   [
+    "fetchval",
+    "SELECTAVG(\"num\")FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetchval",
+    "SELECTAVG(\"num\")FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetchval",
+    "SELECTAVG(\"num\")FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL",
+    []
+   ]
+  ]
+ },
+ "numeric_mean_txt": {
+  "clickhouse": [
+   [
+    "fetchval",
+    "SELECTAVG(\"txt\")FROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetchval",
+    "SELECTAVG(\"txt\")FROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetchval",
+    "SELECTAVG(\"txt\")FROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL",
+    []
+   ]
+  ]
+ },
+ "numeric_median": {
+  "clickhouse": [
+   [
+    "fetchval",
+    "SELECTquantile(0.5)(\"num\")FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetchval",
+    "SELECTMEDIAN(\"num\")FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetchval",
+    "SELECTPERCENTILE_CONT(0.5)WITHINGROUP(ORDERBY\"num\")FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL",
+    []
+   ]
+  ]
+ },
+ "numeric_median_txt": {
+  "clickhouse": [
+   [
+    "fetchval",
+    "SELECTquantile(0.5)(\"txt\")FROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetchval",
+    "SELECTMEDIAN(\"txt\")FROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetchval",
+    "SELECTPERCENTILE_CONT(0.5)WITHINGROUP(ORDERBY\"txt\")FROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL",
+    []
+   ]
+  ]
+ },
+ "numeric_min": {
+  "clickhouse": [
+   [
+    "fetchval",
+    "SELECTMIN(\"num\")FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetchval",
+    "SELECTMIN(\"num\")FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetchval",
+    "SELECTMIN(\"num\")FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL",
+    []
+   ]
+  ]
+ },
+ "numeric_min_txt": {
+  "clickhouse": [
+   [
+    "fetchval",
+    "SELECTMIN(\"txt\")FROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetchval",
+    "SELECTMIN(\"txt\")FROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetchval",
+    "SELECTMIN(\"txt\")FROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL",
+    []
+   ]
+  ]
+ },
+ "numeric_mode": {
+  "clickhouse": [
+   [
+    "fetch",
+    "SELECT\"num\"ASmode,COUNT(*)ASfreqFROM\"s\".\"t\"WHERE\"num\"ISNOTNULLGROUPBY\"num\"ORDERBYfreqDESCLIMIT1",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetch",
+    "SELECT\"num\"ASmode,COUNT(*)ASfreqFROM\"s\".\"t\"WHERE\"num\"ISNOTNULLGROUPBY\"num\"ORDERBYfreqDESCLIMIT1",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetch",
+    "SELECT\"num\"ASmode,COUNT(*)ASfreqFROM\"s\".\"t\"WHERE\"num\"ISNOTNULLGROUPBY\"num\"ORDERBYfreqDESCLIMIT1",
+    []
+   ]
+  ]
+ },
+ "numeric_mode_txt": {
+  "clickhouse": [
+   [
+    "fetch",
+    "SELECT\"txt\"ASmode,COUNT(*)ASfreqFROM\"s\".\"t\"WHERE\"txt\"ISNOTNULLGROUPBY\"txt\"ORDERBYfreqDESCLIMIT1",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetch",
+    "SELECT\"txt\"ASmode,COUNT(*)ASfreqFROM\"s\".\"t\"WHERE\"txt\"ISNOTNULLGROUPBY\"txt\"ORDERBYfreqDESCLIMIT1",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetch",
+    "SELECT\"txt\"ASmode,COUNT(*)ASfreqFROM\"s\".\"t\"WHERE\"txt\"ISNOTNULLGROUPBY\"txt\"ORDERBYfreqDESCLIMIT1",
+    []
+   ]
+  ]
+ },
+ "numeric_multi_column_correlation": {
+  "clickhouse": [
+   [
+    "fetch",
+    "WITHqAS(SELECTtoFloat64OrNull(toString(\"num\"))ASa0,toFloat64OrNull(toString(\"txt\"))ASa1FROM\"s\".\"t\")SELECTcorr(CASEWHENa0ISNOTNULLANDa0ISNOTNULLTHENa0END,CASEWHENa0ISNOTNULLANDa0ISNOTNULLTHENa0END)ASv_0,corr(CASEWHENa0ISNOTNULLANDa1ISNOTNULLTHENa0END,CASEWHENa0ISNOTNULLANDa1ISNOTNULLTHENa1END)ASv_1,corr(CASEWHENa1ISNOTNULLANDa1ISNOTNULLTHENa1END,CASEWHENa1ISNOTNULLANDa1ISNOTNULLTHENa1END)ASv_2FROMq",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetch",
+    "WITHqAS(SELECTTRY_CAST(\"num\"ASDOUBLE)ASa0,TRY_CAST(\"txt\"ASDOUBLE)ASa1FROM\"s\".\"t\")SELECTCORR(CASEWHENa0ISNOTNULLANDa0ISNOTNULLTHENa0END,CASEWHENa0ISNOTNULLANDa0ISNOTNULLTHENa0END)ASv_0,CORR(CASEWHENa0ISNOTNULLANDa1ISNOTNULLTHENa0END,CASEWHENa0ISNOTNULLANDa1ISNOTNULLTHENa1END)ASv_1,CORR(CASEWHENa1ISNOTNULLANDa1ISNOTNULLTHENa1END,CASEWHENa1ISNOTNULLANDa1ISNOTNULLTHENa1END)ASv_2FROMq",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetchval",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"",
+    []
+   ]
+  ]
+ },
+ "numeric_multi_column_covariance": {
+  "clickhouse": [
+   [
+    "fetch",
+    "WITHqAS(SELECTtoFloat64OrNull(toString(\"num\"))ASa0,toFloat64OrNull(toString(\"txt\"))ASa1FROM\"s\".\"t\")SELECTcovarSamp(CASEWHENa0ISNOTNULLANDa0ISNOTNULLTHENa0END,CASEWHENa0ISNOTNULLANDa0ISNOTNULLTHENa0END)ASv_0,covarSamp(CASEWHENa0ISNOTNULLANDa1ISNOTNULLTHENa0END,CASEWHENa0ISNOTNULLANDa1ISNOTNULLTHENa1END)ASv_1,covarSamp(CASEWHENa1ISNOTNULLANDa1ISNOTNULLTHENa1END,CASEWHENa1ISNOTNULLANDa1ISNOTNULLTHENa1END)ASv_2FROMq",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetch",
+    "WITHqAS(SELECTTRY_CAST(\"num\"ASDOUBLE)ASa0,TRY_CAST(\"txt\"ASDOUBLE)ASa1FROM\"s\".\"t\")SELECTCOVAR_SAMP(CASEWHENa0ISNOTNULLANDa0ISNOTNULLTHENa0END,CASEWHENa0ISNOTNULLANDa0ISNOTNULLTHENa0END)ASv_0,COVAR_SAMP(CASEWHENa0ISNOTNULLANDa1ISNOTNULLTHENa0END,CASEWHENa0ISNOTNULLANDa1ISNOTNULLTHENa1END)ASv_1,COVAR_SAMP(CASEWHENa1ISNOTNULLANDa1ISNOTNULLTHENa1END,CASEWHENa1ISNOTNULLANDa1ISNOTNULLTHENa1END)ASv_2FROMq",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetchval",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"",
+    []
+   ]
+  ]
+ },
+ "numeric_nunique": {
+  "clickhouse": [
+   [
+    "fetchval",
+    "SELECTCOUNT(DISTINCT\"num\")FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetchval",
+    "SELECTCOUNT(DISTINCT\"num\")FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetchval",
+    "SELECTCOUNT(DISTINCT\"num\")FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL",
+    []
+   ]
+  ]
+ },
+ "numeric_nunique_txt": {
+  "clickhouse": [
+   [
+    "fetchval",
+    "SELECTCOUNT(DISTINCT\"txt\")FROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetchval",
+    "SELECTCOUNT(DISTINCT\"txt\")FROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetchval",
+    "SELECTCOUNT(DISTINCT\"txt\")FROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL",
+    []
+   ]
+  ]
+ },
+ "numeric_outliers_iqr": {
+  "clickhouse": [
+   [
+    "fetch",
+    "SELECTquantile(0.25)(toFloat64(\"num\"))ASq1,quantile(0.75)(toFloat64(\"num\"))ASq3FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetch",
+    "SELECTQUANTILE_CONT(CAST(\"num\"ASDOUBLE),0.25)ASq1,QUANTILE_CONT(CAST(\"num\"ASDOUBLE),0.75)ASq3FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetch",
+    "SELECTPERCENTILE_CONT(0.25)WITHINGROUP(ORDERBYCAST(\"num\"ASDOUBLEPRECISION))ASq1,PERCENTILE_CONT(0.75)WITHINGROUP(ORDERBYCAST(\"num\"ASDOUBLEPRECISION))ASq3FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL",
+    []
+   ]
+  ]
+ },
+ "numeric_outliers_iqr_txt": {
+  "clickhouse": [
+   [
+    "fetch",
+    "SELECTquantile(0.25)(toFloat64(\"txt\"))ASq1,quantile(0.75)(toFloat64(\"txt\"))ASq3FROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetch",
+    "SELECTQUANTILE_CONT(CAST(\"txt\"ASDOUBLE),0.25)ASq1,QUANTILE_CONT(CAST(\"txt\"ASDOUBLE),0.75)ASq3FROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetch",
+    "SELECTPERCENTILE_CONT(0.25)WITHINGROUP(ORDERBYCAST(\"txt\"ASDOUBLEPRECISION))ASq1,PERCENTILE_CONT(0.75)WITHINGROUP(ORDERBYCAST(\"txt\"ASDOUBLEPRECISION))ASq3FROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL",
+    []
+   ]
+  ]
+ },
+ "numeric_outliers_zscore": {
+  "clickhouse": [
+   [
+    "fetch",
+    "SELECTAVG(toFloat64(\"num\"))ASm,STDDEV_POP(toFloat64(\"num\"))ASsFROM\"s\".\"t\"WHERE\"num\"ISNOTNULL",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetch",
+    "SELECTAVG(CAST(\"num\"ASDOUBLE))ASm,STDDEV_POP(CAST(\"num\"ASDOUBLE))ASsFROM\"s\".\"t\"WHERE\"num\"ISNOTNULL",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetch",
+    "SELECTAVG(CAST(\"num\"ASDOUBLEPRECISION))ASm,STDDEV_POP(CAST(\"num\"ASDOUBLEPRECISION))ASsFROM\"s\".\"t\"WHERE\"num\"ISNOTNULL",
+    []
+   ]
+  ]
+ },
+ "numeric_outliers_zscore_txt": {
+  "clickhouse": [
+   [
+    "fetch",
+    "SELECTAVG(toFloat64(\"txt\"))ASm,STDDEV_POP(toFloat64(\"txt\"))ASsFROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetch",
+    "SELECTAVG(CAST(\"txt\"ASDOUBLE))ASm,STDDEV_POP(CAST(\"txt\"ASDOUBLE))ASsFROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetch",
+    "SELECTAVG(CAST(\"txt\"ASDOUBLEPRECISION))ASm,STDDEV_POP(CAST(\"txt\"ASDOUBLEPRECISION))ASsFROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL",
+    []
+   ]
+  ]
+ },
+ "numeric_prod": {
+  "clickhouse": [
+   [
+    "fetchval",
+    "SELECTexp(sum(log(\"num\")))FROM\"s\".\"t\"WHERE\"num\">0",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetchval",
+    "SELECTEXP(SUM(LN(\"num\")))FROM\"s\".\"t\"WHERE\"num\">0",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetchval",
+    "SELECTEXP(SUM(LN(\"num\")))FROM\"s\".\"t\"WHERE\"num\">0",
+    []
+   ]
+  ]
+ },
+ "numeric_prod_txt": {
+  "clickhouse": [
+   [
+    "fetchval",
+    "SELECTexp(sum(log(\"txt\")))FROM\"s\".\"t\"WHERE\"txt\">0",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetchval",
+    "SELECTEXP(SUM(LN(\"txt\")))FROM\"s\".\"t\"WHERE\"txt\">0",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetchval",
+    "SELECTEXP(SUM(LN(\"txt\")))FROM\"s\".\"t\"WHERE\"txt\">0",
+    []
+   ]
+  ]
+ },
+ "numeric_quantile": {
+  "clickhouse": [
+   [
+    "fetch",
+    "SELECTquantile(0.25)(\"num\")ASp_25,quantile(0.75)(\"num\")ASp_75FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetch",
+    "SELECTQUANTILE_CONT(\"num\",0.25)ASp_25,QUANTILE_CONT(\"num\",0.75)ASp_75FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetch",
+    "SELECTPERCENTILE_CONT(0.25)WITHINGROUP(ORDERBY\"num\")ASp_25,PERCENTILE_CONT(0.75)WITHINGROUP(ORDERBY\"num\")ASp_75FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL",
+    []
+   ]
+  ]
+ },
+ "numeric_quantile_default": {
+  "clickhouse": [
+   [
+    "fetch",
+    "SELECTquantile(0.25)(\"num\")ASp_25,quantile(0.5)(\"num\")ASp_50,quantile(0.75)(\"num\")ASp_75FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetch",
+    "SELECTQUANTILE_CONT(\"num\",0.25)ASp_25,QUANTILE_CONT(\"num\",0.5)ASp_50,QUANTILE_CONT(\"num\",0.75)ASp_75FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetch",
+    "SELECTPERCENTILE_CONT(0.25)WITHINGROUP(ORDERBY\"num\")ASp_25,PERCENTILE_CONT(0.5)WITHINGROUP(ORDERBY\"num\")ASp_50,PERCENTILE_CONT(0.75)WITHINGROUP(ORDERBY\"num\")ASp_75FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL",
+    []
+   ]
+  ]
+ },
+ "numeric_range": {
+  "clickhouse": [
+   [
+    "fetchval",
+    "SELECTMAX(\"num\")-MIN(\"num\")FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetchval",
+    "SELECTMAX(\"num\")-MIN(\"num\")FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetchval",
+    "SELECTMAX(\"num\")-MIN(\"num\")FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL",
+    []
+   ]
+  ]
+ },
+ "numeric_range_txt": {
+  "clickhouse": [
+   [
+    "fetchval",
+    "SELECTMAX(\"txt\")-MIN(\"txt\")FROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetchval",
+    "SELECTMAX(\"txt\")-MIN(\"txt\")FROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetchval",
+    "SELECTMAX(\"txt\")-MIN(\"txt\")FROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL",
+    []
+   ]
+  ]
+ },
+ "numeric_sem": {
+  "clickhouse": [
+   [
+    "fetchval",
+    "SELECTstddevSamp(\"num\")/sqrt(count(\"num\"))FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetchval",
+    "SELECTSTDDEV_SAMP(\"num\")/SQRT(COUNT(\"num\"))FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetchval",
+    "SELECTSTDDEV_SAMP(\"num\")/SQRT(COUNT(\"num\"))FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL",
+    []
+   ]
+  ]
+ },
+ "numeric_sem_txt": {
+  "clickhouse": [
+   [
+    "fetchval",
+    "SELECTstddevSamp(\"txt\")/sqrt(count(\"txt\"))FROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetchval",
+    "SELECTSTDDEV_SAMP(\"txt\")/SQRT(COUNT(\"txt\"))FROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetchval",
+    "SELECTSTDDEV_SAMP(\"txt\")/SQRT(COUNT(\"txt\"))FROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL",
+    []
+   ]
+  ]
+ },
+ "numeric_skew": {
+  "clickhouse": [
+   [
+    "fetchval",
+    "WITHstatsAS(SELECTavg(\"num\")ASmean_val,stddevSamp(\"num\")ASstd_val,count()ASnFROM\"s\".\"t\"WHERE\"num\"ISNOTNULL),deviationsAS(SELECTsum(power(\"num\"-(SELECTmean_valFROMstats),3))ASsum3FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL)SELECTCASEWHEN(SELECTnFROMstats)<3OR(SELECTstd_valFROMstats)=0OR(SELECTstd_valFROMstats)ISNULLTHENNULLELSE((SELECTnFROMstats)/((SELECTnFROMstats)-1)/((SELECTnFROMstats)-2))*(SELECTsum3FROMdeviations)/power((SELECTstd_valFROMstats),3)END",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetchval",
+    "SELECTSKEWNESS(\"num\")FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetchval",
+    "WITHstatsAS(SELECTAVG(\"num\"::DOUBLEPRECISION)ASmean_val,STDDEV_SAMP(\"num\"::DOUBLEPRECISION)ASstd_val,COUNT(\"num\"::DOUBLEPRECISION)::DOUBLEPRECISIONASnFROM\"s\".\"t\"WHERE\"num\"ISNOTNULL)SELECTCASEWHENstats.n<3ORstats.std_val=0ORstats.std_valISNULLTHENNULLELSE(stats.n/((stats.n-1)*(stats.n-2)))*SUM(POWER(\"num\"::DOUBLEPRECISION-stats.mean_val,3))/POWER(stats.std_val,3)ENDFROM\"s\".\"t\"CROSSJOINstatsWHERE\"num\"ISNOTNULLGROUPBYstats.n,stats.std_val,stats.mean_val",
+    []
+   ]
+  ]
+ },
+ "numeric_skew_txt": {
+  "clickhouse": [
+   [
+    "fetchval",
+    "WITHstatsAS(SELECTavg(\"txt\")ASmean_val,stddevSamp(\"txt\")ASstd_val,count()ASnFROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL),deviationsAS(SELECTsum(power(\"txt\"-(SELECTmean_valFROMstats),3))ASsum3FROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL)SELECTCASEWHEN(SELECTnFROMstats)<3OR(SELECTstd_valFROMstats)=0OR(SELECTstd_valFROMstats)ISNULLTHENNULLELSE((SELECTnFROMstats)/((SELECTnFROMstats)-1)/((SELECTnFROMstats)-2))*(SELECTsum3FROMdeviations)/power((SELECTstd_valFROMstats),3)END",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetchval",
+    "SELECTSKEWNESS(\"txt\")FROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetchval",
+    "WITHstatsAS(SELECTAVG(\"txt\"::DOUBLEPRECISION)ASmean_val,STDDEV_SAMP(\"txt\"::DOUBLEPRECISION)ASstd_val,COUNT(\"txt\"::DOUBLEPRECISION)::DOUBLEPRECISIONASnFROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL)SELECTCASEWHENstats.n<3ORstats.std_val=0ORstats.std_valISNULLTHENNULLELSE(stats.n/((stats.n-1)*(stats.n-2)))*SUM(POWER(\"txt\"::DOUBLEPRECISION-stats.mean_val,3))/POWER(stats.std_val,3)ENDFROM\"s\".\"t\"CROSSJOINstatsWHERE\"txt\"ISNOTNULLGROUPBYstats.n,stats.std_val,stats.mean_val",
+    []
+   ]
+  ]
+ },
+ "numeric_std": {
+  "clickhouse": [
+   [
+    "fetchval",
+    "SELECTstddevPop(\"num\")FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetchval",
+    "SELECTSTDDEV_POP(\"num\")FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetchval",
+    "SELECTSTDDEV_POP(\"num\")FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL",
+    []
+   ]
+  ]
+ },
+ "numeric_std_txt": {
+  "clickhouse": [
+   [
+    "fetchval",
+    "SELECTstddevPop(\"txt\")FROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetchval",
+    "SELECTSTDDEV_POP(\"txt\")FROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetchval",
+    "SELECTSTDDEV_POP(\"txt\")FROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL",
+    []
+   ]
+  ]
+ },
+ "numeric_sum": {
+  "clickhouse": [
+   [
+    "fetchval",
+    "SELECTSUM(\"num\")FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetchval",
+    "SELECTSUM(\"num\")FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetchval",
+    "SELECTSUM(\"num\")FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL",
+    []
+   ]
+  ]
+ },
+ "numeric_sum_txt": {
+  "clickhouse": [
+   [
+    "fetchval",
+    "SELECTSUM(\"txt\")FROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetchval",
+    "SELECTSUM(\"txt\")FROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetchval",
+    "SELECTSUM(\"txt\")FROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL",
+    []
+   ]
+  ]
+ },
+ "numeric_unique": {
+  "clickhouse": [
+   [
+    "fetch",
+    "SELECTDISTINCT\"num\"FROM\"s\".\"t\"WHERE\"num\"ISNOTNULLORDERBY\"num\"",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetch",
+    "SELECTDISTINCT\"num\"FROM\"s\".\"t\"WHERE\"num\"ISNOTNULLORDERBY\"num\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetch",
+    "SELECTDISTINCT\"num\"FROM\"s\".\"t\"WHERE\"num\"ISNOTNULLORDERBY\"num\"",
+    []
+   ]
+  ]
+ },
+ "numeric_unique_txt": {
+  "clickhouse": [
+   [
+    "fetch",
+    "SELECTDISTINCT\"txt\"FROM\"s\".\"t\"WHERE\"txt\"ISNOTNULLORDERBY\"txt\"",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetch",
+    "SELECTDISTINCT\"txt\"FROM\"s\".\"t\"WHERE\"txt\"ISNOTNULLORDERBY\"txt\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetch",
+    "SELECTDISTINCT\"txt\"FROM\"s\".\"t\"WHERE\"txt\"ISNOTNULLORDERBY\"txt\"",
+    []
+   ]
+  ]
+ },
+ "numeric_value_counts": {
+  "clickhouse": [
+   [
+    "fetch",
+    "SELECT\"num\"ASval,COUNT(*)AScntFROM\"s\".\"t\"WHERE\"num\"ISNOTNULLGROUPBY\"num\"ORDERBYcntDESCLIMIT5",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetch",
+    "SELECT\"num\"ASval,COUNT(*)AScntFROM\"s\".\"t\"WHERE\"num\"ISNOTNULLGROUPBY\"num\"ORDERBYcntDESCLIMIT5",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetch",
+    "SELECT\"num\"ASval,COUNT(*)AScntFROM\"s\".\"t\"WHERE\"num\"ISNOTNULLGROUPBY\"num\"ORDERBYcntDESCLIMIT5",
+    []
+   ]
+  ]
+ },
+ "numeric_var": {
+  "clickhouse": [
+   [
+    "fetchval",
+    "SELECTvarPop(\"num\")FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetchval",
+    "SELECTVAR_POP(\"num\")FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetchval",
+    "SELECTVAR_POP(\"num\")FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL",
+    []
+   ]
+  ]
+ },
+ "numeric_var_txt": {
+  "clickhouse": [
+   [
+    "fetchval",
+    "SELECTvarPop(\"txt\")FROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetchval",
+    "SELECTVAR_POP(\"txt\")FROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetchval",
+    "SELECTVAR_POP(\"txt\")FROM\"s\".\"t\"WHERE\"txt\"ISNOTNULL",
+    []
+   ]
+  ]
+ }
+}
