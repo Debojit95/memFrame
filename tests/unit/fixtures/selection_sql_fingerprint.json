@@ -1,0 +1,972 @@
+{
+ "asof_datetime": {
+  "clickhouse": [
+   [
+    "fetch",
+    "SELECTname,typeFROMsystem.columnsWHEREdatabase=$1ANDtable=$2",
+    [
+     "s",
+     "t"
+    ]
+   ],
+   [
+    "fetch",
+    "SELECTnameFROMsystem.columnsWHEREdatabase=$1ANDtable=$2",
+    [
+     "s",
+     "t"
+    ]
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"t\"WHERE\"ts\"<=$1AND\"num\"ISNOTNULLORDERBY\"ts\"DESCLIMIT1",
+    [
+     "2024-01-01 10:00:00"
+    ]
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetch",
+    "PRAGMAtable_info(\"s\".\"t\")",
+    []
+   ],
+   [
+    "fetch",
+    "PRAGMAtable_info(\"s\".\"t\")",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"t\"WHERE\"ts\"<=$1AND\"num\"ISNOTNULLORDERBY\"ts\"DESCLIMIT1",
+    [
+     "2024-01-01 10:00:00"
+    ]
+   ]
+  ],
+  "postgres": [
+   [
+    "fetch",
+    "SELECTcolumn_name,data_typeFROMinformation_schema.columnsWHEREtable_schema=$1ANDtable_name=$2",
+    [
+     "s",
+     "t"
+    ]
+   ],
+   [
+    "fetch",
+    "SELECTcolumn_nameFROMinformation_schema.columnsWHEREtable_schema=$1ANDtable_name=$2",
+    [
+     "s",
+     "t"
+    ]
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"t\"WHERE\"ts\"<=$1AND\"num\"ISNOTNULLORDERBY\"ts\"DESCLIMIT1",
+    [
+     "2024-01-01 10:00:00"
+    ]
+   ]
+  ]
+ },
+ "asof_on_txt": {
+  "clickhouse": [
+   [
+    "fetch",
+    "SELECTname,typeFROMsystem.columnsWHEREdatabase=$1ANDtable=$2",
+    [
+     "s",
+     "t"
+    ]
+   ],
+   [
+    "fetch",
+    "SELECTnameFROMsystem.columnsWHEREdatabase=$1ANDtable=$2",
+    [
+     "s",
+     "t"
+    ]
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"t\"WHERE\"txt\"<=$1AND\"num\"ISNOTNULLORDERBY\"txt\"DESCLIMIT1",
+    [
+     "abc"
+    ]
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetch",
+    "PRAGMAtable_info(\"s\".\"t\")",
+    []
+   ],
+   [
+    "fetch",
+    "PRAGMAtable_info(\"s\".\"t\")",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"t\"WHERE\"txt\"<=$1AND\"num\"ISNOTNULLORDERBY\"txt\"DESCLIMIT1",
+    [
+     "abc"
+    ]
+   ]
+  ],
+  "postgres": [
+   [
+    "fetch",
+    "SELECTcolumn_name,data_typeFROMinformation_schema.columnsWHEREtable_schema=$1ANDtable_name=$2",
+    [
+     "s",
+     "t"
+    ]
+   ],
+   [
+    "fetch",
+    "SELECTcolumn_nameFROMinformation_schema.columnsWHEREtable_schema=$1ANDtable_name=$2",
+    [
+     "s",
+     "t"
+    ]
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"t\"WHERE\"txt\"<=$1AND\"num\"ISNOTNULLORDERBY\"txt\"DESCLIMIT1",
+    [
+     "abc"
+    ]
+   ]
+  ]
+ },
+ "asof_str": {
+  "clickhouse": [
+   [
+    "fetch",
+    "SELECTname,typeFROMsystem.columnsWHEREdatabase=$1ANDtable=$2",
+    [
+     "s",
+     "t"
+    ]
+   ],
+   [
+    "fetch",
+    "SELECTnameFROMsystem.columnsWHEREdatabase=$1ANDtable=$2",
+    [
+     "s",
+     "t"
+    ]
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"t\"WHERE\"ts\"<=$1AND\"num\"ISNOTNULLORDERBY\"ts\"DESCLIMIT1",
+    [
+     "2024-01-01 00:00:00"
+    ]
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetch",
+    "PRAGMAtable_info(\"s\".\"t\")",
+    []
+   ],
+   [
+    "fetch",
+    "PRAGMAtable_info(\"s\".\"t\")",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"t\"WHERE\"ts\"<=$1AND\"num\"ISNOTNULLORDERBY\"ts\"DESCLIMIT1",
+    [
+     "2024-01-01 00:00:00"
+    ]
+   ]
+  ],
+  "postgres": [
+   [
+    "fetch",
+    "SELECTcolumn_name,data_typeFROMinformation_schema.columnsWHEREtable_schema=$1ANDtable_name=$2",
+    [
+     "s",
+     "t"
+    ]
+   ],
+   [
+    "fetch",
+    "SELECTcolumn_nameFROMinformation_schema.columnsWHEREtable_schema=$1ANDtable_name=$2",
+    [
+     "s",
+     "t"
+    ]
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"t\"WHERE\"ts\"<=$1AND\"num\"ISNOTNULLORDERBY\"ts\"DESCLIMIT1",
+    [
+     "2024-01-01 00:00:00"
+    ]
+   ]
+  ]
+ },
+ "at_in_bounds": {
+  "clickhouse": [
+   [
+    "fetch",
+    "SELECTnameFROMsystem.columnsWHEREdatabase=$1ANDtable=$2",
+    [
+     "s",
+     "t"
+    ]
+   ],
+   [
+    "fetch",
+    "SELECT\"num\"FROM\"s\".\"t\"WHERE\"num\"=$1LIMIT1",
+    [
+     "1"
+    ]
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetch",
+    "PRAGMAtable_info(\"s\".\"t\")",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT\"num\"FROM\"s\".\"t\"WHERE\"num\"=$1LIMIT1",
+    [
+     "1"
+    ]
+   ]
+  ],
+  "postgres": [
+   [
+    "fetch",
+    "SELECTcolumn_nameFROMinformation_schema.columnsWHEREtable_schema=$1ANDtable_name=$2",
+    [
+     "s",
+     "t"
+    ]
+   ],
+   [
+    "fetch",
+    "SELECT\"num\"FROM\"s\".\"t\"WHERE\"num\"=$1LIMIT1",
+    [
+     "1"
+    ]
+   ]
+  ]
+ },
+ "at_out_of_bounds": {
+  "clickhouse": [
+   [
+    "fetch",
+    "SELECTnameFROMsystem.columnsWHEREdatabase=$1ANDtable=$2",
+    [
+     "s",
+     "t"
+    ]
+   ],
+   [
+    "fetch",
+    "SELECT\"num\"FROM\"s\".\"t\"WHERE\"num\"=$1LIMIT1",
+    [
+     "99"
+    ]
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetch",
+    "PRAGMAtable_info(\"s\".\"t\")",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT\"num\"FROM\"s\".\"t\"WHERE\"num\"=$1LIMIT1",
+    [
+     "99"
+    ]
+   ]
+  ],
+  "postgres": [
+   [
+    "fetch",
+    "SELECTcolumn_nameFROMinformation_schema.columnsWHEREtable_schema=$1ANDtable_name=$2",
+    [
+     "s",
+     "t"
+    ]
+   ],
+   [
+    "fetch",
+    "SELECT\"num\"FROM\"s\".\"t\"WHERE\"num\"=$1LIMIT1",
+    [
+     "99"
+    ]
+   ]
+  ]
+ },
+ "get": {
+  "clickhouse": [
+   [
+    "fetch",
+    "SELECTnameFROMsystem.columnsWHEREdatabase=$1ANDtable=$2",
+    [
+     "s",
+     "t"
+    ]
+   ],
+   [
+    "fetch",
+    "SELECT\"num\"FROM\"s\".\"t\"",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetch",
+    "PRAGMAtable_info(\"s\".\"t\")",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT\"num\"FROM\"s\".\"t\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetch",
+    "SELECTcolumn_nameFROMinformation_schema.columnsWHEREtable_schema=$1ANDtable_name=$2",
+    [
+     "s",
+     "t"
+    ]
+   ],
+   [
+    "fetch",
+    "SELECT\"num\"FROM\"s\".\"t\"",
+    []
+   ]
+  ]
+ },
+ "get_star": {
+  "clickhouse": [
+   [
+    "fetch",
+    "SELECTnameFROMsystem.columnsWHEREdatabase=$1ANDtable=$2",
+    [
+     "s",
+     "t"
+    ]
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetch",
+    "PRAGMAtable_info(\"s\".\"t\")",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetch",
+    "SELECTcolumn_nameFROMinformation_schema.columnsWHEREtable_schema=$1ANDtable_name=$2",
+    [
+     "s",
+     "t"
+    ]
+   ]
+  ]
+ },
+ "iat": {
+  "clickhouse": [
+   [
+    "fetch",
+    "SELECT\"num\"FROM(SELECT\"num\",ROW_NUMBER()OVER(ORDERBY\"ts\")ASrnFROM\"s\".\"t\")subWHEREsub.rn=1",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetch",
+    "SELECT\"num\"FROM(SELECT\"num\",ROW_NUMBER()OVER(ORDERBY\"ts\")ASrnFROM\"s\".\"t\")subWHEREsub.rn=1",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetch",
+    "SELECT\"num\"FROM(SELECT\"num\",ROW_NUMBER()OVER(ORDERBY\"ts\")ASrnFROM\"s\".\"t\")subWHEREsub.rn=1",
+    []
+   ]
+  ]
+ },
+ "iloc_bool": {
+  "clickhouse": [
+   [
+    "fetch",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetch",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"",
+    []
+   ],
+   [
+    "fetch",
+    "PRAGMAtable_info(\"s\".\"t\")",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetch",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"",
+    []
+   ]
+  ]
+ },
+ "iloc_cols_positions": {
+  "clickhouse": [
+   [
+    "fetch",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetch",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"",
+    []
+   ],
+   [
+    "fetch",
+    "PRAGMAtable_info(\"s\".\"t\")",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT\"num\",\"txt\"FROM(SELECT\"num\",\"txt\",ROW_NUMBER()OVER()AS_rnFROM\"s\".\"t\")tJOIN(SELECTUNNEST(ARRAY[])ASidx,UNNEST(ARRAY[])ASord)vONt._rn=v.idxORDERBYv.ord",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetch",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"",
+    []
+   ]
+  ]
+ },
+ "iloc_int": {
+  "clickhouse": [
+   [
+    "fetch",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetch",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"",
+    []
+   ],
+   [
+    "fetch",
+    "PRAGMAtable_info(\"s\".\"t\")",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetch",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"",
+    []
+   ]
+  ]
+ },
+ "iloc_labels": {
+  "clickhouse": [
+   [
+    "fetch",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetch",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"",
+    []
+   ],
+   [
+    "fetch",
+    "PRAGMAtable_info(\"s\".\"t\")",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT\"num\",\"txt\",\"ts\"FROM\"s\".\"t\"WHERE\"txt\"IN($1,$2)",
+    [
+     "a",
+     "b"
+    ]
+   ]
+  ],
+  "postgres": [
+   [
+    "fetch",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"",
+    []
+   ]
+  ]
+ },
+ "iloc_list": {
+  "clickhouse": [
+   [
+    "fetch",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetch",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"",
+    []
+   ],
+   [
+    "fetch",
+    "PRAGMAtable_info(\"s\".\"t\")",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetch",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"",
+    []
+   ]
+  ]
+ },
+ "iloc_multistmt": {
+  "clickhouse": [
+   [
+    "fetch",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetch",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"",
+    []
+   ],
+   [
+    "fetch",
+    "PRAGMAtable_info(\"s\".\"t\")",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetch",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"",
+    []
+   ]
+  ]
+ },
+ "iloc_out_of_range": {
+  "clickhouse": [
+   [
+    "fetch",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetch",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"",
+    []
+   ],
+   [
+    "fetch",
+    "PRAGMAtable_info(\"s\".\"t\")",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetch",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"",
+    []
+   ]
+  ]
+ },
+ "iloc_slice": {
+  "clickhouse": [
+   [
+    "fetch",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetch",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"",
+    []
+   ],
+   [
+    "fetch",
+    "PRAGMAtable_info(\"s\".\"t\")",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT\"num\",\"txt\",\"ts\"FROM(SELECT\"num\",\"txt\",\"ts\",ROW_NUMBER()OVER()AS_rnFROM\"s\".\"t\")tJOIN(SELECTUNNEST(ARRAY[])ASidx,UNNEST(ARRAY[])ASord)vONt._rn=v.idxORDERBYv.ord",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetch",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"",
+    []
+   ]
+  ]
+ },
+ "iloc_transient": {
+  "clickhouse": [
+   [
+    "fetch",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetch",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"",
+    []
+   ],
+   [
+    "fetch",
+    "PRAGMAtable_info(\"s\".\"t\")",
+    []
+   ],
+   [
+    "exec",
+    "CREATETABLE\"memframe_transient\".\"iloc_sel__op_1\"ASSELECT\"num\",\"txt\",\"ts\"FROM\"s\".\"t\"WHEREnum>10",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT\"num\",\"txt\",\"ts\"FROM\"memframe_transient\".\"iloc_sel__op_1\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetch",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"",
+    []
+   ]
+  ]
+ },
+ "iloc_tuple": {
+  "clickhouse": [
+   [
+    "fetch",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetch",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"",
+    []
+   ],
+   [
+    "fetch",
+    "PRAGMAtable_info(\"s\".\"t\")",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetch",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"",
+    []
+   ]
+  ]
+ },
+ "iloc_where": {
+  "clickhouse": [
+   [
+    "fetch",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetch",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"",
+    []
+   ],
+   [
+    "fetch",
+    "PRAGMAtable_info(\"s\".\"t\")",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT\"num\",\"txt\",\"ts\"FROM\"s\".\"t\"WHEREnum>10",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetch",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"",
+    []
+   ]
+  ]
+ },
+ "select_dtypes_bad": {
+  "clickhouse": [
+   [
+    "fetch",
+    "SELECTname,typeFROMsystem.columnsWHEREdatabase=$1ANDtable=$2",
+    [
+     "s",
+     "t"
+    ]
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetch",
+    "PRAGMAtable_info(\"s\".\"t\")",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetch",
+    "SELECTcolumn_name,data_typeFROMinformation_schema.columnsWHEREtable_schema=$1ANDtable_name=$2",
+    [
+     "s",
+     "t"
+    ]
+   ]
+  ]
+ },
+ "select_dtypes_exclude": {
+  "clickhouse": [
+   [
+    "fetch",
+    "SELECTname,typeFROMsystem.columnsWHEREdatabase=$1ANDtable=$2",
+    [
+     "s",
+     "t"
+    ]
+   ],
+   [
+    "fetch",
+    "SELECT\"num\",\"ts\"FROM\"s\".\"t\"",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetch",
+    "PRAGMAtable_info(\"s\".\"t\")",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT\"num\",\"ts\"FROM\"s\".\"t\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetch",
+    "SELECTcolumn_name,data_typeFROMinformation_schema.columnsWHEREtable_schema=$1ANDtable_name=$2",
+    [
+     "s",
+     "t"
+    ]
+   ],
+   [
+    "fetch",
+    "SELECT\"num\",\"ts\"FROM\"s\".\"t\"",
+    []
+   ]
+  ]
+ },
+ "select_dtypes_include": {
+  "clickhouse": [
+   [
+    "fetch",
+    "SELECTname,typeFROMsystem.columnsWHEREdatabase=$1ANDtable=$2",
+    [
+     "s",
+     "t"
+    ]
+   ],
+   [
+    "fetch",
+    "SELECT\"num\"FROM\"s\".\"t\"",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetch",
+    "PRAGMAtable_info(\"s\".\"t\")",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT\"num\"FROM\"s\".\"t\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetch",
+    "SELECTcolumn_name,data_typeFROMinformation_schema.columnsWHEREtable_schema=$1ANDtable_name=$2",
+    [
+     "s",
+     "t"
+    ]
+   ],
+   [
+    "fetch",
+    "SELECT\"num\"FROM\"s\".\"t\"",
+    []
+   ]
+  ]
+ },
+ "select_dtypes_list": {
+  "clickhouse": [
+   [
+    "fetch",
+    "SELECTname,typeFROMsystem.columnsWHEREdatabase=$1ANDtable=$2",
+    [
+     "s",
+     "t"
+    ]
+   ],
+   [
+    "fetch",
+    "SELECT\"num\",\"ts\"FROM\"s\".\"t\"",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetch",
+    "PRAGMAtable_info(\"s\".\"t\")",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT\"num\",\"ts\"FROM\"s\".\"t\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetch",
+    "SELECTcolumn_name,data_typeFROMinformation_schema.columnsWHEREtable_schema=$1ANDtable_name=$2",
+    [
+     "s",
+     "t"
+    ]
+   ],
+   [
+    "fetch",
+    "SELECT\"num\",\"ts\"FROM\"s\".\"t\"",
+    []
+   ]
+  ]
+ },
+ "select_dtypes_transient": {
+  "clickhouse": [
+   [
+    "fetch",
+    "SELECTname,typeFROMsystem.columnsWHEREdatabase=$1ANDtable=$2",
+    [
+     "s",
+     "t"
+    ]
+   ],
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_1\"ASSELECT\"num\"FROM\"s\".\"t\"",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT\"num\"FROM\"s\".\"t__op_1\"",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetch",
+    "PRAGMAtable_info(\"s\".\"t\")",
+    []
+   ],
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_1\"ASSELECT\"num\"FROM\"s\".\"t\"",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT\"num\"FROM\"s\".\"t__op_1\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetch",
+    "SELECTcolumn_name,data_typeFROMinformation_schema.columnsWHEREtable_schema=$1ANDtable_name=$2",
+    [
+     "s",
+     "t"
+    ]
+   ],
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_1\"ASSELECT\"num\"FROM\"s\".\"t\"",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT\"num\"FROM\"s\".\"t__op_1\"",
+    []
+   ]
+  ]
+ }
+}
