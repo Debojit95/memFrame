@@ -225,8 +225,12 @@ class AnalyticsAgent:
                         return self._refusal(prompt, verdict)
 
             # Planner: one structured-output model call
-            with _lf_span("planner.plan", prompt=prompt[:200]):
-                subquery_head = await self._planner_agent().plan_with_dependencies(prompt, base_ctx)
+            try:
+                with _lf_span("planner.plan", prompt=prompt[:200]):
+                    subquery_head = await self._planner_agent().plan_with_dependencies(prompt, base_ctx)
+            except Exception as exc:  # pragma: no cover — UnexpectedModelBehavior after retries
+                logger.warning("planner failed after retries/fallback: %s", exc)
+                subquery_head = None
 
             # Execute sub-queries. The session table stays pinned to the original
             # ctx table for the whole chat; dependent steps force-refresh the
