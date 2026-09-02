@@ -6,6 +6,24 @@ to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.1rc1] - 2026-09-02
+
+### Changed
+- **Sync API runs on one shared background event loop**: `async_to_sync` no longer spins a fresh `asyncio.run` per call — the asyncpg pool is no longer torn down/rebuilt on every sync call and the DuckDB connection is used from a single thread. Sync APIs called from a coroutine already running on the shared loop now raise a `RuntimeError` pointing at the async form.
+- **Dataset contexts snapshot the active `data_id` at creation**: a later `set_active()` no longer retargets an existing context mid-flight (upload/`aset_active` contexts already behaved this way).
+
+### Fixed
+- **SQL-injection hardening**: `fillna` constant fill values are escaped, the `iloc` raw-WHERE escape hatch rejects multi-statement strings, `map` placeholder substitution no longer corrupts function names, identifiers are quote-doubled everywhere, identifier validation rejects trailing newlines, agent credentials use `SecretStr`, and the dashboard guardrail page HTML-escapes model output.
+- **Postgres numeric-text casts**: the arithmetic text-cast hook emitted DuckDB-only `TRY_CAST` (syntax error on Postgres); emulated with a numeric-pattern CASE guard, junk text still becomes NULL.
+- **CSV typed-stream retries skip already-flushed rows** instead of re-inserting them (duplicated rows on mid-stream conversion failures).
+- **Stale agent context**: `domain_context` caches are cleared by `invalidate()`/`advance_table()` — the previous table's schema is no longer served after a table switch.
+- **Deep cache**: DataFrame/Series signatures include a content hash (same-shape frames can no longer collide into wrong cache hits).
+- **Plot fetches capped at 10k rows**; AI-plot PNG rendering runs off-loop with a timeout so a hung Chromium cannot freeze the event loop.
+
+### Internal
+- The four analytix packages (cleaning, arithmetic, selection, stats) are consolidated onto hook bases mirroring `inspection/` — 10.3k → 6.3k lines, with SQL-fingerprint regression harnesses (182 scenarios × 3 backends) proving per-backend SQL unchanged.
+- Ops integration assertions are order-insensitive (result samples come from unordered SELECTs; ClickHouse merges reorder rows under load).
+
 ## [0.3.0] - 2026-08-28
 
 ### Added
