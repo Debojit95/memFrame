@@ -26,6 +26,21 @@ mkdir -p "$COMMIT_CHECK_TMPDIR"
 
 find . \( -path "./src/*" -o -path "./tests/*" \) -name "__pycache__" -type d -exec rm -rf {} +
 
+# SKIP_INTEGRATION=1 runs a quick gate (duckdb-only, no tox) for test releases
+# where the full cross-backend suite has already been run manually.
+if [[ "${SKIP_INTEGRATION:-}" == "1" ]]; then
+  echo "==> SKIP_INTEGRATION=1: quick gate (duckdb only, no tox)"
+  uv run python tests/run_tests.py \
+    --backend duckdb \
+    --upload-type csv \
+    --require-upload-file
+  rc=$?
+  if [ $rc -ne 0 ]; then
+    echo "==> Commit checks FAILED (rc=$rc)" >&2
+  fi
+  exit $rc
+fi
+
 echo "==> Running commit checks via tests/run_tests.py"
 
 uv run python tests/run_tests.py \
