@@ -2,7 +2,6 @@ import logging
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
-import chardet
 import numpy as np
 import pyarrow as pa
 import pandas as pd
@@ -58,30 +57,18 @@ class DatatypeDetector:
     # ------------------------------------------------------------------
     #  Encoding detection (unchanged)
     # ------------------------------------------------------------------
+    # ponytail: stdlib only — chardet removed; validate by actually decoding
     def _detect_encoding(self, file_path: str) -> str:
-        try:
-            with open(file_path, "rb") as f:
-                raw = f.read(128 * 1024)
-                result = chardet.detect(raw)
-                enc = result.get("encoding")
-                if enc and result.get("confidence", 0) > 0.7:
-                    try:
-                        with open(file_path, "r", encoding=enc) as test:
-                            for _ in range(10):
-                                test.readline()
-                        return enc
-                    except UnicodeDecodeError:
-                        pass
-        except Exception:
-            pass
-
-        for enc in ["utf-8", "latin-1", "cp1252", "iso-8859-1", "utf-16"]:
+        for enc in ["utf-8", "utf-8-sig", "latin-1", "cp1252", "iso-8859-1", "utf-16"]:
             try:
+                with open(file_path, "rb") as fb:
+                    raw = fb.read(128 * 1024)
+                    raw.decode(enc)
                 with open(file_path, "r", encoding=enc) as f:
-                    for _ in range(100):
+                    for _ in range(10):
                         f.readline()
                 return enc
-            except UnicodeDecodeError:
+            except (UnicodeDecodeError, LookupError):
                 continue
         return "latin-1"
 

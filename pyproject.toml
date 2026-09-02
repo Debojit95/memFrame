@@ -20,11 +20,9 @@ classifiers = [
 ]
 dependencies = [
     "asyncpg>=0.30",
-    "chardet>=7.4.3",
     "clickhouse-connect>=1.4.2",
     "duckdb>=1.0.0",
     "httpx>=0.28.1",
-    "kaleido>=0.2.1",
     "pandas>=2.2,<3.0",
     "plotly>=6.9.0",
     "pyarrow>=24.0.0",

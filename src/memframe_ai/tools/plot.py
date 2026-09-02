@@ -125,8 +125,7 @@ def tools(session):
             }
 
         plot_id = uuid.uuid4().hex[:12]
-        # ponytail: PNG needs Chrome/kaleido; best-effort, spec renders client-side
-        # anyway. to_thread + timeout so a hung Chromium can't freeze the loop.
+        # ponytail: kaleido removed from core deps — PNG best-effort (install kaleido if needed); spec renders client-side anyway. to_thread + timeout so a hung Chromium can't freeze the loop.
         png = None
         try:
             png = await asyncio.wait_for(

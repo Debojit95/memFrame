@@ -102,11 +102,9 @@ class Uploader(DuckDBUploadImpl, PostgresUploadImpl, ClickHouseUploadImpl):
             except (UnicodeDecodeError, LookupError):
                 return False
 
-        # ascii is a strict subset of utf-8; chardet may call a file with a
-        # single non-ascii byte past its sample window "ascii" and pyarrow will
-        # then fail mid-file. Prefer utf-8 whenever it decodes.
+        # ponytail: chardet removed — stdlib only; ascii is subset of utf-8, prefer it.
         candidates = ["utf-8" if detected and detected.lower() == "ascii" else detected]
-        candidates += ["utf-8", "latin-1", "cp1252"]
+        candidates += ["utf-8", "utf-8-sig", "latin-1", "cp1252"]
         for enc in candidates:
             if enc and _validate(enc):
                 return enc
