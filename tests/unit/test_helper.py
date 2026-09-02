@@ -2,25 +2,10 @@ import pytest
 
 from memframe.exceptions import ConfigurationError
 from memframe.utils.helper import (
-    DB_TO_PANDAS_DTYPE_MAP,
     SQLIdentifierSanitizer,
     sanitize_sql_identifier,
     validate_sql_identifier,
 )
-
-
-class TestDBToPandasDtypeMap:
-    def test_common_types(self):
-        assert DB_TO_PANDAS_DTYPE_MAP["integer"] == "int32"
-        assert DB_TO_PANDAS_DTYPE_MAP["bigint"] == "int64"
-        assert DB_TO_PANDAS_DTYPE_MAP["double precision"] == "float64"
-        assert DB_TO_PANDAS_DTYPE_MAP["boolean"] == "bool"
-        assert DB_TO_PANDAS_DTYPE_MAP["text"] == "object"
-        assert DB_TO_PANDAS_DTYPE_MAP["date"] == "datetime64[ns]"
-
-    def test_case_sensitive_keys_are_lowercase(self):
-        assert "INTEGER" not in DB_TO_PANDAS_DTYPE_MAP
-        assert "integer" in DB_TO_PANDAS_DTYPE_MAP
 
 
 class TestSQLIdentifierSanitizer:

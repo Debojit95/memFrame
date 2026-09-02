@@ -1,5 +1,4 @@
 import re
-from typing import Dict
 
 from memframe.exceptions import ConfigurationError
 
@@ -72,86 +71,7 @@ _DATETIME_DIRECT_METHODS = {
         "normalize",
     }
 
-DB_TO_PANDAS_DTYPE_MAP: Dict[str, str] = {
-    # =========================
-    # INTEGERS
-    # =========================
-    "smallint": "int16",
-    "int2": "int16",
-
-    "integer": "int32",
-    "int": "int32",
-    "int4": "int32",
-
-    "bigint": "int64",
-    "int8": "int64",
-
-    # =========================
-    # FLOATING POINT
-    # =========================
-    "real": "float32",
-    "float4": "float32",
-
-    "double precision": "float64",
-    "float8": "float64",
-    "double": "float64",
-
-    "float": "float64",  # default
-
-    # =========================
-    # DECIMAL / NUMERIC
-    # =========================
-    "numeric": "float64",
-    "decimal": "float64",
-
-    # =========================
-    # BOOLEAN
-    # =========================
-    "boolean": "bool",
-    "bool": "bool",
-
-    # =========================
-    # STRING / TEXT
-    # =========================
-    "text": "object",
-    "varchar": "object",
-    "character varying": "object",
-    "char": "object",
-    "character": "object",
-    "string": "object",
-
-    # =========================
-    # DATE / TIME
-    # =========================
-    "date": "datetime64[ns]",
-    "timestamp": "datetime64[ns]",
-    "timestamp without time zone": "datetime64[ns]",
-    "timestamp with time zone": "datetime64[ns]",
-
-    "time": "object",  # pandas limitation
-
-    # =========================
-    # INTERVAL
-    # =========================
-    "interval": "timedelta64[ns]",
-
-    # =========================
-    # BINARY / BLOB
-    # =========================
-    "bytea": "object",
-    "blob": "object",
-
-    # =========================
-    # JSON
-    # =========================
-    "json": "object",
-    "jsonb": "object",
-
-    # =========================
-    # UUID
-    # =========================
-    "uuid": "object",
-}
+# ponytail: DB_TO_PANDAS_DTYPE_MAP removed — dead code, zero runtime consumers; stdlib: use pandas.api.types.pandas_dtype if needed
 
 class SQLIdentifierSanitizer:
     """
