@@ -5,6 +5,7 @@ from typing import Any, Optional
 from memframe.db_manager.adapters.base import DatabaseAdapter
 from memframe.wrappers.analytix.arithmetic import ArithmeticWrapper
 from memframe.wrappers.analytix.cleaning import CleaningWrapper
+from memframe.wrappers.analytix.datetime import DateTimeWrapper
 from memframe.wrappers.analytix.inspection import TableOpsWrapper
 from memframe.wrappers.analytix.selection import SelectionWrapper
 from memframe.wrappers.analytix.stats import StatsWrapper
@@ -32,6 +33,7 @@ class ContextManager(
     memframe: Any
     _data_id: Optional[str]
     _adapter: Optional[DatabaseAdapter]
+    dt: DateTimeWrapper
 
     def __init__(self, memframe_instance: Any, data_id: Optional[str] = None) -> None: ...
 

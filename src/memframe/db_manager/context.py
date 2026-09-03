@@ -1,7 +1,12 @@
+from __future__ import annotations
+
 import inspect
 import logging
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
 from functools import wraps
+
+if TYPE_CHECKING:
+    from memframe.wrappers.analytix.datetime import DateTimeWrapper
 
 from memframe.core.ingestion.datatype_detector import Backend
 from memframe.db_manager.adapters.base import DatabaseAdapter
@@ -76,7 +81,35 @@ class ContextManager:
             Scatter3DWrapper(self),
         ]
 
+    dt: "DateTimeWrapper"
+
+    @property
+    def dt(self) -> "DateTimeWrapper":
+        # ponytail: datetime is `ctx.dt.*` only (no flat `ctx.year`)
+        # — avoids `floor/ceil/round/add/sub` collision with ArithmeticWrapper.
+        if not hasattr(self, "_dt_wrapper"):
+            from memframe.wrappers.analytix.datetime import DateTimeWrapper
+
+            raw = DateTimeWrapper(self)
+
+            class _DTProxy:
+                def __init__(self, w):
+                    object.__setattr__(self, "_w", w)
+
+                def __getattr__(self, name):
+                    attr = getattr(self._w, name)
+                    return _public_result(attr) if callable(attr) else attr
+
+                def __dir__(self):
+                    return sorted(set(dir(self._w)))
+
+            self._dt_wrapper = _DTProxy(raw)
+        return self._dt_wrapper
+
     def __getattr__(self, name: str) -> Any:
+        # `dt` is a property, not a wrapper method
+        if name == "dt":
+            return object.__getattribute__(self, "dt")
         self._lazy_init_wrappers()
         for w in self._wrappers:
             if hasattr(w, name):
@@ -87,6 +120,7 @@ class ContextManager:
     def __dir__(self):
         self._lazy_init_wrappers()
         names = set(super().__dir__())
+        names.add("dt")
         for w in self._wrappers:
             names.update(w.__dir__())
         return sorted(names)
