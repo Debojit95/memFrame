@@ -13,7 +13,7 @@
    ],
    [
     "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_add\"=\"ts\"+INTERVAL1dayWHERE1",
+    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_add\"=\"ts\"+INTERVAL1dayWHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
@@ -81,7 +81,7 @@
    ],
    [
     "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_ceil_month\"=IF(\"ts\"=toStartOfMonth(\"ts\"),\"ts\",toStartOfMonth(\"ts\"+INTERVAL1MONTH))WHERE1",
+    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_ceil_month\"=IF(\"ts\"=toStartOfMonth(\"ts\"),\"ts\",toStartOfMonth(\"ts\"+INTERVAL1MONTH))WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
@@ -149,7 +149,7 @@
    ],
    [
     "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_days_in_month\"=toDayOfMonth(toLastDayOfMonth(\"ts\"))WHERE1",
+    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_days_in_month\"=toDayOfMonth(toLastDayOfMonth(\"ts\"))WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
@@ -217,7 +217,7 @@
    ],
    [
     "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_dayofweek\"=toDayOfWeek(\"ts\")WHERE1",
+    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_dayofweek\"=toDayOfWeek(\"ts\")%7WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
@@ -290,7 +290,7 @@
    ],
    [
     "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_month\"=toMonth(\"ts\")WHERE1",
+    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_month\"=toMonth(\"ts\")WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
@@ -358,7 +358,7 @@
    ],
    [
     "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_quarter\"=toQuarter(\"ts\")WHERE1",
+    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_quarter\"=toQuarter(\"ts\")WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
@@ -426,7 +426,7 @@
    ],
    [
     "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_year\"=toYear(\"ts\")WHERE1",
+    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_year\"=toYear(\"ts\")WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
@@ -494,7 +494,7 @@
    ],
    [
     "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_floor_day\"=toStartOfDay(\"ts\")WHERE1",
+    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_floor_day\"=toStartOfDay(\"ts\")WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
@@ -562,7 +562,7 @@
    ],
    [
     "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_is_month_end\"=toDayOfMonth(toLastDayOfMonth(\"ts\"))=toDayOfMonth(\"ts\")WHERE1",
+    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_is_month_end\"=toDayOfMonth(toLastDayOfMonth(\"ts\"))=toDayOfMonth(\"ts\")WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
@@ -630,7 +630,7 @@
    ],
    [
     "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_is_month_start\"=toDayOfMonth(\"ts\")=1WHERE1",
+    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_is_month_start\"=toDayOfMonth(\"ts\")=1WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
@@ -698,7 +698,7 @@
    ],
    [
     "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_is_quarter_start\"=toStartOfQuarter(\"ts\")=toStartOfDay(\"ts\")WHERE1",
+    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_is_quarter_start\"=toStartOfQuarter(\"ts\")=toStartOfDay(\"ts\")WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
@@ -766,7 +766,7 @@
    ],
    [
     "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_is_weekend\"=toDayOfWeek(\"ts\")IN(6,7)WHERE1",
+    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_is_weekend\"=toDayOfWeek(\"ts\")IN(6,7)WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
@@ -834,7 +834,7 @@
    ],
    [
     "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_is_year_end\"=toMonth(\"ts\")=12ANDtoDayOfMonth(\"ts\")=31WHERE1",
+    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_is_year_end\"=toMonth(\"ts\")=12ANDtoDayOfMonth(\"ts\")=31WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
@@ -902,7 +902,7 @@
    ],
    [
     "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_is_year_start\"=toMonth(\"ts\")=1ANDtoDayOfMonth(\"ts\")=1WHERE1",
+    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_is_year_start\"=toMonth(\"ts\")=1ANDtoDayOfMonth(\"ts\")=1WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
@@ -970,7 +970,7 @@
    ],
    [
     "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_normalize\"=toStartOfDay(\"ts\")WHERE1",
+    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_normalize\"=toStartOfDay(\"ts\")WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
@@ -1038,7 +1038,7 @@
    ],
    [
     "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_replace\"=makeDateTime(2000,toMonth(\"ts\"),toDayOfMonth(\"ts\"),toHour(\"ts\"),toMinute(\"ts\"),toSecond(\"ts\"))WHERE1",
+    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_replace\"=makeDateTime(2000,toMonth(\"ts\"),toDayOfMonth(\"ts\"),toHour(\"ts\"),toMinute(\"ts\"),toSecond(\"ts\"))WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
@@ -1060,7 +1060,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"dt_ts_replace\"=MAKE_TIMESTAMP(2000,EXTRACT(MONTHFROM\"ts\"),EXTRACT(DAYFROM\"ts\"),EXTRACT(HOURFROM\"ts\"),EXTRACT(MINUTEFROM\"ts\"),EXTRACT(SECONDFROM\"ts\"))",
+    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"dt_ts_replace\"=MAKE_TIMESTAMP(2000,EXTRACT(MONTHFROM\"ts\")::INTEGER,EXTRACT(DAYFROM\"ts\")::INTEGER,EXTRACT(HOURFROM\"ts\")::INTEGER,EXTRACT(MINUTEFROM\"ts\")::INTEGER,EXTRACT(SECONDFROM\"ts\")::INTEGER)",
     []
    ],
    [
@@ -1082,7 +1082,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"dt_ts_replace\"=MAKE_TIMESTAMP(2000,EXTRACT(MONTHFROM\"ts\"),EXTRACT(DAYFROM\"ts\"),EXTRACT(HOURFROM\"ts\"),EXTRACT(MINUTEFROM\"ts\"),EXTRACT(SECONDFROM\"ts\"))",
+    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"dt_ts_replace\"=MAKE_TIMESTAMP(2000,EXTRACT(MONTHFROM\"ts\")::INTEGER,EXTRACT(DAYFROM\"ts\")::INTEGER,EXTRACT(HOURFROM\"ts\")::INTEGER,EXTRACT(MINUTEFROM\"ts\")::INTEGER,EXTRACT(SECONDFROM\"ts\")::INTEGER)",
     []
    ],
    [
@@ -1106,7 +1106,7 @@
    ],
    [
     "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_round_hour\"=toStartOfHour(\"ts\"+INTERVAL30MINUTE)WHERE1",
+    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_round_hour\"=toStartOfHour(\"ts\"+INTERVAL30MINUTE)WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
@@ -1174,7 +1174,7 @@
    ],
    [
     "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_strftime\"=formatDateTime(\"ts\",'%Y-%m-%d')WHERE1",
+    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_strftime\"=formatDateTime(\"ts\",'%Y-%m-%d')WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
@@ -1242,7 +1242,7 @@
    ],
    [
     "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_s_strptime\"=parseDateTimeBestEffort(\"s\",'%Y-%m-%d')WHERE1",
+    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_s_strptime\"=parseDateTimeBestEffort(\"s\",'%Y-%m-%d')WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
@@ -1310,7 +1310,7 @@
    ],
    [
     "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_sub\"=\"ts\"-INTERVAL1hourWHERE1",
+    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_sub\"=\"ts\"-INTERVAL1hourWHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
@@ -1378,7 +1378,7 @@
    ],
    [
     "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_timestamp\"=toUnixTimestamp(\"ts\")WHERE1",
+    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_timestamp\"=toUnixTimestamp(\"ts\")WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
@@ -1446,7 +1446,7 @@
    ],
    [
     "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_tzconvert_UTC\"=toTimezone(toTimezone(\"ts\",'UTC'),'UTC')WHERE1",
+    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_tzconvert_UTC\"=CAST(toString(toTimezone(toTimezone(\"ts\",'UTC'),'UTC'))ASDateTime)WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
@@ -1514,7 +1514,7 @@
    ],
    [
     "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_tz_naive\"=toTimezone(\"ts\",'UTC')WHERE1",
+    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_tz_naive\"=toTimezone(\"ts\",'UTC')WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
@@ -1582,7 +1582,7 @@
    ],
    [
     "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_tz_UTC\"=toTimezone(\"ts\",'UTC')WHERE1",
+    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_tz_UTC\"=toTimezone(\"ts\",'UTC')WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
@@ -1650,7 +1650,7 @@
    ],
    [
     "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_week_of_month\"=toWeek(\"ts\")-toWeek(toStartOfMonth(\"ts\"))+1WHERE1",
+    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_week_of_month\"=toWeek(\"ts\")-toWeek(toStartOfMonth(\"ts\"))+1WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [

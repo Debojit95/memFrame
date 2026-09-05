@@ -241,7 +241,7 @@ class DatetimeOps:
                     "hour": "toHour", "minute": "toMinute", "second": "toSecond",
                     "dayofweek": "toDayOfWeek", "dow": "toDayOfWeek",
                     "dayofyear": "toDayOfYear", "doy": "toDayOfYear",
-                    "week": "toWeek", "weekofyear": "toWeek",
+                    "week": "toISOWeek", "weekofyear": "toISOWeek",
                     "quarter": "toQuarter"
                 }
                 working_table = await self._prepare_operation_table(
@@ -263,10 +263,17 @@ class DatetimeOps:
                 else:
                     base_expr = f'CAST("{safe_col}" AS DateTime)'
 
+                # ponytail: EXTRACT(DOW) on DuckDB/Postgres is 0=Sunday..6=Saturday;
+                # toDayOfWeek is 1=Monday..7=Sunday, so wrap with % 7 for parity.
+                if field in ("dayofweek", "dow"):
+                    value_expr = f"toDayOfWeek({base_expr}) % 7"
+                else:
+                    value_expr = f"{sql_func}({base_expr})"
+
                 await self._exec(f"""
-                    ALTER TABLE {qualified} 
-                    UPDATE "{safe_new}" = {sql_func}({base_expr}) 
-                    WHERE 1
+                    ALTER TABLE {qualified}
+                    UPDATE "{safe_new}" = {value_expr}
+                    WHERE 1 SETTINGS mutations_sync = 1
                 """)
 
                 sample = await self._fetch_sample(working_table, schema, columns=[safe_col, safe_new])
@@ -358,7 +365,7 @@ class DatetimeOps:
                         IF({base_expr} = {floor_fn}({base_expr}), 
                            {base_expr}, 
                            {floor_fn}({base_expr} + INTERVAL {interval}))
-                    WHERE 1
+                    WHERE 1 SETTINGS mutations_sync = 1
                 """)
 
                 sample = await self._fetch_sample(working_table, schema, columns=[safe_col, safe_new])
@@ -448,7 +455,7 @@ class DatetimeOps:
                 await self._exec(f"""
                     ALTER TABLE {qualified}
                     UPDATE "{safe_new}" = {floor_fn}({base_expr} + INTERVAL {half_interval})
-                    WHERE 1
+                    WHERE 1 SETTINGS mutations_sync = 1
                 """)
 
                 sample = await self._fetch_sample(working_table, schema, columns=[safe_col, safe_new])
@@ -518,7 +525,7 @@ class DatetimeOps:
                 await self._exec(f"""
                     ALTER TABLE {qualified}
                     UPDATE "{safe_new}" = {floor_fn}({base_expr})
-                    WHERE 1
+                    WHERE 1 SETTINGS mutations_sync = 1
                 """)
 
                 sample = await self._fetch_sample(working_table, schema, columns=[safe_col, safe_new])
@@ -601,14 +608,14 @@ class DatetimeOps:
                     await self._exec(f"""
                         ALTER TABLE {qualified}
                         UPDATE "{safe_new}" = toTimezone({base_expr}, 'UTC')
-                        WHERE 1
+                        WHERE 1 SETTINGS mutations_sync = 1
                     """)
                     msg = f"Removed timezone from '{column}' (Defaulted to UTC)"
                 else:
                     await self._exec(f"""
                         ALTER TABLE {qualified}
                         UPDATE "{safe_new}" = toTimezone({base_expr}, '{tz}')
-                        WHERE 1
+                        WHERE 1 SETTINGS mutations_sync = 1
                     """)
                     msg = f"Localized '{column}' to timezone '{tz}'"
 
@@ -636,12 +643,23 @@ class DatetimeOps:
                 safe_col = SQLIdentifierSanitizer.sanitize(column)
                 safe_new = SQLIdentifierSanitizer.sanitize(new_col)
 
+                # ponytail: tz-aware input (TIMESTAMPTZ) converts with a single
+                # AT TIME ZONE; the double conversion below is only for naive.
+                col_type = await self._get_column_type(working_table, schema, column)
+                is_aware = "timestamptz" in col_type.lower() or "with time zone" in col_type.lower()
+
                 if tz is None:
                     await self._exec(f"""
                         UPDATE {qualified}
                         SET "{safe_new}" = ("{safe_col}" AT TIME ZONE 'UTC')
                     """)
                     msg = f"Converted '{column}' to UTC and removed timezone"
+                elif is_aware:
+                    await self._exec(f"""
+                        UPDATE {qualified}
+                        SET "{safe_new}" = "{safe_col}" AT TIME ZONE '{tz}'
+                    """)
+                    msg = f"Converted '{column}' timezone to '{tz}'"
                 else:
                     await self._exec(f"""
                         UPDATE {qualified}
@@ -675,14 +693,17 @@ class DatetimeOps:
                     await self._exec(f"""
                         ALTER TABLE {qualified}
                         UPDATE "{safe_new}" = toTimezone({base_expr}, 'UTC')
-                        WHERE 1
+                        WHERE 1 SETTINGS mutations_sync = 1
                     """)
                     msg = f"Converted '{column}' to UTC and removed timezone"
                 else:
+                    # ponytail: materialize the target wall time as naive DateTime;
+                    # storing the tz-aware instant in a plain DateTime column would
+                    # re-render it in the server timezone instead.
                     await self._exec(f"""
                         ALTER TABLE {qualified}
-                        UPDATE "{safe_new}" = toTimezone(toTimezone({base_expr}, 'UTC'), '{tz}')
-                        WHERE 1
+                        UPDATE "{safe_new}" = CAST(toString(toTimezone(toTimezone({base_expr}, 'UTC'), '{tz}')) AS DateTime)
+                        WHERE 1 SETTINGS mutations_sync = 1
                     """)
                     msg = f"Converted '{column}' timezone to '{tz}'"
 
@@ -734,7 +755,7 @@ class DatetimeOps:
                 else:
                     base_expr = f'CAST("{c}" AS DateTime)'
 
-                await self._exec(f"""ALTER TABLE {q} UPDATE "{n}" = toDayOfMonth({base_expr}) = 1 WHERE 1""")
+                await self._exec(f"""ALTER TABLE {q} UPDATE "{n}" = toDayOfMonth({base_expr}) = 1 WHERE 1 SETTINGS mutations_sync = 1""")
                 sample = await self._fetch_sample(working_table, schema, [c, n])
                 return self._success_response("Computed is_month_start", [column], [new_col], sample,
                                             new_table=working_table)
@@ -788,7 +809,7 @@ class DatetimeOps:
                 await self._exec(f"""
                     ALTER TABLE {q}
                     UPDATE "{n}" = toDayOfMonth(toLastDayOfMonth({base_expr})) = toDayOfMonth({base_expr})
-                    WHERE 1
+                    WHERE 1 SETTINGS mutations_sync = 1
                 """)
                 sample = await self._fetch_sample(working_table, schema, [c, n])
                 return self._success_response("Computed is_month_end", [column], [new_col], sample,
@@ -843,7 +864,7 @@ class DatetimeOps:
                 await self._exec(f"""
                     ALTER TABLE {q}
                     UPDATE "{n}" = toMonth({base_expr}) = 1 AND toDayOfMonth({base_expr}) = 1
-                    WHERE 1
+                    WHERE 1 SETTINGS mutations_sync = 1
                 """)
                 sample = await self._fetch_sample(working_table, schema, [c, n])
                 return self._success_response("Computed is_year_start", [column], [new_col], sample,
@@ -898,7 +919,7 @@ class DatetimeOps:
                 await self._exec(f"""
                     ALTER TABLE {q}
                     UPDATE "{n}" = toMonth({base_expr}) = 12 AND toDayOfMonth({base_expr}) = 31
-                    WHERE 1
+                    WHERE 1 SETTINGS mutations_sync = 1
                 """)
                 sample = await self._fetch_sample(working_table, schema, [c, n])
                 return self._success_response("Computed is_year_end", [column], [new_col], sample,
@@ -952,7 +973,7 @@ class DatetimeOps:
                 await self._exec(f"""
                     ALTER TABLE {q}
                     UPDATE "{n}" = toStartOfQuarter({base_expr}) = toStartOfDay({base_expr})
-                    WHERE 1
+                    WHERE 1 SETTINGS mutations_sync = 1
                 """)
                 sample = await self._fetch_sample(working_table, schema, [c, n])
                 return self._success_response("Computed is_quarter_start", [column], [new_col], sample,
@@ -1007,7 +1028,7 @@ class DatetimeOps:
                 await self._exec(f"""
                     ALTER TABLE {q}
                     UPDATE "{n}" = toStartOfQuarter({base_expr} + INTERVAL 1 DAY) != toStartOfQuarter({base_expr})
-                    WHERE 1
+                    WHERE 1 SETTINGS mutations_sync = 1
                 """)
                 sample = await self._fetch_sample(working_table, schema, [c, n])
                 return self._success_response("Computed is_quarter_end", [column], [new_col], sample,
@@ -1060,7 +1081,7 @@ class DatetimeOps:
                 await self._exec(f"""
                     ALTER TABLE {q}
                     UPDATE "{n}" = toDayOfWeek({base_expr}) IN (6, 7)
-                    WHERE 1
+                    WHERE 1 SETTINGS mutations_sync = 1
                 """)
                 sample = await self._fetch_sample(working_table, schema, [c, n])
                 return self._success_response("Computed is_weekend", [column], [new_col], sample,
@@ -1113,7 +1134,7 @@ class DatetimeOps:
                 await self._exec(f"""
                     ALTER TABLE {q}
                     UPDATE "{n}" = toDayOfWeek({base_expr}) BETWEEN 1 AND 5
-                    WHERE 1
+                    WHERE 1 SETTINGS mutations_sync = 1
                 """)
                 sample = await self._fetch_sample(working_table, schema, [c, n])
                 return self._success_response("Computed is_weekday", [column], [new_col], sample,
@@ -1166,7 +1187,7 @@ class DatetimeOps:
                 await self._exec(f"""
                     ALTER TABLE {q}
                     UPDATE "{n}" = toDayOfWeek({base_expr}) BETWEEN 1 AND 5
-                    WHERE 1
+                    WHERE 1 SETTINGS mutations_sync = 1
                 """)
                 sample = await self._fetch_sample(working_table, schema, [c, n])
                 return self._success_response("Computed is_business_day", [column], [new_col], sample,
@@ -1220,7 +1241,7 @@ class DatetimeOps:
                 await self._exec(f"""
                     ALTER TABLE {q}
                     UPDATE "{n}" = toDayOfMonth(toLastDayOfMonth({base_expr}))
-                    WHERE 1
+                    WHERE 1 SETTINGS mutations_sync = 1
                 """)
                 sample = await self._fetch_sample(working_table, schema, [c, n])
                 return self._success_response("Computed days_in_month", [column], [new_col], sample,
@@ -1276,7 +1297,7 @@ class DatetimeOps:
                 await self._exec(f"""
                     ALTER TABLE {q}
                     UPDATE "{n}" = toWeek({base_expr}) - toWeek(toStartOfMonth({base_expr})) + 1
-                    WHERE 1
+                    WHERE 1 SETTINGS mutations_sync = 1
                 """)
                 sample = await self._fetch_sample(working_table, schema, [c, n])
                 return self._success_response("Computed week_of_month", [column], [new_col], sample,
@@ -1347,7 +1368,7 @@ class DatetimeOps:
                 await self._exec(f"""
                     ALTER TABLE {qualified}
                     UPDATE "{safe_new}" = {expr}
-                    WHERE 1
+                    WHERE 1 SETTINGS mutations_sync = 1
                 """)
 
                 cols = [column, new_col] if column else [new_col]
@@ -1412,7 +1433,7 @@ class DatetimeOps:
 
                 expr = f'toUnixTimestamp({base_expr})'
 
-                await self._exec(f"""ALTER TABLE {qualified} UPDATE "{safe_new}" = {expr} WHERE 1""")
+                await self._exec(f"""ALTER TABLE {qualified} UPDATE "{safe_new}" = {expr} WHERE 1 SETTINGS mutations_sync = 1""")
                 sample = await self._fetch_sample(working_table, schema, columns=[safe_col, safe_new])
                 return self._success_response(f"Converted '{column}' to POSIX timestamp",
                                             [column], [new_col], sample, new_table=working_table)
@@ -1475,7 +1496,7 @@ class DatetimeOps:
 
                 expr = f"formatDateTime({base_expr}, '{fmt}')"
 
-                await self._exec(f"""ALTER TABLE {qualified} UPDATE "{safe_new}" = {expr} WHERE 1""")
+                await self._exec(f"""ALTER TABLE {qualified} UPDATE "{safe_new}" = {expr} WHERE 1 SETTINGS mutations_sync = 1""")
                 sample = await self._fetch_sample(working_table, schema, [safe_col, safe_new])
                 return self._success_response(f"Formatted '{column}' using '{fmt}'",
                                             [column], [new_col], sample, format=fmt,
@@ -1527,7 +1548,7 @@ class DatetimeOps:
 
                 expr = f"parseDateTimeBestEffort(\"{safe_col}\", '{fmt}')"
 
-                await self._exec(f"""ALTER TABLE {qualified} UPDATE "{safe_new}" = {expr} WHERE 1""")
+                await self._exec(f"""ALTER TABLE {qualified} UPDATE "{safe_new}" = {expr} WHERE 1 SETTINGS mutations_sync = 1""")
                 sample = await self._fetch_sample(working_table, schema, [safe_col, safe_new])
                 return self._success_response(f"Parsed '{column}' using format '{fmt}'",
                                             [column], [new_col], sample, format=fmt,
@@ -1576,7 +1597,7 @@ class DatetimeOps:
                     base_expr = f'CAST("{c}" AS DateTime)'
 
                 ch_interval = interval.replace("'", "")
-                await self._exec(f"""ALTER TABLE {q} UPDATE "{n}" = {base_expr} + INTERVAL {ch_interval} WHERE 1""")
+                await self._exec(f"""ALTER TABLE {q} UPDATE "{n}" = {base_expr} + INTERVAL {ch_interval} WHERE 1 SETTINGS mutations_sync = 1""")
                 sample = await self._fetch_sample(working_table, schema, [c, n])
                 return self._success_response(f"Added interval '{interval}' to '{column}'",
                                             [column], [new_col], sample, interval=interval,
@@ -1625,7 +1646,7 @@ class DatetimeOps:
                     base_expr = f'CAST("{c}" AS DateTime)'
 
                 ch_interval = interval.replace("'", "")
-                await self._exec(f"""ALTER TABLE {q} UPDATE "{n}" = {base_expr} - INTERVAL {ch_interval} WHERE 1""")
+                await self._exec(f"""ALTER TABLE {q} UPDATE "{n}" = {base_expr} - INTERVAL {ch_interval} WHERE 1 SETTINGS mutations_sync = 1""")
                 sample = await self._fetch_sample(working_table, schema, [c, n])
                 return self._success_response(f"Subtracted interval '{interval}' from '{column}'",
                                             [column], [new_col], sample, interval=interval,
@@ -1656,7 +1677,9 @@ class DatetimeOps:
                 n = SQLIdentifierSanitizer.sanitize(new_col)
 
                 def part(field):
-                    return kwargs.get(field, f'EXTRACT({field.upper()} FROM "{c}")')
+                    # ponytail: EXTRACT returns NUMERIC on Postgres; cast so
+                    # MAKE_TIMESTAMP(int * 6) resolves on both backends.
+                    return kwargs.get(field, f'EXTRACT({field.upper()} FROM "{c}")::INTEGER')
 
                 expr = f"""
                     MAKE_TIMESTAMP(
@@ -1709,7 +1732,7 @@ class DatetimeOps:
                         {part("second")}
                     )
                 """
-                await self._exec(f"""ALTER TABLE {q} UPDATE "{n}" = {expr} WHERE 1""")
+                await self._exec(f"""ALTER TABLE {q} UPDATE "{n}" = {expr} WHERE 1 SETTINGS mutations_sync = 1""")
                 sample = await self._fetch_sample(working_table, schema, [c, n])
                 return self._success_response(f"Replaced fields in '{column}'",
                                             [column], [new_col], sample, replaced_fields=kwargs,
@@ -1756,7 +1779,7 @@ class DatetimeOps:
                 else:
                     base_expr = f'CAST("{c}" AS DateTime)'
 
-                await self._exec(f"""ALTER TABLE {q} UPDATE "{n}" = toStartOfDay({base_expr}) WHERE 1""")
+                await self._exec(f"""ALTER TABLE {q} UPDATE "{n}" = toStartOfDay({base_expr}) WHERE 1 SETTINGS mutations_sync = 1""")
                 sample = await self._fetch_sample(working_table, schema, [c, n])
                 return self._success_response(f"Normalized '{column}' to day",
                                             [column], [new_col], sample, new_table=working_table)
