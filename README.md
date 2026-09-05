@@ -7,7 +7,7 @@
 [![PyPI - Version](https://img.shields.io/pypi/v/memframe)](https://pypi.org/project/memframe/)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://github.com/Debojit95/memFrame/blob/main/pyproject.toml)
 [![CI](https://img.shields.io/github/actions/workflow/status/Debojit95/memFrame/ci.yml?label=ci)](https://github.com/Debojit95/memFrame/actions/workflows/ci.yml)
-[![Tox](https://img.shields.io/github/actions/workflow/status/Debojit95/memFrame/tox.yml?label=tox)](https://github.com/Debojit95/memFrame/actions/workflows/tox.yml)
+[![Tox](https://img.shields.io/github/actions/workflow/status/Debojit95/memFrame/ci.yml?label=tox)](https://github.com/Debojit95/memFrame/actions/workflows/ci.yml)
 [![License - AGPL-3.0](https://img.shields.io/github/license/Debojit95/memFrame)](https://github.com/Debojit95/memFrame/blob/main/LICENSE)
 [![PyPI - Downloads](https://img.shields.io/pypi/dm/memframe)](https://pypi.org/project/memframe/)
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1UtoPjzTmia4Cr6y2btDmV8mINgXaBPGP?usp=sharing)
