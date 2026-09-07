@@ -49,7 +49,7 @@ Every inspect operation has synchronous and asynchronous forms:
 | `rename(columns)` | `await arename(...)` | Rename columns |
 | `set_index(columns)` | `await aset_index(...)` | Add a primary-key index |
 | `update(on, other_table, other_schema="upload", overwrite=True, errors="ignore")` | `await aupdate(...)` | Update from another table |
-| `resample(time_column, rule, agg="COUNT", value_column=None, label="left", closed="left")` | `await aresample(...)` | Time-series aggregation |
+| `dt.resample(column, freq, ...)` | `await dt.aresample(...)` | Time-series aggregation — see [Datetime](datetime.md#resampling) |
 | `columns()` | `await acolumns()` | Column labels |
 | `dtypes()` | `await adtypes()` | Column database types |
 | `shape()` | `await ashape()` | Row and column count |
@@ -467,37 +467,21 @@ Parameters:
 | `overwrite` | `bool` | Whether matched values should overwrite existing values. |
 | `errors` | `str` | Error handling mode passed to the core update implementation. Defaults to `"ignore"`. |
 
-### `resample`
+### `resample` (moved)
 
-`resample` groups timestamp data into time buckets and applies an aggregate.
+`resample` moved to the datetime domain: `dataset.dt.resample(column, freq, ...)`
+with multi-aggregation and `group_by` support. The old flat call maps as
+`time_column → column`, `rule → freq`:
 
 ```python
-result = dataset.resample(
-    time_column="event_time",
-    rule="day",
-    agg="COUNT",
-)
+result = dataset.dt.resample("event_time", "D", agg="sum", value_columns="amount")
 ```
 
 ```python
-result = await dataset.aresample(
-    time_column="event_time",
-    rule="month",
-    agg="SUM",
-    value_column="amount",
-)
+result = await dataset.dt.aresample("event_time", "ME", agg={"amount": "sum"})
 ```
 
-Parameters:
-
-| Parameter | Type | Description |
-| --- | --- | --- |
-| `time_column` | `str` | Date/timestamp column used for bucketing. |
-| `rule` | `str` | Time bucket rule passed to the core SQL implementation. |
-| `agg` | `str` | Aggregate function. Defaults to `"COUNT"`. |
-| `value_column` | `str` or `None` | Column aggregated for value-based aggregates. |
-| `label` | `str` | Bucket labeling option. Defaults to `"left"`. |
-| `closed` | `str` | Bucket boundary option. Defaults to `"left"`. |
+See [Datetime → Resampling](datetime.md#resampling) for the full reference.
 
 ## Property Methods
 
@@ -589,7 +573,7 @@ Inspect methods raise `OperationError` for invalid input or backend failures.
   match the row count.
 - `map` raises an error when `func` is not a SQL expression string or when no
   selected columns are compatible with the expression.
-- `rename`, `set_index`, `update`, and `resample` can raise
+- `rename`, `set_index`, and `update` can raise
   backend SQL errors when identifiers or constraints are invalid.
 
 ## API Reference
@@ -625,8 +609,6 @@ Inspect methods raise `OperationError` for invalid input or backend failures.
         - set_index
         - aupdate
         - update
-        - aresample
-        - resample
         - acolumns
         - columns
         - adtypes
