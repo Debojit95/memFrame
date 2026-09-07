@@ -947,36 +947,8 @@ class TestInspectionOperations:
             backend=backend_config["connection_type"],
         )
 
-    # ----------------------------------------------------
-    # resample
-    # ----------------------------------------------------
-    
-    def test_resample(self, uploaded_ctx, sample_df, backend_config):
-        ts_data = pd.DataFrame({
-            "timestamp": pd.date_range("2025-01-01", periods=10, freq="12h"),
-            "value": np.random.rand(10),
-        })
-        memframe = uploaded_ctx.memframe
-        ts_ctx = memframe.upload_df(ts_data, filename="timeseries")
-        result = ts_ctx.resample(time_column="timestamp", rule="D", agg="SUM", value_column="value")
-        res_df = get_result_df(result)
-        expected = ts_data.set_index("timestamp").resample("D").sum().reset_index()
-        # Rename columns if needed
-        res_df = normalize_frame(res_df)
-        expected = normalize_frame(expected)
-        # ponytail: ClickHouse returns DATE_TRUNC buckets as strings via JSON
-        # (DuckDB/Postgres return native datetime). Normalize both sides to
-        # datetime — matches the pattern used in test_reset_index (line 933)
-        # for hire_date, but applied to the resample bucket column.
-        if "timestamp" in res_df.columns:
-            res_df["timestamp"] = pd.to_datetime(res_df["timestamp"])
-        pd.testing.assert_frame_equal(
-            res_df.sort_values("timestamp").reset_index(drop=True),
-            expected.sort_values("timestamp").reset_index(drop=True),
-            check_dtype=False,
-        )
-    
-    
+    # ponytail: resample moved to the datetime domain — see
+    # test_datetime.py::TestDateTimeOperations::test_resample (dt API).
     # ----------------------------------------------------
     # Property-like methods (non-DataFrame returns)
     # ----------------------------------------------------

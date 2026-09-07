@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 
 from memframe import MemFrame
+from memframe.exceptions import OperationError
 
 # ----------------------------------------------------------------------
 # Backend configuration – set environment variables for PostgreSQL
@@ -238,6 +239,15 @@ def sample_df() -> pd.DataFrame:
             "2022-03-31 23:59:59",
             "2023-04-15 00:00:00",
             "2024-05-20 06:15:30",
+        ]),
+        # ponytail: ts2 = ts + [5, 9, 30, 61, 92] days, so diff() oracles
+        # are exact integers on every backend.
+        "ts2": pd.to_datetime([
+            "2020-01-20 10:30:00",
+            "2021-03-09 12:00:00",
+            "2022-04-30 23:59:59",
+            "2023-06-15 00:00:00",
+            "2024-08-20 06:15:30",
         ]),
         "date_naive": pd.to_datetime([
             "2020-01-15", "2021-02-28", "2022-03-31", "2023-04-15", "2024-05-20"
@@ -1158,6 +1168,424 @@ class TestDateTimeOperations:
             pandas_df=expected,
             backend=backend_config["connection_type"],
         )
+
+    # ------------------------------------------------------------------
+    # Names
+    # ------------------------------------------------------------------
+    def test_day_name(self, uploaded_ctx, sample_df, backend_config):
+        result = uploaded_ctx.dt.day_name("ts")
+        res_df = get_result_df(result)
+        out_col = get_generated_col(result, "dt_ts_day_name")
+        expected = sample_df.copy()
+        expected["day_name"] = expected["ts"].dt.day_name()
+        assert_series_equal_loose(res_df[out_col], expected["day_name"])
+        self._record_result(
+            test_name="day_name",
+            method_call='uploaded_ctx.dt.day_name("ts")',
+            original_df=sample_df,
+            memframe_df=res_df,
+            pandas_df=expected,
+            backend=backend_config["connection_type"],
+        )
+
+    def test_month_name(self, uploaded_ctx, sample_df, backend_config):
+        result = uploaded_ctx.dt.month_name("ts")
+        res_df = get_result_df(result)
+        out_col = get_generated_col(result, "dt_ts_month_name")
+        expected = sample_df.copy()
+        expected["month_name"] = expected["ts"].dt.month_name()
+        assert_series_equal_loose(res_df[out_col], expected["month_name"])
+        self._record_result(
+            test_name="month_name",
+            method_call='uploaded_ctx.dt.month_name("ts")',
+            original_df=sample_df,
+            memframe_df=res_df,
+            pandas_df=expected,
+            backend=backend_config["connection_type"],
+        )
+
+    # ------------------------------------------------------------------
+    # Durations
+    # ------------------------------------------------------------------
+    def test_diff_days(self, uploaded_ctx, sample_df, backend_config):
+        result = uploaded_ctx.dt.diff("ts", "ts2")
+        res_df = get_result_df(result)
+        out_col = get_generated_col(result, "dt_ts_ts2_diff_day")
+        expected = sample_df.copy()
+        expected["diff"] = (expected["ts2"] - expected["ts"]).dt.total_seconds() / 86400
+        assert_series_equal_loose(res_df[out_col], expected["diff"])
+        self._record_result(
+            test_name="diff_days",
+            method_call='uploaded_ctx.dt.diff("ts", "ts2")',
+            original_df=sample_df,
+            memframe_df=res_df,
+            pandas_df=expected,
+            backend=backend_config["connection_type"],
+        )
+
+    def test_diff_hours_target_col(self, uploaded_ctx, sample_df, backend_config):
+        result = uploaded_ctx.dt.diff("ts", "ts2", unit="hour", target_col="gap_h")
+        res_df = get_result_df(result)
+        out_col = get_generated_col(result, "gap_h")
+        expected = sample_df.copy()
+        expected["gap_h"] = (expected["ts2"] - expected["ts"]).dt.total_seconds() / 3600
+        assert_series_equal_loose(res_df[out_col], expected["gap_h"])
+        self._record_result(
+            test_name="diff_hours_target_col",
+            method_call='uploaded_ctx.dt.diff("ts", "ts2", unit="hour", target_col="gap_h")',
+            original_df=sample_df,
+            memframe_df=res_df,
+            pandas_df=expected,
+            backend=backend_config["connection_type"],
+        )
+
+    # ------------------------------------------------------------------
+    # Parsing
+    # ------------------------------------------------------------------
+    def test_to_datetime(self, uploaded_ctx, sample_df, backend_config):
+        result = uploaded_ctx.dt.to_datetime("str_dt")
+        res_df = get_result_df(result)
+        out_col = get_generated_col(result, "dt_str_dt_todatetime")
+        expected = sample_df.copy()
+        expected["parsed"] = expected["ts"]
+        assert_series_equal_loose(res_df[out_col], expected["parsed"], as_datetime=True)
+        self._record_result(
+            test_name="to_datetime",
+            method_call='uploaded_ctx.dt.to_datetime("str_dt")',
+            original_df=sample_df,
+            memframe_df=res_df,
+            pandas_df=expected,
+            backend=backend_config["connection_type"],
+        )
+
+    def test_to_datetime_unit(self, uploaded_ctx, sample_df, backend_config):
+        result = uploaded_ctx.dt.to_datetime("unix_ts", unit="s")
+        res_df = get_result_df(result)
+        out_col = get_generated_col(result, "dt_unix_ts_todatetime")
+        expected = sample_df.copy()
+        expected["from_epoch"] = pd.to_datetime(expected["unix_ts"], unit="s")
+        assert_series_equal_loose(res_df[out_col], expected["from_epoch"], as_datetime=True)
+        self._record_result(
+            test_name="to_datetime_unit",
+            method_call='uploaded_ctx.dt.to_datetime("unix_ts", unit="s")',
+            original_df=sample_df,
+            memframe_df=res_df,
+            pandas_df=expected,
+            backend=backend_config["connection_type"],
+        )
+
+    def test_to_datetime_coerce(self, uploaded_ctx, sample_df, backend_config):
+        bad = pd.DataFrame({"s": ["2020-01-15", "not-a-date", "2024-05-20"]})
+        bad_ctx = uploaded_ctx.memframe.upload_df(bad, "bad_dates")
+        result = bad_ctx.dt.to_datetime("s", errors="coerce")
+        res_df = get_result_df(result)
+        out_col = get_generated_col(result, "dt_s_todatetime")
+        assert res_df[out_col].isna().sum() == 1
+        expected = bad.copy()
+        expected["parsed"] = pd.to_datetime(expected["s"], errors="coerce")
+        assert_series_equal_loose(
+            res_df[out_col].reset_index(drop=True),
+            expected["parsed"].reset_index(drop=True),
+            as_datetime=True,
+        )
+        self._record_result(
+            test_name="to_datetime_coerce",
+            method_call='to_datetime("s", errors="coerce")',
+            original_df=bad,
+            memframe_df=res_df,
+            pandas_df=expected,
+            backend=backend_config["connection_type"],
+        )
+
+    # ------------------------------------------------------------------
+    # Filtering
+    # ------------------------------------------------------------------
+    def test_between(self, uploaded_ctx, sample_df, backend_config):
+        result = uploaded_ctx.dt.between("ts", "2021-01-01", "2023-12-31")
+        res_df = get_result_df(result)
+        expected = sample_df[
+            (sample_df["ts"] >= "2021-01-01") & (sample_df["ts"] <= "2023-12-31")
+        ].reset_index(drop=True)
+        assert len(res_df) == len(expected) == 3
+        assert_series_equal_loose(
+            pd.to_datetime(res_df["ts"]).reset_index(drop=True),
+            expected["ts"].reset_index(drop=True),
+            as_datetime=True,
+        )
+        self._record_result(
+            test_name="between",
+            method_call='uploaded_ctx.dt.between("ts", "2021-01-01", "2023-12-31")',
+            original_df=sample_df,
+            memframe_df=res_df,
+            pandas_df=expected,
+            backend=backend_config["connection_type"],
+        )
+
+    def test_before(self, uploaded_ctx, sample_df, backend_config):
+        result = uploaded_ctx.dt.before("ts", "2021-01-01")
+        res_df = get_result_df(result)
+        assert len(res_df) == 1
+        assert_series_equal_loose(
+            pd.to_datetime(res_df["ts"]).reset_index(drop=True),
+            sample_df["ts"].iloc[[0]].reset_index(drop=True),
+            as_datetime=True,
+        )
+        self._record_result(
+            test_name="before",
+            method_call='uploaded_ctx.dt.before("ts", "2021-01-01")',
+            original_df=sample_df,
+            memframe_df=res_df,
+            pandas_df=sample_df.iloc[[0]],
+            backend=backend_config["connection_type"],
+        )
+
+    def test_after(self, uploaded_ctx, sample_df, backend_config):
+        result = uploaded_ctx.dt.after("ts", "2023-12-31")
+        res_df = get_result_df(result)
+        assert len(res_df) == 1
+        assert_series_equal_loose(
+            pd.to_datetime(res_df["ts"]).reset_index(drop=True),
+            sample_df["ts"].iloc[[4]].reset_index(drop=True),
+            as_datetime=True,
+        )
+        self._record_result(
+            test_name="after",
+            method_call='uploaded_ctx.dt.after("ts", "2023-12-31")',
+            original_df=sample_df,
+            memframe_df=res_df,
+            pandas_df=sample_df.iloc[[4]],
+            backend=backend_config["connection_type"],
+        )
+
+    def test_select_year(self, uploaded_ctx, sample_df, backend_config):
+        result = uploaded_ctx.dt.select_year("ts", [2020, 2024])
+        res_df = get_result_df(result)
+        assert len(res_df) == 2
+        assert set(pd.to_datetime(res_df["ts"]).dt.year.tolist()) == {2020, 2024}
+        self._record_result(
+            test_name="select_year",
+            method_call='uploaded_ctx.dt.select_year("ts", [2020, 2024])',
+            original_df=sample_df,
+            memframe_df=res_df,
+            pandas_df=sample_df.iloc[[0, 4]],
+            backend=backend_config["connection_type"],
+        )
+
+    def test_select_month(self, uploaded_ctx, sample_df, backend_config):
+        result = uploaded_ctx.dt.select_month("ts", [3])
+        res_df = get_result_df(result)
+        assert len(res_df) == 1
+        assert_series_equal_loose(
+            pd.to_datetime(res_df["ts"]).reset_index(drop=True),
+            sample_df["ts"].iloc[[2]].reset_index(drop=True),
+            as_datetime=True,
+        )
+        self._record_result(
+            test_name="select_month",
+            method_call='uploaded_ctx.dt.select_month("ts", [3])',
+            original_df=sample_df,
+            memframe_df=res_df,
+            pandas_df=sample_df.iloc[[2]],
+            backend=backend_config["connection_type"],
+        )
+
+    # ------------------------------------------------------------------
+    # Resampling (migrated from test_inspect.py, new dt API)
+    # ------------------------------------------------------------------
+    def test_resample(self, uploaded_ctx, sample_df, backend_config):
+        result = uploaded_ctx.dt.resample(
+            column="ts", freq="ME", agg="sum", value_columns="unix_ts"
+        )
+        res_df = get_result_df(result)
+        out_col = get_generated_col(result, "value")
+        assert out_col in res_df.columns
+        # ponytail: core buckets with DATE_TRUNC (month starts), while pandas
+        # ME labels month ends — hand-built expectations stay exact everywhere.
+        expected = pd.DataFrame(
+            {
+                "ts": pd.to_datetime(
+                    ["2020-01-01", "2021-02-01", "2022-03-01", "2023-04-01", "2024-05-01"]
+                ),
+                "value": sample_df["unix_ts"].tolist(),
+            }
+        )
+        res_df = normalize_frame(res_df)
+        expected = normalize_frame(expected)
+        # ponytail: ClickHouse returns DATE_TRUNC buckets as strings via JSON
+        # (DuckDB/Postgres return native datetime). Normalize both sides to
+        # datetime — same pattern as the old test_inspect resample test.
+        if "ts" in res_df.columns:
+            res_df["ts"] = pd.to_datetime(res_df["ts"])
+        pd.testing.assert_frame_equal(
+            res_df.sort_values("ts").reset_index(drop=True),
+            expected.sort_values("ts").reset_index(drop=True),
+            check_dtype=False,
+        )
+        self._record_result(
+            test_name="resample",
+            method_call='uploaded_ctx.dt.resample(column="ts", freq="ME", agg="sum", value_columns="unix_ts")',
+            original_df=sample_df,
+            memframe_df=res_df,
+            pandas_df=expected,
+            backend=backend_config["connection_type"],
+        )
+
+    def test_resample_count(self, uploaded_ctx, sample_df, backend_config):
+        result = uploaded_ctx.dt.resample(column="ts", freq="ME")
+        res_df = get_result_df(result)
+        out_col = get_generated_col(result, "value")
+        assert len(res_df) == 5
+        assert (res_df[out_col] == 1).all()
+        expected = sample_df.copy()
+        expected["value"] = 1
+        self._record_result(
+            test_name="resample_count",
+            method_call='uploaded_ctx.dt.resample(column="ts", freq="ME")',
+            original_df=sample_df,
+            memframe_df=res_df,
+            pandas_df=expected,
+            backend=backend_config["connection_type"],
+        )
+
+    def test_resample_multi_agg(self, uploaded_ctx, sample_df, backend_config):
+        result = uploaded_ctx.dt.resample(
+            column="ts", freq="YE", agg={"unix_ts": ["sum", "mean"]}
+        )
+        res_df = get_result_df(result)
+        assert set(res_df.columns) >= {"ts", "unix_ts_sum", "unix_ts_mean"}
+        assert_series_equal_loose(
+            res_df["unix_ts_sum"].reset_index(drop=True),
+            sample_df["unix_ts"].reset_index(drop=True),
+        )
+        assert_series_equal_loose(
+            res_df["unix_ts_mean"].reset_index(drop=True),
+            sample_df["unix_ts"].reset_index(drop=True),
+        )
+        expected = sample_df.copy()
+        expected["unix_ts_sum"] = expected["unix_ts"]
+        self._record_result(
+            test_name="resample_multi_agg",
+            method_call='uploaded_ctx.dt.resample(column="ts", freq="YE", agg={"unix_ts": ["sum", "mean"]})',
+            original_df=sample_df,
+            memframe_df=res_df,
+            pandas_df=expected,
+            backend=backend_config["connection_type"],
+        )
+
+    def test_resample_bad_freq(self, uploaded_ctx, sample_df, backend_config):
+        with pytest.raises(OperationError, match="Unsupported freq"):
+            uploaded_ctx.dt.resample(column="ts", freq="2h")
+
+    # ------------------------------------------------------------------
+    # Frequency conversion
+    # ------------------------------------------------------------------
+    def test_asfreq(self, uploaded_ctx, sample_df, backend_config):
+        result = uploaded_ctx.dt.asfreq(column="ts", freq="ME")
+        res_df = get_result_df(result)
+        expected_idx = pd.date_range("2020-01-01", "2024-05-01", freq="MS")
+        assert len(res_df) == len(expected_idx) == 53
+        assert_series_equal_loose(
+            pd.to_datetime(res_df["ts"]).reset_index(drop=True),
+            expected_idx.to_series().reset_index(drop=True),
+            as_datetime=True,
+        )
+        # ponytail: source rows survive on their buckets; gaps stay null.
+        jan2020 = res_df[pd.to_datetime(res_df["ts"]) == "2020-01-01"]
+        assert jan2020["unix_ts"].iloc[0] == pytest.approx(1579084200.0)
+        assert res_df["unix_ts"].isna().sum() == len(res_df) - 5
+        expected = sample_df.copy()
+        expected["grid"] = expected["ts"]
+        self._record_result(
+            test_name="asfreq",
+            method_call='uploaded_ctx.dt.asfreq(column="ts", freq="ME")',
+            original_df=sample_df,
+            memframe_df=res_df,
+            pandas_df=expected,
+            backend=backend_config["connection_type"],
+        )
+
+    def test_asfreq_ffill(self, uploaded_ctx, sample_df, backend_config):
+        result = uploaded_ctx.dt.asfreq(column="ts", freq="ME", method="ffill")
+        res_df = get_result_df(result)
+        assert len(res_df) == 53
+        assert res_df["unix_ts"].notna().all()
+        feb2020 = res_df[pd.to_datetime(res_df["ts"]) == "2020-02-01"]
+        assert feb2020["unix_ts"].iloc[0] == pytest.approx(1579084200.0)
+        expected = sample_df.copy()
+        expected["filled"] = expected["unix_ts"]
+        self._record_result(
+            test_name="asfreq_ffill",
+            method_call='uploaded_ctx.dt.asfreq(column="ts", freq="ME", method="ffill")',
+            original_df=sample_df,
+            memframe_df=res_df,
+            pandas_df=expected,
+            backend=backend_config["connection_type"],
+        )
+
+    def test_asfreq_bad_method(self, uploaded_ctx, sample_df, backend_config):
+        with pytest.raises(OperationError, match="method must be"):
+            uploaded_ctx.dt.asfreq(column="ts", freq="ME", method="spline")
+
+    # ------------------------------------------------------------------
+    # Calendar arithmetic
+    # ------------------------------------------------------------------
+    def test_add_offset_months(self, uploaded_ctx, sample_df, backend_config):
+        result = uploaded_ctx.dt.add_offset("ts", months=1)
+        res_df = get_result_df(result)
+        out_col = get_generated_col(result, "dt_ts_offset")
+        expected = sample_df.copy()
+        expected["shifted"] = expected["ts"] + pd.DateOffset(months=1)
+        assert_series_equal_loose(res_df[out_col], expected["shifted"], as_datetime=True)
+        self._record_result(
+            test_name="add_offset_months",
+            method_call='uploaded_ctx.dt.add_offset("ts", months=1)',
+            original_df=sample_df,
+            memframe_df=res_df,
+            pandas_df=expected,
+            backend=backend_config["connection_type"],
+        )
+
+    def test_add_offset_business_day(self, uploaded_ctx, sample_df, backend_config):
+        result = uploaded_ctx.dt.add_offset("ts", days=5, business_day=True)
+        res_df = get_result_df(result)
+        out_col = get_generated_col(result, "dt_ts_offset")
+        expected = sample_df.copy()
+        expected["shifted"] = expected["ts"] + pd.offsets.BusinessDay(5)
+        assert_series_equal_loose(res_df[out_col], expected["shifted"], as_datetime=True)
+        self._record_result(
+            test_name="add_offset_business_day",
+            method_call='uploaded_ctx.dt.add_offset("ts", days=5, business_day=True)',
+            original_df=sample_df,
+            memframe_df=res_df,
+            pandas_df=expected,
+            backend=backend_config["connection_type"],
+        )
+
+    def test_add_offset_combo_target_col(self, uploaded_ctx, sample_df, backend_config):
+        result = uploaded_ctx.dt.add_offset(
+            "ts", years=1, quarters=1, target_col="future"
+        )
+        res_df = get_result_df(result)
+        out_col = get_generated_col(result, "future")
+        expected = sample_df.copy()
+        expected["future"] = expected["ts"] + pd.DateOffset(years=1, months=3)
+        assert_series_equal_loose(res_df[out_col], expected["future"], as_datetime=True)
+        self._record_result(
+            test_name="add_offset_combo_target_col",
+            method_call='uploaded_ctx.dt.add_offset("ts", years=1, quarters=1, target_col="future")',
+            original_df=sample_df,
+            memframe_df=res_df,
+            pandas_df=expected,
+            backend=backend_config["connection_type"],
+        )
+
+    def test_add_offset_empty(self, uploaded_ctx, sample_df, backend_config):
+        with pytest.raises(OperationError, match="non-zero"):
+            uploaded_ctx.dt.add_offset("ts")
+
+    def test_add_offset_business_combo(self, uploaded_ctx, sample_df, backend_config):
+        with pytest.raises(OperationError, match="only combine"):
+            uploaded_ctx.dt.add_offset("ts", months=1, days=1, business_day=True)
 
     # ------------------------------------------------------------------
     # Mutation safety and chaining
