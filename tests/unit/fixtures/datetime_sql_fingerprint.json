@@ -266,7 +266,7 @@
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECTg.bucketAS\"ts\",(SELECTt2.\"s\"FROM\"s\".\"t\"t2WHEREDATE_TRUNC('day',t2.\"ts\")<=g.bucketANDt2.\"s\"ISNOTNULLORDERBYDATE_TRUNC('day',t2.\"ts\")DESCLIMIT1)AS\"s\",(SELECTt2.\"val\"FROM\"s\".\"t\"t2WHEREDATE_TRUNC('day',t2.\"ts\")<=g.bucketANDt2.\"val\"ISNOTNULLORDERBYDATE_TRUNC('day',t2.\"ts\")DESCLIMIT1)AS\"val\"FROM(SELECTUNNEST(generate_series(DATE_TRUNC('day',CAST('2023-01-0100:00:00'ASTIMESTAMP)),CAST('2023-01-0600:00:00'ASTIMESTAMP),INTERVAL'1day'))ASbucket)gLEFTJOIN\"s\".\"t\"sONDATE_TRUNC('day',s.\"ts\")=g.bucketORDERBYbucket",
+    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECTg.bucketAS\"ts\",(SELECTt2.\"s\"FROM\"s\".\"t\"t2WHEREDATE_TRUNC('day',t2.\"ts\")<=g.bucketANDt2.\"s\"ISNOTNULLORDERBYDATE_TRUNC('day',t2.\"ts\")DESCLIMIT1)AS\"s\",(SELECTt2.\"val\"FROM\"s\".\"t\"t2WHEREDATE_TRUNC('day',t2.\"ts\")<=g.bucketANDt2.\"val\"ISNOTNULLORDERBYDATE_TRUNC('day',t2.\"ts\")DESCLIMIT1)AS\"val\"FROM(SELECTgenerate_series(DATE_TRUNC('day',CAST('2023-01-0100:00:00'ASTIMESTAMP)),CAST('2023-01-0600:00:00'ASTIMESTAMP),INTERVAL'1day')ASbucket)gLEFTJOIN\"s\".\"t\"sONDATE_TRUNC('day',s.\"ts\")=g.bucketORDERBYbucket",
     []
    ],
    [
@@ -339,7 +339,7 @@
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECTg.bucketAS\"ts\",s.\"s\",s.\"val\"FROM(SELECTUNNEST(generate_series(DATE_TRUNC('day',CAST('2023-01-0100:00:00'ASTIMESTAMP)),CAST('2023-01-0600:00:00'ASTIMESTAMP),INTERVAL'1day'))ASbucket)gLEFTJOIN\"s\".\"t\"sONDATE_TRUNC('day',s.\"ts\")=g.bucketORDERBYbucket",
+    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECTg.bucketAS\"ts\",s.\"s\",s.\"val\"FROM(SELECTgenerate_series(DATE_TRUNC('day',CAST('2023-01-0100:00:00'ASTIMESTAMP)),CAST('2023-01-0600:00:00'ASTIMESTAMP),INTERVAL'1day')ASbucket)gLEFTJOIN\"s\".\"t\"sONDATE_TRUNC('day',s.\"ts\")=g.bucketORDERBYbucket",
     []
    ],
    [
@@ -1768,25 +1768,48 @@
    ]
   ]
  },
- "resample_multi": {
+ "resample_median": {
   "clickhouse": [
    [
     "fetch",
-    "SELECTDATE_TRUNC('month',\"ts\")ASbucket,SUM(\"val\")AS\"val_sum\",MEAN(\"val\")AS\"val_mean\"FROM`s`.`t`GROUPBYbucketORDERBYbucket",
+    "SELECTDATE_TRUNC('month',\"ts\")ASbucket,MEDIAN(\"val\")AS\"value\"FROM`s`.`t`GROUPBYbucketORDERBYbucket",
     []
    ]
   ],
   "duckdb": [
    [
     "fetch",
-    "SELECTDATE_TRUNC('month',\"ts\")ASbucket,SUM(\"val\")AS\"val_sum\",MEAN(\"val\")AS\"val_mean\"FROM\"s\".\"t\"GROUPBYbucketORDERBYbucket",
+    "SELECTDATE_TRUNC('month',\"ts\")ASbucket,MEDIAN(\"val\")AS\"value\"FROM\"s\".\"t\"GROUPBYbucketORDERBYbucket",
     []
    ]
   ],
   "postgres": [
    [
     "fetch",
-    "SELECTDATE_TRUNC('month',\"ts\")ASbucket,SUM(\"val\")AS\"val_sum\",MEAN(\"val\")AS\"val_mean\"FROM\"s\".\"t\"GROUPBYbucketORDERBYbucket",
+    "SELECTDATE_TRUNC('month',\"ts\")ASbucket,percentile_cont(0.5)WITHINGROUP(ORDERBY\"val\")AS\"value\"FROM\"s\".\"t\"GROUPBYbucketORDERBYbucket",
+    []
+   ]
+  ]
+ },
+ "resample_multi": {
+  "clickhouse": [
+   [
+    "fetch",
+    "SELECTDATE_TRUNC('month',\"ts\")ASbucket,SUM(\"val\")AS\"val_sum\",AVG(\"val\")AS\"val_mean\"FROM`s`.`t`GROUPBYbucketORDERBYbucket",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetch",
+    "SELECTDATE_TRUNC('month',\"ts\")ASbucket,SUM(\"val\")AS\"val_sum\",AVG(\"val\")AS\"val_mean\"FROM\"s\".\"t\"GROUPBYbucketORDERBYbucket",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetch",
+    "SELECTDATE_TRUNC('month',\"ts\")ASbucket,SUM(\"val\")AS\"val_sum\",AVG(\"val\")AS\"val_mean\"FROM\"s\".\"t\"GROUPBYbucketORDERBYbucket",
     []
    ]
   ]

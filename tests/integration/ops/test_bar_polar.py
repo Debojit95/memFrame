@@ -285,7 +285,8 @@ def render_fig_to_pdf_page(
     status="PASSED",
     error_message="",
 ):
-    if bar_fig is not None:
+    # ponytail: ctx.*plot returns plotly Figures (no suptitle); placeholder page instead.
+    if bar_fig is not None and hasattr(bar_fig, "suptitle"):
         bar_fig.suptitle(
             f"{title}  [{backend}]  {status}\nCall: {method_call}",
             fontsize=12,
@@ -305,7 +306,7 @@ def render_fig_to_pdf_page(
         fig.text(0.01, 0.9, f"Call: {method_call}", fontsize=10, family="monospace")
         if error_message:
             fig.text(0.01, 0.85, f"Failure: {error_message}", fontsize=9, color="crimson")
-        fig.text(0.5, 0.5, "No figure generated", ha="center", va="center", fontsize=14)
+        fig.text(0.5, 0.5, "No figure generated" if bar_fig is None else "Figure type not embeddable in PDF", ha="center", va="center", fontsize=14)
         pdf.savefig(fig)
         plt.close(fig)
 

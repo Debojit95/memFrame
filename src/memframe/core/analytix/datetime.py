@@ -2486,12 +2486,20 @@ class DatetimeOps:
             select_items += [f'"{g}"' for g in groups]
             for out_name, func, col in specs:
                 safe_out = SQLIdentifierSanitizer.sanitize(out_name)
+                qcol = SQLIdentifierSanitizer.sanitize(col) if col is not None else None
                 if func == "count" and col is None:
                     select_items.append(f"COUNT(*) AS \"{safe_out}\"")
                 elif func == "count":
-                    select_items.append(f'COUNT("{SQLIdentifierSanitizer.sanitize(col)}") AS "{safe_out}"')
+                    select_items.append(f'COUNT("{qcol}") AS "{safe_out}"')
+                elif func == "mean":
+                    # ponytail: MEAN() only exists on DuckDB; AVG is identical everywhere.
+                    select_items.append(f'AVG("{qcol}") AS "{safe_out}"')
+                elif func == "median" and isinstance(self.db, PostgresAdapter):
+                    # ponytail: Postgres has no MEDIAN() aggregate.
+                    select_items.append(
+                        f"percentile_cont(0.5) WITHIN GROUP (ORDER BY \"{qcol}\") AS \"{safe_out}\"")
                 else:
-                    select_items.append(f'{func.upper()}("{SQLIdentifierSanitizer.sanitize(col)}") AS "{safe_out}"')
+                    select_items.append(f'{func.upper()}("{qcol}") AS "{safe_out}"')
             group_items = ["bucket"] + [f'"{g}"' for g in groups]
 
             query = f"""
@@ -2568,9 +2576,16 @@ class DatetimeOps:
                     return self._error_response(f"asfreq grid would hold {n} buckets (cap 100000)", [column], [])
                 grid = f"(SELECT dateAdd('{unit}', number, {grid_start}) AS bucket FROM numbers({n}))"
                 bucket_match = f"DATE_TRUNC('{unit}', s.\"{safe_col}\") = g.bucket"
+            elif isinstance(self.db, PostgresAdapter):
+                # ponytail: Postgres generate_series is set-returning natively;
+                # UNNEST() takes arrays only, so the bare form lives here.
+                # Grid starts at the truncated min so buckets align to midnights.
+                grid = (
+                    f"(SELECT generate_series(DATE_TRUNC('{unit}', CAST({self._dt_literal(lo_s)} AS TIMESTAMP)), "
+                    f"CAST({self._dt_literal(hi_s)} AS TIMESTAMP), INTERVAL '1 {unit}') AS bucket)")
+                bucket_match = f"DATE_TRUNC('{unit}', s.\"{safe_col}\") = g.bucket"
             else:
-                # ponytail: UNNEST form works on both (DuckDB's generate_series
-                # returns a list; Postgres accepts UNNEST over its set too).
+                # ponytail: DuckDB's generate_series returns a list, hence UNNEST.
                 # Grid starts at the truncated min so buckets align to midnights.
                 grid = (
                     f"(SELECT UNNEST(generate_series(DATE_TRUNC('{unit}', CAST({self._dt_literal(lo_s)} AS TIMESTAMP)), "

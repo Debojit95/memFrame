@@ -122,6 +122,7 @@ SCENARIOS = {
     "resample_count": lambda ops: ops.resample("t", "s", "ts", "D"),
     "resample_sum": lambda ops: ops.resample("t", "s", "ts", "D", agg="sum", value_columns="val"),
     "resample_multi": lambda ops: ops.resample("t", "s", "ts", "ME", agg=["sum", "mean"], value_columns="val"),
+    "resample_median": lambda ops: ops.resample("t", "s", "ts", "ME", agg="median", value_columns="val"),
     "resample_group": lambda ops: ops.resample("t", "s", "ts", "ME", agg={"val": "sum"}, group_by=["s"]),
     "asfreq_plain": lambda ops: ops.asfreq("t", "s", "ts", "D"),
     "asfreq_ffill": lambda ops: ops.asfreq("t", "s", "ts", "D", method="ffill"),
