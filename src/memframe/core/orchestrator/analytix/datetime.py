@@ -1,7 +1,31 @@
-from typing import Any, Dict
+from typing import Any, Dict, List, Union
+
+import pandas as pd
 
 from memframe.core.analytix.datetime import DatetimeOps
+from memframe.core.analytix._response import fail
 from memframe.cache import record_call
+
+
+def _coerce_datetime_literal(value: Any, name: str) -> Union[str, Dict[str, Any]]:
+    # ponytail: fail fast on unparseable bounds so no raw string reaches SQL.
+    try:
+        parsed = pd.to_datetime(value)
+    except (TypeError, ValueError, OverflowError):
+        return fail(f"{name} must be a datetime-like value, got {value!r}")
+    if pd.isna(parsed):
+        return fail(f"{name} must be a datetime-like value, got {value!r}")
+    return parsed.strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _coerce_int_list(values: Any, name: str) -> Union[List[int], Dict[str, Any]]:
+    items = values if isinstance(values, (list, tuple)) else [values]
+    if not items:
+        return fail(f"{name} must be a non-empty int or list of ints")
+    try:
+        return [int(v) for v in items]
+    except (TypeError, ValueError):
+        return fail(f"{name} must be ints, got {values!r}")
 
 
 class DateTimeOrchestrator:
@@ -240,7 +264,88 @@ class DateTimeOrchestrator:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
         return await ops.normalize(table, schema, column)
-    
-    
-    
+
+    # ── Wave 1: names, durations, parsing, filtering ──────────────
+    @record_call
+    async def day_name(self, column: str) -> Dict[str, Any]:
+        ops = await self._ensure_ops()
+        table, schema = await self._get_context()
+        return await ops.day_name(table, schema, column)
+
+    @record_call
+    async def month_name(self, column: str) -> Dict[str, Any]:
+        ops = await self._ensure_ops()
+        table, schema = await self._get_context()
+        return await ops.month_name(table, schema, column)
+
+    @record_call
+    async def diff(self, col1: str, col2: str, unit: str = "day",
+                   target_col: str = None) -> Dict[str, Any]:
+        ops = await self._ensure_ops()
+        table, schema = await self._get_context()
+        return await ops.diff(table, schema, col1, col2, unit,
+                              target_col=target_col)
+
+    @record_call
+    async def to_datetime(self, column: str, format: str = None,
+                          errors: str = "raise", unit: str = None,
+                          tz: str = None) -> Dict[str, Any]:
+        ops = await self._ensure_ops()
+        table, schema = await self._get_context()
+        return await ops.to_datetime(table, schema, column, format,
+                                     errors, unit, tz)
+
+    @record_call
+    async def between(self, column: str, start: str, end: str) -> Dict[str, Any]:
+        ops = await self._ensure_ops()
+        table, schema = await self._get_context()
+        start_norm = _coerce_datetime_literal(start, "start")
+        if isinstance(start_norm, dict):
+            return start_norm
+        end_norm = _coerce_datetime_literal(end, "end")
+        if isinstance(end_norm, dict):
+            return end_norm
+        return await ops.between(table, schema, column, start_norm, end_norm)
+
+    @record_call
+    async def before(self, column: str, value: str) -> Dict[str, Any]:
+        ops = await self._ensure_ops()
+        table, schema = await self._get_context()
+        norm = _coerce_datetime_literal(value, "value")
+        if isinstance(norm, dict):
+            return norm
+        return await ops.before(table, schema, column, norm)
+
+    @record_call
+    async def after(self, column: str, value: str) -> Dict[str, Any]:
+        ops = await self._ensure_ops()
+        table, schema = await self._get_context()
+        norm = _coerce_datetime_literal(value, "value")
+        if isinstance(norm, dict):
+            return norm
+        return await ops.after(table, schema, column, norm)
+
+    @record_call
+    async def select_year(self, column: str, values: Any) -> Dict[str, Any]:
+        ops = await self._ensure_ops()
+        table, schema = await self._get_context()
+        coerced = _coerce_int_list(values, "values")
+        if isinstance(coerced, dict):
+            return coerced
+        return await ops.select_year(table, schema, column, coerced)
+
+    @record_call
+    async def select_month(self, column: str, values: Any) -> Dict[str, Any]:
+        ops = await self._ensure_ops()
+        table, schema = await self._get_context()
+        coerced = _coerce_int_list(values, "values")
+        if isinstance(coerced, dict):
+            return coerced
+        for month in coerced:
+            if month < 1 or month > 12:
+                return fail(f"months must be 1..12, got {values!r}")
+        return await ops.select_month(table, schema, column, coerced)
+
+
+
 DateTimeAccessor = DateTimeOrchestrator

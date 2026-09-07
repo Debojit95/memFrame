@@ -392,3 +392,113 @@ class DateTimeWrapper(DateTimeOrchestrator):
     async def normalize(self, column: str):
         """Synchronously normalize datetimes to midnight."""
         return await self.anormalize(column)
+
+    # ------------------------------------------------------------------
+    # Wave 1: names, durations, parsing, filtering
+    # ------------------------------------------------------------------
+    async def aday_name(self, column: str) -> Dict[str, Any]:
+        """Asynchronously extract weekday names from a datetime column."""
+        return await super().day_name(column)
+
+    @async_to_sync
+    async def day_name(self, column: str) -> Dict[str, Any]:
+        """Synchronously extract weekday names from a datetime column."""
+        return await self.aday_name(column)
+
+    async def amonth_name(self, column: str) -> Dict[str, Any]:
+        """Asynchronously extract month names from a datetime column."""
+        return await super().month_name(column)
+
+    @async_to_sync
+    async def month_name(self, column: str) -> Dict[str, Any]:
+        """Synchronously extract month names from a datetime column."""
+        return await self.amonth_name(column)
+
+    async def adiff(
+        self,
+        col1: str,
+        col2: str,
+        unit: str = "day",
+        target_col: str = None,
+    ) -> Dict[str, Any]:
+        """Asynchronously compute col2 - col1 in the given unit."""
+        return await super().diff(col1, col2, unit, target_col)
+
+    @async_to_sync
+    async def diff(
+        self,
+        col1: str,
+        col2: str,
+        unit: str = "day",
+        target_col: str = None,
+    ) -> Dict[str, Any]:
+        """Synchronously compute col2 - col1 in the given unit."""
+        return await self.adiff(col1, col2, unit, target_col)
+
+    async def ato_datetime(
+        self,
+        column: str,
+        format: str = None,
+        errors: str = "raise",
+        unit: str = None,
+        tz: str = None,
+    ) -> Dict[str, Any]:
+        """Asynchronously convert a column to datetime."""
+        return await super().to_datetime(column, format, errors, unit, tz)
+
+    @async_to_sync
+    async def to_datetime(
+        self,
+        column: str,
+        format: str = None,
+        errors: str = "raise",
+        unit: str = None,
+        tz: str = None,
+    ) -> Dict[str, Any]:
+        """Synchronously convert a column to datetime."""
+        return await self.ato_datetime(column, format, errors, unit, tz)
+
+    async def abetween(self, column: str, start: str, end: str) -> Dict[str, Any]:
+        """Asynchronously filter rows to a datetime range (inclusive)."""
+        return await super().between(column, start, end)
+
+    @async_to_sync
+    async def between(self, column: str, start: str, end: str) -> Dict[str, Any]:
+        """Synchronously filter rows to a datetime range (inclusive)."""
+        return await self.abetween(column, start, end)
+
+    async def abefore(self, column: str, value: str) -> Dict[str, Any]:
+        """Asynchronously keep rows with datetime strictly before value."""
+        return await super().before(column, value)
+
+    @async_to_sync
+    async def before(self, column: str, value: str) -> Dict[str, Any]:
+        """Synchronously keep rows with datetime strictly before value."""
+        return await self.abefore(column, value)
+
+    async def aafter(self, column: str, value: str) -> Dict[str, Any]:
+        """Asynchronously keep rows with datetime strictly after value."""
+        return await super().after(column, value)
+
+    @async_to_sync
+    async def after(self, column: str, value: str) -> Dict[str, Any]:
+        """Synchronously keep rows with datetime strictly after value."""
+        return await self.aafter(column, value)
+
+    async def aselect_year(self, column: str, values: Any) -> Dict[str, Any]:
+        """Asynchronously keep rows whose year is in values."""
+        return await super().select_year(column, values)
+
+    @async_to_sync
+    async def select_year(self, column: str, values: Any) -> Dict[str, Any]:
+        """Synchronously keep rows whose year is in values."""
+        return await self.aselect_year(column, values)
+
+    async def aselect_month(self, column: str, values: Any) -> Dict[str, Any]:
+        """Asynchronously keep rows whose month is in values."""
+        return await super().select_month(column, values)
+
+    @async_to_sync
+    async def select_month(self, column: str, values: Any) -> Dict[str, Any]:
+        """Synchronously keep rows whose month is in values."""
+        return await self.aselect_month(column, values)

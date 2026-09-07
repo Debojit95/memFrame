@@ -193,12 +193,51 @@ class DatetimeOps:
             "error_message": error_message,
             "involved_cols": involved_cols or [],
             "generated_cols": generated_cols or [],
+            # ponytail: "result" key keeps is_operation_response() true so the
+            # ContextManager proxy raises OperationError instead of leaking dicts.
+            "result": None,
         }
 
     def _unsupported_backend_error(self) -> NotImplementedError:
         return NotImplementedError(
             f"Unsupported database backend for datetime operation: {self.db.__class__.__name__}"
         )
+
+    @staticmethod
+    def _dt_literal(value: str) -> str:
+        # ponytail: orchestrator pre-validates datetime strings; escape quotes only.
+        return "'" + str(value).replace("'", "''") + "'"
+
+    async def _datetime_base_expr(self, working_table: str, schema: str, column: str) -> str:
+        """ClickHouse base expression: raw col if date-like else CAST to DateTime."""
+        safe_col = SQLIdentifierSanitizer.sanitize(column)
+        col_type = await self._get_column_type(working_table, schema, column)
+        if "timestamp" in col_type.lower() or "date" in col_type.lower() or "datetime" in col_type.lower():
+            return f'"{safe_col}"'
+        return f'CAST("{safe_col}" AS DateTime)'
+
+    async def _prepare_filtered_table(
+        self,
+        table: str,
+        schema: str,
+        where: str,
+        backend=None,
+        data_id: Optional[str] = None,
+        new_table: Optional[str] = None,
+    ) -> str:
+        safe_schema = SQLIdentifierSanitizer.sanitize(schema)
+        source_table = SQLIdentifierSanitizer.sanitize(table)
+        output_table = await self._resolve_output_table_name(
+            source_table,
+            safe_schema,
+            backend=backend,
+            data_id=data_id,
+            new_table=new_table,
+        )
+        qualified_source = self._qualified_table(source_table, safe_schema)
+        qualified_target = f'{self.db.quote_identifier(safe_schema)}.{self.db.quote_identifier(output_table)}'
+        await self._exec(f"CREATE TABLE {qualified_target} AS SELECT * FROM {qualified_source} WHERE {where}")
+        return output_table
 
     # ==================================================================
     #  DATETIME EXTRACTORS
@@ -1308,6 +1347,286 @@ class DatetimeOps:
         except Exception as e:
             return self._error_response(str(e), [column])
 
+    # ==================================================================
+    #  WAVE 1 — names, durations, parsing, filtering
+    # ==================================================================
+    async def day_name(self, table: str, schema: str, column: str,
+                       backend=None, data_id=None, new_table=None) -> Dict[str, Any]:
+        try:
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+                working_table = await self._prepare_operation_table(
+                    table, schema, backend=backend, data_id=data_id, new_table=new_table
+                )
+                new_col = self._generate_cleaned_column_name(column, "day_name")
+                await self._add_new_column(working_table, schema, new_col, "TEXT")
+
+                qualified = self._qualified_table(working_table, schema)
+                safe_col = SQLIdentifierSanitizer.sanitize(column)
+                safe_new = SQLIdentifierSanitizer.sanitize(new_col)
+
+                col_type = await self._get_column_type(working_table, schema, column)
+                if "timestamp" in col_type.lower() or "date" in col_type.lower():
+                    base_expr = f'"{safe_col}"'
+                else:
+                    base_expr = f'CAST("{safe_col}" AS TIMESTAMP)'
+
+                expr = f"TO_CHAR({base_expr}, 'FMDay')" if isinstance(self.db, PostgresAdapter) else f"DAYNAME({base_expr})"
+                await self._exec(f"""UPDATE {qualified} SET "{safe_new}" = {expr}""")
+                sample = await self._fetch_sample(working_table, schema, [safe_col, safe_new])
+                return self._success_response(f"Extracted day name from '{column}'",
+                                              [column], [new_col], sample, new_table=working_table)
+
+            elif isinstance(self.db, ClickHouseAdapter):
+                working_table = await self._prepare_operation_table(
+                    table, schema, backend=backend, data_id=data_id, new_table=new_table
+                )
+                new_col = self._generate_cleaned_column_name(column, "day_name")
+                await self._add_new_column(working_table, schema, new_col, "TEXT")
+
+                qualified = self._qualified_table(working_table, schema)
+                safe_col = SQLIdentifierSanitizer.sanitize(column)
+                safe_new = SQLIdentifierSanitizer.sanitize(new_col)
+                base_expr = await self._datetime_base_expr(working_table, schema, column)
+
+                await self._exec(f"""ALTER TABLE {qualified} UPDATE "{safe_new}" = formatDateTime({base_expr}, '%A') WHERE 1 SETTINGS mutations_sync = 1""")
+                sample = await self._fetch_sample(working_table, schema, [safe_col, safe_new])
+                return self._success_response(f"Extracted day name from '{column}'",
+                                              [column], [new_col], sample, new_table=working_table)
+            else:
+                raise self._unsupported_backend_error()
+
+        except Exception as e:
+            return self._error_response(f"day_name error: {str(e)}", [column], [])
+
+    async def month_name(self, table: str, schema: str, column: str,
+                         backend=None, data_id=None, new_table=None) -> Dict[str, Any]:
+        try:
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+                working_table = await self._prepare_operation_table(
+                    table, schema, backend=backend, data_id=data_id, new_table=new_table
+                )
+                new_col = self._generate_cleaned_column_name(column, "month_name")
+                await self._add_new_column(working_table, schema, new_col, "TEXT")
+
+                qualified = self._qualified_table(working_table, schema)
+                safe_col = SQLIdentifierSanitizer.sanitize(column)
+                safe_new = SQLIdentifierSanitizer.sanitize(new_col)
+
+                col_type = await self._get_column_type(working_table, schema, column)
+                if "timestamp" in col_type.lower() or "date" in col_type.lower():
+                    base_expr = f'"{safe_col}"'
+                else:
+                    base_expr = f'CAST("{safe_col}" AS TIMESTAMP)'
+
+                expr = f"TO_CHAR({base_expr}, 'FMMonth')" if isinstance(self.db, PostgresAdapter) else f"MONTHNAME({base_expr})"
+                await self._exec(f"""UPDATE {qualified} SET "{safe_new}" = {expr}""")
+                sample = await self._fetch_sample(working_table, schema, [safe_col, safe_new])
+                return self._success_response(f"Extracted month name from '{column}'",
+                                              [column], [new_col], sample, new_table=working_table)
+
+            elif isinstance(self.db, ClickHouseAdapter):
+                working_table = await self._prepare_operation_table(
+                    table, schema, backend=backend, data_id=data_id, new_table=new_table
+                )
+                new_col = self._generate_cleaned_column_name(column, "month_name")
+                await self._add_new_column(working_table, schema, new_col, "TEXT")
+
+                qualified = self._qualified_table(working_table, schema)
+                safe_col = SQLIdentifierSanitizer.sanitize(column)
+                safe_new = SQLIdentifierSanitizer.sanitize(new_col)
+                base_expr = await self._datetime_base_expr(working_table, schema, column)
+
+                await self._exec(f"""ALTER TABLE {qualified} UPDATE "{safe_new}" = formatDateTime({base_expr}, '%B') WHERE 1 SETTINGS mutations_sync = 1""")
+                sample = await self._fetch_sample(working_table, schema, [safe_col, safe_new])
+                return self._success_response(f"Extracted month name from '{column}'",
+                                              [column], [new_col], sample, new_table=working_table)
+            else:
+                raise self._unsupported_backend_error()
+
+        except Exception as e:
+            return self._error_response(f"month_name error: {str(e)}", [column], [])
+
+    _DIFF_DIVISORS = {
+        "millisecond": 0.001, "second": 1, "minute": 60, "hour": 3600,
+        "day": 86400, "week": 604800,
+        # ponytail: calendar months/quarters/years have no fixed length;
+        # 30/91.25/365-day conventions, documented, pandas-grade precision later.
+        "month": 2592000, "quarter": 7889400, "year": 31536000,
+    }
+    _DIFF_CH_UNITS = {
+        "millisecond": "millisecond", "second": "second", "minute": "minute",
+        "hour": "hour", "day": "day", "week": "week",
+        "month": "month", "quarter": "quarter", "year": "year",
+    }
+
+    async def diff(self, table: str, schema: str, col1: str, col2: str, unit: str = "day",
+                   target_col: str = None, backend=None, data_id=None,
+                   new_table: str = None) -> Dict[str, Any]:
+        try:
+            unit = unit.lower()
+            if unit not in self._DIFF_DIVISORS:
+                return self._error_response(f"Unsupported diff unit: {unit}", [col1, col2], [])
+
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+                working_table = await self._prepare_operation_table(
+                    table, schema, backend=backend, data_id=data_id, new_table=new_table
+                )
+                new_col = SQLIdentifierSanitizer.sanitize(target_col) if target_col else self._generate_cleaned_column_name(f"{col1}_{col2}", f"diff_{unit}")
+                await self._add_new_column(working_table, schema, new_col, "DOUBLE PRECISION")
+
+                qualified = self._qualified_table(working_table, schema)
+                safe_c1 = SQLIdentifierSanitizer.sanitize(col1)
+                safe_c2 = SQLIdentifierSanitizer.sanitize(col2)
+                safe_new = SQLIdentifierSanitizer.sanitize(new_col)
+                divisor = self._DIFF_DIVISORS[unit]
+
+                await self._exec(f"""UPDATE {qualified} SET "{safe_new}" = EXTRACT(EPOCH FROM ("{safe_c2}" - "{safe_c1}")) / {divisor}""")
+                sample = await self._fetch_sample(working_table, schema, columns=[safe_c1, safe_c2, safe_new])
+                return self._success_response(f"Computed {unit} difference '{col1}' → '{col2}'",
+                                              [col1, col2], [new_col], sample, unit=unit,
+                                              new_table=working_table)
+
+            elif isinstance(self.db, ClickHouseAdapter):
+                working_table = await self._prepare_operation_table(
+                    table, schema, backend=backend, data_id=data_id, new_table=new_table
+                )
+                new_col = SQLIdentifierSanitizer.sanitize(target_col) if target_col else self._generate_cleaned_column_name(f"{col1}_{col2}", f"diff_{unit}")
+                await self._add_new_column(working_table, schema, new_col, "DOUBLE PRECISION")
+
+                qualified = self._qualified_table(working_table, schema)
+                safe_new = SQLIdentifierSanitizer.sanitize(new_col)
+                base1 = await self._datetime_base_expr(working_table, schema, col1)
+                base2 = await self._datetime_base_expr(working_table, schema, col2)
+                ch_unit = self._DIFF_CH_UNITS[unit]
+
+                await self._exec(f"""ALTER TABLE {qualified} UPDATE "{safe_new}" = dateDiff('{ch_unit}', {base1}, {base2}) WHERE 1 SETTINGS mutations_sync = 1""")
+                safe_c1 = SQLIdentifierSanitizer.sanitize(col1)
+                safe_c2 = SQLIdentifierSanitizer.sanitize(col2)
+                sample = await self._fetch_sample(working_table, schema, columns=[safe_c1, safe_c2, safe_new])
+                return self._success_response(f"Computed {unit} difference '{col1}' → '{col2}'",
+                                              [col1, col2], [new_col], sample, unit=unit,
+                                              new_table=working_table)
+            else:
+                raise self._unsupported_backend_error()
+
+        except Exception as e:
+            return self._error_response(f"diff error: {str(e)}", [col1, col2], [])
+
+    async def to_datetime(self, table: str, schema: str, column: str, fmt: str = None,
+                          errors: str = "raise", unit: str = None, tz: str = None,
+                          backend=None, data_id=None, new_table=None) -> Dict[str, Any]:
+        try:
+            if errors not in ("raise", "coerce"):
+                return self._error_response("errors must be 'raise' or 'coerce'", [column], [])
+
+            if fmt is not None:
+                return await self.strptime(table, schema, column, fmt,
+                                           backend=backend, data_id=data_id, new_table=new_table)
+            if unit is not None:
+                unit = unit.lower()
+                if unit not in ("s", "ms", "us"):
+                    return self._error_response(f"Unsupported unit: {unit} (use 's', 'ms' or 'us')", [column], [])
+                divisor = {"s": 1, "ms": 1000, "us": 1000000}[unit]
+                if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+                    working_table = await self._prepare_operation_table(
+                        table, schema, backend=backend, data_id=data_id, new_table=new_table
+                    )
+                    new_col = self._generate_cleaned_column_name(column, "todatetime")
+                    await self._add_new_column(working_table, schema, new_col, "TIMESTAMP")
+
+                    qualified = self._qualified_table(working_table, schema)
+                    safe_col = SQLIdentifierSanitizer.sanitize(column)
+                    safe_new = SQLIdentifierSanitizer.sanitize(new_col)
+                    expr = f"TO_TIMESTAMP(CAST(\"{safe_col}\" AS DOUBLE PRECISION) / {divisor})"
+                    if tz:
+                        expr = f"{expr} AT TIME ZONE '{tz}'"
+                    await self._exec(f"""UPDATE {qualified} SET "{safe_new}" = {expr}""")
+                    cols = [safe_col, safe_new]
+                    sample = await self._fetch_sample(working_table, schema, columns=cols)
+                    return self._success_response("Converted epoch to datetime",
+                                                  [column], [new_col], sample, unit=unit,
+                                                  new_table=working_table)
+
+                elif isinstance(self.db, ClickHouseAdapter):
+                    working_table = await self._prepare_operation_table(
+                        table, schema, backend=backend, data_id=data_id, new_table=new_table
+                    )
+                    new_col = self._generate_cleaned_column_name(column, "todatetime")
+                    await self._add_new_column(working_table, schema, new_col, "TIMESTAMP")
+
+                    qualified = self._qualified_table(working_table, schema)
+                    safe_col = SQLIdentifierSanitizer.sanitize(column)
+                    safe_new = SQLIdentifierSanitizer.sanitize(new_col)
+                    expr = f"toDateTime(CAST(\"{safe_col}\" AS Float64) / {divisor})"
+                    if tz:
+                        expr = f"toTimezone({expr}, '{tz}')"
+                    await self._exec(f"""ALTER TABLE {qualified} UPDATE "{safe_new}" = {expr} WHERE 1 SETTINGS mutations_sync = 1""")
+                    sample = await self._fetch_sample(working_table, schema, columns=[safe_col, safe_new])
+                    return self._success_response("Converted epoch to datetime",
+                                                  [column], [new_col], sample, unit=unit,
+                                                  new_table=working_table)
+                else:
+                    raise self._unsupported_backend_error()
+
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+                working_table = await self._prepare_operation_table(
+                    table, schema, backend=backend, data_id=data_id, new_table=new_table
+                )
+                new_col = self._generate_cleaned_column_name(column, "todatetime")
+                await self._add_new_column(working_table, schema, new_col, "TIMESTAMP")
+
+                qualified = self._qualified_table(working_table, schema)
+                safe_col = SQLIdentifierSanitizer.sanitize(column)
+                safe_new = SQLIdentifierSanitizer.sanitize(new_col)
+
+                if errors == "coerce":
+                    if isinstance(self.db, DuckDBAdapter):
+                        expr = f'TRY_CAST("{safe_col}" AS TIMESTAMP)'
+                    else:
+                        # ponytail: Postgres has no TRY_CAST; ISO-like guard, best-effort.
+                        expr = f"""CASE WHEN TRIM("{safe_col}"::TEXT) ~ '^[0-9]{{4}}-[0-9]{{2}}-[0-9]{{2}}' THEN CAST("{safe_col}" AS TIMESTAMP) ELSE NULL END"""
+                else:
+                    expr = f'CAST("{safe_col}" AS TIMESTAMP)'
+                if tz:
+                    expr = f"({expr}) AT TIME ZONE '{tz}'"
+                await self._exec(f"""UPDATE {qualified} SET "{safe_new}" = {expr}""")
+                sample = await self._fetch_sample(working_table, schema, columns=[safe_col, safe_new])
+                return self._success_response(f"Converted '{column}' to datetime",
+                                              [column], [new_col], sample, new_table=working_table)
+
+            elif isinstance(self.db, ClickHouseAdapter):
+                working_table = await self._prepare_operation_table(
+                    table, schema, backend=backend, data_id=data_id, new_table=new_table
+                )
+                new_col = self._generate_cleaned_column_name(column, "todatetime")
+                await self._add_new_column(working_table, schema, new_col, "TIMESTAMP")
+
+                qualified = self._qualified_table(working_table, schema)
+                safe_col = SQLIdentifierSanitizer.sanitize(column)
+                safe_new = SQLIdentifierSanitizer.sanitize(new_col)
+                base_expr = await self._datetime_base_expr(working_table, schema, column)
+
+                if errors == "coerce":
+                    # ponytail: base is already DateTime for date-like cols; parse strings leniently.
+                    col_type = await self._get_column_type(working_table, schema, column)
+                    if "timestamp" in col_type.lower() or "date" in col_type.lower() or "datetime" in col_type.lower():
+                        expr = base_expr
+                    else:
+                        expr = f'parseDateTimeBestEffortOrNull("{safe_col}")'
+                else:
+                    expr = base_expr
+                if tz:
+                    expr = f"toTimezone({expr}, '{tz}')"
+                await self._exec(f"""ALTER TABLE {qualified} UPDATE "{safe_new}" = {expr} WHERE 1 SETTINGS mutations_sync = 1""")
+                sample = await self._fetch_sample(working_table, schema, columns=[safe_col, safe_new])
+                return self._success_response(f"Converted '{column}' to datetime",
+                                              [column], [new_col], sample, new_table=working_table)
+            else:
+                raise self._unsupported_backend_error()
+
+        except Exception as e:
+            return self._error_response(f"to_datetime error: {str(e)}", [column], [])
+
     async def fromtimestamp(self, table: str, schema: str,
                             column: Optional[str] = None,
                             value: Optional[float] = None,
@@ -1742,6 +2061,148 @@ class DatetimeOps:
 
         except Exception as e:
             return self._error_response(str(e), [column])
+
+    async def between(self, table: str, schema: str, column: str, start: str, end: str,
+                      backend=None, data_id=None, new_table=None) -> Dict[str, Any]:
+        try:
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+                safe_col = SQLIdentifierSanitizer.sanitize(column)
+                where = f'CAST("{safe_col}" AS TIMESTAMP) BETWEEN CAST({self._dt_literal(start)} AS TIMESTAMP) AND CAST({self._dt_literal(end)} AS TIMESTAMP)'
+                working_table = await self._prepare_filtered_table(
+                    table, schema, where, backend=backend, data_id=data_id, new_table=new_table
+                )
+                sample = await self._fetch_sample(working_table, schema)
+                return self._success_response(f"Filtered '{column}' between '{start}' and '{end}'",
+                                              [column], [], sample, new_table=working_table)
+
+            elif isinstance(self.db, ClickHouseAdapter):
+                base_expr = await self._datetime_base_expr(table, schema, column)
+                where = f"{base_expr} BETWEEN CAST({self._dt_literal(start)} AS DateTime) AND CAST({self._dt_literal(end)} AS DateTime)"
+                working_table = await self._prepare_filtered_table(
+                    table, schema, where, backend=backend, data_id=data_id, new_table=new_table
+                )
+                sample = await self._fetch_sample(working_table, schema)
+                return self._success_response(f"Filtered '{column}' between '{start}' and '{end}'",
+                                              [column], [], sample, new_table=working_table)
+            else:
+                raise self._unsupported_backend_error()
+
+        except Exception as e:
+            return self._error_response(f"between error: {str(e)}", [column], [])
+
+    async def before(self, table: str, schema: str, column: str, value: str,
+                     backend=None, data_id=None, new_table=None) -> Dict[str, Any]:
+        try:
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+                safe_col = SQLIdentifierSanitizer.sanitize(column)
+                where = f'CAST("{safe_col}" AS TIMESTAMP) < CAST({self._dt_literal(value)} AS TIMESTAMP)'
+                working_table = await self._prepare_filtered_table(
+                    table, schema, where, backend=backend, data_id=data_id, new_table=new_table
+                )
+                sample = await self._fetch_sample(working_table, schema)
+                return self._success_response(f"Filtered '{column}' before '{value}'",
+                                              [column], [], sample, new_table=working_table)
+
+            elif isinstance(self.db, ClickHouseAdapter):
+                base_expr = await self._datetime_base_expr(table, schema, column)
+                where = f"{base_expr} < CAST({self._dt_literal(value)} AS DateTime)"
+                working_table = await self._prepare_filtered_table(
+                    table, schema, where, backend=backend, data_id=data_id, new_table=new_table
+                )
+                sample = await self._fetch_sample(working_table, schema)
+                return self._success_response(f"Filtered '{column}' before '{value}'",
+                                              [column], [], sample, new_table=working_table)
+            else:
+                raise self._unsupported_backend_error()
+
+        except Exception as e:
+            return self._error_response(f"before error: {str(e)}", [column], [])
+
+    async def after(self, table: str, schema: str, column: str, value: str,
+                    backend=None, data_id=None, new_table=None) -> Dict[str, Any]:
+        try:
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+                safe_col = SQLIdentifierSanitizer.sanitize(column)
+                where = f'CAST("{safe_col}" AS TIMESTAMP) > CAST({self._dt_literal(value)} AS TIMESTAMP)'
+                working_table = await self._prepare_filtered_table(
+                    table, schema, where, backend=backend, data_id=data_id, new_table=new_table
+                )
+                sample = await self._fetch_sample(working_table, schema)
+                return self._success_response(f"Filtered '{column}' after '{value}'",
+                                              [column], [], sample, new_table=working_table)
+
+            elif isinstance(self.db, ClickHouseAdapter):
+                base_expr = await self._datetime_base_expr(table, schema, column)
+                where = f"{base_expr} > CAST({self._dt_literal(value)} AS DateTime)"
+                working_table = await self._prepare_filtered_table(
+                    table, schema, where, backend=backend, data_id=data_id, new_table=new_table
+                )
+                sample = await self._fetch_sample(working_table, schema)
+                return self._success_response(f"Filtered '{column}' after '{value}'",
+                                              [column], [], sample, new_table=working_table)
+            else:
+                raise self._unsupported_backend_error()
+
+        except Exception as e:
+            return self._error_response(f"after error: {str(e)}", [column], [])
+
+    async def select_year(self, table: str, schema: str, column: str, years,
+                          backend=None, data_id=None, new_table=None) -> Dict[str, Any]:
+        try:
+            values = ", ".join(str(int(y)) for y in (years if isinstance(years, (list, tuple)) else [years]))
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+                safe_col = SQLIdentifierSanitizer.sanitize(column)
+                where = f'EXTRACT(YEAR FROM CAST("{safe_col}" AS TIMESTAMP)) IN ({values})'
+                working_table = await self._prepare_filtered_table(
+                    table, schema, where, backend=backend, data_id=data_id, new_table=new_table
+                )
+                sample = await self._fetch_sample(working_table, schema)
+                return self._success_response(f"Selected years {values} from '{column}'",
+                                              [column], [], sample, new_table=working_table)
+
+            elif isinstance(self.db, ClickHouseAdapter):
+                base_expr = await self._datetime_base_expr(table, schema, column)
+                where = f"toYear({base_expr}) IN ({values})"
+                working_table = await self._prepare_filtered_table(
+                    table, schema, where, backend=backend, data_id=data_id, new_table=new_table
+                )
+                sample = await self._fetch_sample(working_table, schema)
+                return self._success_response(f"Selected years {values} from '{column}'",
+                                              [column], [], sample, new_table=working_table)
+            else:
+                raise self._unsupported_backend_error()
+
+        except Exception as e:
+            return self._error_response(f"select_year error: {str(e)}", [column], [])
+
+    async def select_month(self, table: str, schema: str, column: str, months,
+                           backend=None, data_id=None, new_table=None) -> Dict[str, Any]:
+        try:
+            values = ", ".join(str(int(m)) for m in (months if isinstance(months, (list, tuple)) else [months]))
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+                safe_col = SQLIdentifierSanitizer.sanitize(column)
+                where = f'EXTRACT(MONTH FROM CAST("{safe_col}" AS TIMESTAMP)) IN ({values})'
+                working_table = await self._prepare_filtered_table(
+                    table, schema, where, backend=backend, data_id=data_id, new_table=new_table
+                )
+                sample = await self._fetch_sample(working_table, schema)
+                return self._success_response(f"Selected months {values} from '{column}'",
+                                              [column], [], sample, new_table=working_table)
+
+            elif isinstance(self.db, ClickHouseAdapter):
+                base_expr = await self._datetime_base_expr(table, schema, column)
+                where = f"toMonth({base_expr}) IN ({values})"
+                working_table = await self._prepare_filtered_table(
+                    table, schema, where, backend=backend, data_id=data_id, new_table=new_table
+                )
+                sample = await self._fetch_sample(working_table, schema)
+                return self._success_response(f"Selected months {values} from '{column}'",
+                                              [column], [], sample, new_table=working_table)
+            else:
+                raise self._unsupported_backend_error()
+
+        except Exception as e:
+            return self._error_response(f"select_month error: {str(e)}", [column], [])
 
     async def normalize(self, table: str, schema: str, column: str,
                         backend=None, data_id=None, new_table=None) -> Dict[str, Any]:
