@@ -2274,6 +2274,118 @@ class DatetimeOps:
         except Exception as e:
             return self._error_response(f"select_month error: {str(e)}", [column], [])
 
+    async def add_offset(self, table: str, schema: str, column: str,
+                         years: int = 0, quarters: int = 0, months: int = 0,
+                         weeks: int = 0, days: int = 0, business_day: bool = False,
+                         target_col: str = None, backend=None, data_id=None,
+                         new_table: str = None) -> Dict[str, Any]:
+        try:
+            if business_day and any([years, quarters, months, weeks]):
+                return self._error_response(
+                    "business_day offsets only combine with 'days'", [column], [])
+
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+                working_table = await self._prepare_operation_table(
+                    table, schema, backend=backend, data_id=data_id, new_table=new_table
+                )
+                new_col = SQLIdentifierSanitizer.sanitize(target_col) if target_col else self._generate_cleaned_column_name(column, "offset")
+                await self._add_new_column(working_table, schema, new_col, "TIMESTAMP")
+
+                qualified = self._qualified_table(working_table, schema)
+                safe_col = SQLIdentifierSanitizer.sanitize(column)
+                safe_new = SQLIdentifierSanitizer.sanitize(new_col)
+
+                if business_day:
+                    # ponytail: closed-form Mon-Fri arithmetic verified against
+                    # pandas BDay (roll weekend starts, exclusive count, weekend
+                    # start consumes one). No holidays — see is_business_day.
+                    dow = f'EXTRACT(DOW FROM "{safe_col}")'
+                    if days >= 0:
+                        roll = f"(CASE WHEN {dow} = 6 THEN 2 WHEN {dow} = 0 THEN 1 ELSE 0 END)"
+                        rolled = f'("{safe_col}" + {roll} * INTERVAL \'1 day\')'
+                        kk = f"GREATEST({days} - (CASE WHEN {dow} IN (0, 6) THEN 1 ELSE 0 END), 0)"
+                        w = f"((EXTRACT(DOW FROM {rolled}) + 6) % 7)"
+                        expr = f"({rolled} + (({kk}) + 2 * FLOOR((({w}) + ({kk})) / 5)) * INTERVAL '1 day')"
+                    else:
+                        m = abs(days)
+                        rollback = f"(CASE WHEN {dow} = 6 THEN 1 WHEN {dow} = 0 THEN 2 ELSE 0 END)"
+                        rolled = f'("{safe_col}" - {rollback} * INTERVAL \'1 day\')'
+                        kk = f"GREATEST({m} - (CASE WHEN {dow} IN (0, 6) THEN 1 ELSE 0 END), 0)"
+                        wrev = f"(4 - ((EXTRACT(DOW FROM {rolled}) + 6) % 7))"
+                        expr = f"({rolled} - (({kk}) + 2 * FLOOR((({wrev}) + ({kk})) / 5)) * INTERVAL '1 day')"
+                else:
+                    terms = []
+                    if years:
+                        terms.append(f"INTERVAL '{years} years'")
+                    if quarters:
+                        terms.append(f"INTERVAL '{quarters * 3} months'")
+                    if months:
+                        terms.append(f"INTERVAL '{months} months'")
+                    if weeks:
+                        terms.append(f"INTERVAL '{weeks} weeks'")
+                    if days:
+                        terms.append(f"INTERVAL '{days} days'")
+                    if not terms:
+                        return self._error_response("at least one offset unit must be non-zero", [column], [])
+                    expr = f'"{safe_col}"' + "".join(f" + {t}" for t in terms)
+
+                await self._exec(f"""UPDATE {qualified} SET "{safe_new}" = {expr}""")
+                sample = await self._fetch_sample(working_table, schema, columns=[safe_col, safe_new])
+                return self._success_response(f"Applied offset to '{column}'",
+                                              [column], [new_col], sample, new_table=working_table)
+
+            elif isinstance(self.db, ClickHouseAdapter):
+                working_table = await self._prepare_operation_table(
+                    table, schema, backend=backend, data_id=data_id, new_table=new_table
+                )
+                new_col = SQLIdentifierSanitizer.sanitize(target_col) if target_col else self._generate_cleaned_column_name(column, "offset")
+                await self._add_new_column(working_table, schema, new_col, "TIMESTAMP")
+
+                qualified = self._qualified_table(working_table, schema)
+                safe_col = SQLIdentifierSanitizer.sanitize(column)
+                safe_new = SQLIdentifierSanitizer.sanitize(new_col)
+                base_expr = await self._datetime_base_expr(working_table, schema, column)
+
+                if business_day:
+                    dow = f"toDayOfWeek({base_expr})"
+                    if days >= 0:
+                        roll = f"(CASE WHEN {dow} = 6 THEN 2 WHEN {dow} = 7 THEN 1 ELSE 0 END)"
+                        rolled = f"dateAdd('day', {roll}, {base_expr})"
+                        kk = f"greatest({days} - (CASE WHEN {dow} IN (6, 7) THEN 1 ELSE 0 END), 0)"
+                        w = f"(toDayOfWeek({rolled}) - 1)"
+                        expr = f"dateAdd('day', ({kk}) + 2 * intDiv(({w}) + ({kk}), 5), {rolled})"
+                    else:
+                        m = abs(days)
+                        rollback = f"(CASE WHEN {dow} = 6 THEN 1 WHEN {dow} = 7 THEN 2 ELSE 0 END)"
+                        rolled = f"dateAdd('day', -{rollback}, {base_expr})"
+                        kk = f"greatest({m} - (CASE WHEN {dow} IN (6, 7) THEN 1 ELSE 0 END), 0)"
+                        wrev = f"(4 - (toDayOfWeek({rolled}) - 1))"
+                        expr = f"dateAdd('day', -(({kk}) + 2 * intDiv(({wrev}) + ({kk}), 5)), {rolled})"
+                else:
+                    expr = base_expr
+                    if years:
+                        expr = f"addYears({expr}, {years})"
+                    if quarters:
+                        expr = f"addQuarters({expr}, {quarters})"
+                    if months:
+                        expr = f"addMonths({expr}, {months})"
+                    if weeks:
+                        expr = f"addWeeks({expr}, {weeks})"
+                    if days:
+                        expr = f"addDays({expr}, {days})"
+                    if expr == base_expr:
+                        return self._error_response("at least one offset unit must be non-zero", [column], [])
+
+                await self._exec(f"""ALTER TABLE {qualified} UPDATE "{safe_new}" = {expr} WHERE 1 SETTINGS mutations_sync = 1""")
+                sample = await self._fetch_sample(working_table, schema, columns=[safe_col, safe_new])
+                return self._success_response(f"Applied offset to '{column}'",
+                                              [column], [new_col], sample, new_table=working_table)
+            else:
+                raise self._unsupported_backend_error()
+
+        except Exception as e:
+            return self._error_response(f"add_offset error: {str(e)}", [column], [])
+
     async def normalize(self, table: str, schema: str, column: str,
                         backend=None, data_id=None, new_table=None) -> Dict[str, Any]:
         try:

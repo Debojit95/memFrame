@@ -551,3 +551,37 @@ class DateTimeWrapper(DateTimeOrchestrator):
     ) -> Dict[str, Any]:
         """Synchronously reindex a datetime column to a regular frequency."""
         return await self.aasfreq(column, freq, method)
+
+    # ------------------------------------------------------------------
+    # Wave 3: calendar arithmetic
+    # ------------------------------------------------------------------
+    async def aadd_offset(
+        self,
+        column: str,
+        years: int = 0,
+        quarters: int = 0,
+        months: int = 0,
+        weeks: int = 0,
+        days: int = 0,
+        business_day: bool = False,
+        target_col: str = None,
+    ) -> Dict[str, Any]:
+        """Asynchronously add a calendar-aware offset to datetimes."""
+        return await super().add_offset(column, years, quarters, months, weeks,
+                                        days, business_day, target_col)
+
+    @async_to_sync
+    async def add_offset(
+        self,
+        column: str,
+        years: int = 0,
+        quarters: int = 0,
+        months: int = 0,
+        weeks: int = 0,
+        days: int = 0,
+        business_day: bool = False,
+        target_col: str = None,
+    ) -> Dict[str, Any]:
+        """Synchronously add a calendar-aware offset to datetimes."""
+        return await self.aadd_offset(column, years, quarters, months, weeks,
+                                      days, business_day, target_col)

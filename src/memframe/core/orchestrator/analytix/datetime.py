@@ -18,6 +18,12 @@ def _coerce_datetime_literal(value: Any, name: str) -> Union[str, Dict[str, Any]
     return parsed.strftime("%Y-%m-%d %H:%M:%S")
 
 
+def _coerce_int(value: Any, name: str) -> Union[int, Dict[str, Any]]:
+    if isinstance(value, bool) or not isinstance(value, int):
+        return fail(f"{name} must be an integer, got {value!r}")
+    return value
+
+
 def _coerce_int_list(values: Any, name: str) -> Union[List[int], Dict[str, Any]]:
     items = values if isinstance(values, (list, tuple)) else [values]
     if not items:
@@ -364,6 +370,26 @@ class DateTimeOrchestrator:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
         return await ops.asfreq(table, schema, column, freq, method)
+
+    # ── Wave 3: calendar arithmetic ───────────────────────────
+    @record_call
+    async def add_offset(self, column: str, years: int = 0, quarters: int = 0,
+                         months: int = 0, weeks: int = 0, days: int = 0,
+                         business_day: bool = False,
+                         target_col: str = None) -> Dict[str, Any]:
+        ops = await self._ensure_ops()
+        table, schema = await self._get_context()
+        coerced = {}
+        for name, value in (("years", years), ("quarters", quarters),
+                            ("months", months), ("weeks", weeks), ("days", days)):
+            ivalue = _coerce_int(value, name)
+            if isinstance(ivalue, dict):
+                return ivalue
+            coerced[name] = ivalue
+        if not isinstance(business_day, bool):
+            return fail(f"business_day must be a bool, got {business_day!r}")
+        return await ops.add_offset(table, schema, column, target_col=target_col,
+                                    business_day=business_day, **coerced)
 
 
 

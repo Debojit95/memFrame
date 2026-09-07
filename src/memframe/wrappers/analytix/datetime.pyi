@@ -236,3 +236,27 @@ class DateTimeWrapper(DateTimeOrchestrator):
         freq: str,
         method: str | None = None,
     ) -> dict[str, Any]: ...
+
+    async def aadd_offset(
+        self,
+        column: str,
+        years: int = 0,
+        quarters: int = 0,
+        months: int = 0,
+        weeks: int = 0,
+        days: int = 0,
+        business_day: bool = False,
+        target_col: str | None = None,
+    ) -> dict[str, Any]: ...
+
+    def add_offset(
+        self,
+        column: str,
+        years: int = 0,
+        quarters: int = 0,
+        months: int = 0,
+        weeks: int = 0,
+        days: int = 0,
+        business_day: bool = False,
+        target_col: str | None = None,
+    ) -> dict[str, Any]: ...
