@@ -42,10 +42,16 @@ class _RecordingMixin:
 
     async def fetch(self, sql, *args):
         self._record("fetch", sql, args)
+        # ponytail: canned asfreq bounds so grid/fill SQL is captured instead
+        # of snapshotting only the empty-table error path.
+        if "MIN(" in sql:
+            return [{"lo": "2023-01-01 00:00:00", "hi": "2023-01-06 00:00:00"}]
         return []
 
     async def fetchval(self, sql, *args):
         self._record("fetchval", sql, args)
+        if "dateDiff" in sql:
+            return 5
         return 0
 
     async def fetchrow(self, sql, *args):
@@ -101,8 +107,26 @@ SCENARIOS = {
     "extract_year": lambda ops: ops.extract("t", "s", "ts", "year"),
     "extract_month": lambda ops: ops.extract("t", "s", "ts", "month"),
     "extract_dayofweek": lambda ops: ops.extract("t", "s", "ts", "dayofweek"),
+    "extract_week": lambda ops: ops.extract("t", "s", "ts", "week"),
     "extract_quarter": lambda ops: ops.extract("t", "s", "ts", "quarter"),
     "extract_invalid": lambda ops: ops.extract("t", "s", "ts", "invalid"),
+    "day_name": lambda ops: ops.day_name("t", "s", "ts"),
+    "month_name": lambda ops: ops.month_name("t", "s", "ts"),
+    "diff_day": lambda ops: ops.diff("t", "s", "ts", "ts"),
+    "to_datetime_cast": lambda ops: ops.to_datetime("t", "s", "s"),
+    "to_datetime_coerce": lambda ops: ops.to_datetime("t", "s", "s", errors="coerce"),
+    "to_datetime_unit": lambda ops: ops.to_datetime("t", "s", "val", unit="s"),
+    "between": lambda ops: ops.between("t", "s", "ts", "2023-01-01 00:00:00", "2023-12-31 00:00:00"),
+    "before": lambda ops: ops.before("t", "s", "ts", "2023-06-01 00:00:00"),
+    "select_year": lambda ops: ops.select_year("t", "s", "ts", [2023]),
+    "resample_count": lambda ops: ops.resample("t", "s", "ts", "D"),
+    "resample_sum": lambda ops: ops.resample("t", "s", "ts", "D", agg="sum", value_columns="val"),
+    "resample_multi": lambda ops: ops.resample("t", "s", "ts", "ME", agg=["sum", "mean"], value_columns="val"),
+    "resample_group": lambda ops: ops.resample("t", "s", "ts", "ME", agg={"val": "sum"}, group_by=["s"]),
+    "asfreq_plain": lambda ops: ops.asfreq("t", "s", "ts", "D"),
+    "asfreq_ffill": lambda ops: ops.asfreq("t", "s", "ts", "D", method="ffill"),
+    "add_offset_calendar": lambda ops: ops.add_offset("t", "s", "ts", months=1),
+    "add_offset_business": lambda ops: ops.add_offset("t", "s", "ts", days=5, business_day=True),
     "floor_day": lambda ops: ops.floor("t", "s", "ts", "day"),
     "ceil_month": lambda ops: ops.ceil("t", "s", "ts", "month"),
     "round_hour": lambda ops: ops.round("t", "s", "ts", "hour"),

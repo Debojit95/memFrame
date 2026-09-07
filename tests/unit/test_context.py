@@ -32,6 +32,30 @@ class TestAttrDispatch:
         assert "head" in ctx.__dir__()
 
 
+class TestDatetimeAccessor:
+    # ponytail: datetime is dt-only; flat access must fail so arithmetic
+    # names (floor/ceil/round/add/sub) can't collide.
+
+    def test_dir_includes_dt_namespace(self):
+        ctx, _ = _make_ctx()
+        assert "dt" in ctx.__dir__()
+
+    def test_dt_exposes_old_and_new_methods(self):
+        ctx, _ = _make_ctx()
+        for name in (
+            "year", "day_name", "diff", "to_datetime", "between",
+            "resample", "asfreq", "add_offset",
+            "ayear", "aresample", "aasfreq", "aadd_offset",
+        ):
+            assert hasattr(ctx.dt, name), f"ctx.dt.{name} missing"
+
+    @pytest.mark.parametrize("name", ["year", "month", "resample", "extract"])
+    def test_flat_datetime_access_raises(self, name):
+        ctx, _ = _make_ctx()
+        with pytest.raises(AttributeError):
+            getattr(ctx, name)
+
+
 class TestActiveContext:
     def test_no_active_id_raises(self):
         ctx, _ = _make_ctx()

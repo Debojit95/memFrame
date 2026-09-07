@@ -1,4 +1,140 @@
 {
+ "add_offset_business": {
+  "clickhouse": [
+   [
+    "exec",
+    "CREATETABLE`s`.`t__op_20240101000000000000`ASSELECT*FROM`s`.`t`",
+    []
+   ],
+   [
+    "exec",
+    "ALTERTABLE`s`.`t__op_20240101000000000000`ADDCOLUMN\"dt_ts_offset\"TIMESTAMP",
+    []
+   ],
+   [
+    "exec",
+    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_offset\"=dateAdd('day',(greatest(5-(CASEWHENtoDayOfWeek(\"ts\")IN(6,7)THEN1ELSE0END),0))+2*intDiv(((toDayOfWeek(dateAdd('day',(CASEWHENtoDayOfWeek(\"ts\")=6THEN2WHENtoDayOfWeek(\"ts\")=7THEN1ELSE0END),\"ts\"))-1))+(greatest(5-(CASEWHENtoDayOfWeek(\"ts\")IN(6,7)THEN1ELSE0END),0)),5),dateAdd('day',(CASEWHENtoDayOfWeek(\"ts\")=6THEN2WHENtoDayOfWeek(\"ts\")=7THEN1ELSE0END),\"ts\"))WHERE1SETTINGSmutations_sync=1",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT`ts`,`dt_ts_offset`FROM`s`.`t__op_20240101000000000000`",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    []
+   ],
+   [
+    "exec",
+    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"dt_ts_offset\"TIMESTAMP",
+    []
+   ],
+   [
+    "exec",
+    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"dt_ts_offset\"=((\"ts\"+(CASEWHENEXTRACT(DOWFROM\"ts\")=6THEN2WHENEXTRACT(DOWFROM\"ts\")=0THEN1ELSE0END)*INTERVAL'1day')+((GREATEST(5-(CASEWHENEXTRACT(DOWFROM\"ts\")IN(0,6)THEN1ELSE0END),0))+2*FLOOR(((((EXTRACT(DOWFROM(\"ts\"+(CASEWHENEXTRACT(DOWFROM\"ts\")=6THEN2WHENEXTRACT(DOWFROM\"ts\")=0THEN1ELSE0END)*INTERVAL'1day'))+6)%7))+(GREATEST(5-(CASEWHENEXTRACT(DOWFROM\"ts\")IN(0,6)THEN1ELSE0END),0)))/5))*INTERVAL'1day')",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT\"ts\",\"dt_ts_offset\"FROM\"s\".\"t__op_20240101000000000000\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    []
+   ],
+   [
+    "exec",
+    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"dt_ts_offset\"TIMESTAMP",
+    []
+   ],
+   [
+    "exec",
+    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"dt_ts_offset\"=((\"ts\"+(CASEWHENEXTRACT(DOWFROM\"ts\")=6THEN2WHENEXTRACT(DOWFROM\"ts\")=0THEN1ELSE0END)*INTERVAL'1day')+((GREATEST(5-(CASEWHENEXTRACT(DOWFROM\"ts\")IN(0,6)THEN1ELSE0END),0))+2*FLOOR(((((EXTRACT(DOWFROM(\"ts\"+(CASEWHENEXTRACT(DOWFROM\"ts\")=6THEN2WHENEXTRACT(DOWFROM\"ts\")=0THEN1ELSE0END)*INTERVAL'1day'))+6)%7))+(GREATEST(5-(CASEWHENEXTRACT(DOWFROM\"ts\")IN(0,6)THEN1ELSE0END),0)))/5))*INTERVAL'1day')",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT\"ts\",\"dt_ts_offset\"FROM\"s\".\"t__op_20240101000000000000\"",
+    []
+   ]
+  ]
+ },
+ "add_offset_calendar": {
+  "clickhouse": [
+   [
+    "exec",
+    "CREATETABLE`s`.`t__op_20240101000000000000`ASSELECT*FROM`s`.`t`",
+    []
+   ],
+   [
+    "exec",
+    "ALTERTABLE`s`.`t__op_20240101000000000000`ADDCOLUMN\"dt_ts_offset\"TIMESTAMP",
+    []
+   ],
+   [
+    "exec",
+    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_offset\"=addMonths(\"ts\",1)WHERE1SETTINGSmutations_sync=1",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT`ts`,`dt_ts_offset`FROM`s`.`t__op_20240101000000000000`",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    []
+   ],
+   [
+    "exec",
+    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"dt_ts_offset\"TIMESTAMP",
+    []
+   ],
+   [
+    "exec",
+    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"dt_ts_offset\"=\"ts\"+INTERVAL'1months'",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT\"ts\",\"dt_ts_offset\"FROM\"s\".\"t__op_20240101000000000000\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    []
+   ],
+   [
+    "exec",
+    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"dt_ts_offset\"TIMESTAMP",
+    []
+   ],
+   [
+    "exec",
+    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"dt_ts_offset\"=\"ts\"+INTERVAL'1months'",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT\"ts\",\"dt_ts_offset\"FROM\"s\".\"t__op_20240101000000000000\"",
+    []
+   ]
+  ]
+ },
  "add_timedelta": {
   "clickhouse": [
    [
@@ -63,6 +199,228 @@
    [
     "fetch",
     "SELECT\"ts\",\"dt_ts_add\"FROM\"s\".\"t__op_20240101000000000000\"",
+    []
+   ]
+  ]
+ },
+ "asfreq_ffill": {
+  "clickhouse": [
+   [
+    "fetch",
+    "SELECTMIN(\"ts\")ASlo,MAX(\"ts\")AShiFROM`s`.`t`",
+    []
+   ],
+   [
+    "fetchval",
+    "SELECTCOUNT(*)FROM(SELECTDATE_TRUNC('day',\"ts\")ASbFROM`s`.`t`GROUPBYbHAVINGCOUNT(*)>1)t",
+    []
+   ],
+   [
+    "fetchval",
+    "SELECTdateDiff('day',DATE_TRUNC('day',CAST('2023-01-0100:00:00'ASDateTime)),CAST('2023-01-0600:00:00'ASDateTime))+1",
+    []
+   ],
+   [
+    "exec",
+    "CREATETABLE`s`.`t__op_20240101000000000000`ASSELECTg.bucketAS\"ts\",(SELECTt2.\"s\"FROM`s`.`t`t2WHEREDATE_TRUNC('day',t2.\"ts\")<=g.bucketANDt2.\"s\"ISNOTNULLORDERBYDATE_TRUNC('day',t2.\"ts\")DESCLIMIT1)AS\"s\",(SELECTt2.\"val\"FROM`s`.`t`t2WHEREDATE_TRUNC('day',t2.\"ts\")<=g.bucketANDt2.\"val\"ISNOTNULLORDERBYDATE_TRUNC('day',t2.\"ts\")DESCLIMIT1)AS\"val\"FROM(SELECTdateAdd('day',number,DATE_TRUNC('day',CAST('2023-01-0100:00:00'ASDateTime)))ASbucketFROMnumbers(5))gLEFTJOIN`s`.`t`sONDATE_TRUNC('day',s.\"ts\")=g.bucketORDERBYbucket",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM`s`.`t__op_20240101000000000000`",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetch",
+    "SELECTMIN(\"ts\")ASlo,MAX(\"ts\")AShiFROM\"s\".\"t\"",
+    []
+   ],
+   [
+    "fetchval",
+    "SELECTCOUNT(*)FROM(SELECTDATE_TRUNC('day',\"ts\")ASbFROM\"s\".\"t\"GROUPBYbHAVINGCOUNT(*)>1)t",
+    []
+   ],
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECTg.bucketAS\"ts\",(SELECTt2.\"s\"FROM\"s\".\"t\"t2WHEREDATE_TRUNC('day',t2.\"ts\")<=g.bucketANDt2.\"s\"ISNOTNULLORDERBYDATE_TRUNC('day',t2.\"ts\")DESCLIMIT1)AS\"s\",(SELECTt2.\"val\"FROM\"s\".\"t\"t2WHEREDATE_TRUNC('day',t2.\"ts\")<=g.bucketANDt2.\"val\"ISNOTNULLORDERBYDATE_TRUNC('day',t2.\"ts\")DESCLIMIT1)AS\"val\"FROM(SELECTUNNEST(generate_series(DATE_TRUNC('day',CAST('2023-01-0100:00:00'ASTIMESTAMP)),CAST('2023-01-0600:00:00'ASTIMESTAMP),INTERVAL'1day'))ASbucket)gLEFTJOIN\"s\".\"t\"sONDATE_TRUNC('day',s.\"ts\")=g.bucketORDERBYbucket",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"t__op_20240101000000000000\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetch",
+    "SELECTMIN(\"ts\")ASlo,MAX(\"ts\")AShiFROM\"s\".\"t\"",
+    []
+   ],
+   [
+    "fetchval",
+    "SELECTCOUNT(*)FROM(SELECTDATE_TRUNC('day',\"ts\")ASbFROM\"s\".\"t\"GROUPBYbHAVINGCOUNT(*)>1)t",
+    []
+   ],
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECTg.bucketAS\"ts\",(SELECTt2.\"s\"FROM\"s\".\"t\"t2WHEREDATE_TRUNC('day',t2.\"ts\")<=g.bucketANDt2.\"s\"ISNOTNULLORDERBYDATE_TRUNC('day',t2.\"ts\")DESCLIMIT1)AS\"s\",(SELECTt2.\"val\"FROM\"s\".\"t\"t2WHEREDATE_TRUNC('day',t2.\"ts\")<=g.bucketANDt2.\"val\"ISNOTNULLORDERBYDATE_TRUNC('day',t2.\"ts\")DESCLIMIT1)AS\"val\"FROM(SELECTUNNEST(generate_series(DATE_TRUNC('day',CAST('2023-01-0100:00:00'ASTIMESTAMP)),CAST('2023-01-0600:00:00'ASTIMESTAMP),INTERVAL'1day'))ASbucket)gLEFTJOIN\"s\".\"t\"sONDATE_TRUNC('day',s.\"ts\")=g.bucketORDERBYbucket",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"t__op_20240101000000000000\"",
+    []
+   ]
+  ]
+ },
+ "asfreq_plain": {
+  "clickhouse": [
+   [
+    "fetch",
+    "SELECTMIN(\"ts\")ASlo,MAX(\"ts\")AShiFROM`s`.`t`",
+    []
+   ],
+   [
+    "fetchval",
+    "SELECTCOUNT(*)FROM(SELECTDATE_TRUNC('day',\"ts\")ASbFROM`s`.`t`GROUPBYbHAVINGCOUNT(*)>1)t",
+    []
+   ],
+   [
+    "fetchval",
+    "SELECTdateDiff('day',DATE_TRUNC('day',CAST('2023-01-0100:00:00'ASDateTime)),CAST('2023-01-0600:00:00'ASDateTime))+1",
+    []
+   ],
+   [
+    "exec",
+    "CREATETABLE`s`.`t__op_20240101000000000000`ASSELECTg.bucketAS\"ts\",s.\"s\",s.\"val\"FROM(SELECTdateAdd('day',number,DATE_TRUNC('day',CAST('2023-01-0100:00:00'ASDateTime)))ASbucketFROMnumbers(5))gLEFTJOIN`s`.`t`sONDATE_TRUNC('day',s.\"ts\")=g.bucketORDERBYbucket",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM`s`.`t__op_20240101000000000000`",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetch",
+    "SELECTMIN(\"ts\")ASlo,MAX(\"ts\")AShiFROM\"s\".\"t\"",
+    []
+   ],
+   [
+    "fetchval",
+    "SELECTCOUNT(*)FROM(SELECTDATE_TRUNC('day',\"ts\")ASbFROM\"s\".\"t\"GROUPBYbHAVINGCOUNT(*)>1)t",
+    []
+   ],
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECTg.bucketAS\"ts\",s.\"s\",s.\"val\"FROM(SELECTUNNEST(generate_series(DATE_TRUNC('day',CAST('2023-01-0100:00:00'ASTIMESTAMP)),CAST('2023-01-0600:00:00'ASTIMESTAMP),INTERVAL'1day'))ASbucket)gLEFTJOIN\"s\".\"t\"sONDATE_TRUNC('day',s.\"ts\")=g.bucketORDERBYbucket",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"t__op_20240101000000000000\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetch",
+    "SELECTMIN(\"ts\")ASlo,MAX(\"ts\")AShiFROM\"s\".\"t\"",
+    []
+   ],
+   [
+    "fetchval",
+    "SELECTCOUNT(*)FROM(SELECTDATE_TRUNC('day',\"ts\")ASbFROM\"s\".\"t\"GROUPBYbHAVINGCOUNT(*)>1)t",
+    []
+   ],
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECTg.bucketAS\"ts\",s.\"s\",s.\"val\"FROM(SELECTUNNEST(generate_series(DATE_TRUNC('day',CAST('2023-01-0100:00:00'ASTIMESTAMP)),CAST('2023-01-0600:00:00'ASTIMESTAMP),INTERVAL'1day'))ASbucket)gLEFTJOIN\"s\".\"t\"sONDATE_TRUNC('day',s.\"ts\")=g.bucketORDERBYbucket",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"t__op_20240101000000000000\"",
+    []
+   ]
+  ]
+ },
+ "before": {
+  "clickhouse": [
+   [
+    "exec",
+    "CREATETABLE`s`.`t__op_20240101000000000000`ASSELECT*FROM`s`.`t`WHERE\"ts\"<CAST('2023-06-0100:00:00'ASDateTime)",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM`s`.`t__op_20240101000000000000`",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"WHERECAST(\"ts\"ASTIMESTAMP)<CAST('2023-06-0100:00:00'ASTIMESTAMP)",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"t__op_20240101000000000000\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"WHERECAST(\"ts\"ASTIMESTAMP)<CAST('2023-06-0100:00:00'ASTIMESTAMP)",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"t__op_20240101000000000000\"",
+    []
+   ]
+  ]
+ },
+ "between": {
+  "clickhouse": [
+   [
+    "exec",
+    "CREATETABLE`s`.`t__op_20240101000000000000`ASSELECT*FROM`s`.`t`WHERE\"ts\"BETWEENCAST('2023-01-0100:00:00'ASDateTime)ANDCAST('2023-12-3100:00:00'ASDateTime)",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM`s`.`t__op_20240101000000000000`",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"WHERECAST(\"ts\"ASTIMESTAMP)BETWEENCAST('2023-01-0100:00:00'ASTIMESTAMP)ANDCAST('2023-12-3100:00:00'ASTIMESTAMP)",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"t__op_20240101000000000000\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"WHERECAST(\"ts\"ASTIMESTAMP)BETWEENCAST('2023-01-0100:00:00'ASTIMESTAMP)ANDCAST('2023-12-3100:00:00'ASTIMESTAMP)",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"t__op_20240101000000000000\"",
     []
    ]
   ]
@@ -135,6 +493,74 @@
    ]
   ]
  },
+ "day_name": {
+  "clickhouse": [
+   [
+    "exec",
+    "CREATETABLE`s`.`t__op_20240101000000000000`ASSELECT*FROM`s`.`t`",
+    []
+   ],
+   [
+    "exec",
+    "ALTERTABLE`s`.`t__op_20240101000000000000`ADDCOLUMN\"dt_ts_day_name\"TEXT",
+    []
+   ],
+   [
+    "exec",
+    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_day_name\"=formatDateTime(\"ts\",'%A')WHERE1SETTINGSmutations_sync=1",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT`ts`,`dt_ts_day_name`FROM`s`.`t__op_20240101000000000000`",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    []
+   ],
+   [
+    "exec",
+    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"dt_ts_day_name\"TEXT",
+    []
+   ],
+   [
+    "exec",
+    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"dt_ts_day_name\"=DAYNAME(\"ts\")",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT\"ts\",\"dt_ts_day_name\"FROM\"s\".\"t__op_20240101000000000000\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    []
+   ],
+   [
+    "exec",
+    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"dt_ts_day_name\"TEXT",
+    []
+   ],
+   [
+    "exec",
+    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"dt_ts_day_name\"=TO_CHAR(\"ts\",'FMDay')",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT\"ts\",\"dt_ts_day_name\"FROM\"s\".\"t__op_20240101000000000000\"",
+    []
+   ]
+  ]
+ },
  "days_in_month": {
   "clickhouse": [
    [
@@ -199,6 +625,74 @@
    [
     "fetch",
     "SELECT\"ts\",\"dt_ts_days_in_month\"FROM\"s\".\"t__op_20240101000000000000\"",
+    []
+   ]
+  ]
+ },
+ "diff_day": {
+  "clickhouse": [
+   [
+    "exec",
+    "CREATETABLE`s`.`t__op_20240101000000000000`ASSELECT*FROM`s`.`t`",
+    []
+   ],
+   [
+    "exec",
+    "ALTERTABLE`s`.`t__op_20240101000000000000`ADDCOLUMN\"dt_ts_ts_diff_day\"DOUBLEPRECISION",
+    []
+   ],
+   [
+    "exec",
+    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_ts_diff_day\"=dateDiff('day',\"ts\",\"ts\")WHERE1SETTINGSmutations_sync=1",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT`ts`,`ts`,`dt_ts_ts_diff_day`FROM`s`.`t__op_20240101000000000000`",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    []
+   ],
+   [
+    "exec",
+    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"dt_ts_ts_diff_day\"DOUBLEPRECISION",
+    []
+   ],
+   [
+    "exec",
+    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"dt_ts_ts_diff_day\"=EXTRACT(EPOCHFROM(\"ts\"-\"ts\"))/86400",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT\"ts\",\"ts\",\"dt_ts_ts_diff_day\"FROM\"s\".\"t__op_20240101000000000000\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    []
+   ],
+   [
+    "exec",
+    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"dt_ts_ts_diff_day\"DOUBLEPRECISION",
+    []
+   ],
+   [
+    "exec",
+    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"dt_ts_ts_diff_day\"=EXTRACT(EPOCHFROM(\"ts\"-\"ts\"))/86400",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT\"ts\",\"ts\",\"dt_ts_ts_diff_day\"FROM\"s\".\"t__op_20240101000000000000\"",
     []
    ]
   ]
@@ -408,6 +902,74 @@
    [
     "fetch",
     "SELECT\"ts\",\"dt_ts_quarter\"FROM\"s\".\"t__op_20240101000000000000\"",
+    []
+   ]
+  ]
+ },
+ "extract_week": {
+  "clickhouse": [
+   [
+    "exec",
+    "CREATETABLE`s`.`t__op_20240101000000000000`ASSELECT*FROM`s`.`t`",
+    []
+   ],
+   [
+    "exec",
+    "ALTERTABLE`s`.`t__op_20240101000000000000`ADDCOLUMN\"dt_ts_week\"INTEGER",
+    []
+   ],
+   [
+    "exec",
+    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_week\"=toISOWeek(\"ts\")WHERE1SETTINGSmutations_sync=1",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT`ts`,`dt_ts_week`FROM`s`.`t__op_20240101000000000000`",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    []
+   ],
+   [
+    "exec",
+    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"dt_ts_week\"INTEGER",
+    []
+   ],
+   [
+    "exec",
+    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"dt_ts_week\"=EXTRACT(WEEKFROM\"ts\")",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT\"ts\",\"dt_ts_week\"FROM\"s\".\"t__op_20240101000000000000\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    []
+   ],
+   [
+    "exec",
+    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"dt_ts_week\"INTEGER",
+    []
+   ],
+   [
+    "exec",
+    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"dt_ts_week\"=EXTRACT(WEEKFROM\"ts\")",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT\"ts\",\"dt_ts_week\"FROM\"s\".\"t__op_20240101000000000000\"",
     []
    ]
   ]
@@ -956,6 +1518,74 @@
    ]
   ]
  },
+ "month_name": {
+  "clickhouse": [
+   [
+    "exec",
+    "CREATETABLE`s`.`t__op_20240101000000000000`ASSELECT*FROM`s`.`t`",
+    []
+   ],
+   [
+    "exec",
+    "ALTERTABLE`s`.`t__op_20240101000000000000`ADDCOLUMN\"dt_ts_month_name\"TEXT",
+    []
+   ],
+   [
+    "exec",
+    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_month_name\"=formatDateTime(\"ts\",'%B')WHERE1SETTINGSmutations_sync=1",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT`ts`,`dt_ts_month_name`FROM`s`.`t__op_20240101000000000000`",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    []
+   ],
+   [
+    "exec",
+    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"dt_ts_month_name\"TEXT",
+    []
+   ],
+   [
+    "exec",
+    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"dt_ts_month_name\"=MONTHNAME(\"ts\")",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT\"ts\",\"dt_ts_month_name\"FROM\"s\".\"t__op_20240101000000000000\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    []
+   ],
+   [
+    "exec",
+    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"dt_ts_month_name\"TEXT",
+    []
+   ],
+   [
+    "exec",
+    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"dt_ts_month_name\"=TO_CHAR(\"ts\",'FMMonth')",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT\"ts\",\"dt_ts_month_name\"FROM\"s\".\"t__op_20240101000000000000\"",
+    []
+   ]
+  ]
+ },
  "normalize": {
   "clickhouse": [
    [
@@ -1092,6 +1722,98 @@
    ]
   ]
  },
+ "resample_count": {
+  "clickhouse": [
+   [
+    "fetch",
+    "SELECTDATE_TRUNC('day',\"ts\")ASbucket,COUNT(*)AS\"value\"FROM`s`.`t`GROUPBYbucketORDERBYbucket",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetch",
+    "SELECTDATE_TRUNC('day',\"ts\")ASbucket,COUNT(*)AS\"value\"FROM\"s\".\"t\"GROUPBYbucketORDERBYbucket",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetch",
+    "SELECTDATE_TRUNC('day',\"ts\")ASbucket,COUNT(*)AS\"value\"FROM\"s\".\"t\"GROUPBYbucketORDERBYbucket",
+    []
+   ]
+  ]
+ },
+ "resample_group": {
+  "clickhouse": [
+   [
+    "fetch",
+    "SELECTDATE_TRUNC('month',\"ts\")ASbucket,\"s\",SUM(\"val\")AS\"val_sum\"FROM`s`.`t`GROUPBYbucket,\"s\"ORDERBYbucket,\"s\"",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetch",
+    "SELECTDATE_TRUNC('month',\"ts\")ASbucket,\"s\",SUM(\"val\")AS\"val_sum\"FROM\"s\".\"t\"GROUPBYbucket,\"s\"ORDERBYbucket,\"s\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetch",
+    "SELECTDATE_TRUNC('month',\"ts\")ASbucket,\"s\",SUM(\"val\")AS\"val_sum\"FROM\"s\".\"t\"GROUPBYbucket,\"s\"ORDERBYbucket,\"s\"",
+    []
+   ]
+  ]
+ },
+ "resample_multi": {
+  "clickhouse": [
+   [
+    "fetch",
+    "SELECTDATE_TRUNC('month',\"ts\")ASbucket,SUM(\"val\")AS\"val_sum\",MEAN(\"val\")AS\"val_mean\"FROM`s`.`t`GROUPBYbucketORDERBYbucket",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetch",
+    "SELECTDATE_TRUNC('month',\"ts\")ASbucket,SUM(\"val\")AS\"val_sum\",MEAN(\"val\")AS\"val_mean\"FROM\"s\".\"t\"GROUPBYbucketORDERBYbucket",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetch",
+    "SELECTDATE_TRUNC('month',\"ts\")ASbucket,SUM(\"val\")AS\"val_sum\",MEAN(\"val\")AS\"val_mean\"FROM\"s\".\"t\"GROUPBYbucketORDERBYbucket",
+    []
+   ]
+  ]
+ },
+ "resample_sum": {
+  "clickhouse": [
+   [
+    "fetch",
+    "SELECTDATE_TRUNC('day',\"ts\")ASbucket,SUM(\"val\")AS\"value\"FROM`s`.`t`GROUPBYbucketORDERBYbucket",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetch",
+    "SELECTDATE_TRUNC('day',\"ts\")ASbucket,SUM(\"val\")AS\"value\"FROM\"s\".\"t\"GROUPBYbucketORDERBYbucket",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetch",
+    "SELECTDATE_TRUNC('day',\"ts\")ASbucket,SUM(\"val\")AS\"value\"FROM\"s\".\"t\"GROUPBYbucketORDERBYbucket",
+    []
+   ]
+  ]
+ },
  "round_hour": {
   "clickhouse": [
    [
@@ -1156,6 +1878,44 @@
    [
     "fetch",
     "SELECT\"ts\",\"dt_ts_round_hour\"FROM\"s\".\"t__op_20240101000000000000\"",
+    []
+   ]
+  ]
+ },
+ "select_year": {
+  "clickhouse": [
+   [
+    "exec",
+    "CREATETABLE`s`.`t__op_20240101000000000000`ASSELECT*FROM`s`.`t`WHEREtoYear(\"ts\")IN(2023)",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM`s`.`t__op_20240101000000000000`",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"WHEREEXTRACT(YEARFROMCAST(\"ts\"ASTIMESTAMP))IN(2023)",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"t__op_20240101000000000000\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"WHEREEXTRACT(YEARFROMCAST(\"ts\"ASTIMESTAMP))IN(2023)",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"t__op_20240101000000000000\"",
     []
    ]
   ]
@@ -1428,6 +2188,210 @@
    [
     "fetch",
     "SELECT\"ts\",\"dt_ts_timestamp\"FROM\"s\".\"t__op_20240101000000000000\"",
+    []
+   ]
+  ]
+ },
+ "to_datetime_cast": {
+  "clickhouse": [
+   [
+    "exec",
+    "CREATETABLE`s`.`t__op_20240101000000000000`ASSELECT*FROM`s`.`t`",
+    []
+   ],
+   [
+    "exec",
+    "ALTERTABLE`s`.`t__op_20240101000000000000`ADDCOLUMN\"dt_s_todatetime\"TIMESTAMP",
+    []
+   ],
+   [
+    "exec",
+    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_s_todatetime\"=CAST(\"s\"ASDateTime)WHERE1SETTINGSmutations_sync=1",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT`s`,`dt_s_todatetime`FROM`s`.`t__op_20240101000000000000`",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    []
+   ],
+   [
+    "exec",
+    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"dt_s_todatetime\"TIMESTAMP",
+    []
+   ],
+   [
+    "exec",
+    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"dt_s_todatetime\"=CAST(\"s\"ASTIMESTAMP)",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT\"s\",\"dt_s_todatetime\"FROM\"s\".\"t__op_20240101000000000000\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    []
+   ],
+   [
+    "exec",
+    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"dt_s_todatetime\"TIMESTAMP",
+    []
+   ],
+   [
+    "exec",
+    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"dt_s_todatetime\"=CAST(\"s\"ASTIMESTAMP)",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT\"s\",\"dt_s_todatetime\"FROM\"s\".\"t__op_20240101000000000000\"",
+    []
+   ]
+  ]
+ },
+ "to_datetime_coerce": {
+  "clickhouse": [
+   [
+    "exec",
+    "CREATETABLE`s`.`t__op_20240101000000000000`ASSELECT*FROM`s`.`t`",
+    []
+   ],
+   [
+    "exec",
+    "ALTERTABLE`s`.`t__op_20240101000000000000`ADDCOLUMN\"dt_s_todatetime\"TIMESTAMP",
+    []
+   ],
+   [
+    "exec",
+    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_s_todatetime\"=parseDateTimeBestEffortOrNull(\"s\")WHERE1SETTINGSmutations_sync=1",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT`s`,`dt_s_todatetime`FROM`s`.`t__op_20240101000000000000`",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    []
+   ],
+   [
+    "exec",
+    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"dt_s_todatetime\"TIMESTAMP",
+    []
+   ],
+   [
+    "exec",
+    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"dt_s_todatetime\"=TRY_CAST(\"s\"ASTIMESTAMP)",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT\"s\",\"dt_s_todatetime\"FROM\"s\".\"t__op_20240101000000000000\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    []
+   ],
+   [
+    "exec",
+    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"dt_s_todatetime\"TIMESTAMP",
+    []
+   ],
+   [
+    "exec",
+    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"dt_s_todatetime\"=CASEWHENTRIM(\"s\"::TEXT)~'^[0-9]{4}-[0-9]{2}-[0-9]{2}'THENCAST(\"s\"ASTIMESTAMP)ELSENULLEND",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT\"s\",\"dt_s_todatetime\"FROM\"s\".\"t__op_20240101000000000000\"",
+    []
+   ]
+  ]
+ },
+ "to_datetime_unit": {
+  "clickhouse": [
+   [
+    "exec",
+    "CREATETABLE`s`.`t__op_20240101000000000000`ASSELECT*FROM`s`.`t`",
+    []
+   ],
+   [
+    "exec",
+    "ALTERTABLE`s`.`t__op_20240101000000000000`ADDCOLUMN\"dt_val_todatetime\"TIMESTAMP",
+    []
+   ],
+   [
+    "exec",
+    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_val_todatetime\"=toDateTime(CAST(\"val\"ASFloat64)/1)WHERE1SETTINGSmutations_sync=1",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT`val`,`dt_val_todatetime`FROM`s`.`t__op_20240101000000000000`",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    []
+   ],
+   [
+    "exec",
+    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"dt_val_todatetime\"TIMESTAMP",
+    []
+   ],
+   [
+    "exec",
+    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"dt_val_todatetime\"=TO_TIMESTAMP(CAST(\"val\"ASDOUBLEPRECISION)/1)",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT\"val\",\"dt_val_todatetime\"FROM\"s\".\"t__op_20240101000000000000\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    []
+   ],
+   [
+    "exec",
+    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"dt_val_todatetime\"TIMESTAMP",
+    []
+   ],
+   [
+    "exec",
+    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"dt_val_todatetime\"=TO_TIMESTAMP(CAST(\"val\"ASDOUBLEPRECISION)/1)",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT\"val\",\"dt_val_todatetime\"FROM\"s\".\"t__op_20240101000000000000\"",
     []
    ]
   ]

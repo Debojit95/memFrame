@@ -1510,6 +1510,11 @@ class DatetimeOps:
             if value_columns is None:
                 raise ValueError(f"value_columns required for agg {fn!r}")
             cols = value_columns if isinstance(value_columns, (list, tuple)) else [value_columns]
+            # ponytail: one function over one column keeps the legacy "value"
+            # output name; anything wider gets value_<column>_<agg> names.
+            if len(funcs) == 1 and len(cols) == 1:
+                normed.append(("value", fn, str(cols[0])))
+                continue
             for col in cols:
                 normed.append((f"{col}_{fn}", fn, str(col)))
         if not normed:
