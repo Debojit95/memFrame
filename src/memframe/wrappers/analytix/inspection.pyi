@@ -138,26 +138,6 @@ class TableOpsWrapper(TableOpsOrchestrator):
         errors: str = "ignore",
     ) -> Dict[str, Any]: ...
 
-    async def aresample(
-        self,
-        time_column: str,
-        rule: str,
-        agg: str = "COUNT",
-        value_column: Optional[str] = None,
-        label: str = "left",
-        closed: str = "left",
-    ) -> Dict[str, Any]: ...
-
-    def resample(
-        self,
-        time_column: str,
-        rule: str,
-        agg: str = "COUNT",
-        value_column: Optional[str] = None,
-        label: str = "left",
-        closed: str = "left",
-    ) -> Dict[str, Any]: ...
-
     async def adata_quality_missing_values(
         self,
         columns: List[str],

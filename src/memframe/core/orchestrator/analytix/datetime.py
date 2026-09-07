@@ -346,6 +346,25 @@ class DateTimeOrchestrator:
                 return fail(f"months must be 1..12, got {values!r}")
         return await ops.select_month(table, schema, column, coerced)
 
+    # ── Wave 2: resampling + frequency conversion ─────────────
+    # ponytail: deep_cache=True (moved with the op) — aggregated/grid tables
+    # are persisted for replay, unlike the audit-only datetime one-shots above.
+    @record_call(deep_cache=True)
+    async def resample(self, column: str, freq: str, agg: Any = "count",
+                       value_columns: Any = None, group_by: Any = None,
+                       label: str = "left", closed: str = "left") -> Dict[str, Any]:
+        ops = await self._ensure_ops()
+        table, schema = await self._get_context()
+        return await ops.resample(table, schema, column, freq, agg,
+                                  value_columns, group_by, label, closed)
+
+    @record_call(deep_cache=True)
+    async def asfreq(self, column: str, freq: str,
+                     method: str = None) -> Dict[str, Any]:
+        ops = await self._ensure_ops()
+        table, schema = await self._get_context()
+        return await ops.asfreq(table, schema, column, freq, method)
+
 
 
 DateTimeAccessor = DateTimeOrchestrator

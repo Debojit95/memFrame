@@ -367,9 +367,6 @@ class GeneralTableOps:
     def _rowid_column(self) -> str:
         return "rowid"
 
-    def _translate_resample_rule(self, rule: str) -> str:
-        return rule
-
     def _row_value(self, row: Any, col: str, columns: List[str]) -> Any:
         # DuckDB returns bare tuples
         return row[0]
@@ -1351,80 +1348,11 @@ class GeneralTableOps:
         except Exception as e:
             return self._error_response(str(e))
 
-    async def dataframe_resample(self, table: str, schema: str, time_column: str, rule: str = "COUNT", agg: str = "COUNT", value_column: Optional[str] = None, label: str = "left", closed: str = "left", **kwargs) -> Dict[str, Any]:
-        try:
-            table = SQLIdentifierSanitizer.sanitize(table)
-            time_column = SQLIdentifierSanitizer.sanitize(time_column)
-            qualified = self._qualified_table(table, schema)
-
-            column_types = await self._get_column_types(table, schema)
-
-            if time_column not in column_types:
-                return self._error_response(f"Column '{time_column}' not found")
-
-            dtype = column_types[time_column].lower()
-            if not any(t in dtype for t in ("date", "time", "timestamp")):
-                return self._error_response(f"Column '{time_column}' must be datetime-like")
-
-            if label not in ["left", "right"]:
-                return self._error_response("label must be 'left' or 'right'")
-
-            if closed not in ["left", "right"]:
-                return self._error_response("closed must be 'left' or 'right'")
-
-            if agg.upper() == "COUNT":
-                agg_expr = "COUNT(*)"
-            else:
-                if not value_column:
-                    return self._error_response("value_column required for aggregation other than COUNT")
-
-                value_column = SQLIdentifierSanitizer.sanitize(value_column)
-                agg_expr = f'{agg.upper()}("{value_column}")'
-
-            effective_rule = self._translate_resample_rule(rule)
-            interval_rule = effective_rule
-
-            bucket_expr = f"DATE_TRUNC('{effective_rule}', \"{time_column}\")"
-
-            if label == "right":
-                bucket_expr = f"{bucket_expr} + INTERVAL '1 {interval_rule}'"
-
-            query = f"""
-                SELECT
-                    {bucket_expr} AS bucket,
-                    {agg_expr} AS value
-                FROM {qualified}
-                GROUP BY bucket
-                ORDER BY bucket
-            """
-
-            rows = await self._fetch(query)
-            records = self._rows_to_records(rows)
-            records = await self._normalize_records_by_type(records, table, schema)
-            df = pd.DataFrame.from_records(records)
-            df = df.rename(columns={"bucket": time_column})
-
-            return self._success_response(
-                message=f"Resampled '{table}' using rule='{rule}'",
-                involved_cols=[time_column],
-                generated_cols=["bucket", "value"],
-                result=df,
-                result_metadata={
-                    "row_count": len(df),
-                    "rule": rule,
-                    "aggregation": agg,
-                    "label": label,
-                    "closed": closed,
-                },
-            )
-        except Exception as e:
-            return self._error_response(
-                f"dataframe_resample error: {str(e)}\n{traceback.format_exc()}"
-            )
-
     # ------------------------------------------------------------------
     # Metadata / Info Methods
     # ------------------------------------------------------------------
+    # ponytail: resample moved to DatetimeOps (ctx.dt.resample) — time-bucketed
+    # aggregation belongs to the datetime domain, not inspection.
     async def dataframe_columns(self, table: str, schema: str, **kwargs) -> Dict[str, Any]:
         try:
             cols = list((await self._get_column_types(table, schema)).keys())

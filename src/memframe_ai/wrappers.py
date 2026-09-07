@@ -14,6 +14,7 @@ class SessionWrappers:
         from memframe.wrappers.analytix.inspection import TableOpsWrapper
         from memframe.wrappers.analytix.stats import StatsWrapper
         from memframe.wrappers.analytix.arithmetic import ArithmeticWrapper
+        from memframe.wrappers.analytix.datetime import DateTimeWrapper
         from memframe.wrappers.plots.bar import BarWrapper
         from memframe.wrappers.plots.line import LineWrapper
         from memframe.wrappers.plots.pie import PieWrapper
@@ -26,6 +27,7 @@ class SessionWrappers:
         self.inspection = TableOpsWrapper(session.ops)
         self.stats = StatsWrapper(session.ops)
         self.arithmetic = ArithmeticWrapper(session.ops)
+        self.datetime = DateTimeWrapper(session.ops)
         self.plot_bar = BarWrapper(session.ops)
         self.plot_line = LineWrapper(session.ops)
         self.plot_pie = PieWrapper(session.ops)

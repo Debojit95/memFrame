@@ -81,17 +81,6 @@ class ClickHouseTableOps(GeneralTableOps):
             expr = f"CAST({col_q} AS Nullable({target_type}))"
         return f"{expr} AS {col_q}"
 
-    def _translate_resample_rule(self, rule: str) -> str:
-        # ponytail: ClickHouse DATE_TRUNC/dateTrunc needs full unit names
-        # ('day', 'hour', ...); Postgres/DuckDB accept pandas offset aliases
-        # like 'D'. Translate only here, leave others untouched.
-        alias_map = {
-            "D": "day", "H": "hour", "T": "minute", "MIN": "minute",
-            "S": "second", "W": "week", "M": "month",
-            "Q": "quarter", "A": "year", "Y": "year",
-        }
-        return alias_map.get(rule.upper(), rule)
-
     def _row_value(self, row: Any, col: str, columns: List[str]) -> Any:
         return row[col]
 

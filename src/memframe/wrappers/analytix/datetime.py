@@ -502,3 +502,52 @@ class DateTimeWrapper(DateTimeOrchestrator):
     async def select_month(self, column: str, values: Any) -> Dict[str, Any]:
         """Synchronously keep rows whose month is in values."""
         return await self.aselect_month(column, values)
+
+    # ------------------------------------------------------------------
+    # Wave 2: resampling / frequency conversion
+    # ------------------------------------------------------------------
+    async def aresample(
+        self,
+        column: str,
+        freq: str,
+        agg: Any = "count",
+        value_columns: Any = None,
+        group_by: Any = None,
+        label: str = "left",
+        closed: str = "left",
+    ) -> Dict[str, Any]:
+        """Asynchronously bucket a datetime column and aggregate."""
+        return await super().resample(column, freq, agg, value_columns, group_by, label, closed)
+
+    @async_to_sync
+    async def resample(
+        self,
+        column: str,
+        freq: str,
+        agg: Any = "count",
+        value_columns: Any = None,
+        group_by: Any = None,
+        label: str = "left",
+        closed: str = "left",
+    ) -> Dict[str, Any]:
+        """Synchronously bucket a datetime column and aggregate."""
+        return await self.aresample(column, freq, agg, value_columns, group_by, label, closed)
+
+    async def aasfreq(
+        self,
+        column: str,
+        freq: str,
+        method: str = None,
+    ) -> Dict[str, Any]:
+        """Asynchronously reindex a datetime column to a regular frequency."""
+        return await super().asfreq(column, freq, method)
+
+    @async_to_sync
+    async def asfreq(
+        self,
+        column: str,
+        freq: str,
+        method: str = None,
+    ) -> Dict[str, Any]:
+        """Synchronously reindex a datetime column to a regular frequency."""
+        return await self.aasfreq(column, freq, method)

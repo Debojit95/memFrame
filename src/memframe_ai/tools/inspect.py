@@ -146,11 +146,13 @@ def tools(session):
         label: str = "left",
         closed: str = "left",
     ) -> dict:
+        # ponytail: resample moved to the datetime domain; repoint to the dt
+        # wrapper (same envelope shape, so normalize() is unchanged).
         """Resample a time-series on `time_column` by `rule` (e.g. '1D') with aggregation `agg`."""
         return await normalize(
-            await w.aresample(
-                time_column=time_column, rule=rule, agg=agg,
-                value_column=value_column, label=label, closed=closed,
+            await session.wrappers.datetime.aresample(
+                column=time_column, freq=rule, agg=agg,
+                value_columns=value_column, label=label, closed=closed,
             ),
             session,
         )

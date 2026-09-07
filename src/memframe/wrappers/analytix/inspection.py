@@ -418,49 +418,7 @@ class TableOpsWrapper(TableOpsOrchestrator):
             errors=errors,
         )
 
-    # ==========================================================
-    # RESAMPLE
-    # ==========================================================
-
-    async def aresample(
-        self,
-        time_column: str,
-        rule: str,
-        agg: str = "COUNT",
-        value_column: Optional[str] = None,
-        label: str = "left",
-        closed: str = "left",
-    ) -> Dict[str, Any]:
-        """Asynchronously resample time-series data with aggregation."""
-        return await super().resample(
-            time_column=time_column,
-            rule=rule,
-            agg=agg,
-            value_column=value_column,
-            label=label,
-            closed=closed,
-        )
-
-    @async_to_sync
-    async def resample(
-        self,
-        time_column: str,
-        rule: str,
-        agg: str = "COUNT",
-        value_column: Optional[str] = None,
-        label: str = "left",
-        closed: str = "left",
-    ) -> Dict[str, Any]:
-        """Synchronously resample time-series data with aggregation."""
-        return await self.aresample(
-            time_column=time_column,
-            rule=rule,
-            agg=agg,
-            value_column=value_column,
-            label=label,
-            closed=closed,
-        )
-
+    # ponytail: resample moved to DateTimeWrapper (ctx.dt.resample).
     # ==========================================================
     # SIMPLE PROPERTY OPS
     # ==========================================================

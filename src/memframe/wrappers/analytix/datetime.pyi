@@ -200,3 +200,39 @@ class DateTimeWrapper(DateTimeOrchestrator):
 
     async def aselect_month(self, column: str, values: Any) -> dict[str, Any]: ...
     def select_month(self, column: str, values: Any) -> dict[str, Any]: ...
+
+    async def aresample(
+        self,
+        column: str,
+        freq: str,
+        agg: Any = "count",
+        value_columns: Any = None,
+        group_by: Any = None,
+        label: str = "left",
+        closed: str = "left",
+    ) -> dict[str, Any]: ...
+
+    def resample(
+        self,
+        column: str,
+        freq: str,
+        agg: Any = "count",
+        value_columns: Any = None,
+        group_by: Any = None,
+        label: str = "left",
+        closed: str = "left",
+    ) -> dict[str, Any]: ...
+
+    async def aasfreq(
+        self,
+        column: str,
+        freq: str,
+        method: str | None = None,
+    ) -> dict[str, Any]: ...
+
+    def asfreq(
+        self,
+        column: str,
+        freq: str,
+        method: str | None = None,
+    ) -> dict[str, Any]: ...

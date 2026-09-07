@@ -184,23 +184,7 @@ class TableOpsOrchestrator:
             errors=errors,
         )
 
-    @record_call(deep_cache=True)
-    async def resample( self,time_column: str, rule: str,agg: str = "COUNT",  value_column: Optional[str] = None,label: str = "left", closed: str = "left",) -> Dict[str, Any]:
-        
-        ops = await self._ensure_ops()
-        table, schema = await self._get_context()
-
-        return await ops.dataframe_resample(
-            table,
-            schema,
-            time_column=time_column,
-            rule=rule,
-            agg=agg,
-            value_column=value_column,
-            label=label,
-            closed=closed,
-        )
-
+    # ponytail: resample moved to DateTimeOrchestrator (ctx.dt.resample).
     async def columns(self) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()

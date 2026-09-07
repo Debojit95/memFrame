@@ -1446,6 +1446,76 @@ class DatetimeOps:
         except Exception as e:
             return self._error_response(f"month_name error: {str(e)}", [column], [])
 
+    # ponytail: single canonical freq table for resample/asfreq (and any later
+    # grid feature). Single-bucket units only; "2h"/"15min" fail loudly instead
+    # of silently binning wrong. "MS" is month-start (pandas case-sensitive).
+    _FREQ_ALIASES = {
+        "s": "second", "second": "second", "seconds": "second",
+        "t": "minute", "min": "minute", "minute": "minute", "minutes": "minute",
+        "h": "hour", "hour": "hour", "hours": "hour",
+        "d": "day", "day": "day", "days": "day",
+        "w": "week", "week": "week", "weeks": "week",
+        "m": "month", "me": "month", "month": "month", "months": "month",
+        "ms": "month",
+        "q": "quarter", "qe": "quarter", "quarter": "quarter", "quarters": "quarter",
+        "a": "year", "y": "year", "ye": "year", "year": "year", "years": "year",
+    }
+
+    @classmethod
+    def _parse_freq(cls, freq: str) -> str:
+        key = str(freq).strip()
+        if key == "MS":
+            return "month"
+        key = key.lower()
+        if key not in cls._FREQ_ALIASES:
+            raise ValueError(
+                f"Unsupported freq: {freq!r} (use D, W, ME, QE, YE, h, min, s or full unit names)"
+            )
+        return cls._FREQ_ALIASES[key]
+
+    _RESAMPLE_AGGS = {"count", "sum", "mean", "avg", "min", "max", "median", "std"}
+
+    @classmethod
+    def _normalize_agg_spec(cls, agg, value_columns):
+        """Normalize agg spec to [(out_suffix, func, column|None)]; raises ValueError."""
+        if isinstance(agg, str):
+            funcs = [agg]
+        elif isinstance(agg, (list, tuple)):
+            funcs = list(agg)
+        elif isinstance(agg, dict):
+            specs = []
+            for col, fns in agg.items():
+                for fn in (fns if isinstance(fns, (list, tuple)) else [fns]):
+                    fn = str(fn).lower()
+                    if fn not in cls._RESAMPLE_AGGS:
+                        raise ValueError(f"Unsupported agg: {fn!r}")
+                    if fn == "count":
+                        specs.append((f"{col}_count", "count", str(col)))
+                    else:
+                        specs.append((f"{col}_{fn}", fn, str(col)))
+            if not specs:
+                raise ValueError("agg dict must not be empty")
+            return specs
+        else:
+            raise ValueError(f"agg must be a string, list or dict, got {agg!r}")
+
+        normed = []
+        for fn in funcs:
+            fn = str(fn).lower()
+            if fn not in cls._RESAMPLE_AGGS:
+                raise ValueError(f"Unsupported agg: {fn!r}")
+            if fn == "count":
+                normed.append(("value", "count", None))
+                continue
+            if value_columns is None:
+                raise ValueError(f"value_columns required for agg {fn!r}")
+            cols = value_columns if isinstance(value_columns, (list, tuple)) else [value_columns]
+            for col in cols:
+                normed.append((f"{col}_{fn}", fn, str(col)))
+        if not normed:
+            raise ValueError("agg must not be empty")
+        return normed
+
     _DIFF_DIVISORS = {
         "millisecond": 0.001, "second": 1, "minute": 60, "hour": 3600,
         "day": 86400, "week": 604800,
@@ -2249,3 +2319,176 @@ class DatetimeOps:
 
         except Exception as e:
             return self._error_response(str(e), [column])
+
+    # ==================================================================
+    #  WAVE 2 — resampling + frequency conversion
+    # ==================================================================
+    async def resample(self, table: str, schema: str, column: str, freq: str,
+                       agg: Any = "count", value_columns: Any = None,
+                       group_by: Any = None, label: str = "left", closed: str = "left",
+                       backend=None, data_id=None, new_table=None) -> Dict[str, Any]:
+        # ponytail: moved from GeneralTableOps (ctx.resample) — time-bucketed
+        # aggregation belongs here; extended with multi-agg + group_by.
+        try:
+            safe_table = SQLIdentifierSanitizer.sanitize(table)
+            safe_col = SQLIdentifierSanitizer.sanitize(column)
+            qualified = self._qualified_table(safe_table, schema)
+
+            column_types = await self.db.get_column_types(safe_table, schema)
+            if safe_col not in column_types and column not in column_types:
+                return self._error_response(f"Column '{column}' not found", [column], [])
+            dtype = str(column_types.get(safe_col, column_types.get(column, ""))).lower()
+            if not any(t in dtype for t in ("date", "time", "timestamp")):
+                return self._error_response(f"Column '{column}' must be datetime-like", [column], [])
+
+            try:
+                unit = self._parse_freq(freq)
+            except ValueError as exc:
+                return self._error_response(str(exc), [column], [])
+            if label not in ("left", "right"):
+                return self._error_response("label must be 'left' or 'right'", [column], [])
+            if closed not in ("left", "right"):
+                return self._error_response("closed must be 'left' or 'right'", [column], [])
+            try:
+                specs = self._normalize_agg_spec(agg, value_columns)
+            except ValueError as exc:
+                return self._error_response(str(exc), [column], [])
+
+            groups = [SQLIdentifierSanitizer.sanitize(str(g)) for g in (
+                group_by if isinstance(group_by, (list, tuple)) else ([group_by] if group_by else []))]
+            if isinstance(self.db, ClickHouseAdapter):
+                bucket = f"DATE_TRUNC('{unit}', \"{safe_col}\")"
+                interval = f"INTERVAL 1 {unit}"
+            else:
+                bucket = f"DATE_TRUNC('{unit}', \"{safe_col}\")"
+                interval = f"INTERVAL '1 {unit}'"
+            if label == "right":
+                bucket = f"{bucket} + {interval}"
+
+            select_items = [f"{bucket} AS bucket"]
+            select_items += [f'"{g}"' for g in groups]
+            for out_name, func, col in specs:
+                safe_out = SQLIdentifierSanitizer.sanitize(out_name)
+                if func == "count" and col is None:
+                    select_items.append(f"COUNT(*) AS \"{safe_out}\"")
+                elif func == "count":
+                    select_items.append(f'COUNT("{SQLIdentifierSanitizer.sanitize(col)}") AS "{safe_out}"')
+                else:
+                    select_items.append(f'{func.upper()}("{SQLIdentifierSanitizer.sanitize(col)}") AS "{safe_out}"')
+            group_items = ["bucket"] + [f'"{g}"' for g in groups]
+
+            query = f"""
+                SELECT {", ".join(select_items)}
+                FROM {qualified}
+                GROUP BY {", ".join(group_items)}
+                ORDER BY {", ".join(group_items)}
+            """
+            rows = await self._fetch(query)
+            records = [dict(row) for row in rows]
+            df = pd.DataFrame.from_records(records)
+            if not df.empty:
+                df = df.rename(columns={"bucket": column})
+            involved = [column] + groups
+            generated = [out for out, _, _ in specs]
+            return self._success_response(
+                f"Resampled '{column}' by '{freq}'",
+                involved, generated, df,
+                result_metadata={"row_count": len(df), "freq": freq, "unit": unit,
+                                 "aggregation": agg, "label": label, "closed": closed},
+            )
+
+        except Exception as e:
+            return self._error_response(f"resample error: {str(e)}\n{traceback.format_exc()}", [column], [])
+
+    async def asfreq(self, table: str, schema: str, column: str, freq: str,
+                     method: str = None, backend=None, data_id=None,
+                     new_table: str = None) -> Dict[str, Any]:
+        try:
+            safe_table = SQLIdentifierSanitizer.sanitize(table)
+            safe_col = SQLIdentifierSanitizer.sanitize(column)
+            safe_schema = SQLIdentifierSanitizer.sanitize(schema)
+            qualified = self._qualified_table(safe_table, safe_schema)
+
+            column_types = await self.db.get_column_types(safe_table, safe_schema)
+            if safe_col not in column_types and column not in column_types:
+                return self._error_response(f"Column '{column}' not found", [column], [])
+            dtype = str(column_types.get(safe_col, column_types.get(column, ""))).lower()
+            if not any(t in dtype for t in ("date", "time", "timestamp")):
+                return self._error_response(f"Column '{column}' must be datetime-like", [column], [])
+            try:
+                unit = self._parse_freq(freq)
+            except ValueError as exc:
+                return self._error_response(str(exc), [column], [])
+            if method not in (None, "ffill", "bfill"):
+                return self._error_response("method must be None, 'ffill' or 'bfill'", [column], [])
+
+            bounds = await self._fetch(f'SELECT MIN("{safe_col}") AS lo, MAX("{safe_col}") AS hi FROM {qualified}')
+            lo, hi = bounds[0]["lo"], bounds[0]["hi"]
+            if lo is None or hi is None:
+                return self._error_response(f"Column '{column}' has no non-null values", [column], [])
+            lo_s, hi_s = str(lo), str(hi)
+
+            dupes = await self._fetchval(
+                f"SELECT COUNT(*) FROM (SELECT DATE_TRUNC('{unit}', \"{safe_col}\") AS b "
+                f"FROM {qualified} GROUP BY b HAVING COUNT(*) > 1) t")
+            if dupes:
+                # ponytail: like pandas (which raises on non-unique index), refuse
+                # rather than silently duplicating grid rows; resample first.
+                return self._error_response(
+                    f"Column '{column}' has multiple rows per '{freq}' bucket; resample first",
+                    [column], [])
+
+            other_cols = [c for c in column_types if c != safe_col and c != column]
+            safe_others = [SQLIdentifierSanitizer.sanitize(c) for c in other_cols]
+
+            if isinstance(self.db, ClickHouseAdapter):
+                grid_start = f"DATE_TRUNC('{unit}', CAST({self._dt_literal(lo_s)} AS DateTime))"
+                n_row = await self._fetchval(
+                    f"SELECT dateDiff('{unit}', {grid_start}, CAST({self._dt_literal(hi_s)} AS DateTime)) + 1")
+                n = int(n_row or 1)
+                # ponytail: cap grid size; unbounded generate over years of seconds explodes.
+                if n < 1 or n > 100000:
+                    return self._error_response(f"asfreq grid would hold {n} buckets (cap 100000)", [column], [])
+                grid = f"(SELECT dateAdd('{unit}', number, {grid_start}) AS bucket FROM numbers({n}))"
+                bucket_match = f"DATE_TRUNC('{unit}', s.\"{safe_col}\") = g.bucket"
+            else:
+                # ponytail: UNNEST form works on both (DuckDB's generate_series
+                # returns a list; Postgres accepts UNNEST over its set too).
+                # Grid starts at the truncated min so buckets align to midnights.
+                grid = (
+                    f"(SELECT UNNEST(generate_series(DATE_TRUNC('{unit}', CAST({self._dt_literal(lo_s)} AS TIMESTAMP)), "
+                    f"CAST({self._dt_literal(hi_s)} AS TIMESTAMP), INTERVAL '1 {unit}')) AS bucket)")
+                bucket_match = f"DATE_TRUNC('{unit}', s.\"{safe_col}\") = g.bucket"
+
+            if method is None:
+                fill_items = [f's."{c}"' for c in safe_others]
+            else:
+                # ponytail: portable correlated-subquery fill (O(n^2)); per-backend
+                # IGNORE NULLS windows later if asfreq grids prove large.
+                cmp_op, order = ("<=", "DESC") if method == "ffill" else (">=", "ASC")
+                fill_items = []
+                for c in safe_others:
+                    fill_items.append(
+                        f"(SELECT t2.\"{c}\" FROM {qualified} t2 "
+                        f"WHERE DATE_TRUNC('{unit}', t2.\"{safe_col}\") {cmp_op} g.bucket "
+                        f"AND t2.\"{c}\" IS NOT NULL "
+                        f"ORDER BY DATE_TRUNC('{unit}', t2.\"{safe_col}\") {order} LIMIT 1) AS \"{c}\"")
+
+            output_table = await self._resolve_output_table_name(
+                safe_table, safe_schema, backend=backend, data_id=data_id, new_table=new_table)
+            qualified_target = f'{self.db.quote_identifier(safe_schema)}.{self.db.quote_identifier(output_table)}'
+            # ponytail: fill subqueries re-derive the truncated source bucket
+            # per grid row (portable correlated fill, O(n^2)).
+            select_list = f'g.bucket AS "{safe_col}"' + ("".join(f", {item}" for item in fill_items) if fill_items else "")
+            await self._exec(
+                f"CREATE TABLE {qualified_target} AS "
+                f"SELECT {select_list} "
+                f"FROM {grid} g LEFT JOIN {qualified} s ON {bucket_match} "
+                f"ORDER BY bucket")
+            sample = await self._fetch_sample(output_table, safe_schema)
+            return self._success_response(f"Converted '{column}' to frequency '{freq}'",
+                                          [column], [safe_col], sample, freq=freq,
+                                          method=method, new_table=output_table)
+
+        except Exception as e:
+            return self._error_response(f"asfreq error: {str(e)}\n{traceback.format_exc()}", [column], [])
