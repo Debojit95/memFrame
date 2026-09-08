@@ -1388,7 +1388,8 @@ class DatetimeOps:
                 safe_new = SQLIdentifierSanitizer.sanitize(new_col)
                 base_expr = await self._datetime_base_expr(working_table, schema, column)
 
-                await self._exec(f"""ALTER TABLE {qualified} UPDATE "{safe_new}" = formatDateTime({base_expr}, '%A') WHERE 1 SETTINGS mutations_sync = 1""")
+                # ponytail: this build rejects formatDateTime %A; DATE_FORMAT %W probed good.
+                await self._exec(f"""ALTER TABLE {qualified} UPDATE "{safe_new}" = DATE_FORMAT({base_expr}, '%W') WHERE 1 SETTINGS mutations_sync = 1""")
                 sample = await self._fetch_sample(working_table, schema, [safe_col, safe_new])
                 return self._success_response(f"Extracted day name from '{column}'",
                                               [column], [new_col], sample, new_table=working_table)
@@ -1436,7 +1437,8 @@ class DatetimeOps:
                 safe_new = SQLIdentifierSanitizer.sanitize(new_col)
                 base_expr = await self._datetime_base_expr(working_table, schema, column)
 
-                await self._exec(f"""ALTER TABLE {qualified} UPDATE "{safe_new}" = formatDateTime({base_expr}, '%B') WHERE 1 SETTINGS mutations_sync = 1""")
+                # ponytail: same %B rejection as day_name; DATE_FORMAT %M probed good.
+                await self._exec(f"""ALTER TABLE {qualified} UPDATE "{safe_new}" = DATE_FORMAT({base_expr}, '%M') WHERE 1 SETTINGS mutations_sync = 1""")
                 sample = await self._fetch_sample(working_table, schema, [safe_col, safe_new])
                 return self._success_response(f"Extracted month name from '{column}'",
                                               [column], [new_col], sample, new_table=working_table)
@@ -1674,7 +1676,10 @@ class DatetimeOps:
                     table, schema, backend=backend, data_id=data_id, new_table=new_table
                 )
                 new_col = self._generate_cleaned_column_name(column, "todatetime")
-                await self._add_new_column(working_table, schema, new_col, "TIMESTAMP")
+                # ponytail: coerce path writes NULLs; plain DateTime rejects them.
+                await self._add_new_column(
+                    working_table, schema, new_col,
+                    "Nullable(DateTime)" if errors == "coerce" else "TIMESTAMP")
 
                 qualified = self._qualified_table(working_table, schema)
                 safe_col = SQLIdentifierSanitizer.sanitize(column)
@@ -2352,20 +2357,22 @@ class DatetimeOps:
                 base_expr = await self._datetime_base_expr(working_table, schema, column)
 
                 if business_day:
+                    # ponytail: addDays proven on this server; string-unit dateAdd
+                    # misresolves here, so it is not used anywhere on CH.
                     dow = f"toDayOfWeek({base_expr})"
                     if days >= 0:
                         roll = f"(CASE WHEN {dow} = 6 THEN 2 WHEN {dow} = 7 THEN 1 ELSE 0 END)"
-                        rolled = f"dateAdd('day', {roll}, {base_expr})"
+                        rolled = f"addDays({base_expr}, {roll})"
                         kk = f"greatest({days} - (CASE WHEN {dow} IN (6, 7) THEN 1 ELSE 0 END), 0)"
                         w = f"(toDayOfWeek({rolled}) - 1)"
-                        expr = f"dateAdd('day', ({kk}) + 2 * intDiv(({w}) + ({kk}), 5), {rolled})"
+                        expr = f"addDays({rolled}, ({kk}) + 2 * intDiv(({w}) + ({kk}), 5))"
                     else:
                         m = abs(days)
                         rollback = f"(CASE WHEN {dow} = 6 THEN 1 WHEN {dow} = 7 THEN 2 ELSE 0 END)"
-                        rolled = f"dateAdd('day', -{rollback}, {base_expr})"
+                        rolled = f"addDays({base_expr}, -{rollback})"
                         kk = f"greatest({m} - (CASE WHEN {dow} IN (6, 7) THEN 1 ELSE 0 END), 0)"
                         wrev = f"(4 - (toDayOfWeek({rolled}) - 1))"
-                        expr = f"dateAdd('day', -(({kk}) + 2 * intDiv(({wrev}) + ({kk}), 5)), {rolled})"
+                        expr = f"addDays({rolled}, -(({kk}) + 2 * intDiv(({wrev}) + ({kk}), 5)))"
                 else:
                     expr = base_expr
                     if years:
@@ -2574,7 +2581,13 @@ class DatetimeOps:
                 # ponytail: cap grid size; unbounded generate over years of seconds explodes.
                 if n < 1 or n > 100000:
                     return self._error_response(f"asfreq grid would hold {n} buckets (cap 100000)", [column], [])
-                grid = f"(SELECT dateAdd('{unit}', number, {grid_start}) AS bucket FROM numbers({n}))"
+                # ponytail: unit known at build time, so emit the proven
+                # add<Unit> family instead of string-unit dateAdd (see above).
+                add_fn = {"second": "addSeconds", "minute": "addMinutes",
+                          "hour": "addHours", "day": "addDays", "week": "addWeeks",
+                          "month": "addMonths", "quarter": "addQuarters",
+                          "year": "addYears"}[unit]
+                grid = f"(SELECT {add_fn}({grid_start}, number) AS bucket FROM numbers({n}))"
                 bucket_match = f"DATE_TRUNC('{unit}', s.\"{safe_col}\") = g.bucket"
             elif isinstance(self.db, PostgresAdapter):
                 # ponytail: Postgres generate_series is set-returning natively;
@@ -2595,16 +2608,30 @@ class DatetimeOps:
             if method is None:
                 fill_items = [f's."{c}"' for c in safe_others]
             else:
-                # ponytail: portable correlated-subquery fill (O(n^2)); per-backend
-                # IGNORE NULLS windows later if asfreq grids prove large.
-                cmp_op, order = ("<=", "DESC") if method == "ffill" else (">=", "ASC")
-                fill_items = []
-                for c in safe_others:
-                    fill_items.append(
-                        f"(SELECT t2.\"{c}\" FROM {qualified} t2 "
-                        f"WHERE DATE_TRUNC('{unit}', t2.\"{safe_col}\") {cmp_op} g.bucket "
-                        f"AND t2.\"{c}\" IS NOT NULL "
-                        f"ORDER BY DATE_TRUNC('{unit}', t2.\"{safe_col}\") {order} LIMIT 1) AS \"{c}\"")
+                # ponytail: CH cannot decorrelate ORDER BY+LIMIT subqueries;
+                # IGNORE NULLS windows probed good on this server instead.
+                if isinstance(self.db, ClickHouseAdapter):
+                    if method == "ffill":
+                        fill_items = [
+                            f"last_value(s.\"{c}\") IGNORE NULLS OVER (ORDER BY g.bucket "
+                            f"ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS \"{c}\""
+                            for c in safe_others]
+                    else:
+                        fill_items = [
+                            f"first_value(s.\"{c}\") IGNORE NULLS OVER (ORDER BY g.bucket "
+                            f"ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING) AS \"{c}\""
+                            for c in safe_others]
+                else:
+                    # ponytail: portable correlated-subquery fill (O(n^2)); per-backend
+                    # IGNORE NULLS windows later if asfreq grids prove large.
+                    cmp_op, order = ("<=", "DESC") if method == "ffill" else (">=", "ASC")
+                    fill_items = []
+                    for c in safe_others:
+                        fill_items.append(
+                            f"(SELECT t2.\"{c}\" FROM {qualified} t2 "
+                            f"WHERE DATE_TRUNC('{unit}', t2.\"{safe_col}\") {cmp_op} g.bucket "
+                            f"AND t2.\"{c}\" IS NOT NULL "
+                            f"ORDER BY DATE_TRUNC('{unit}', t2.\"{safe_col}\") {order} LIMIT 1) AS \"{c}\"")
 
             output_table = await self._resolve_output_table_name(
                 safe_table, safe_schema, backend=backend, data_id=data_id, new_table=new_table)

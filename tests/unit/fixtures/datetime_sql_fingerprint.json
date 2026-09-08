@@ -13,7 +13,7 @@
    ],
    [
     "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_offset\"=dateAdd('day',(greatest(5-(CASEWHENtoDayOfWeek(\"ts\")IN(6,7)THEN1ELSE0END),0))+2*intDiv(((toDayOfWeek(dateAdd('day',(CASEWHENtoDayOfWeek(\"ts\")=6THEN2WHENtoDayOfWeek(\"ts\")=7THEN1ELSE0END),\"ts\"))-1))+(greatest(5-(CASEWHENtoDayOfWeek(\"ts\")IN(6,7)THEN1ELSE0END),0)),5),dateAdd('day',(CASEWHENtoDayOfWeek(\"ts\")=6THEN2WHENtoDayOfWeek(\"ts\")=7THEN1ELSE0END),\"ts\"))WHERE1SETTINGSmutations_sync=1",
+    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_offset\"=addDays(addDays(\"ts\",(CASEWHENtoDayOfWeek(\"ts\")=6THEN2WHENtoDayOfWeek(\"ts\")=7THEN1ELSE0END)),(greatest(5-(CASEWHENtoDayOfWeek(\"ts\")IN(6,7)THEN1ELSE0END),0))+2*intDiv(((toDayOfWeek(addDays(\"ts\",(CASEWHENtoDayOfWeek(\"ts\")=6THEN2WHENtoDayOfWeek(\"ts\")=7THEN1ELSE0END)))-1))+(greatest(5-(CASEWHENtoDayOfWeek(\"ts\")IN(6,7)THEN1ELSE0END),0)),5))WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
@@ -222,7 +222,7 @@
    ],
    [
     "exec",
-    "CREATETABLE`s`.`t__op_20240101000000000000`ASSELECTg.bucketAS\"ts\",(SELECTt2.\"s\"FROM`s`.`t`t2WHEREDATE_TRUNC('day',t2.\"ts\")<=g.bucketANDt2.\"s\"ISNOTNULLORDERBYDATE_TRUNC('day',t2.\"ts\")DESCLIMIT1)AS\"s\",(SELECTt2.\"val\"FROM`s`.`t`t2WHEREDATE_TRUNC('day',t2.\"ts\")<=g.bucketANDt2.\"val\"ISNOTNULLORDERBYDATE_TRUNC('day',t2.\"ts\")DESCLIMIT1)AS\"val\"FROM(SELECTdateAdd('day',number,DATE_TRUNC('day',CAST('2023-01-0100:00:00'ASDateTime)))ASbucketFROMnumbers(5))gLEFTJOIN`s`.`t`sONDATE_TRUNC('day',s.\"ts\")=g.bucketORDERBYbucket",
+    "CREATETABLE`s`.`t__op_20240101000000000000`ASSELECTg.bucketAS\"ts\",last_value(s.\"s\")IGNORENULLSOVER(ORDERBYg.bucketROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"s\",last_value(s.\"val\")IGNORENULLSOVER(ORDERBYg.bucketROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"val\"FROM(SELECTaddDays(DATE_TRUNC('day',CAST('2023-01-0100:00:00'ASDateTime)),number)ASbucketFROMnumbers(5))gLEFTJOIN`s`.`t`sONDATE_TRUNC('day',s.\"ts\")=g.bucketORDERBYbucket",
     []
    ],
    [
@@ -295,7 +295,7 @@
    ],
    [
     "exec",
-    "CREATETABLE`s`.`t__op_20240101000000000000`ASSELECTg.bucketAS\"ts\",s.\"s\",s.\"val\"FROM(SELECTdateAdd('day',number,DATE_TRUNC('day',CAST('2023-01-0100:00:00'ASDateTime)))ASbucketFROMnumbers(5))gLEFTJOIN`s`.`t`sONDATE_TRUNC('day',s.\"ts\")=g.bucketORDERBYbucket",
+    "CREATETABLE`s`.`t__op_20240101000000000000`ASSELECTg.bucketAS\"ts\",s.\"s\",s.\"val\"FROM(SELECTaddDays(DATE_TRUNC('day',CAST('2023-01-0100:00:00'ASDateTime)),number)ASbucketFROMnumbers(5))gLEFTJOIN`s`.`t`sONDATE_TRUNC('day',s.\"ts\")=g.bucketORDERBYbucket",
     []
    ],
    [
@@ -507,7 +507,7 @@
    ],
    [
     "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_day_name\"=formatDateTime(\"ts\",'%A')WHERE1SETTINGSmutations_sync=1",
+    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_day_name\"=DATE_FORMAT(\"ts\",'%W')WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
@@ -1532,7 +1532,7 @@
    ],
    [
     "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_month_name\"=formatDateTime(\"ts\",'%B')WHERE1SETTINGSmutations_sync=1",
+    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_month_name\"=DATE_FORMAT(\"ts\",'%M')WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
@@ -2292,7 +2292,7 @@
    ],
    [
     "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`ADDCOLUMN\"dt_s_todatetime\"TIMESTAMP",
+    "ALTERTABLE`s`.`t__op_20240101000000000000`ADDCOLUMN\"dt_s_todatetime\"Nullable(DateTime)",
     []
    ],
    [
