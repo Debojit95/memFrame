@@ -2,7 +2,7 @@ from typing import Any, Dict, List, Union
 
 import pandas as pd
 
-from memframe.core.analytix.datetime import DatetimeOps
+from memframe.core.analytix.datetime import DatetimeOps, make_datetime_ops
 from memframe.core.analytix._response import fail
 from memframe.cache import record_call
 
@@ -54,7 +54,7 @@ class DateTimeOrchestrator:
     async def _ensure_ops(self) -> DatetimeOps:
         if self._datetime_ops is None:
             await self._ops_parent._ensure_adapter()
-            self._datetime_ops = DatetimeOps(self._ops_parent._adapter)
+            self._datetime_ops = make_datetime_ops(self._ops_parent._adapter)
         return self._datetime_ops
 
     async def _get_context(self):

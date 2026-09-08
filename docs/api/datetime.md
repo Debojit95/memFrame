@@ -33,7 +33,9 @@ operations remain at the top level.
 
 The lower-level files are implementation details:
 
-- `src/memframe/core/analytix/datetime.py` builds and executes backend-specific SQL.
+- `src/memframe/core/analytix/datetime/` builds and executes backend-specific SQL
+  (`base.py` holds the DuckDB-flavoured shared engine plus dialect hooks,
+  `postgres.py`/`clickhouse.py` override per backend, `factory.py` dispatches).
 - `src/memframe/core/orchestrator/analytix/datetime.py` resolves the active
   dataset context and passes persistence metadata.
 - `src/memframe/wrappers/analytix/datetime.py` exposes synchronous and

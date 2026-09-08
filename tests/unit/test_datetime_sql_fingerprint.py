@@ -14,7 +14,10 @@ from datetime import datetime, timezone
 
 import pytest
 
-from memframe.core.analytix.datetime import DatetimeOps
+from memframe.core.analytix.datetime.base import DatetimeOps
+from memframe.core.analytix.datetime.clickhouse import ClickHouseDatetimeOps
+from memframe.core.analytix.datetime.duckdb import DuckDBDatetimeOps
+from memframe.core.analytix.datetime.postgres import PostgresDatetimeOps
 from memframe.db_manager.adapters.clickhouse import ClickHouseAdapter
 from memframe.db_manager.adapters.duckdb import DuckDBAdapter
 from memframe.db_manager.adapters.postgresql import PostgresAdapter
@@ -153,22 +156,22 @@ SCENARIOS = {
 
 
 BACKENDS = {
-    "duckdb": RecordingDuckAdapter,
-    "postgres": RecordingPostgresAdapter,
-    "clickhouse": RecordingClickHouseAdapter,
+    "duckdb": (RecordingDuckAdapter, DuckDBDatetimeOps),
+    "postgres": (RecordingPostgresAdapter, PostgresDatetimeOps),
+    "clickhouse": (RecordingClickHouseAdapter, ClickHouseDatetimeOps),
 }
 
 
 def _capture():
-    base_mod = importlib.import_module("memframe.core.analytix.datetime")
+    base_mod = importlib.import_module("memframe.core.analytix.datetime.base")
     real_datetime = base_mod.datetime
     base_mod.datetime = _FrozenDatetime
     try:
         snapshot = {}
         for name, scenario in SCENARIOS.items():
             snapshot[name] = {}
-            for backend_name, adapter_cls in BACKENDS.items():
-                ops = DatetimeOps(adapter_cls())
+            for backend_name, (adapter_cls, ops_cls) in BACKENDS.items():
+                ops = ops_cls(adapter_cls())
                 asyncio.run(scenario(ops))
                 snapshot[name][backend_name] = ops.db.calls
         return snapshot
