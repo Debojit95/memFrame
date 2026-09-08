@@ -6,6 +6,23 @@ to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.4.0rc1] - 2026-09-08
+
+### Added
+- **Datetime Wave 1 ops** (`ctx.dt.*`): day/month names, two-column `diff`, `to_datetime` (format, epoch units, raise/coerce), `between`/`before`/`after` filters, `select_year`/`select_month`.
+- **Datetime Wave 2**: `resample` moved from inspection to `ctx.dt` with multi-aggregation, `group_by`, and label control; new `asfreq` reindexing with forward/backward fill.
+- **Datetime Wave 3**: calendar-aware `add_offset` (years through days plus Mon–Fri business-day mode).
+- **Plotly figures embedded as PNG in plot PDF reports** via a shared `_plot_pdf` helper (kaleido raster branch with graceful placeholder fallback); kaleido added to dev extras.
+
+### Fixed
+- **Postgres resample/asfreq SQL**: `mean` maps to `AVG` on all backends, `median` to `percentile_cont` on Postgres; asfreq grid uses native `generate_series` on Postgres.
+- **ClickHouse datetime**: day/month names via `DATE_FORMAT`, nullable result column for `to_datetime` coerce, proven `add<Unit>` date-math family plus `IGNORE NULLS` fill windows.
+- **Plot PDF teardown**: report rendering no longer calls matplotlib-only `suptitle` on plotly Figures.
+- **Python 3.10 compat**: `timezone.utc` replaces `datetime.UTC` / `datetime.utcnow`.
+
+### Changed
+- **Datetime core split** into `base` plus per-backend modules (`duckdb`/`postgres`/`clickhouse` + factory), mirroring inspection; SQL fingerprints prove byte-identical output.
+
 ## [0.3.1] - 2026-09-02
 
 ### Changed
