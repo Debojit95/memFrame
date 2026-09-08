@@ -14,6 +14,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 
+from _plot_pdf import render_fig_to_pdf_page
+
 from memframe import MemFrame
 
 # ----------------------------------------------------------------------
@@ -273,42 +275,7 @@ def uploaded_ctx(connected_memframe, sample_df) -> Any:
     return connected_memframe.upload_df(sample_df, filename="stats_dataset")
 
 
-# ----------------------------------------------------------------------
-# PDF helpers
-# ----------------------------------------------------------------------
-def render_fig_to_pdf_page(
-    pdf,
-    title,
-    method_call,
-    bar_fig,
-    backend,
-    status="PASSED",
-    error_message="",
-):
-    # ponytail: ctx.*plot returns plotly Figures (no suptitle); placeholder page instead.
-    if bar_fig is not None and hasattr(bar_fig, "suptitle"):
-        bar_fig.suptitle(
-            f"{title}  [{backend}]  {status}\nCall: {method_call}",
-            fontsize=12,
-            fontweight="bold",
-            y=1.02,
-        )
-        if error_message:
-            bar_fig.text(
-                0.01, 0.98, f"Failure: {error_message}",
-                fontsize=9, color="crimson", transform=bar_fig.transFigure,
-            )
-        pdf.savefig(bar_fig, bbox_inches="tight")
-        plt.close(bar_fig)
-    else:
-        fig = plt.figure(figsize=(16, 4))
-        fig.suptitle(f"{title}  [{backend}]  {status}", fontsize=12, fontweight="bold")
-        fig.text(0.01, 0.9, f"Call: {method_call}", fontsize=10, family="monospace")
-        if error_message:
-            fig.text(0.01, 0.85, f"Failure: {error_message}", fontsize=9, color="crimson")
-        fig.text(0.5, 0.5, "No figure generated" if bar_fig is None else "Figure type not embeddable in PDF", ha="center", va="center", fontsize=14)
-        pdf.savefig(fig)
-        plt.close(fig)
+# PDF rendering lives in _plot_pdf.render_fig_to_pdf_page (shared).
 
 
 # ----------------------------------------------------------------------
