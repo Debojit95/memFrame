@@ -8,6 +8,7 @@ from memframe.wrappers.analytix.cleaning import CleaningWrapper
 from memframe.wrappers.analytix.datetime import DateTimeWrapper
 from memframe.wrappers.analytix.inspection import TableOpsWrapper
 from memframe.wrappers.analytix.selection import SelectionWrapper
+from memframe.wrappers.analytix.sorting import SortingWrapper
 from memframe.wrappers.analytix.stats import StatsWrapper
 from memframe.wrappers.plots.bar import BarWrapper
 from memframe.wrappers.plots.bar_polar import BarPolarWrapper
@@ -23,6 +24,7 @@ class ContextManager(
     CleaningWrapper,
     StatsWrapper,
     ArithmeticWrapper,
+    SortingWrapper,
     BarWrapper,
     BarPolarWrapper,
     PieWrapper,
