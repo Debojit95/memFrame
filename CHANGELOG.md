@@ -6,7 +6,7 @@ to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-## [0.4.0rc1] - 2026-09-08
+## [0.4.0] - 2026-09-08
 
 ### Added
 - **Datetime Wave 1 ops** (`ctx.dt.*`): day/month names, two-column `diff`, `to_datetime` (format, epoch units, raise/coerce), `between`/`before`/`after` filters, `select_year`/`select_month`.
