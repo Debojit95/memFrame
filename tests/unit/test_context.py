@@ -56,6 +56,17 @@ class TestDatetimeAccessor:
             getattr(ctx, name)
 
 
+class TestSortingAccessor:
+    # ponytail: sorting is flat (no ctx.sort.* namespace).
+
+    def test_sorting_exposed_flat(self):
+        ctx, _ = _make_ctx()
+        assert hasattr(ctx, "sort_values")
+        assert hasattr(ctx, "asort_values")
+        assert "sort_values" in ctx.__dir__()
+        assert "asort_values" in ctx.__dir__()
+
+
 class TestActiveContext:
     def test_no_active_id_raises(self):
         ctx, _ = _make_ctx()

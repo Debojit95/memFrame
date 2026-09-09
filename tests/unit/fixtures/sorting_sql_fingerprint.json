@@ -1,0 +1,47 @@
+{
+ "sort_ascending_scalar_broadcast": {
+  "clickhouse": [],
+  "duckdb": [],
+  "postgres": []
+ },
+ "sort_bad_ascending_len": {
+  "clickhouse": [],
+  "duckdb": [],
+  "postgres": []
+ },
+ "sort_bad_na_position": {
+  "clickhouse": [],
+  "duckdb": [],
+  "postgres": []
+ },
+ "sort_collect_all": {
+  "clickhouse": [],
+  "duckdb": [],
+  "postgres": []
+ },
+ "sort_columns_str": {
+  "clickhouse": [],
+  "duckdb": [],
+  "postgres": []
+ },
+ "sort_columns_subset": {
+  "clickhouse": [],
+  "duckdb": [],
+  "postgres": []
+ },
+ "sort_multi_mixed": {
+  "clickhouse": [],
+  "duckdb": [],
+  "postgres": []
+ },
+ "sort_single_asc_last": {
+  "clickhouse": [],
+  "duckdb": [],
+  "postgres": []
+ },
+ "sort_single_desc_first": {
+  "clickhouse": [],
+  "duckdb": [],
+  "postgres": []
+ }
+}
