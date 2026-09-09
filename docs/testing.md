@@ -22,16 +22,16 @@ options; unit tests never touch a database.
 uv sync --extra dev
 
 # Unit tests only (no database needed)
-python tests/run_tests.py --scope unit
+uv run python tests/run_tests.py --scope unit
 
 # Everything against DuckDB (needs nothing else installed)
-python tests/run_tests.py --backend duckdb
+uv run python tests/run_tests.py --backend duckdb
 
 # Everything against every backend you have credentials for
-python tests/run_tests.py --backend all
+uv run python tests/run_tests.py --backend all
 
 # Same as above, plus tox across py310-py313
-python tests/run_tests.py --backend all --tox
+uv run python tests/run_tests.py --backend all --tox
 ```
 
 ### Options
@@ -53,10 +53,10 @@ python tests/run_tests.py --backend all --tox
 
 ```bash
 # Preview what a full run would execute
-python tests/run_tests.py --backend all --dry-run
+uv run python tests/run_tests.py --backend all --dry-run
 
 # Verbose output plus PDF reports for the integration tests
-python tests/run_tests.py --backend duckdb -v --save-to-file
+uv run python tests/run_tests.py --backend duckdb -v --save-to-file
 ```
 
 ### Why "db-by-db"?
@@ -112,7 +112,7 @@ Two variables per backend:
 With a valid `.env.test`, running every backend is just:
 
 ```bash
-python tests/run_tests.py --backend all
+uv run python tests/run_tests.py --backend all
 ```
 
 `DUCKDB_DB_PARAMS` (or `DUCKDB_UPLOAD_DB_PARAMS`) disables the automatic
@@ -128,7 +128,7 @@ keep the fresh-temp-file-per-run behavior. The file is git-ignored; commit
 No configuration required; a temp file is created per run.
 
 ```bash
-python tests/run_tests.py --backend duckdb
+uv run python tests/run_tests.py --backend duckdb
 ```
 
 ### PostgreSQL / ClickHouse (remote)
@@ -137,9 +137,9 @@ Provide connection params via CLI or env.
 
 ```bash
 POSTGRES_DB_PARAMS='{"backend":"postgres","host":"localhost","port":5432,"user":"postgres","password":"secret","database":"memframe_test"}' \
-python tests/run_tests.py --backend postgres
+uv run python tests/run_tests.py --backend postgres
 
-python tests/run_tests.py --backend postgres,clickhouse
+uv run python tests/run_tests.py --backend postgres,clickhouse
 ```
 
 The commit-checks workflow (`.github/workflows/commit-checks.yml`) starts

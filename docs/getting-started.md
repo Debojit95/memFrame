@@ -212,16 +212,16 @@ All tests run through a single entry point grouped by database backend:
 
 ```bash
 # Unit tests (fast, no database)
-python tests/run_tests.py --scope unit
+uv run python tests/run_tests.py --scope unit
 
 # Everything against DuckDB (no external services needed)
-python tests/run_tests.py --backend duckdb
+uv run python tests/run_tests.py --backend duckdb
 
 # Everything against all configured backends, plus tox
-python tests/run_tests.py --backend all --tox
+uv run python tests/run_tests.py --backend all --tox
 
 # See what would run
-python tests/run_tests.py --backend all --dry-run
+uv run python tests/run_tests.py --backend all --dry-run
 ```
 
 Integration tests need real backends. DuckDB works out of the box; Postgres

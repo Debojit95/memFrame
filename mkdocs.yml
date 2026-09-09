@@ -59,6 +59,7 @@ nav:
           - Selection: api/selection.md
           - Stats: api/stats.md
           - Datetime: api/datetime.md
+          - Sorting: api/sorting.md
       - Plots:
           - Bar: api/bar.md
           - Bar Polar: api/bar_polar.md
