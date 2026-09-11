@@ -6,6 +6,12 @@ to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-09-11
+
+### Changed
+- **Sorting core split** into `base` plus per-backend modules (`duckdb`/`postgres`/`clickhouse` + factory) via `make_sorting_ops`, mirroring selection/inspection; SQL fingerprints prove byte-identical output. Responses now use the shared `ok()`/`fail()` envelope (payload-identical).
+- Sorting docs point at `core/analytix/sorting/` package instead of the removed single file.
+
 ## [0.5.0] - 2026-09-09
 
 ### Added
