@@ -7,6 +7,7 @@ from memframe.wrappers.analytix.arithmetic import ArithmeticWrapper
 from memframe.wrappers.analytix.cleaning import CleaningWrapper
 from memframe.wrappers.analytix.datetime import DateTimeWrapper
 from memframe.wrappers.analytix.inspection import TableOpsWrapper
+from memframe.wrappers.analytix.reshape import ReshapingWrapper
 from memframe.wrappers.analytix.selection import SelectionWrapper
 from memframe.wrappers.analytix.sorting import SortingWrapper
 from memframe.wrappers.analytix.stats import StatsWrapper
@@ -25,6 +26,7 @@ class ContextManager(
     StatsWrapper,
     ArithmeticWrapper,
     SortingWrapper,
+    ReshapingWrapper,
     BarWrapper,
     BarPolarWrapper,
     PieWrapper,

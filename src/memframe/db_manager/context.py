@@ -61,6 +61,7 @@ class ContextManager:
         from memframe.wrappers.analytix.stats import StatsWrapper
         from memframe.wrappers.analytix.arithmetic import ArithmeticWrapper
         from memframe.wrappers.analytix.sorting import SortingWrapper
+        from memframe.wrappers.analytix.reshape import ReshapingWrapper
         from memframe.wrappers.plots.bar import BarWrapper
         from memframe.wrappers.plots.bar_polar import BarPolarWrapper
         from memframe.wrappers.plots.pie import PieWrapper
@@ -75,6 +76,7 @@ class ContextManager:
             StatsWrapper(self),
             ArithmeticWrapper(self),
             SortingWrapper(self),
+            ReshapingWrapper(self),
             BarWrapper(self),
             BarPolarWrapper(self),
             PieWrapper(self),
