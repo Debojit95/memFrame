@@ -23,7 +23,7 @@ result = await dataset.asort_values(by="score", ascending=False)
 
 The lower-level files are implementation details:
 
-- `src/memframe/core/analytix/sorting.py` builds and executes backend-specific SQL.
+- `src/memframe/core/analytix/sorting/` builds and executes backend-specific SQL.
 - `src/memframe/core/orchestrator/analytix/sorting.py` resolves the active dataset
   context and passes persistence metadata (with `deep_cache` so sorted tables are
   replayable).

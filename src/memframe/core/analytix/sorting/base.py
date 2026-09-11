@@ -3,10 +3,8 @@ import traceback
 import pandas as pd
 
 from memframe.db_manager.adapters.base import DatabaseAdapter
-from memframe.db_manager.adapters.duckdb import DuckDBAdapter
-from memframe.db_manager.adapters.postgresql import PostgresAdapter
-from memframe.db_manager.adapters.clickhouse import ClickHouseAdapter
 from memframe.utils.helper import SQLIdentifierSanitizer
+from memframe.core.analytix._response import fail, ok
 
 
 class DataSortingOps:
@@ -47,27 +45,12 @@ class DataSortingOps:
         return f'{self.db.quote_identifier(s)}.{self.db.quote_identifier(t)}'
 
     def _success_response(self, message, sample_df, involved_cols=None, **extra):
-        return {
-            "is_error": False,
-            "message": message,
-            "error_message": None,
-            "involved_cols": involved_cols or [],
-            "generated_cols": [],
-            "result": sample_df,
-            **extra,
-        }
+        return ok(message, result=sample_df, involved_cols=involved_cols or [], **extra)
 
     def _error_response(self, msg, involved_cols=None):
         # ponytail: "result" key keeps is_operation_response() true so the
         # ContextManager proxy raises OperationError instead of leaking dicts.
-        return {
-            "is_error": True,
-            "message": "",
-            "error_message": msg,
-            "involved_cols": involved_cols or [],
-            "generated_cols": [],
-            "result": None,
-        }
+        return fail(msg, involved_cols=involved_cols or [])
 
     def _unsupported_backend_error(self) -> NotImplementedError:
         return NotImplementedError(
@@ -147,40 +130,27 @@ class DataSortingOps:
         return f"{safe_base}__op_{next_op}"
 
     # -------------------------------------------------------------
-    #  ClickHouse NULL-ordering helper
+    #  Backend dialect hooks (DuckDB defaults; ClickHouse overrides)
     # -------------------------------------------------------------
-    def _ch_order_term(self, quoted_col: str, direction: str, na_position: str) -> str:
+    def _order_term(self, quoted_col: str, direction: str, na_position: str) -> str:
+        # PostgreSQL / DuckDB — native NULLS FIRST/LAST
+        nulls = "NULLS FIRST" if na_position == "first" else "NULLS LAST"
+        return f"{quoted_col} {direction} {nulls}"
+
+    def _create_sort_table_sql(
+        self,
+        qualified_new: str,
+        select_clause: str,
+        qualified: str,
+        order_sql: str,
+    ) -> str:
+        # PostgreSQL / DuckDB — no ENGINE clause
+        return f"""
+            CREATE TABLE {qualified_new} AS
+            SELECT {select_clause}
+            FROM {qualified}
+            ORDER BY {order_sql}
         """
-        Build a single ORDER BY term for ClickHouse.
-
-        ClickHouse does NOT support NULLS FIRST / NULLS LAST.
-        Its defaults are:  ASC → NULLs last,  DESC → NULLs first
-        (identical to PostgreSQL / DuckDB defaults).
-
-        So we only need an IS NULL sentinel when the user explicitly
-        requests the **non-default** position:
-
-          na_position="first" + ASC  →  non-default  →  need sentinel
-          na_position="last"  + DESC →  non-default  →  need sentinel
-          otherwise                    →  default      →  plain column
-
-        Sentinel logic:
-          (col IS NULL) DESC  → 1 (NULL) first, 0 (non-NULL) after
-          (col IS NULL) ASC   → 0 (non-NULL) first, 1 (NULL) after
-        """
-        is_non_default = (
-            (na_position == "first" and direction == "ASC") or
-            (na_position == "last" and direction == "DESC")
-        )
-
-        if is_non_default:
-            if na_position == "first":
-                null_sort = f"({quoted_col} IS NULL) DESC"
-            else:
-                null_sort = f"({quoted_col} IS NULL) ASC"
-            return f"{null_sort}, {quoted_col} {direction}"
-        else:
-            return f"{quoted_col} {direction}"
 
     # -----------------------------
     #  MAIN SORT
@@ -199,15 +169,6 @@ class DataSortingOps:
     ) -> Dict[str, Any]:
 
         try:
-            # ──────────────────────────────────────────────────────────
-            #  Backend gate
-            # ──────────────────────────────────────────────────────────
-            supported = (PostgresAdapter, DuckDBAdapter, ClickHouseAdapter)
-            if not isinstance(self.db, supported):
-                raise self._unsupported_backend_error()
-
-            is_clickhouse = isinstance(self.db, ClickHouseAdapter)
-
             # ──────────────────────────────────────────────────────────
             #  Normalize inputs  (same for all backends)
             # ──────────────────────────────────────────────────────────
@@ -249,21 +210,15 @@ class DataSortingOps:
                 output_cols = cols
 
             # ──────────────────────────────────────────────────────────
-            #  ORDER BY clause  (backend-specific)
+            #  ORDER BY clause  (backend-specific via _order_term)
             # ──────────────────────────────────────────────────────────
             order_clauses = []
             for col, asc in zip(safe_by, ascending):
                 direction = "ASC" if asc else "DESC"
                 quoted_col = self.db.quote_identifier(col)
-
-                if is_clickhouse:
-                    order_clauses.append(
-                        self._ch_order_term(quoted_col, direction, na_position)
-                    )
-                else:
-                    # PostgreSQL / DuckDB — native NULLS FIRST/LAST
-                    nulls = "NULLS FIRST" if na_position == "first" else "NULLS LAST"
-                    order_clauses.append(f"{quoted_col} {direction} {nulls}")
+                order_clauses.append(
+                    self._order_term(quoted_col, direction, na_position)
+                )
 
             order_sql = ", ".join(order_clauses)
 
@@ -285,26 +240,11 @@ class DataSortingOps:
             )
 
             # ──────────────────────────────────────────────────────────
-            #  CREATE TABLE  (backend-specific)
+            #  CREATE TABLE  (backend-specific via _create_sort_table_sql)
             # ──────────────────────────────────────────────────────────
-            if is_clickhouse:
-                # ClickHouse requires ENGINE + ORDER BY for MergeTree
-                create_sql = f"""
-                    CREATE TABLE {qualified_new}
-                    ENGINE = MergeTree()
-                    ORDER BY tuple()
-                    AS SELECT {select_clause}
-                    FROM {qualified}
-                    ORDER BY {order_sql}
-                """
-            else:
-                # PostgreSQL / DuckDB — no ENGINE clause
-                create_sql = f"""
-                    CREATE TABLE {qualified_new} AS
-                    SELECT {select_clause}
-                    FROM {qualified}
-                    ORDER BY {order_sql}
-                """
+            create_sql = self._create_sort_table_sql(
+                qualified_new, select_clause, qualified, order_sql
+            )
 
             await self._exec(create_sql)
 
@@ -333,17 +273,14 @@ class DataSortingOps:
                     ):
                         yield chunk
 
-                return {
-                    "is_error": False,
-                    "message": f"Sorted by {by} (streaming)",
-                    "error_message": None,
-                    "involved_cols": by,
-                    "generated_cols": [],
-                    "result": None,
-                    "iterator": iterator(),
-                    "chunk_size": chunk_size,
-                    "new_table": new_table_safe,
-                }
+                return ok(
+                    f"Sorted by {by} (streaming)",
+                    result=None,
+                    involved_cols=by,
+                    iterator=iterator(),
+                    chunk_size=chunk_size,
+                    new_table=new_table_safe,
+                )
 
         except Exception as e:
             return self._error_response(

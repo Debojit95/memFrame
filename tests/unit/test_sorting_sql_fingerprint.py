@@ -12,7 +12,7 @@ import os
 
 import pytest
 
-from memframe.core.analytix.sorting import DataSortingOps
+from memframe.core.analytix.sorting import DataSortingOps, make_sorting_ops
 from memframe.db_manager.adapters.clickhouse import ClickHouseAdapter
 from memframe.db_manager.adapters.duckdb import DuckDBAdapter
 from memframe.db_manager.adapters.postgresql import PostgresAdapter
@@ -128,8 +128,8 @@ BACKENDS = {
 
 
 def _make_ops(adapter_cls):
-    # DataSortingOps is single-file; share instance across backends via adapter type.
-    return DataSortingOps(adapter_cls())
+    # ponytail: factory returns the backend-specific subclass; SQL must match legacy snapshot.
+    return make_sorting_ops(adapter_cls())
 
 
 def _capture():

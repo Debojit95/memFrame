@@ -1,6 +1,6 @@
 from typing import Any, Dict, Union
 
-from memframe.core.analytix.sorting import DataSortingOps
+from memframe.core.analytix.sorting import DataSortingOps, make_sorting_ops
 from memframe.core.analytix._response import fail
 from memframe.cache import record_call
 
@@ -20,7 +20,7 @@ class SortingOrchestrator:
     async def _ensure_ops(self) -> DataSortingOps:
         if self._sorting_ops is None:
             await self._ops_parent._ensure_adapter()
-            self._sorting_ops = DataSortingOps(self._ops_parent._adapter)
+            self._sorting_ops = make_sorting_ops(self._ops_parent._adapter)
         return self._sorting_ops
 
     async def _get_context(self):
