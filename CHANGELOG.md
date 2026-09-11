@@ -6,6 +6,17 @@ to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-09-09
+
+### Added
+- **Sorting**: `sort_values` via `ContextManager` (`sort_values` / `asort_values`) backed by SQL `ORDER BY` with `ascending`, `na_position` (`first`/`last`, ClickHouse sentinel for non-default), `columns` subset handling, and chunked streaming via async iterator. Coverage includes single- and multi-column sorts, null positioning, and `columns` subset on DuckDB, Postgres, and ClickHouse with result-table persistence.
+
+### Fixed
+- Sorting integration harness: corrected column-order expectation for `columns` subset (`columns` + `by` order).
+
+### Changed
+- None beyond sorting addition.
+
 ## [0.4.0] - 2026-09-08
 
 ### Added
