@@ -81,14 +81,38 @@ class ReshapingOps:
         rows = await self._fetch(f"SELECT {cols} FROM {q}")
         return pd.DataFrame([dict(r) for r in rows])
 
-    async def _fetch_in_chunks(self, table, schema, chunk_size, columns="*"):
-        q = self._qualified_table(table, schema)
+    async def _fetch_in_chunks(self, table, schema, chunk_size, columns="*", backend=None):
+        # ponytail: iterator may be consumed after cache has moved the
+        # transient table from the upload schema to the transient schema.
+        # Try the original location first, fall back to transient on miss.
+        def _quals():
+            yield self._qualified_table(table, schema)
+            if backend is not None:
+                t_schema = getattr(backend, "transient_schema", None)
+                if t_schema and t_schema != schema:
+                    yield self._qualified_table(table, t_schema)
+
         offset = 0
 
         while True:
-            rows = await self._fetch(
-                f"SELECT {columns} FROM {q} LIMIT {chunk_size} OFFSET {offset}"
-            )
+            rows = None
+            last_exc = None
+            for qualified in _quals():
+                try:
+                    rows = await self._fetch(
+                        f"SELECT {columns} FROM {qualified} LIMIT {chunk_size} OFFSET {offset}"
+                    )
+                    break
+                except Exception as exc:
+                    # ponytail: only fall back on "table does not exist"
+                    if "does not exist" in str(exc).lower() or "not found" in str(exc).lower():
+                        last_exc = exc
+                        continue
+                    raise
+            if rows is None:
+                if last_exc is not None:
+                    raise last_exc
+                break
             if not rows:
                 break
             yield pd.DataFrame([dict(r) for r in rows])
@@ -283,7 +307,8 @@ class ReshapingOps:
                 if chunk_size:
                     async def iterator():
                         async for c in self._fetch_in_chunks(
-                            new_table, schema, chunk_size
+                            new_table, schema, chunk_size,
+                            backend=backend,
                         ):
                             yield c
 
@@ -384,7 +409,8 @@ class ReshapingOps:
                 if chunk_size:
                     async def iterator():
                         async for c in self._fetch_in_chunks(
-                            new_table, schema, chunk_size
+                            new_table, schema, chunk_size,
+                            backend=backend,
                         ):
                             yield c
 
@@ -506,7 +532,8 @@ class ReshapingOps:
                 if chunk_size:
                     async def iterator():
                         async for c in self._fetch_in_chunks(
-                            new_table, schema, chunk_size
+                            new_table, schema, chunk_size,
+                            backend=backend,
                         ):
                             yield c
 
@@ -642,7 +669,8 @@ class ReshapingOps:
                 if chunk_size:
                     async def iterator():
                         async for c in self._fetch_in_chunks(
-                            new_table, schema, chunk_size
+                            new_table, schema, chunk_size,
+                            backend=backend,
                         ):
                             yield c
 
@@ -798,7 +826,7 @@ class ReshapingOps:
 
                 if margins:
                     col_names = [
-                        expr.split(' AS "')[-1].rstrip('"')
+                        expr.split(' AS "')[-1].strip().rstrip('"')
                         for expr in select_exprs
                     ]
                     margin_sum_sql = ", ".join(
@@ -817,7 +845,8 @@ class ReshapingOps:
                 if chunk_size:
                     async def iterator():
                         async for c in self._fetch_in_chunks(
-                            new_table, schema, chunk_size
+                            new_table, schema, chunk_size,
+                            backend=backend,
                         ):
                             yield c
 
@@ -990,7 +1019,8 @@ class ReshapingOps:
                 if chunk_size:
                     async def iterator():
                         async for c in self._fetch_in_chunks(
-                            new_table, schema, chunk_size
+                            new_table, schema, chunk_size,
+                            backend=backend,
                         ):
                             yield c
 
@@ -1113,7 +1143,8 @@ class ReshapingOps:
                 if chunk_size:
                     async def iterator():
                         async for c in self._fetch_in_chunks(
-                            new_table, schema, chunk_size
+                            new_table, schema, chunk_size,
+                            backend=backend,
                         ):
                             yield c
 
@@ -1275,7 +1306,8 @@ class ReshapingOps:
                 if chunk_size:
                     async def iterator():
                         async for c in self._fetch_in_chunks(
-                            new_table, schema, chunk_size
+                            new_table, schema, chunk_size,
+                            backend=backend,
                         ):
                             yield c
 

@@ -32,6 +32,30 @@ def reshape_context():
 
 
 @pytest.fixture
+def reshape_deep_context():
+    memframe = MemFrame(
+        connection_type="local",
+        connection_params={"db_path": ":memory:"},
+        deep_cache=True,
+    )
+    asyncio.run(memframe.aconnect())
+    try:
+        yield memframe.upload_df(
+            pd.DataFrame(
+                {
+                    "id": [1, 2, 3],
+                    "tags": ["[a, b]", "c", None],
+                    "grp": ["x", "x", "y"],
+                    "val": [10.0, 20.0, 30.0],
+                }
+            ),
+            filename="reshape_deep",
+        )
+    finally:
+        asyncio.run(memframe.aclose())
+
+
+@pytest.fixture
 def pivot_context():
     memframe = MemFrame(
         connection_type="local",
@@ -140,6 +164,19 @@ def test_reshape_crosstab(reshape_context):
     assert by_grp["y"]["count_y"] == 1
 
 
+def test_reshape_crosstab_margins(reshape_context):
+    response = ReshapingWrapper(reshape_context).crosstab(
+        index="grp", columns="grp", margins=True
+    )
+    assert response["is_error"] is False
+    result = response["result"]
+    assert "All" in result["grp"].tolist()
+    assert len(result) == 3
+    margin = result[result["grp"] == "All"].iloc[0]
+    assert margin["count_x"] == 2
+    assert margin["count_y"] == 1
+
+
 def test_reshape_chunked_response_shape(reshape_context):
     # ponytail: shape-only — consuming the iterator hits reshape's
     # _fetch_in_chunks, which lacks sorting's transient-schema fallback
@@ -151,6 +188,34 @@ def test_reshape_chunked_response_shape(reshape_context):
     assert response["is_error"] is False
     assert "iterator" in response
     assert response["new_table"]
+
+
+def test_reshape_chunked_iterator_roundtrip(reshape_deep_context):
+    # ponytail: deep cache moves the transient table to the transient
+    # schema; _fetch_in_chunks falls back there on miss.
+    response = ReshapingWrapper(reshape_deep_context).melt(
+        id_vars=["id"], value_vars=["val"], chunk_size=2
+    )
+    assert response["is_error"] is False
+    assert response.get("result") is None
+    assert "iterator" in response
+
+    async def _collect():
+        chunks = []
+        async for chunk in response["iterator"]:
+            assert isinstance(chunk, pd.DataFrame)
+            chunks.append(chunk)
+        return pd.concat(chunks, ignore_index=True) if chunks else pd.DataFrame()
+
+    full = asyncio.run(_collect())
+    assert len(full) == 3
+    expected = ReshapingWrapper(reshape_deep_context).melt(
+        id_vars=["id"], value_vars=["val"]
+    )
+    pd.testing.assert_frame_equal(
+        full.sort_values("id").reset_index(drop=True),
+        expected["result"].sort_values("id").reset_index(drop=True),
+    )
 
 
 def test_reshape_transpose(reshape_context):
