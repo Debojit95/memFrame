@@ -754,9 +754,11 @@ class TestReshapingOperations:
             "3": transpose_df.iloc[2].values,
         })
         expected = expected[res_df.columns]
+        # ponytail: GROUP BY returns rows in arbitrary order (postgres) —
+        # compare order-insensitively like the other reshape tests.
         pd.testing.assert_frame_equal(
-            normalize_frame(res_df),
-            normalize_frame(expected),
+            normalize_frame(res_df).sort_values("column_name").reset_index(drop=True),
+            normalize_frame(expected).sort_values("column_name").reset_index(drop=True),
             check_dtype=False,
             check_names=False,
         )
