@@ -32,41 +32,21 @@ class ReshapingOps:
         return "'" + str(value).replace("'", "''") + "'"
 
     def _safe_numeric_expr(self, column: str) -> str:
+        # DuckDB default; Postgres/ClickHouse override.
         col_q = self._quote_identifier(column)
-        if isinstance(self.db, PostgresAdapter):
-            numeric_pattern = r"^[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)([eE][+-]?[0-9]+)?$"
-            return (
-                f"CASE WHEN trim({col_q}::text) ~ {self._quote_literal(numeric_pattern)} "
-                f"THEN {col_q}::DOUBLE PRECISION ELSE NULL END"
-            )
-        if isinstance(self.db, DuckDBAdapter):
-            return f"TRY_CAST({col_q} AS DOUBLE)"
-        if isinstance(self.db, ClickHouseAdapter):
-            # Cast to String first to support both numeric and string columns safely
-            return f"toFloat64OrNull(toString({col_q}))"
-        raise self._unsupported_backend_error()
+        return f"TRY_CAST({col_q} AS DOUBLE)"
 
     async def _get_table_columns(self, table: str, schema: str) -> List[str]:
-        if isinstance(self.db, ClickHouseAdapter):
-            rows = await self._fetch(
-                f"""
-                SELECT name AS column_name
-                FROM system.columns
-                WHERE table = {self._quote_literal(table)}
-                  AND database = {self._quote_literal(schema)}
-                ORDER BY position
-                """
-            )
-        else:
-            rows = await self._fetch(
-                f"""
-                SELECT column_name
-                FROM information_schema.columns
-                WHERE table_name = {self._quote_literal(table)}
-                  AND table_schema = {self._quote_literal(schema)}
-                ORDER BY ordinal_position
-                """
-            )
+        # DuckDB/Postgres default via information_schema; ClickHouse overrides.
+        rows = await self._fetch(
+            f"""
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_name = {self._quote_literal(table)}
+              AND table_schema = {self._quote_literal(schema)}
+            ORDER BY ordinal_position
+            """
+        )
         return [r["column_name"] for r in rows]
 
     async def _fetch_data(self, table, schema, columns="*"):
@@ -147,6 +127,52 @@ class ReshapingOps:
         )
 
 
+    # -------------------------------------------------------------
+    #  Backend dialect hooks (DuckDB defaults; Postgres/ClickHouse override)
+    # -------------------------------------------------------------
+    def _build_explode_sql(
+        self,
+        q: str,
+        schema: str,
+        new_table: str,
+        safe_cols: List[str],
+        base_cols: List[str],
+    ) -> str:
+        list_exprs = []
+        unnest_exprs = []
+
+        for col in safe_cols:
+            list_expr = f"""
+            CASE
+                WHEN "{col}" IS NULL THEN []
+                WHEN starts_with(trim("{col}"), '[') THEN
+                    str_split(
+                        replace(
+                            replace(
+                                replace(
+                                    replace("{col}", '[', ''),
+                                ']', ''),
+                            '''', ''),
+                        '"', ''),
+                        ','
+                    )
+                ELSE list_value("{col}")
+            END
+            """
+            list_exprs.append(list_expr)
+            unnest_exprs.append(f"UNNEST({list_expr}) AS \"{col}\"")
+
+        exclude_cols = ", ".join(f'"{c}"' for c in safe_cols)
+        unnest_sql = ",\n".join(unnest_exprs)
+
+        return f"""
+        CREATE TABLE "{schema}"."{new_table}" AS
+        SELECT
+            base.* EXCLUDE ({exclude_cols}),
+            {unnest_sql}
+        FROM {q} AS base
+        """
+
     async def explode(self, table: str, schema: str, columns: Union[str, List[str]],
                       backend, data_id, chunk_size=None):
         try:
@@ -170,137 +196,9 @@ class ReshapingOps:
                     if SQLIdentifierSanitizer.sanitize(c) not in safe_cols
                 ]
 
-                if isinstance(self.db, DuckDBAdapter):
-                    list_exprs = []
-                    unnest_exprs = []
-
-                    for col in safe_cols:
-                        list_expr = f"""
-                        CASE
-                            WHEN "{col}" IS NULL THEN []
-                            WHEN starts_with(trim("{col}"), '[') THEN
-                                str_split(
-                                    replace(
-                                        replace(
-                                            replace(
-                                                replace("{col}", '[', ''),
-                                            ']', ''),
-                                        '''', ''),
-                                    '"', ''),
-                                    ','
-                                )
-                            ELSE list_value("{col}")
-                        END
-                        """
-                        list_exprs.append(list_expr)
-                        unnest_exprs.append(f"UNNEST({list_expr}) AS \"{col}\"")
-
-                    exclude_cols = ", ".join(f'"{c}"' for c in safe_cols)
-                    unnest_sql = ",\n".join(unnest_exprs)
-
-                    explode_sql = f"""
-                    CREATE TABLE "{schema}"."{new_table}" AS
-                    SELECT
-                        base.* EXCLUDE ({exclude_cols}),
-                        {unnest_sql}
-                    FROM {q} AS base
-                    """
-                elif isinstance(self.db, PostgresAdapter):
-                    lateral_parts = []
-                    exploded_select_cols = []
-                    
-                    base_select = ", ".join(
-                        f'base.{self._quote_identifier(c)}' for c in base_cols
-                    )
-
-                    for col in safe_cols:
-                        col_q = self._quote_identifier(col)
-                        part = f"""
-                        unnest(
-                            CASE
-                                WHEN base.{col_q} IS NULL THEN ARRAY[]::text[]
-                                WHEN base.{col_q}::text LIKE '[%' THEN
-                                    string_to_array(
-                                        replace(
-                                            replace(
-                                                replace(
-                                                    replace(base.{col_q}::text, '[', ''),
-                                                ']', ''),
-                                            '''', ''),
-                                        '"', ''),
-                                        ','
-                                    )
-                                ELSE ARRAY[base.{col_q}::text]
-                            END
-                        ) AS {col_q}
-                        """
-                        lateral_parts.append(part)
-                        exploded_select_cols.append(f"exploded.{col_q}")
-
-                    lateral_sql = ",\n".join(lateral_parts)
-                    select_sql = ", ".join(
-                        [part for part in (base_select, ", ".join(exploded_select_cols)) if part]
-                    )
-
-                    explode_sql = f"""
-                    CREATE TABLE "{schema}"."{new_table}" AS
-                    SELECT
-                        {select_sql}
-                    FROM {q} AS base,
-                    LATERAL (
-                        SELECT {lateral_sql}
-                    ) AS exploded
-                    """
-                elif isinstance(self.db, ClickHouseAdapter):
-                    array_aliases = []
-                    for col in safe_cols:
-                        col_q = self._quote_identifier(col)
-                        # Use nested replaceAll to safely strip brackets and quotes without regex
-                        clean_expr = f"replaceAll(replaceAll(replaceAll(replaceAll(CAST(base.{col_q} AS String), '[', ''), ']', ''), '\\'', ''), '\"', '')"
-                        
-                        array_expr = f"""
-                        CASE
-                            WHEN base.{col_q} IS NULL THEN emptyArrayString()
-                            WHEN startsWith(trim(CAST(base.{col_q} AS String)), '[') THEN
-                                arrayMap(x -> trim(x), splitByString(',', {clean_expr}))
-                            ELSE [CAST(base.{col_q} AS String)]
-                        END
-                        """
-                        array_aliases.append(f"{array_expr} AS {col}_arr")
-                    
-                    # To handle multiple columns with different array lengths safely,
-                    # we generate an index array up to the max length and extract elements by index.
-                    if len(safe_cols) == 1:
-                        idx_expr = f"range(1, length({safe_cols[0]}_arr) + 1)"
-                    else:
-                        idx_expr = f"range(1, greatest({', '.join([f'length({col}_arr)' for col in safe_cols])}) + 1)"
-                        
-                    array_aliases.append(f"arrayJoin({idx_expr}) AS arr_idx")
-                    
-                    sub_select = []
-                    if base_cols:
-                        sub_select.append(", ".join(f"base.{self._quote_identifier(c)}" for c in base_cols))
-                    sub_select.extend(array_aliases)
-                    
-                    select_cols = []
-                    if base_cols:
-                        select_cols.append(", ".join(f"sub.{self._quote_identifier(c)}" for c in base_cols))
-                    for col in safe_cols:
-                        # Elements out of bounds will default to '' (empty string), matching DuckDB/Postgres padding
-                        select_cols.append(f"sub.{col}_arr[sub.arr_idx] AS {self._quote_identifier(col)}")
-                        
-                    explode_sql = f"""
-                    CREATE TABLE "{schema}"."{new_table}" AS
-                    SELECT
-                        {", ".join(select_cols)}
-                    FROM (
-                        SELECT
-                            {", ".join(sub_select)}
-                        FROM {q} AS base
-                    ) AS sub
-                    """
-                else:
-                    raise self._unsupported_backend_error()
+                explode_sql = self._build_explode_sql(
+                    q, schema, new_table, safe_cols, base_cols
+                )
 
                 await self._exec(explode_sql)
 
@@ -694,6 +592,18 @@ class ReshapingOps:
             return self._error(str(e))
 
 
+    def _count_all_expr(self, conditions_str: str) -> str:
+        # DuckDB/Postgres default; ClickHouse overrides with countIf.
+        return f"COUNT(*) FILTER (WHERE {conditions_str})"
+
+    def _filtered_agg_expr(self, func: str, value_expr: str, conditions_str: str) -> str:
+        # DuckDB/Postgres default; ClickHouse overrides with *If functions.
+        return f"{func}({value_expr}) FILTER (WHERE {conditions_str})"
+
+    def _normalize_ratio_expr(self, filtered_expr: str, denominator: str) -> str:
+        # DuckDB/Postgres default; ClickHouse overrides with toFloat64.
+        return f"CAST(({filtered_expr}) AS DOUBLE PRECISION) / NULLIF({denominator}, 0)"
+
     async def crosstab(
         self,
         table,
@@ -781,28 +691,17 @@ class ReshapingOps:
                         conditions_str = " AND ".join(conditions)
                         
                         if val_col is None:
-                            if isinstance(self.db, ClickHouseAdapter):
-                                filtered_expr = f"countIf({conditions_str})"
-                            else:
-                                filtered_expr = f"COUNT(*) FILTER (WHERE {conditions_str})"
+                            filtered_expr = self._count_all_expr(conditions_str)
                         else:
-                            if isinstance(self.db, ClickHouseAdapter):
-                                ch_func_map = {"SUM": "sumIf", "AVG": "avgIf", "MIN": "minIf", "MAX": "maxIf"}
-                                ch_func = ch_func_map.get(func, "sumIf")
-                                filtered_expr = f"{ch_func}({value_expr}, {conditions_str})"
-                            else:
-                                filtered_expr = f"{func}({value_expr}) FILTER (WHERE {conditions_str})"
+                            filtered_expr = self._filtered_agg_expr(func, value_expr, conditions_str)
 
                         if normalize in (True, "all"):
                             if val_col is None:
                                 denominator = f"(SELECT COUNT(*) FROM {q})"
                             else:
                                 denominator = f"(SELECT NULLIF(SUM({value_expr}), 0) FROM {q})"
-                            
-                            if isinstance(self.db, ClickHouseAdapter):
-                                filtered_expr = f"toFloat64({filtered_expr}) / NULLIF({denominator}, 0)"
-                            else:
-                                filtered_expr = f"CAST(({filtered_expr}) AS DOUBLE PRECISION) / NULLIF({denominator}, 0)"
+
+                            filtered_expr = self._normalize_ratio_expr(filtered_expr, denominator)
 
                         expr = f"""
                         {filtered_expr} AS {self._quote_identifier(f"{alias_prefix}_{col_suffix}")}
@@ -869,6 +768,48 @@ class ReshapingOps:
         except Exception as e:
             return self._error(str(e))
 
+    async def _transpose_unpivot_source(self, q, schema, table, cols):
+        # DuckDB and Postgres use temporary tables; ClickHouse overrides
+        # with a single stateless query.
+        temp_with_id = f"{table}__with_rowid"
+
+        await self._exec(f"""
+        CREATE TEMP TABLE "{temp_with_id}" AS
+        SELECT
+            ROW_NUMBER() OVER () AS __rowid__,
+            *
+        FROM {q}
+        """)
+
+        unions = []
+
+        for col in cols:
+            col_safe = SQLIdentifierSanitizer.sanitize(col)
+
+            unions.append(f"""
+            SELECT
+                '{col}' AS column_name,
+                __rowid__,
+                "{col_safe}" AS value
+            FROM "{temp_with_id}"
+            """)
+
+        unpivot_sql = "\nUNION ALL\n".join(unions)
+
+        temp_unpivot = f"{table}__unpivot"
+
+        await self._exec(f"""
+        CREATE TEMP TABLE "{temp_unpivot}" AS
+        {unpivot_sql}
+        """)
+
+        row_ids = await self._fetch(f"""
+            SELECT DISTINCT __rowid__
+            FROM "{temp_unpivot}"
+            ORDER BY __rowid__
+        """)
+        return row_ids, f'"{temp_unpivot}"'
+
     async def transpose(
         self,
         table,
@@ -890,131 +831,38 @@ class ReshapingOps:
                 if not cols:
                     return self._error("No columns found")
 
-                if isinstance(self.db, ClickHouseAdapter):
-                    # ClickHouse HTTP is stateless, so TEMPORARY tables don't persist across requests.
-                    # We use a single query with arrayJoin to avoid intermediate tables.
-                    
-                    # 1. Build arrays of column names and Nullable(String) casted values
-                    col_names_arr = "[" + ", ".join(f"'{c}'" for c in cols) + "]"
-                    col_vals_arr = "[" + ", ".join(f'CAST({self._quote_identifier(c)} AS Nullable(String))' for c in cols) + "]"
-                    
-                    # 2. Build the unpivot subquery
-                    unpivot_sql = f"""
-                    SELECT
-                        tupleElement(zipped, 1) AS column_name,
-                        __rowid__,
-                        tupleElement(zipped, 2) AS value
-                    FROM (
-                        SELECT
-                            __rowid__,
-                            arrayJoin(arrayZip({col_names_arr}, {col_vals_arr})) AS zipped
-                        FROM (
-                            SELECT
-                                ROW_NUMBER() OVER () AS __rowid__,
-                                {", ".join(self._quote_identifier(c) for c in cols)}
-                            FROM {q}
-                        )
-                    )
-                    """
-                    
-                    # 3. Fetch distinct row ids to build the pivot
-                    row_ids = await self._fetch(f"SELECT DISTINCT __rowid__ FROM ({unpivot_sql}) ORDER BY __rowid__")
-                    
-                    if not row_ids:
-                        return self._error("No rows found")
-                        
-                    select_exprs = []
-                    for r in row_ids:
-                        rid = r["__rowid__"]
-                        select_exprs.append(f"""
-                        MAX(
-                            CASE WHEN __rowid__ = {rid}
-                            THEN value
-                            END
-                        ) AS "{rid}"
-                        """)
-                        
-                    final_sql = f"""
-                    CREATE TABLE "{schema}"."{new_table}" AS
-                    SELECT
-                        column_name,
-                        {", ".join(select_exprs)}
-                    FROM (
-                        {unpivot_sql}
-                    )
-                    GROUP BY column_name
-                    """
-                    
-                    await self._exec(final_sql)
-                
-                else:
-                    # DuckDB and Postgres use temporary tables
-                    temp_with_id = f"{table}__with_rowid"
+                row_ids, source = await self._transpose_unpivot_source(
+                    q, schema, table, cols
+                )
 
-                    await self._exec(f"""
-                    CREATE TEMP TABLE "{temp_with_id}" AS
-                    SELECT
-                        ROW_NUMBER() OVER () AS __rowid__,
-                        *
-                    FROM {q}
-                    """)
+                if not row_ids:
+                    return self._error("No rows found")
 
-                    unions = []
+                select_exprs = []
 
-                    for col in cols:
-                        col_safe = SQLIdentifierSanitizer.sanitize(col)
+                for r in row_ids:
+                    rid = r["__rowid__"]
 
-                        unions.append(f"""
-                        SELECT
-                            '{col}' AS column_name,
-                            __rowid__,
-                            "{col_safe}" AS value
-                        FROM "{temp_with_id}"
-                        """)
-
-                    unpivot_sql = "\nUNION ALL\n".join(unions)
-
-                    temp_unpivot = f"{table}__unpivot"
-
-                    await self._exec(f"""
-                    CREATE TEMP TABLE "{temp_unpivot}" AS
-                    {unpivot_sql}
-                    """)
-
-                    row_ids = await self._fetch(f"""
-                        SELECT DISTINCT __rowid__
-                        FROM "{temp_unpivot}"
-                        ORDER BY __rowid__
-                    """)
-
-                    if not row_ids:
-                        return self._error("No rows found")
-
-                    select_exprs = []
-
-                    for r in row_ids:
-                        rid = r["__rowid__"]
-
-                        expr = f"""
-                        MAX(
-                            CASE WHEN __rowid__ = {rid}
-                            THEN value
-                            END
-                        ) AS "{rid}"
-                        """
-
-                        select_exprs.append(expr)
-
-                    final_sql = f"""
-                    CREATE TABLE "{schema}"."{new_table}" AS
-                    SELECT
-                        column_name,
-                        {", ".join(select_exprs)}
-                    FROM "{temp_unpivot}"
-                    GROUP BY column_name
+                    expr = f"""
+                    MAX(
+                        CASE WHEN __rowid__ = {rid}
+                        THEN value
+                        END
+                    ) AS "{rid}"
                     """
 
-                    await self._exec(final_sql)
+                    select_exprs.append(expr)
+
+                final_sql = f"""
+                CREATE TABLE "{schema}"."{new_table}" AS
+                SELECT
+                    column_name,
+                    {", ".join(select_exprs)}
+                FROM {source}
+                GROUP BY column_name
+                """
+
+                await self._exec(final_sql)
 
                 if chunk_size:
                     async def iterator():
@@ -1043,6 +891,12 @@ class ReshapingOps:
         except Exception as e:
             return self._error(str(e))
     
+    def _pct_rank_expr(self, base_rank: str, partition_clause=None) -> str:
+        # DuckDB/Postgres default; ClickHouse overrides with toFloat64.
+        if partition_clause:
+            return f"({base_rank}) / NULLIF(COUNT(*) OVER (PARTITION BY {partition_clause}), 0)"
+        return f"CAST(({base_rank}) AS DOUBLE PRECISION) / NULLIF(COUNT(*) OVER (), 0)"
+
     async def rank(
         self,
         table,
@@ -1112,10 +966,7 @@ class ReshapingOps:
                         return self._error(f"Unsupported method: {method}")
 
                     if pct:
-                        if isinstance(self.db, ClickHouseAdapter):
-                            base_rank = f"toFloat64(({base_rank})) / NULLIF(COUNT(*) OVER (), 0)"
-                        else:
-                            base_rank = f"CAST(({base_rank}) AS DOUBLE PRECISION) / NULLIF(COUNT(*) OVER (), 0)"
+                        base_rank = self._pct_rank_expr(base_rank)
 
                     if na_option == "keep":
                         final_expr = f"""
@@ -1275,10 +1126,7 @@ class ReshapingOps:
                         return self._error(f"Unsupported method: {method}")
 
                     if pct:
-                        if isinstance(self.db, ClickHouseAdapter):
-                            base_rank = f"toFloat64(({base_rank})) / NULLIF(COUNT(*) OVER (PARTITION BY {partition_clause}), 0)"
-                        else:
-                            base_rank = f"({base_rank}) / NULLIF(COUNT(*) OVER (PARTITION BY {partition_clause}), 0)"
+                        base_rank = self._pct_rank_expr(base_rank, partition_clause)
 
                     if na_option == "keep":
                         final_expr = f"""

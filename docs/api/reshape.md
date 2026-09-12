@@ -24,7 +24,7 @@ result = await dataset.amelt(id_vars=["id"], value_vars=["score"])
 
 The lower-level files are implementation details:
 
-- `src/memframe/core/analytix/reshape.py` builds and executes backend-specific SQL.
+- `src/memframe/core/analytix/reshape/` builds and executes backend-specific SQL.
 - `src/memframe/core/orchestrator/analytix/reshape.py` resolves the active dataset
   context and passes persistence metadata (with `deep_cache` support so reshaped
   tables are replayable).

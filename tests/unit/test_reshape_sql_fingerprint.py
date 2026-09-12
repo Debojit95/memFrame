@@ -12,7 +12,7 @@ import os
 
 import pytest
 
-from memframe.core.analytix.reshape import ReshapingOps
+from memframe.core.analytix.reshape import ReshapingOps, make_reshaping_ops
 from memframe.db_manager.adapters.clickhouse import ClickHouseAdapter
 from memframe.db_manager.adapters.duckdb import DuckDBAdapter
 from memframe.db_manager.adapters.postgresql import PostgresAdapter
@@ -170,7 +170,8 @@ def _capture():
         snapshot[name] = {}
         for backend_name, adapter_cls in BACKENDS.items():
             adapter = adapter_cls()
-            ops = ReshapingOps(adapter)
+            # ponytail: factory returns the backend-specific subclass; SQL must match legacy snapshot.
+            ops = make_reshaping_ops(adapter)
             asyncio.run(scenario(ops, _backend_for(adapter)))
             snapshot[name][backend_name] = adapter.calls
     return snapshot

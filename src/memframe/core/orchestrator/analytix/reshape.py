@@ -1,5 +1,5 @@
 from typing import List, Union
-from memframe.core.analytix.reshape import ReshapingOps
+from memframe.core.analytix.reshape import ReshapingOps, make_reshaping_ops
 from memframe.cache import record_call
 
 
@@ -25,10 +25,10 @@ class ReshapingOrchestrator:
     def from_context(cls, memframe, data_id):
         return cls.replay_create(memframe, data_id)
 
-    async def _ensure_ops(self):
+    async def _ensure_ops(self) -> ReshapingOps:
         if self._reshape_ops is None:
             await self._ops_parent._ensure_adapter()
-            self._reshape_ops = ReshapingOps(self._ops_parent._adapter)
+            self._reshape_ops = make_reshaping_ops(self._ops_parent._adapter)
         return self._reshape_ops
 
     async def _get_context(self):
