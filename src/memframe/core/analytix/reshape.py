@@ -95,7 +95,7 @@ class ReshapingOps:
             offset += chunk_size
 
     async def _generate_transient_table_name(self, base_table, backend, data_id):
-        max_op = await backend.fetch_val(
+        max_op = await backend.fetchval(
             f"""
             SELECT COALESCE(MAX(opidx), 0)
             FROM {backend.transient_registry_table}
