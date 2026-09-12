@@ -756,9 +756,11 @@ class TestReshapingOperations:
         expected = expected[res_df.columns]
         # ponytail: GROUP BY returns rows in arbitrary order (postgres) —
         # compare order-insensitively like the other reshape tests.
+        # ponytail: ClickHouse stringifies every value (Nullable(String)
+        # cast), so compare as text on all backends.
         pd.testing.assert_frame_equal(
-            normalize_frame(res_df).sort_values("column_name").reset_index(drop=True),
-            normalize_frame(expected).sort_values("column_name").reset_index(drop=True),
+            normalize_frame(res_df).astype(str).sort_values("column_name").reset_index(drop=True),
+            normalize_frame(expected).astype(str).sort_values("column_name").reset_index(drop=True),
             check_dtype=False,
             check_names=False,
         )
