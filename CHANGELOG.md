@@ -6,6 +6,22 @@ to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-09-12
+
+### Added
+- **Reshape (new umbrella)**: 8 ops via `ContextManager` (`explode`/`aexplode`, `melt`/`amelt`, `pivot`/`apivot`, `pivot_table`/`apivot_table`, `crosstab`/`acrosstab`, `transpose`/`atranspose`, `rank`/`arank`, `groupby_rank`/`agroupby_rank`) backed by backend-native SQL across DuckDB, PostgreSQL, and ClickHouse. Coverage includes bracket-list explode, melt unpivot, pivot with duplicate guard, pivot_table aggregation, crosstab frequency/aggregation with `margins`/`normalize`, stateless transpose (ClickHouse single-query vs TEMP tables on DuckDB/Postgres), and `rank`/`groupby_rank` with `average`/`min`/`max`/`dense`/`first` + `pct`.
+- **Reshape docs**: `docs/api/reshape.md` under **Reshape** umbrella + nav entry (`mkdocs.yml:62`) and README link; `mkdocs build --strict` passes.
+- **Reshape tests**: `tests/unit/test_reshape_response.py` (18: happy/error/chunked/public API) + `test_reshape_sql_fingerprint.py` (11 scenarios × 3 backends, fixture `reshape_sql_fingerprint.json`) + `tests/integration/ops/test_reshape.py` (8 ops × 3 backends, 8/8 on DuckDB/Postgres/ClickHouse).
+
+### Fixed
+- `ReshapingOps._generate_transient_table_name`: `fetch_val` → `fetchval` (all 8 ops previously errored with `'DuckDBBackend' has no attribute 'fetch_val'`).
+- `crosstab` `margins` SQL: col-name parse `rstrip` → `strip().rstrip` (trailing newline left `"), SUM("` syntax error).
+- `transpose` integration: order-insensitive `sort_values("column_name")` + `astype(str)` for ClickHouse `Nullable(String)`; `explode` fixture bracketed strings (uploader cannot ingest real `list<>` columns).
+- `_fetch_in_chunks`: transient-schema fallback (`memframe_transient` on `deep_cache` move) — 8 call sites now pass `backend=` (mirrors `sorting`).
+
+### Changed
+- **Reshape core split** into `base` plus per-backend modules (`duckdb`/`postgres`/`clickhouse` + factory) via `make_reshaping_ops`, mirroring `sorting`/`selection`; SQL fingerprints prove byte-identical output. Hooks: `_safe_numeric_expr`, `_get_table_columns`, `_build_explode_sql`, `_count_all_expr`/`_filtered_agg_expr`/`_normalize_ratio_expr`, `_transpose_unpivot_source`, `_pct_rank_expr`.
+
 ## [0.5.1] - 2026-09-11
 
 ### Changed
