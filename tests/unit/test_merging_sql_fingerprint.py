@@ -1,10 +1,10 @@
 """SQL-fingerprint regression net for merge/join/concat ops.
 
-Records every SQL string ``DataMergeOps`` emits through a recording adapter for
-a fixed scenario set and compares against a committed snapshot.
+Records every SQL string the merge ops emit through a recording adapter for a
+fixed scenario set and compares against a committed snapshot.
 
 Unlike the selection fingerprint, the recording adapters must subclass the real
-backend adapters: ``DataMergeOps`` dispatches on ``isinstance(self.db, ...)``,
+backend adapters: ``make_merge_ops`` dispatches on ``isinstance(adapter, ...)``,
 so a plain recording object falls through to the unsupported-backend error.
 
 Regenerate with:
@@ -17,7 +17,13 @@ import os
 
 import pytest
 
-from memframe.core.analytix.merging import DataMergeOps
+from memframe.core.analytix.merging import (
+    DataMergeOps,
+    DuckDBMergeOps,
+    PostgresMergeOps,
+    ClickHouseMergeOps,
+    make_merge_ops,
+)
 from memframe.db_manager.adapters.clickhouse import ClickHouseAdapter
 from memframe.db_manager.adapters.duckdb import DuckDBAdapter
 from memframe.db_manager.adapters.postgresql import PostgresAdapter
@@ -232,7 +238,7 @@ def _capture():
         snapshot[name] = {}
         for backend_name, adapter_cls in BACKENDS.items():
             adapter = adapter_cls()
-            ops = DataMergeOps(adapter)
+            ops = make_merge_ops(adapter)
             asyncio.run(scenario(ops, _backend_for(adapter)))
             snapshot[name][backend_name] = adapter.calls
     return snapshot
@@ -260,5 +266,5 @@ def test_merging_sql_fingerprint_unchanged():
 
 
 def test_all_backends_are_merge_ops():
-    for adapter_cls in BACKENDS.values():
-        assert issubclass(adapter_cls, (DuckDBAdapter, PostgresAdapter, ClickHouseAdapter))
+    for ops_cls in (DuckDBMergeOps, PostgresMergeOps, ClickHouseMergeOps):
+        assert issubclass(ops_cls, DataMergeOps)

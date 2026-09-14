@@ -10,7 +10,7 @@ import asyncio
 import pandas as pd
 import pytest
 
-from memframe.core.analytix.merging import DataMergeOps
+from memframe.core.analytix.merging import make_merge_ops
 from memframe.core.orchestrator.analytix.merging import MergeOrchestrator
 from memframe.main import MemFrame
 from memframe.wrappers.analytix.merging import MergeAccessor, MergeWrapper
@@ -291,9 +291,8 @@ def test_merge_public_api_error_stays_dict(merge_contexts):
 
 
 def test_merge_core_unsupported_backend():
-    response = asyncio.run(DataMergeOps(object()).merge("a", "b", "s"))
-    assert response["is_error"] is True
-    assert "merge error" in response["error_message"]
+    with pytest.raises(NotImplementedError):
+        make_merge_ops(object())
 
 
 def test_orchestrator_from_context(merge_contexts):

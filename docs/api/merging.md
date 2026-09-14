@@ -31,8 +31,9 @@ merged = await left.amerge(right, on="id")
 
 The lower-level files are implementation details:
 
-- `src/memframe/core/analytix/merging.py` builds and executes backend-specific SQL
-  (`DataMergeOps`).
+- `src/memframe/core/analytix/merging/` builds and executes backend-specific SQL
+  (`DataMergeOps` in `base.py` plus per-backend modules for DuckDB, PostgreSQL,
+  and ClickHouse).
 - `src/memframe/core/orchestrator/analytix/merging.py` resolves the active dataset
   context and the right-hand dataset's table.
 - `src/memframe/wrappers/analytix/merging.py` exposes synchronous and asynchronous

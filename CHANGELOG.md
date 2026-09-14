@@ -11,6 +11,9 @@ to [Semantic Versioning](https://semver.org/).
 - **Merging tests**: `tests/unit/test_merging_response.py` (28: happy/error/streaming/public API) + `test_merging_sql_fingerprint.py` (40 scenarios × 3 backends, fixture `merging_sql_fingerprint.json`) + `tests/integration/ops/test_merging.py` (9 ops on DuckDB/Postgres/ClickHouse).
 - **Merging docs**: `docs/api/merging.md` + nav entry (`mkdocs.yml`) and README/index/getting-started links.
 
+### Changed
+- **Merging core split** into `base` plus per-backend modules (`duckdb`/`postgres`/`clickhouse` + factory) via `make_merge_ops`, mirroring `sorting`/`reshape`/`selection`; SQL fingerprints prove byte-identical output. Hooks: `_auto_cast_join_columns`, `_create_table_as`.
+
 ## [0.6.0] - 2026-09-12
 
 ### Added

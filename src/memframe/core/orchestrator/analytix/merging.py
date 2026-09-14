@@ -1,6 +1,6 @@
 from typing import Any, Dict, Optional
 
-from memframe.core.analytix.merging import DataMergeOps
+from memframe.core.analytix.merging import DataMergeOps, make_merge_ops
 from memframe.cache import record_call
 
 
@@ -29,7 +29,7 @@ class MergeOrchestrator:
     async def _ensure_ops(self) -> DataMergeOps:
         if self._merge_ops is None:
             await self._ops_parent._ensure_adapter()
-            self._merge_ops = DataMergeOps(self._ops_parent._adapter)
+            self._merge_ops = make_merge_ops(self._ops_parent._adapter)
         return self._merge_ops
 
     async def _get_context(self):
