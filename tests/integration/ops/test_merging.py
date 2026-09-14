@@ -230,21 +230,23 @@ def pytest_generate_tests(metafunc):
 
 @pytest.fixture(scope="function")
 def left_df() -> pd.DataFrame:
-    """Left DataFrame for merge/join tests."""
+    """Left DataFrame (employees) for merge/join tests."""
     return pd.DataFrame({
         "id": [1, 2, 3, 4],
-        "name_left": ["Alice", "Bob", "Charlie", "Diana"],
-        "value_left": [100, 200, 300, 400],
+        "employee": ["Ava", "Ben", "Cara", "Dan"],
+        "department": ["Sales", "Engineering", "Engineering", "Support"],
+        "salary": [52000, 91000, 88000, 61000],
     })
 
 
 @pytest.fixture(scope="function")
 def right_df() -> pd.DataFrame:
-    """Right DataFrame for merge/join tests (some ids missing)."""
+    """Right DataFrame (payroll) for merge/join tests (some ids missing)."""
     return pd.DataFrame({
         "id": [2, 3, 4, 5],
-        "name_right": ["Bob", "Charlie", "Diana", "Eve"],
-        "value_right": [2000, 3000, 4000, 5000],
+        "bank": ["North", "North", "South", "West"],
+        "bonus": [4000, 7500, 6000, 3500],
+        "tax": [9000, 14000, 13000, 8000],
     })
 
 
@@ -430,22 +432,30 @@ def render_df_to_pdf_page(
     pdf,
     title,
     method_call,
-    original_df,
+    original_dfs,
     memframe_df,
     pandas_df,
     backend,
     status="PASSED",
     error_message="",
 ):
-    """Create a single PDF page with method call + Original/MemFrame/Pandas snapshots."""
-    sections = [
-        ("Original", original_df.head(10)),
-        ("MemFrame Result", memframe_df.head(10)),
-        ("Pandas Result", pandas_df.head(10)),
-    ]
+    """Create a single PDF page with method call + inputs + MemFrame/Pandas snapshots.
+
+    ``original_dfs`` is the list of input DataFrames: one for single-table ops,
+    two (Left Table / Right Table) for merge/join/concat.
+    """
+    sections = []
+    if len(original_dfs) == 1:
+        sections.append(("Original", original_dfs[0].head(10)))
+    else:
+        labels = ["Left Table", "Right Table", "Table 3", "Table 4"]
+        for label, df in zip(labels, original_dfs):
+            sections.append((label, df.head(10)))
+    sections.append(("MemFrame Result", memframe_df.head(10)))
+    sections.append(("Pandas Result", pandas_df.head(10)))
 
     fig_height = max(8, 2 + sum(max(2, len(df) + 2) for _, df in sections) * 0.4)
-    fig, axes = plt.subplots(3, 1, figsize=(16, fig_height))
+    fig, axes = plt.subplots(len(sections), 1, figsize=(16, fig_height))
     fig.suptitle(f"{title}  [{backend}]  {status}", fontsize=12, fontweight="bold")
     fig.text(0.01, 0.965, f"Call: {method_call}", fontsize=10, family="monospace")
     if error_message:
@@ -497,7 +507,7 @@ class TestMergingOperations:
                         pdf,
                         result["test_name"],
                         result["method_call"],
-                        result["original_df"],
+                        result["original_dfs"],
                         result["memframe_df"],
                         result["pandas_df"],
                         result["backend"],
@@ -536,11 +546,17 @@ class TestMergingOperations:
             tb = tb.tb_next
 
         original_df = _coerce_pdf_df(
-            frame_locals.get(
-                "left_df",
-                frame_locals.get("concat_df1", frame_locals.get("right_df")),
-            ),
+            frame_locals.get("left_df", frame_locals.get("concat_df1")),
             "Original DataFrame was not available when this test failed",
+        )
+        original_df2_value = frame_locals.get("right_df", frame_locals.get("concat_df2"))
+        original_df2 = (
+            _coerce_pdf_df(
+                original_df2_value,
+                "Second original DataFrame was not available when this test failed",
+            )
+            if original_df2_value is not None
+            else None
         )
 
         memframe_value = None
@@ -563,6 +579,7 @@ class TestMergingOperations:
             test_name=request.node.name,
             method_call=request.node.name,
             original_df=original_df,
+            original_df2=original_df2,
             memframe_df=memframe_df,
             pandas_df=pandas_df,
             backend=backend_config.get("connection_type", "unknown"),
@@ -578,15 +595,25 @@ class TestMergingOperations:
         memframe_df: pd.DataFrame,
         pandas_df: pd.DataFrame,
         backend: str,
+        original_df2: pd.DataFrame = None,
         status: str = "PENDING",
         error_message: str = "",
     ):
         """Store test result for PDF generation."""
         if self._save_to_file:
+            original_dfs = [
+                _prepare_pdf_df(_coerce_pdf_df(original_df, "No original data"))
+            ]
+            if original_df2 is not None:
+                original_dfs.append(
+                    _prepare_pdf_df(
+                        _coerce_pdf_df(original_df2, "No second original data")
+                    )
+                )
             result = {
                 "test_name": test_name,
                 "method_call": method_call,
-                "original_df": _prepare_pdf_df(_coerce_pdf_df(original_df, "No original data")),
+                "original_dfs": original_dfs,
                 "memframe_df": _prepare_pdf_df(_coerce_pdf_df(memframe_df, "No MemFrame result")),
                 "pandas_df": _prepare_pdf_df(_coerce_pdf_df(pandas_df, "No pandas result")),
                 "backend": backend,
@@ -618,6 +645,7 @@ class TestMergingOperations:
             test_name="merge_inner",
             method_call='left_ctx.merge(right_ctx, on="id", how="inner")',
             original_df=left_df,
+            original_df2=right_df,
             memframe_df=res_df,
             pandas_df=expected,
             backend=backend_config["connection_type"],
@@ -645,6 +673,7 @@ class TestMergingOperations:
             test_name="merge_left",
             method_call='left_ctx.merge(right_ctx, on="id", how="left")',
             original_df=left_df,
+            original_df2=right_df,
             memframe_df=res_df,
             pandas_df=expected,
             backend=backend_config["connection_type"],
@@ -671,7 +700,8 @@ class TestMergingOperations:
         self._record_result(
             test_name="merge_right",
             method_call='left_ctx.merge(right_ctx, on="id", how="right")',
-            original_df=right_df,  # original for right is right_df
+            original_df=left_df,
+            original_df2=right_df,
             memframe_df=res_df,
             pandas_df=expected,
             backend=backend_config["connection_type"],
@@ -698,6 +728,7 @@ class TestMergingOperations:
             test_name="merge_outer",
             method_call='left_ctx.merge(right_ctx, on="id", how="outer")',
             original_df=left_df,
+            original_df2=right_df,
             memframe_df=res_df,
             pandas_df=expected,
             backend=backend_config["connection_type"],
@@ -732,6 +763,7 @@ class TestMergingOperations:
             test_name="join",
             method_call='left_ctx.join(right_ctx, on="id", how="left", lsuffix="_L", rsuffix="_R")',
             original_df=left_df,
+            original_df2=right_df,
             memframe_df=res_df,
             pandas_df=expected,
             backend=backend_config["connection_type"],
@@ -755,6 +787,7 @@ class TestMergingOperations:
             test_name="concat_axis0",
             method_call="concat_ctx1.concat([concat_ctx2], axis=0)",
             original_df=concat_df1,
+            original_df2=concat_df2,
             memframe_df=res_df,
             pandas_df=expected,
             backend=backend_config["connection_type"],
@@ -782,6 +815,7 @@ class TestMergingOperations:
             test_name="mutation_safety",
             method_call="merge → check original left unchanged",
             original_df=left_df,
+            original_df2=right_df,
             memframe_df=left_orig,
             pandas_df=left_df,
             backend=backend_config["connection_type"],
@@ -793,10 +827,10 @@ class TestMergingOperations:
         res_df = get_result_df(merged_ctx)
         new_ctx = left_ctx.memframe.upload_df(res_df, filename="chain_merge_result")
         # Now perform an addition operation
-        add_result = new_ctx.add("value_left", "value_right", "total_value")
+        add_result = new_ctx.add("salary", "bonus", "total_comp")
         add_df = get_result_df(add_result)
         expected = pd.merge(left_df, right_df, left_on="id", right_on="id", how="inner", suffixes=("_x", "_y"))
-        expected["total_value"] = expected["value_left"] + expected["value_right"]
+        expected["total_comp"] = expected["salary"] + expected["bonus"]
         # Operation output keeps only arithmetic columns; align expected projection.
         expected = expected[[c for c in add_df.columns if c in expected.columns]]
         # Compare
@@ -813,6 +847,7 @@ class TestMergingOperations:
             test_name="chain_merge_and_op",
             method_call="merge → upload → add",
             original_df=left_df,
+            original_df2=right_df,
             memframe_df=add_df,
             pandas_df=expected,
             backend=backend_config["connection_type"],
