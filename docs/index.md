@@ -12,7 +12,7 @@
 - Each pandas-style call is compiled to backend-native SQL and executed on the engine — your data never leaves the database.
 - Async-first surface with sync equivalents for every operation.
 - Upload from CSV, Parquet, or pandas DataFrame.
-- Inspection, selection, cleaning, statistics, arithmetic, Plotly charts.
+- Inspection, selection, cleaning, statistics, arithmetic, sorting, reshape, merging, Plotly charts.
 - Two-level cache: lineage audit + replayable result tables.
 - Optional AI agent layer (`memframe_ai`) for natural-language data work, including one-shot AI dashboards (`adashboard`) with a built-in query guardrail.
 

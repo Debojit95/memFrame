@@ -193,6 +193,7 @@ table is left untouched.
 - [Sync Existing Tables](api/syncdb.md): register pre-existing DB tables as datasets.
 - [Dataset Operations](api/database.md): list, activate, and delete datasets.
 - [Inspect](api/inspect.md), [Cleaning](api/cleaning.md), [Selection](api/selection.md), and [Stats](api/stats.md): work with uploaded data.
+- [Merging](api/merging.md): `merge`, `join`, and `concat` datasets.
 - [Bar Plots](api/bar.md): create Plotly-backed bar charts.
 - [AI Agent](memframe-ai/agent.md): `memframe_ai` for natural-language data work.
 

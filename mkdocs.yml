@@ -61,6 +61,7 @@ nav:
           - Datetime: api/datetime.md
           - Sorting: api/sorting.md
           - Reshape: api/reshape.md
+          - Merging: api/merging.md
       - Plots:
           - Bar: api/bar.md
           - Bar Polar: api/bar_polar.md

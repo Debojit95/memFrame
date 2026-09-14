@@ -6,6 +6,11 @@ to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **Merging (new umbrella)**: `merge`/`amerge`, `join`/`ajoin`, and `concat`/`aconcat` via `ContextManager`, joining dataset contexts on shared keys (`on`, or split `left_on`/`right_on`; `join` falls back to common columns) with `inner`/`left`/`right`/`outer`/`cross`/`left_anti`/`right_anti`, `merge` suffixes vs `join` `lsuffix`/`rsuffix`, timestamp↔date auto-cast, and row/column `concat` with `ignore_index`. Backend-native SQL across DuckDB, PostgreSQL, and ClickHouse.
+- **Merging tests**: `tests/unit/test_merging_response.py` (28: happy/error/streaming/public API) + `test_merging_sql_fingerprint.py` (40 scenarios × 3 backends, fixture `merging_sql_fingerprint.json`).
+- **Merging docs**: `docs/api/merging.md` + nav entry (`mkdocs.yml`) and README/index/getting-started links.
+
 ## [0.6.0] - 2026-09-12
 
 ### Added

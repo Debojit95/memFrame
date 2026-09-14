@@ -21,7 +21,7 @@
 - Async-first surface with sync equivalents for every operation.
 - Upload from CSV, Parquet, or pandas DataFrame.
 - Sync pre-existing DuckDB, PostgreSQL, or ClickHouse tables as datasets — no re-upload.
-- Inspection, selection, cleaning, statistics, arithmetic, Plotly charts.
+- Inspection, selection, cleaning, statistics, arithmetic, sorting, reshape, merging, Plotly charts.
 - Two-level cache: lineage audit + replayable result tables.
 - Optional AI agent layer (`memframe_ai`) for chatting with your CSV.
 - Optional **Logfire observability** for the AI agent layer — traces every agent run, LLM call, and tool call, plus host metrics. Opt-in via `logfire_enabled` (local console needs no token; bring-your-own-key for the cloud).
@@ -174,7 +174,7 @@ Full reference lives in [`docs/`](docs/):
 - [Dataset Operations](docs/api/database.md) — table and active-dataset management.
 - [Inspection](docs/api/inspect.md) · [Selection](docs/api/selection.md) · [Cleaning](docs/api/cleaning.md)
 - [Statistics](docs/api/stats.md) · [Arithmetic](docs/api/arithmetic.md)
-- [Sorting](docs/api/sorting.md) · [Reshape](docs/api/reshape.md)
+- [Sorting](docs/api/sorting.md) · [Reshape](docs/api/reshape.md) · [Merging](docs/api/merging.md)
 - [Plotting](docs/api/bar.md) · [Caching](docs/api/caching.md)
 
 Serve locally:
