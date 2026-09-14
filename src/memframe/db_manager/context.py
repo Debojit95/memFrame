@@ -41,7 +41,12 @@ def _public_result(method):
 
 
 class ContextManager:
-    def __init__(self, memframe_instance, data_id: Optional[str] = None):
+    def __init__(
+        self,
+        memframe_instance,
+        data_id: Optional[str] = None,
+        _table_override: Optional[str] = None,
+    ):
         self.memframe = memframe_instance
         if data_id is None and memframe_instance is not self:
             # ponytail: bind the active dataset at creation so a later
@@ -49,6 +54,10 @@ class ContextManager:
             # (upload/aset_active contexts already behave this way).
             data_id = getattr(memframe_instance, "_active_id", None)
         self._data_id = data_id
+        # ponytail: bare output-table name for merge/join/concat results, which
+        # live as transient tables under the parent data_id without minting a
+        # registry dataset. None for regular dataset contexts.
+        self._table_override = _table_override
         self._adapter: Optional[DatabaseAdapter] = None
         self._wrappers = None
 
@@ -287,7 +296,41 @@ class ContextManager:
     ) -> str:
         return await self.adashboard(sentence, show=show, filename=filename)
 
+    async def _resolve_override_context(self):
+        # ponytail: exact registry lookup first (bare transient names can repeat
+        # across datasets), then an existence probe, so a deep-cache move from
+        # the upload schema to the transient schema resolves either way.
+        data_id = self._data_id or self.memframe._active_id
+        if not data_id:
+            raise DataNotFound("No active dataset and no explicit data_id provided.")
+        backend = self.memframe._backend
+        table = self._table_override
+        rows = await backend.fetch(
+            f"SELECT schema FROM {backend.transient_registry_table} "
+            f"WHERE data_id = {backend.placeholder(1)} "
+            f"AND generated_table_name = {backend.placeholder(2)} "
+            f"ORDER BY opidx DESC LIMIT 1",
+            data_id,
+            table,
+        )
+        if rows and rows[0][0]:
+            return table, rows[0][0]
+        for schema in (backend.upload_schema, backend.transient_schema):
+            if getattr(backend, "backend", None) == Backend.CLICKHOUSE:
+                qualified = f"`{schema}`.`{table}`"
+            else:
+                qualified = f'{schema}."{table}"'
+            if await backend.table_exists(qualified):
+                return table, schema
+        raise DataNotFound(
+            f"Merged table '{table}' no longer exists. Merge outputs are transient: "
+            "they are dropped when the parent dataset is deleted, and are never "
+            "persisted when deep_cache=False."
+        )
+
     async def _get_active_context(self):
+        if self._table_override is not None:
+            return await self._resolve_override_context()
         data_id = self._data_id or self.memframe._active_id
         if not data_id:
             raise DataNotFound("No active dataset and no explicit data_id provided.")

@@ -178,6 +178,7 @@ class DataMergeOps:
         left_table: str,
         right_table: str,
         schema: str,
+        right_schema: Optional[str] = None,
         how: str = "inner",
         on: Optional[Union[str, List[str]]] = None,
         left_on: Optional[Union[str, List[str]]] = None,
@@ -236,7 +237,7 @@ class DataMergeOps:
             # TABLES
             # -----------------------------
             left_q = self._qualified(left_table, schema)
-            right_q = self._qualified(right_table, schema)
+            right_q = self._qualified(right_table, right_schema or schema)
 
             # -----------------------------
             # SELECT columns with suffix handling
@@ -244,6 +245,7 @@ class DataMergeOps:
             safe_left_table = SQLIdentifierSanitizer.sanitize(left_table)
             safe_right_table = SQLIdentifierSanitizer.sanitize(right_table)
             safe_schema = SQLIdentifierSanitizer.sanitize(schema)
+            safe_right_schema = SQLIdentifierSanitizer.sanitize(right_schema or schema)
 
             left_names = list(
                 (
@@ -257,7 +259,7 @@ class DataMergeOps:
                 (
                     await self.db.get_column_types(
                         safe_right_table,
-                        safe_schema,
+                        safe_right_schema,
                     )
                 ).keys()
             )
@@ -298,7 +300,7 @@ class DataMergeOps:
                 condition_sql = ""
             else:
                 left_types_raw = await self.db.get_column_types(safe_left_table, safe_schema)
-                right_types_raw = await self.db.get_column_types(safe_right_table, safe_schema)
+                right_types_raw = await self.db.get_column_types(safe_right_table, safe_right_schema)
 
                 left_types = {k.lower(): v for k, v in left_types_raw.items()}
                 right_types = {k.lower(): v for k, v in right_types_raw.items()}
@@ -395,6 +397,7 @@ class DataMergeOps:
         left_table: str,
         right_table: str,
         schema: str,
+        right_schema: Optional[str] = None,
         how: str = "left",
         on: Optional[Union[str, List[str]]] = None,
         lsuffix: str = "",
@@ -415,17 +418,18 @@ class DataMergeOps:
             # TABLES
             # -----------------------------
             left_q = self._qualified(left_table, schema)
-            right_q = self._qualified(right_table, schema)
+            right_q = self._qualified(right_table, right_schema or schema)
 
             safe_left_table = SQLIdentifierSanitizer.sanitize(left_table)
             safe_right_table = SQLIdentifierSanitizer.sanitize(right_table)
             safe_schema = SQLIdentifierSanitizer.sanitize(schema)
+            safe_right_schema = SQLIdentifierSanitizer.sanitize(right_schema or schema)
 
             # -----------------------------
             # COLUMN FETCH
             # -----------------------------
             left_types_raw = await self.db.get_column_types(safe_left_table, safe_schema)
-            right_types_raw = await self.db.get_column_types(safe_right_table, safe_schema)
+            right_types_raw = await self.db.get_column_types(safe_right_table, safe_right_schema)
 
             left_cols = list(left_types_raw.keys())
             right_cols = list(right_types_raw.keys())
@@ -600,6 +604,7 @@ class DataMergeOps:
         self,
         tables: List[str],
         schema: str,
+        table_schemas: Optional[List[str]] = None,
         axis: int = 0,
         join: str = "outer",
         ignore_index: bool = False,
@@ -622,14 +627,23 @@ class DataMergeOps:
                 return self._error("join must be 'outer' or 'inner'")
 
             safe_schema = SQLIdentifierSanitizer.sanitize(schema)
+            if table_schemas is not None and len(table_schemas) != len(tables):
+                return self._error("table_schemas must match tables in length")
+            # ponytail: inputs may span schemas (e.g. a merged transient table
+            # plus an upload table); the output lives in `schema` (the left side).
+            schemas = (
+                [SQLIdentifierSanitizer.sanitize(s) for s in table_schemas]
+                if table_schemas is not None
+                else [safe_schema] * len(tables)
+            )
 
             # -----------------------------
             # FETCH COLUMN METADATA
             # -----------------------------
             table_cols = {}
-            for t in tables:
+            for t, t_schema in zip(tables, schemas):
                 safe_t = SQLIdentifierSanitizer.sanitize(t)
-                cols = await self.db.get_column_types(safe_t, safe_schema)
+                cols = await self.db.get_column_types(safe_t, t_schema)
                 table_cols[t] = list(cols.keys())
 
             # -----------------------------
@@ -647,8 +661,8 @@ class DataMergeOps:
 
                 select_statements = []
 
-                for t in tables:
-                    qualified = self._qualified(t, schema)
+                for t, t_schema in zip(tables, schemas):
+                    qualified = self._qualified(t, t_schema)
                     cols = table_cols[t]
 
                     select_parts = []
@@ -690,7 +704,7 @@ class DataMergeOps:
                 row_key = "__memframe_concat_rn"
 
                 for i, t in enumerate(tables):
-                    qualified = self._qualified(t, schema)
+                    qualified = self._qualified(t, schemas[i])
                     cols = table_cols[t]
 
                     select_cols = ", ".join(

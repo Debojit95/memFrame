@@ -84,15 +84,16 @@ stacked = left.concat([right], axis=0, join="outer")
 side_by_side = left.concat([right], axis=1, join="outer")
 ```
 
-Streaming and async forms:
+Async and chained forms (every call returns a live context):
 
 ```python
 left = await mf.aupload_df(left_frame, filename="left")
 right = await mf.aupload_df(right_frame, filename="right")
 
-iterator = await left.amerge(right, on="id", chunk_size=1000)
-async for chunk in iterator:
-    process(chunk)
+merged = await left.amerge(right, on="id")
+merged.head()
+
+chained = merged.merge(right, left_on="id_x", right_on="id")
 ```
 
 ## Parameters
@@ -107,7 +108,7 @@ async for chunk in iterator:
 | `left_on` | `str`, `list[str]`, or `None` | Left key column(s) when the names differ. |
 | `right_on` | `str`, `list[str]`, or `None` | Right key column(s) when the names differ. Must match `left_on` in length. |
 | `suffixes` | `tuple[str, str]` | Suffixes for overlapping columns (including the join keys). Defaults to `("_x", "_y")`. |
-| `chunk_size` | `int` or `None` | If set, return an envelope containing an async iterator of `DataFrame` chunks. Must be `> 0`. |
+| `chunk_size` | `int` or `None` | Accepted for validation only; the output table is fully materialized and a live context is returned regardless. Must be `> 0`. |
 
 `join`:
 
@@ -118,7 +119,7 @@ async for chunk in iterator:
 | `on` | `str`, `list[str]`, or `None` | Key column(s) applied to both sides. When `None`, the common columns are used automatically. |
 | `lsuffix` | `str` | Suffix for left-side overlapping (non-key) columns. Defaults to `""`. |
 | `rsuffix` | `str` | Suffix for right-side overlapping columns. Defaults to `""`, which is rendered as `"_right"`. |
-| `chunk_size` | `int` or `None` | Chunked streaming, as above. |
+| `chunk_size` | `int` or `None` | As above — validated, but the return is always a live context. |
 
 `concat`:
 
@@ -128,7 +129,7 @@ async for chunk in iterator:
 | `axis` | `0` or `1` | `0` stacks rows (`UNION ALL`); `1` places columns side by side (row-number join). Defaults to `0`. |
 | `join` | `"outer"` or `"inner"` | Column alignment: `"outer"` unions all columns (`NULL`-filled); `"inner"` keeps only common columns. Defaults to `"outer"`. |
 | `ignore_index` | `bool` | Axis-0 only: prepend a `ROW_NUMBER()` `__index__` column. Defaults to `False`. |
-| `chunk_size` | `int` or `None` | Chunked streaming, as above. |
+| `chunk_size` | `int` or `None` | As above — validated, but the return is always a live context. |
 
 ## Join Semantics
 
@@ -161,29 +162,27 @@ the timestamp side to a date so the comparison type-checks:
 
 ## Return Values and Errors
 
-Success returns a `DataFrame` directly (the operation's result table sample).
-`chunk_size` returns an envelope containing `iterator` and `new_table` with
-`result=None`.
+Success returns a live `ContextManager` bound to the new output table — not a
+`DataFrame`. It is chainable like any dataset context (`merged.head()`,
+`merged.merge(other)`, or as the `right_ops` of another merge). `chunk_size`
+does not change the public return type: the output table is fully materialized
+either way.
 
-Merging differs from the other operation groups in how errors and chunked
-responses surface through `ContextManager`: because the error and streaming
-payloads omit the `result` key, the generic response unwrapping in
-`src/memframe/core/analytix/_response.py` leaves them as raw dictionaries instead
-of raising `OperationError` or unwrapping the iterator. Concretely:
+Merging differs from the other operation groups in how errors surface through
+`ContextManager`: because the error payloads omit the `result` key, the generic
+response unwrapping in `src/memframe/core/analytix/_response.py` leaves them as
+raw dictionaries instead of raising `OperationError`. Concretely:
 
 ```python
-# Success: a DataFrame
+# Success: a live dataset context on the merged table
 merged = left.merge(right, on="id")
+merged.head()
+chained = merged.merge(other, left_on="id_x", right_on="id")
 
 # Error: the raw envelope dict, not a raised exception
 response = left.merge(right, how="nonsense", on="id")
 assert response["is_error"] is True
 assert response["error_message"]
-
-# Streaming: the envelope dict; iterate response["iterator"] yourself
-response = left.merge(right, on="id", chunk_size=1000)
-async for chunk in response["iterator"]:
-    process(chunk)
 ```
 
 Error messages:
@@ -208,8 +207,13 @@ Every merge, join, and concat materializes a new transient table
 
 1. Resolves the output name via the transient registry (with a dedupe suffix on collision).
 2. `CREATE TABLE <new> AS <join/union SELECT>`.
-3. Non-chunked: sample via `SELECT *` from the new table; chunked: `LIMIT/OFFSET` pages.
-4. `deep_cache=True` persists the merged clone for replay.
+3. Persists the table in the transient schema and records it in the transient
+   registry, so the returned context stays live and replays work. Outputs are
+   dropped with the parent dataset (`delete_table`) or on cache clear. Sides may
+   live in different schemas (e.g. a merged transient table plus an upload
+   table) — each side is qualified with its own schema.
+4. `MemFrame(deep_cache=False)` disables persistence globally; a merged context
+   created under it raises `DataNotFound` on use because its table was dropped.
 
 ## Backend Behavior
 

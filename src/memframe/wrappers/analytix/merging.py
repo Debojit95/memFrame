@@ -1,6 +1,6 @@
 # merge_wrapper.py
 
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Optional, Tuple
 
 from memframe.core.orchestrator.analytix.merging import MergeOrchestrator
 from memframe.utils.async_sync import async_to_sync
@@ -19,11 +19,36 @@ class MergeWrapper(MergeOrchestrator):
         - amerge()
         - ajoin()
         - aconcat()
+
+    Successful calls return a live ``ContextManager`` bound to the new output
+    table (chainable: ``merged.head()``, ``merged.merge(...)``); error envelopes
+    are returned unchanged as dicts.
     """
 
     def __init__(self, memframe_ops_instance):
         """Initialize the merge wrapper."""
         super().__init__(memframe_ops_instance)
+
+    def _merged_context(self, response):
+        """Wrap a successful merge envelope's output table in a ContextManager."""
+        # ponytail: local import — context.py lazily imports wrappers, so a
+        # top-level import would be circular.
+        from memframe.db_manager.context import ContextManager
+
+        if (
+            not isinstance(response, dict)
+            or response.get("is_error")
+            or not response.get("new_table")
+        ):
+            return response
+        data_id = self._data_id or self._memframe._active_id
+        return ContextManager(
+            self._memframe, data_id=data_id, _table_override=response["new_table"]
+        )
+
+    async def _resolve_right_ref(self, right_ops):
+        table, schema = await self._get_table_and_schema(right_ops)
+        return (getattr(right_ops, "_data_id", None), table, schema)
 
     def __call__(
         self,
@@ -34,7 +59,7 @@ class MergeWrapper(MergeOrchestrator):
         right_on=None,
         suffixes: Tuple[str, str] = ("_x", "_y"),
         chunk_size: Optional[int] = None,
-    ) -> Dict[str, Any]:
+    ) -> Any:
         """
         Allow direct call style:
             ops.merge(other_ops, on="id")
@@ -61,9 +86,9 @@ class MergeWrapper(MergeOrchestrator):
         right_on=None,
         suffixes: Tuple[str, str] = ("_x", "_y"),
         chunk_size: Optional[int] = None,
-    ) -> Dict[str, Any]:
-        """Asynchronously merge two datasets using key-based joins."""
-        return await super().merge(
+    ) -> Any:
+        """Asynchronously merge two datasets; returns a ContextManager on success."""
+        response = await super().merge(
             right_ops=right_ops,
             how=how,
             on=on,
@@ -71,7 +96,9 @@ class MergeWrapper(MergeOrchestrator):
             right_on=right_on,
             suffixes=suffixes,
             chunk_size=chunk_size,
+            right_ref=await self._resolve_right_ref(right_ops),
         )
+        return self._merged_context(response)
 
     @async_to_sync
     async def merge(
@@ -83,8 +110,8 @@ class MergeWrapper(MergeOrchestrator):
         right_on=None,
         suffixes: Tuple[str, str] = ("_x", "_y"),
         chunk_size: Optional[int] = None,
-    ) -> Dict[str, Any]:
-        """Synchronously merge two datasets using key-based joins."""
+    ) -> Any:
+        """Synchronously merge two datasets; returns a ContextManager on success."""
         return await self.amerge(
             right_ops=right_ops,
             how=how,
@@ -106,16 +133,18 @@ class MergeWrapper(MergeOrchestrator):
         lsuffix: str = "",
         rsuffix: str = "",
         chunk_size: Optional[int] = None,
-    ) -> Dict[str, Any]:
-        """Asynchronously join another dataset by index or key."""
-        return await super().join(
+    ) -> Any:
+        """Asynchronously join another dataset; returns a ContextManager on success."""
+        response = await super().join(
             right_ops=right_ops,
             how=how,
             on=on,
             lsuffix=lsuffix,
             rsuffix=rsuffix,
             chunk_size=chunk_size,
+            right_ref=await self._resolve_right_ref(right_ops),
         )
+        return self._merged_context(response)
 
     @async_to_sync
     async def join(
@@ -126,8 +155,8 @@ class MergeWrapper(MergeOrchestrator):
         lsuffix: str = "",
         rsuffix: str = "",
         chunk_size: Optional[int] = None,
-    ) -> Dict[str, Any]:
-        """Synchronously join another dataset by index or key."""
+    ) -> Any:
+        """Synchronously join another dataset; returns a ContextManager on success."""
         return await self.ajoin(
             right_ops=right_ops,
             how=how,
@@ -147,15 +176,21 @@ class MergeWrapper(MergeOrchestrator):
         join: str = "outer",
         ignore_index: bool = False,
         chunk_size: Optional[int] = None,
-    ) -> Dict[str, Any]:
-        """Asynchronously concatenate multiple datasets along an axis."""
-        return await super().concat(
+    ) -> Any:
+        """Asynchronously concatenate datasets; returns a ContextManager on success."""
+        others_ref = []
+        for other in other_ops_list:
+            table, schema = await self._get_table_and_schema(other)
+            others_ref.append((getattr(other, "_data_id", None), table, schema))
+        response = await super().concat(
             other_ops_list=other_ops_list,
             axis=axis,
             join=join,
             ignore_index=ignore_index,
             chunk_size=chunk_size,
+            others_ref=tuple(others_ref),
         )
+        return self._merged_context(response)
 
     @async_to_sync
     async def concat(
@@ -165,8 +200,8 @@ class MergeWrapper(MergeOrchestrator):
         join: str = "outer",
         ignore_index: bool = False,
         chunk_size: Optional[int] = None,
-    ) -> Dict[str, Any]:
-        """Synchronously concatenate multiple datasets along an axis."""
+    ) -> Any:
+        """Synchronously concatenate datasets; returns a ContextManager on success."""
         return await self.aconcat(
             other_ops_list=other_ops_list,
             axis=axis,

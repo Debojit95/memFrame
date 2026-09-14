@@ -48,7 +48,13 @@ class MergeOrchestrator:
         # fallback: ops is a ContextManager-like with _get_active_context
         return await ops._get_active_context()
 
-    @record_call
+    # ponytail: deep_cache=True so the output table survives — the public
+    # wrapper returns a live ContextManager on it, not a DataFrame snapshot.
+    # ponytail: right_ref/others_ref are cache-key material only.
+    # ContextManagers serialize as "<ContextManager>", so without an explicit
+    # right-side identity two different right datasets would collide in the
+    # deep-cache lookup. The operation itself ignores these kwargs.
+    @record_call(deep_cache=True)
     async def merge(
         self,
         right_ops,
@@ -58,18 +64,20 @@ class MergeOrchestrator:
         right_on=None,
         suffixes: tuple = ("_x", "_y"),
         chunk_size: Optional[int] = None,
+        right_ref: Optional[tuple] = None,
     ) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         left_table, schema = await self._get_context()
-        # right table may be in same backend but different data_id; schema is shared upload schema
+        # ponytail: sides may live in different schemas (a merged transient
+        # table plus an upload table), so each side keeps its own schema.
         right_table, right_schema = await self._get_table_and_schema(right_ops)
-        # ponytail: merges are within one backend/schema; right_schema should equal schema
         backend = self._memframe._backend
         data_id = self._data_id or self._memframe._active_id
         return await ops.merge(
             left_table=left_table,
             right_table=right_table,
             schema=schema,
+            right_schema=right_schema,
             how=how,
             on=on,
             left_on=left_on,
@@ -80,7 +88,7 @@ class MergeOrchestrator:
             chunk_size=chunk_size,
         )
 
-    @record_call
+    @record_call(deep_cache=True)
     async def join(
         self,
         right_ops,
@@ -89,16 +97,18 @@ class MergeOrchestrator:
         lsuffix: str = "",
         rsuffix: str = "",
         chunk_size: Optional[int] = None,
+        right_ref: Optional[tuple] = None,
     ) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         left_table, schema = await self._get_context()
-        right_table, _ = await self._get_table_and_schema(right_ops)
+        right_table, right_schema = await self._get_table_and_schema(right_ops)
         backend = self._memframe._backend
         data_id = self._data_id or self._memframe._active_id
         return await ops.join(
             left_table=left_table,
             right_table=right_table,
             schema=schema,
+            right_schema=right_schema,
             how=how,
             on=on,
             lsuffix=lsuffix,
@@ -108,7 +118,7 @@ class MergeOrchestrator:
             chunk_size=chunk_size,
         )
 
-    @record_call
+    @record_call(deep_cache=True)
     async def concat(
         self,
         other_ops_list,
@@ -116,19 +126,23 @@ class MergeOrchestrator:
         join: str = "outer",
         ignore_index: bool = False,
         chunk_size: Optional[int] = None,
+        others_ref: Optional[tuple] = None,
     ) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         left_table, schema = await self._get_context()
         # other_ops_list is list[ContextManager]
         tables = [left_table]
+        schemas = [schema]
         for other in other_ops_list:
-            t, _ = await self._get_table_and_schema(other)
+            t, s = await self._get_table_and_schema(other)
             tables.append(t)
+            schemas.append(s)
         backend = self._memframe._backend
         data_id = self._data_id or self._memframe._active_id
         return await ops.concat(
             tables=tables,
             schema=schema,
+            table_schemas=schemas,
             axis=axis,
             join=join,
             ignore_index=ignore_index,
