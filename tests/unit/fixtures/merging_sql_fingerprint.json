@@ -1,0 +1,1081 @@
+{
+ "concat_axis0_ignore_index": {
+  "clickhouse": [
+   [
+    "exec",
+    "CREATETABLE`s`.`c1__op_1`ENGINE=MergeTree()ORDERBYtuple()ASSELECTROW_NUMBER()OVER()AS__index__,*FROM(SELECT`a`,`b`,NULLAS`c`FROM`s`.`c1`UNIONALLSELECTNULLAS`a`,`b`,`c`FROM`s`.`c2`)",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM`s`.`c1__op_1`",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"c1__op_1\"ASSELECTROW_NUMBER()OVER()AS__index__,*FROM(SELECT\"a\",\"b\",NULLAS\"c\"FROM\"s\".\"c1\"UNIONALLSELECTNULLAS\"a\",\"b\",\"c\"FROM\"s\".\"c2\")",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"c1__op_1\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"c1__op_1\"ASSELECTROW_NUMBER()OVER()AS__index__,*FROM(SELECT\"a\",\"b\",NULLAS\"c\"FROM\"s\".\"c1\"UNIONALLSELECTNULLAS\"a\",\"b\",\"c\"FROM\"s\".\"c2\")",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"c1__op_1\"",
+    []
+   ]
+  ]
+ },
+ "concat_axis0_inner": {
+  "clickhouse": [
+   [
+    "exec",
+    "CREATETABLE`s`.`c1__op_1`ENGINE=MergeTree()ORDERBYtuple()ASSELECT`b`FROM`s`.`c1`UNIONALLSELECT`b`FROM`s`.`c2`",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM`s`.`c1__op_1`",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"c1__op_1\"ASSELECT\"b\"FROM\"s\".\"c1\"UNIONALLSELECT\"b\"FROM\"s\".\"c2\"",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"c1__op_1\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"c1__op_1\"ASSELECT\"b\"FROM\"s\".\"c1\"UNIONALLSELECT\"b\"FROM\"s\".\"c2\"",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"c1__op_1\"",
+    []
+   ]
+  ]
+ },
+ "concat_axis0_outer": {
+  "clickhouse": [
+   [
+    "exec",
+    "CREATETABLE`s`.`c1__op_1`ENGINE=MergeTree()ORDERBYtuple()ASSELECT`a`,`b`,NULLAS`c`FROM`s`.`c1`UNIONALLSELECTNULLAS`a`,`b`,`c`FROM`s`.`c2`",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM`s`.`c1__op_1`",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"c1__op_1\"ASSELECT\"a\",\"b\",NULLAS\"c\"FROM\"s\".\"c1\"UNIONALLSELECTNULLAS\"a\",\"b\",\"c\"FROM\"s\".\"c2\"",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"c1__op_1\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"c1__op_1\"ASSELECT\"a\",\"b\",NULLAS\"c\"FROM\"s\".\"c1\"UNIONALLSELECTNULLAS\"a\",\"b\",\"c\"FROM\"s\".\"c2\"",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"c1__op_1\"",
+    []
+   ]
+  ]
+ },
+ "concat_axis1_inner": {
+  "clickhouse": [
+   [
+    "exec",
+    "CREATETABLE`s`.`c1__op_1`ENGINE=MergeTree()ORDERBYtuple()ASSELECTt0.`a`AS`a`,t0.`b`AS`b`,t1.`b`AS`b_1`,t1.`c`AS`c`FROM(SELECTROW_NUMBER()OVER()AS`__memframe_concat_rn`,`a`,`b`FROM`s`.`c1`)t0INNERJOIN(SELECTROW_NUMBER()OVER()AS`__memframe_concat_rn`,`b`,`c`FROM`s`.`c2`)t1ONt0.`__memframe_concat_rn`=t1.`__memframe_concat_rn`",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM`s`.`c1__op_1`",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"c1__op_1\"ASSELECTt0.\"a\"AS\"a\",t0.\"b\"AS\"b\",t1.\"b\"AS\"b_1\",t1.\"c\"AS\"c\"FROM(SELECTROW_NUMBER()OVER()AS\"__memframe_concat_rn\",\"a\",\"b\"FROM\"s\".\"c1\")t0INNERJOIN(SELECTROW_NUMBER()OVER()AS\"__memframe_concat_rn\",\"b\",\"c\"FROM\"s\".\"c2\")t1ONt0.\"__memframe_concat_rn\"=t1.\"__memframe_concat_rn\"",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"c1__op_1\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"c1__op_1\"ASSELECTt0.\"a\"AS\"a\",t0.\"b\"AS\"b\",t1.\"b\"AS\"b_1\",t1.\"c\"AS\"c\"FROM(SELECTROW_NUMBER()OVER()AS\"__memframe_concat_rn\",\"a\",\"b\"FROM\"s\".\"c1\")t0INNERJOIN(SELECTROW_NUMBER()OVER()AS\"__memframe_concat_rn\",\"b\",\"c\"FROM\"s\".\"c2\")t1ONt0.\"__memframe_concat_rn\"=t1.\"__memframe_concat_rn\"",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"c1__op_1\"",
+    []
+   ]
+  ]
+ },
+ "concat_axis1_outer": {
+  "clickhouse": [
+   [
+    "exec",
+    "CREATETABLE`s`.`c1__op_1`ENGINE=MergeTree()ORDERBYtuple()ASSELECTt0.`a`AS`a`,t0.`b`AS`b`,t1.`b`AS`b_1`,t1.`c`AS`c`FROM(SELECTROW_NUMBER()OVER()AS`__memframe_concat_rn`,`a`,`b`FROM`s`.`c1`)t0FULLOUTERJOIN(SELECTROW_NUMBER()OVER()AS`__memframe_concat_rn`,`b`,`c`FROM`s`.`c2`)t1ONt0.`__memframe_concat_rn`=t1.`__memframe_concat_rn`",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM`s`.`c1__op_1`",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"c1__op_1\"ASSELECTt0.\"a\"AS\"a\",t0.\"b\"AS\"b\",t1.\"b\"AS\"b_1\",t1.\"c\"AS\"c\"FROM(SELECTROW_NUMBER()OVER()AS\"__memframe_concat_rn\",\"a\",\"b\"FROM\"s\".\"c1\")t0FULLOUTERJOIN(SELECTROW_NUMBER()OVER()AS\"__memframe_concat_rn\",\"b\",\"c\"FROM\"s\".\"c2\")t1ONt0.\"__memframe_concat_rn\"=t1.\"__memframe_concat_rn\"",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"c1__op_1\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"c1__op_1\"ASSELECTt0.\"a\"AS\"a\",t0.\"b\"AS\"b\",t1.\"b\"AS\"b_1\",t1.\"c\"AS\"c\"FROM(SELECTROW_NUMBER()OVER()AS\"__memframe_concat_rn\",\"a\",\"b\"FROM\"s\".\"c1\")t0FULLOUTERJOIN(SELECTROW_NUMBER()OVER()AS\"__memframe_concat_rn\",\"b\",\"c\"FROM\"s\".\"c2\")t1ONt0.\"__memframe_concat_rn\"=t1.\"__memframe_concat_rn\"",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"c1__op_1\"",
+    []
+   ]
+  ]
+ },
+ "concat_bad_axis": {
+  "clickhouse": [],
+  "duckdb": [],
+  "postgres": []
+ },
+ "concat_bad_join": {
+  "clickhouse": [],
+  "duckdb": [],
+  "postgres": []
+ },
+ "concat_no_cols": {
+  "clickhouse": [],
+  "duckdb": [],
+  "postgres": []
+ },
+ "concat_streaming": {
+  "clickhouse": [
+   [
+    "exec",
+    "CREATETABLE`s`.`c1__op_1`ENGINE=MergeTree()ORDERBYtuple()ASSELECT`a`,`b`,NULLAS`c`FROM`s`.`c1`UNIONALLSELECTNULLAS`a`,`b`,`c`FROM`s`.`c2`",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"c1__op_1\"ASSELECT\"a\",\"b\",NULLAS\"c\"FROM\"s\".\"c1\"UNIONALLSELECTNULLAS\"a\",\"b\",\"c\"FROM\"s\".\"c2\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"c1__op_1\"ASSELECT\"a\",\"b\",NULLAS\"c\"FROM\"s\".\"c1\"UNIONALLSELECTNULLAS\"a\",\"b\",\"c\"FROM\"s\".\"c2\"",
+    []
+   ]
+  ]
+ },
+ "concat_too_few": {
+  "clickhouse": [],
+  "duckdb": [],
+  "postgres": []
+ },
+ "join_bad_how": {
+  "clickhouse": [],
+  "duckdb": [],
+  "postgres": []
+ },
+ "join_custom_suffix": {
+  "clickhouse": [
+   [
+    "exec",
+    "CREATETABLE`s`.`left_t__op_1`ENGINE=MergeTree()ORDERBYtuple()ASSELECTl.`id`AS`id_l`,l.`val`AS`val_l`,l.`grp`AS`grp`,l.`ts`AS`ts_l`,r.`id`AS`id_r`,r.`val`AS`val_r`,r.`extra`AS`extra`,r.`ts`AS`ts_r`FROM`s`.`left_t`lLEFTJOIN`s`.`right_t`rONl.`id`=r.`id`",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM`s`.`left_t__op_1`",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"left_t__op_1\"ASSELECTl.\"id\"AS\"id_l\",l.\"val\"AS\"val_l\",l.\"grp\"AS\"grp\",l.\"ts\"AS\"ts_l\",r.\"id\"AS\"id_r\",r.\"val\"AS\"val_r\",r.\"extra\"AS\"extra\",r.\"ts\"AS\"ts_r\"FROM\"s\".\"left_t\"lLEFTJOIN\"s\".\"right_t\"rONl.\"id\"=r.\"id\"",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"left_t__op_1\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"left_t__op_1\"ASSELECTl.\"id\"AS\"id_l\",l.\"val\"AS\"val_l\",l.\"grp\"AS\"grp\",l.\"ts\"AS\"ts_l\",r.\"id\"AS\"id_r\",r.\"val\"AS\"val_r\",r.\"extra\"AS\"extra\",r.\"ts\"AS\"ts_r\"FROM\"s\".\"left_t\"lLEFTJOIN\"s\".\"right_t\"rONl.\"id\"=r.\"id\"",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"left_t__op_1\"",
+    []
+   ]
+  ]
+ },
+ "join_default_right_suffix": {
+  "clickhouse": [
+   [
+    "exec",
+    "CREATETABLE`s`.`left_t__op_1`ENGINE=MergeTree()ORDERBYtuple()ASSELECTl.`id`AS`id`,l.`val`AS`val`,l.`grp`AS`grp`,l.`ts`AS`ts`,r.`id`AS`id_right`,r.`val`AS`val_right`,r.`extra`AS`extra`,r.`ts`AS`ts_right`FROM`s`.`left_t`lLEFTJOIN`s`.`right_t`rONl.`id`=r.`id`",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM`s`.`left_t__op_1`",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"left_t__op_1\"ASSELECTl.\"id\"AS\"id\",l.\"val\"AS\"val\",l.\"grp\"AS\"grp\",l.\"ts\"AS\"ts\",r.\"id\"AS\"id_right\",r.\"val\"AS\"val_right\",r.\"extra\"AS\"extra\",r.\"ts\"AS\"ts_right\"FROM\"s\".\"left_t\"lLEFTJOIN\"s\".\"right_t\"rONl.\"id\"=r.\"id\"",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"left_t__op_1\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"left_t__op_1\"ASSELECTl.\"id\"AS\"id\",l.\"val\"AS\"val\",l.\"grp\"AS\"grp\",l.\"ts\"AS\"ts\",r.\"id\"AS\"id_right\",r.\"val\"AS\"val_right\",r.\"extra\"AS\"extra\",r.\"ts\"AS\"ts_right\"FROM\"s\".\"left_t\"lLEFTJOIN\"s\".\"right_t\"rONl.\"id\"=r.\"id\"",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"left_t__op_1\"",
+    []
+   ]
+  ]
+ },
+ "join_left_anti": {
+  "clickhouse": [
+   [
+    "exec",
+    "CREATETABLE`s`.`left_t__op_1`ENGINE=MergeTree()ORDERBYtuple()ASSELECTl.`id`AS`id`,l.`val`AS`val`,l.`grp`AS`grp`,l.`ts`AS`ts`,r.`id`AS`id_right`,r.`val`AS`val_right`,r.`extra`AS`extra`,r.`ts`AS`ts_right`FROM`s`.`left_t`lLEFTJOIN`s`.`right_t`rONl.`id`=r.`id`WHEREr.`id`ISNULL",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM`s`.`left_t__op_1`",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"left_t__op_1\"ASSELECTl.\"id\"AS\"id\",l.\"val\"AS\"val\",l.\"grp\"AS\"grp\",l.\"ts\"AS\"ts\",r.\"id\"AS\"id_right\",r.\"val\"AS\"val_right\",r.\"extra\"AS\"extra\",r.\"ts\"AS\"ts_right\"FROM\"s\".\"left_t\"lLEFTJOIN\"s\".\"right_t\"rONl.\"id\"=r.\"id\"WHEREr.\"id\"ISNULL",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"left_t__op_1\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"left_t__op_1\"ASSELECTl.\"id\"AS\"id\",l.\"val\"AS\"val\",l.\"grp\"AS\"grp\",l.\"ts\"AS\"ts\",r.\"id\"AS\"id_right\",r.\"val\"AS\"val_right\",r.\"extra\"AS\"extra\",r.\"ts\"AS\"ts_right\"FROM\"s\".\"left_t\"lLEFTJOIN\"s\".\"right_t\"rONl.\"id\"=r.\"id\"WHEREr.\"id\"ISNULL",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"left_t__op_1\"",
+    []
+   ]
+  ]
+ },
+ "join_no_common": {
+  "clickhouse": [],
+  "duckdb": [],
+  "postgres": []
+ },
+ "join_on_none_common": {
+  "clickhouse": [
+   [
+    "exec",
+    "CREATETABLE`s`.`c1__op_1`ENGINE=MergeTree()ORDERBYtuple()ASSELECTl.`a`AS`a`,l.`b`AS`b`,r.`b`AS`b_right`,r.`c`AS`c`FROM`s`.`c1`lLEFTJOIN`s`.`c2`rONl.`b`=r.`b`",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM`s`.`c1__op_1`",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"c1__op_1\"ASSELECTl.\"a\"AS\"a\",l.\"b\"AS\"b\",r.\"b\"AS\"b_right\",r.\"c\"AS\"c\"FROM\"s\".\"c1\"lLEFTJOIN\"s\".\"c2\"rONl.\"b\"=r.\"b\"",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"c1__op_1\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"c1__op_1\"ASSELECTl.\"a\"AS\"a\",l.\"b\"AS\"b\",r.\"b\"AS\"b_right\",r.\"c\"AS\"c\"FROM\"s\".\"c1\"lLEFTJOIN\"s\".\"c2\"rONl.\"b\"=r.\"b\"",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"c1__op_1\"",
+    []
+   ]
+  ]
+ },
+ "join_on_str": {
+  "clickhouse": [
+   [
+    "exec",
+    "CREATETABLE`s`.`left_t__op_1`ENGINE=MergeTree()ORDERBYtuple()ASSELECTl.`id`AS`id`,l.`val`AS`val`,l.`grp`AS`grp`,l.`ts`AS`ts`,r.`id`AS`id_right`,r.`val`AS`val_right`,r.`extra`AS`extra`,r.`ts`AS`ts_right`FROM`s`.`left_t`lLEFTJOIN`s`.`right_t`rONl.`id`=r.`id`",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM`s`.`left_t__op_1`",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"left_t__op_1\"ASSELECTl.\"id\"AS\"id\",l.\"val\"AS\"val\",l.\"grp\"AS\"grp\",l.\"ts\"AS\"ts\",r.\"id\"AS\"id_right\",r.\"val\"AS\"val_right\",r.\"extra\"AS\"extra\",r.\"ts\"AS\"ts_right\"FROM\"s\".\"left_t\"lLEFTJOIN\"s\".\"right_t\"rONl.\"id\"=r.\"id\"",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"left_t__op_1\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"left_t__op_1\"ASSELECTl.\"id\"AS\"id\",l.\"val\"AS\"val\",l.\"grp\"AS\"grp\",l.\"ts\"AS\"ts\",r.\"id\"AS\"id_right\",r.\"val\"AS\"val_right\",r.\"extra\"AS\"extra\",r.\"ts\"AS\"ts_right\"FROM\"s\".\"left_t\"lLEFTJOIN\"s\".\"right_t\"rONl.\"id\"=r.\"id\"",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"left_t__op_1\"",
+    []
+   ]
+  ]
+ },
+ "join_right_anti": {
+  "clickhouse": [
+   [
+    "exec",
+    "CREATETABLE`s`.`left_t__op_1`ENGINE=MergeTree()ORDERBYtuple()ASSELECTl.`id`AS`id`,l.`val`AS`val`,l.`grp`AS`grp`,l.`ts`AS`ts`,r.`id`AS`id_right`,r.`val`AS`val_right`,r.`extra`AS`extra`,r.`ts`AS`ts_right`FROM`s`.`left_t`lRIGHTJOIN`s`.`right_t`rONl.`id`=r.`id`WHEREl.`id`ISNULL",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM`s`.`left_t__op_1`",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"left_t__op_1\"ASSELECTl.\"id\"AS\"id\",l.\"val\"AS\"val\",l.\"grp\"AS\"grp\",l.\"ts\"AS\"ts\",r.\"id\"AS\"id_right\",r.\"val\"AS\"val_right\",r.\"extra\"AS\"extra\",r.\"ts\"AS\"ts_right\"FROM\"s\".\"left_t\"lRIGHTJOIN\"s\".\"right_t\"rONl.\"id\"=r.\"id\"WHEREl.\"id\"ISNULL",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"left_t__op_1\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"left_t__op_1\"ASSELECTl.\"id\"AS\"id\",l.\"val\"AS\"val\",l.\"grp\"AS\"grp\",l.\"ts\"AS\"ts\",r.\"id\"AS\"id_right\",r.\"val\"AS\"val_right\",r.\"extra\"AS\"extra\",r.\"ts\"AS\"ts_right\"FROM\"s\".\"left_t\"lRIGHTJOIN\"s\".\"right_t\"rONl.\"id\"=r.\"id\"WHEREl.\"id\"ISNULL",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"left_t__op_1\"",
+    []
+   ]
+  ]
+ },
+ "join_streaming": {
+  "clickhouse": [
+   [
+    "exec",
+    "CREATETABLE`s`.`left_t__op_1`ENGINE=MergeTree()ORDERBYtuple()ASSELECTl.`id`AS`id`,l.`val`AS`val`,l.`grp`AS`grp`,l.`ts`AS`ts`,r.`id`AS`id_right`,r.`val`AS`val_right`,r.`extra`AS`extra`,r.`ts`AS`ts_right`FROM`s`.`left_t`lLEFTJOIN`s`.`right_t`rONl.`id`=r.`id`",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"left_t__op_1\"ASSELECTl.\"id\"AS\"id\",l.\"val\"AS\"val\",l.\"grp\"AS\"grp\",l.\"ts\"AS\"ts\",r.\"id\"AS\"id_right\",r.\"val\"AS\"val_right\",r.\"extra\"AS\"extra\",r.\"ts\"AS\"ts_right\"FROM\"s\".\"left_t\"lLEFTJOIN\"s\".\"right_t\"rONl.\"id\"=r.\"id\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"left_t__op_1\"ASSELECTl.\"id\"AS\"id\",l.\"val\"AS\"val\",l.\"grp\"AS\"grp\",l.\"ts\"AS\"ts\",r.\"id\"AS\"id_right\",r.\"val\"AS\"val_right\",r.\"extra\"AS\"extra\",r.\"ts\"AS\"ts_right\"FROM\"s\".\"left_t\"lLEFTJOIN\"s\".\"right_t\"rONl.\"id\"=r.\"id\"",
+    []
+   ]
+  ]
+ },
+ "merge_autocast_date_ts": {
+  "clickhouse": [
+   [
+    "exec",
+    "CREATETABLE`s`.`ldate__op_1`ENGINE=MergeTree()ORDERBYtuple()ASSELECTl.`k`AS`k_x`,l.`v`AS`v_x`,r.`k`AS`k_y`,r.`v`AS`v_y`FROM`s`.`ldate`lINNERJOIN`s`.`rts`rONl.`k`=CAST(r.`k`ASDate)",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM`s`.`ldate__op_1`",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"ldate__op_1\"ASSELECTl.\"k\"AS\"k_x\",l.\"v\"AS\"v_x\",r.\"k\"AS\"k_y\",r.\"v\"AS\"v_y\"FROM\"s\".\"ldate\"lINNERJOIN\"s\".\"rts\"rONl.\"k\"=CAST(r.\"k\"ASDATE)",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"ldate__op_1\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"ldate__op_1\"ASSELECTl.\"k\"AS\"k_x\",l.\"v\"AS\"v_x\",r.\"k\"AS\"k_y\",r.\"v\"AS\"v_y\"FROM\"s\".\"ldate\"lINNERJOIN\"s\".\"rts\"rONl.\"k\"=CAST(r.\"k\"ASDATE)",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"ldate__op_1\"",
+    []
+   ]
+  ]
+ },
+ "merge_autocast_ts_date": {
+  "clickhouse": [
+   [
+    "exec",
+    "CREATETABLE`s`.`lts__op_1`ENGINE=MergeTree()ORDERBYtuple()ASSELECTl.`k`AS`k_x`,l.`v`AS`v_x`,r.`k`AS`k_y`,r.`v`AS`v_y`FROM`s`.`lts`lINNERJOIN`s`.`rdate`rONCAST(l.`k`ASDate)=r.`k`",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM`s`.`lts__op_1`",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"lts__op_1\"ASSELECTl.\"k\"AS\"k_x\",l.\"v\"AS\"v_x\",r.\"k\"AS\"k_y\",r.\"v\"AS\"v_y\"FROM\"s\".\"lts\"lINNERJOIN\"s\".\"rdate\"rONCAST(l.\"k\"ASDATE)=r.\"k\"",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"lts__op_1\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"lts__op_1\"ASSELECTl.\"k\"AS\"k_x\",l.\"v\"AS\"v_x\",r.\"k\"AS\"k_y\",r.\"v\"AS\"v_y\"FROM\"s\".\"lts\"lINNERJOIN\"s\".\"rdate\"rONCAST(l.\"k\"ASDATE)=r.\"k\"",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"lts__op_1\"",
+    []
+   ]
+  ]
+ },
+ "merge_bad_chunk": {
+  "clickhouse": [],
+  "duckdb": [],
+  "postgres": []
+ },
+ "merge_bad_how": {
+  "clickhouse": [],
+  "duckdb": [],
+  "postgres": []
+ },
+ "merge_clickhouse_autocast": {
+  "clickhouse": [
+   [
+    "exec",
+    "CREATETABLE`s`.`lch__op_1`ENGINE=MergeTree()ORDERBYtuple()ASSELECTl.`k`AS`k_x`,l.`v`AS`v_x`,r.`k`AS`k_y`,r.`v`AS`v_y`FROM`s`.`lch`lINNERJOIN`s`.`rch`rONCAST(l.`k`ASDate)=r.`k`",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM`s`.`lch__op_1`",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"lch__op_1\"ASSELECTl.\"k\"AS\"k_x\",l.\"v\"AS\"v_x\",r.\"k\"AS\"k_y\",r.\"v\"AS\"v_y\"FROM\"s\".\"lch\"lINNERJOIN\"s\".\"rch\"rONl.\"k\"=r.\"k\"",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"lch__op_1\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"lch__op_1\"ASSELECTl.\"k\"AS\"k_x\",l.\"v\"AS\"v_x\",r.\"k\"AS\"k_y\",r.\"v\"AS\"v_y\"FROM\"s\".\"lch\"lINNERJOIN\"s\".\"rch\"rONl.\"k\"=r.\"k\"",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"lch__op_1\"",
+    []
+   ]
+  ]
+ },
+ "merge_clickhouse_autocast_rev": {
+  "clickhouse": [
+   [
+    "exec",
+    "CREATETABLE`s`.`lchd__op_1`ENGINE=MergeTree()ORDERBYtuple()ASSELECTl.`k`AS`k_x`,l.`v`AS`v_x`,r.`k`AS`k_y`,r.`v`AS`v_y`FROM`s`.`lchd`lINNERJOIN`s`.`rcht`rONl.`k`=CAST(r.`k`ASDate)",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM`s`.`lchd__op_1`",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"lchd__op_1\"ASSELECTl.\"k\"AS\"k_x\",l.\"v\"AS\"v_x\",r.\"k\"AS\"k_y\",r.\"v\"AS\"v_y\"FROM\"s\".\"lchd\"lINNERJOIN\"s\".\"rcht\"rONl.\"k\"=r.\"k\"",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"lchd__op_1\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"lchd__op_1\"ASSELECTl.\"k\"AS\"k_x\",l.\"v\"AS\"v_x\",r.\"k\"AS\"k_y\",r.\"v\"AS\"v_y\"FROM\"s\".\"lchd\"lINNERJOIN\"s\".\"rcht\"rONl.\"k\"=r.\"k\"",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"lchd__op_1\"",
+    []
+   ]
+  ]
+ },
+ "merge_cross": {
+  "clickhouse": [
+   [
+    "exec",
+    "CREATETABLE`s`.`left_t__op_1`ENGINE=MergeTree()ORDERBYtuple()ASSELECTl.`id`AS`id_x`,l.`val`AS`val_x`,l.`grp`AS`grp`,l.`ts`AS`ts_x`,r.`id`AS`id_y`,r.`val`AS`val_y`,r.`extra`AS`extra`,r.`ts`AS`ts_y`FROM`s`.`left_t`lCROSSJOIN`s`.`right_t`r",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM`s`.`left_t__op_1`",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"left_t__op_1\"ASSELECTl.\"id\"AS\"id_x\",l.\"val\"AS\"val_x\",l.\"grp\"AS\"grp\",l.\"ts\"AS\"ts_x\",r.\"id\"AS\"id_y\",r.\"val\"AS\"val_y\",r.\"extra\"AS\"extra\",r.\"ts\"AS\"ts_y\"FROM\"s\".\"left_t\"lCROSSJOIN\"s\".\"right_t\"r",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"left_t__op_1\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"left_t__op_1\"ASSELECTl.\"id\"AS\"id_x\",l.\"val\"AS\"val_x\",l.\"grp\"AS\"grp\",l.\"ts\"AS\"ts_x\",r.\"id\"AS\"id_y\",r.\"val\"AS\"val_y\",r.\"extra\"AS\"extra\",r.\"ts\"AS\"ts_y\"FROM\"s\".\"left_t\"lCROSSJOIN\"s\".\"right_t\"r",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"left_t__op_1\"",
+    []
+   ]
+  ]
+ },
+ "merge_custom_suffix": {
+  "clickhouse": [
+   [
+    "exec",
+    "CREATETABLE`s`.`left_t__op_1`ENGINE=MergeTree()ORDERBYtuple()ASSELECTl.`id`AS`id_l`,l.`val`AS`val_l`,l.`grp`AS`grp`,l.`ts`AS`ts_l`,r.`id`AS`id_r`,r.`val`AS`val_r`,r.`extra`AS`extra`,r.`ts`AS`ts_r`FROM`s`.`left_t`lINNERJOIN`s`.`right_t`rONl.`id`=r.`id`",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM`s`.`left_t__op_1`",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"left_t__op_1\"ASSELECTl.\"id\"AS\"id_l\",l.\"val\"AS\"val_l\",l.\"grp\"AS\"grp\",l.\"ts\"AS\"ts_l\",r.\"id\"AS\"id_r\",r.\"val\"AS\"val_r\",r.\"extra\"AS\"extra\",r.\"ts\"AS\"ts_r\"FROM\"s\".\"left_t\"lINNERJOIN\"s\".\"right_t\"rONl.\"id\"=r.\"id\"",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"left_t__op_1\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"left_t__op_1\"ASSELECTl.\"id\"AS\"id_l\",l.\"val\"AS\"val_l\",l.\"grp\"AS\"grp\",l.\"ts\"AS\"ts_l\",r.\"id\"AS\"id_r\",r.\"val\"AS\"val_r\",r.\"extra\"AS\"extra\",r.\"ts\"AS\"ts_r\"FROM\"s\".\"left_t\"lINNERJOIN\"s\".\"right_t\"rONl.\"id\"=r.\"id\"",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"left_t__op_1\"",
+    []
+   ]
+  ]
+ },
+ "merge_default_suffix": {
+  "clickhouse": [
+   [
+    "exec",
+    "CREATETABLE`s`.`left_t__op_1`ENGINE=MergeTree()ORDERBYtuple()ASSELECTl.`id`AS`id_x`,l.`val`AS`val_x`,l.`grp`AS`grp`,l.`ts`AS`ts_x`,r.`id`AS`id_y`,r.`val`AS`val_y`,r.`extra`AS`extra`,r.`ts`AS`ts_y`FROM`s`.`left_t`lINNERJOIN`s`.`right_t`rONl.`id`=r.`id`",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM`s`.`left_t__op_1`",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"left_t__op_1\"ASSELECTl.\"id\"AS\"id_x\",l.\"val\"AS\"val_x\",l.\"grp\"AS\"grp\",l.\"ts\"AS\"ts_x\",r.\"id\"AS\"id_y\",r.\"val\"AS\"val_y\",r.\"extra\"AS\"extra\",r.\"ts\"AS\"ts_y\"FROM\"s\".\"left_t\"lINNERJOIN\"s\".\"right_t\"rONl.\"id\"=r.\"id\"",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"left_t__op_1\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"left_t__op_1\"ASSELECTl.\"id\"AS\"id_x\",l.\"val\"AS\"val_x\",l.\"grp\"AS\"grp\",l.\"ts\"AS\"ts_x\",r.\"id\"AS\"id_y\",r.\"val\"AS\"val_y\",r.\"extra\"AS\"extra\",r.\"ts\"AS\"ts_y\"FROM\"s\".\"left_t\"lINNERJOIN\"s\".\"right_t\"rONl.\"id\"=r.\"id\"",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"left_t__op_1\"",
+    []
+   ]
+  ]
+ },
+ "merge_left_anti": {
+  "clickhouse": [
+   [
+    "exec",
+    "CREATETABLE`s`.`left_t__op_1`ENGINE=MergeTree()ORDERBYtuple()ASSELECTl.`id`AS`id_x`,l.`val`AS`val_x`,l.`grp`AS`grp`,l.`ts`AS`ts_x`,r.`id`AS`id_y`,r.`val`AS`val_y`,r.`extra`AS`extra`,r.`ts`AS`ts_y`FROM`s`.`left_t`lLEFTJOIN`s`.`right_t`rONl.`id`=r.`id`WHEREr.`id`ISNULL",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM`s`.`left_t__op_1`",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"left_t__op_1\"ASSELECTl.\"id\"AS\"id_x\",l.\"val\"AS\"val_x\",l.\"grp\"AS\"grp\",l.\"ts\"AS\"ts_x\",r.\"id\"AS\"id_y\",r.\"val\"AS\"val_y\",r.\"extra\"AS\"extra\",r.\"ts\"AS\"ts_y\"FROM\"s\".\"left_t\"lLEFTJOIN\"s\".\"right_t\"rONl.\"id\"=r.\"id\"WHEREr.\"id\"ISNULL",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"left_t__op_1\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"left_t__op_1\"ASSELECTl.\"id\"AS\"id_x\",l.\"val\"AS\"val_x\",l.\"grp\"AS\"grp\",l.\"ts\"AS\"ts_x\",r.\"id\"AS\"id_y\",r.\"val\"AS\"val_y\",r.\"extra\"AS\"extra\",r.\"ts\"AS\"ts_y\"FROM\"s\".\"left_t\"lLEFTJOIN\"s\".\"right_t\"rONl.\"id\"=r.\"id\"WHEREr.\"id\"ISNULL",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"left_t__op_1\"",
+    []
+   ]
+  ]
+ },
+ "merge_mismatch_keys": {
+  "clickhouse": [],
+  "duckdb": [],
+  "postgres": []
+ },
+ "merge_missing_data_id": {
+  "clickhouse": [],
+  "duckdb": [],
+  "postgres": []
+ },
+ "merge_missing_keys": {
+  "clickhouse": [],
+  "duckdb": [],
+  "postgres": []
+ },
+ "merge_no_left_cols": {
+  "clickhouse": [],
+  "duckdb": [],
+  "postgres": []
+ },
+ "merge_on_inner": {
+  "clickhouse": [
+   [
+    "exec",
+    "CREATETABLE`s`.`left_t__op_1`ENGINE=MergeTree()ORDERBYtuple()ASSELECTl.`id`AS`id_x`,l.`val`AS`val_x`,l.`grp`AS`grp`,l.`ts`AS`ts_x`,r.`id`AS`id_y`,r.`val`AS`val_y`,r.`extra`AS`extra`,r.`ts`AS`ts_y`FROM`s`.`left_t`lINNERJOIN`s`.`right_t`rONl.`id`=r.`id`",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM`s`.`left_t__op_1`",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"left_t__op_1\"ASSELECTl.\"id\"AS\"id_x\",l.\"val\"AS\"val_x\",l.\"grp\"AS\"grp\",l.\"ts\"AS\"ts_x\",r.\"id\"AS\"id_y\",r.\"val\"AS\"val_y\",r.\"extra\"AS\"extra\",r.\"ts\"AS\"ts_y\"FROM\"s\".\"left_t\"lINNERJOIN\"s\".\"right_t\"rONl.\"id\"=r.\"id\"",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"left_t__op_1\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"left_t__op_1\"ASSELECTl.\"id\"AS\"id_x\",l.\"val\"AS\"val_x\",l.\"grp\"AS\"grp\",l.\"ts\"AS\"ts_x\",r.\"id\"AS\"id_y\",r.\"val\"AS\"val_y\",r.\"extra\"AS\"extra\",r.\"ts\"AS\"ts_y\"FROM\"s\".\"left_t\"lINNERJOIN\"s\".\"right_t\"rONl.\"id\"=r.\"id\"",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"left_t__op_1\"",
+    []
+   ]
+  ]
+ },
+ "merge_on_left": {
+  "clickhouse": [
+   [
+    "exec",
+    "CREATETABLE`s`.`left_t__op_1`ENGINE=MergeTree()ORDERBYtuple()ASSELECTl.`id`AS`id_x`,l.`val`AS`val_x`,l.`grp`AS`grp`,l.`ts`AS`ts_x`,r.`id`AS`id_y`,r.`val`AS`val_y`,r.`extra`AS`extra`,r.`ts`AS`ts_y`FROM`s`.`left_t`lLEFTJOIN`s`.`right_t`rONl.`id`=r.`id`",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM`s`.`left_t__op_1`",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"left_t__op_1\"ASSELECTl.\"id\"AS\"id_x\",l.\"val\"AS\"val_x\",l.\"grp\"AS\"grp\",l.\"ts\"AS\"ts_x\",r.\"id\"AS\"id_y\",r.\"val\"AS\"val_y\",r.\"extra\"AS\"extra\",r.\"ts\"AS\"ts_y\"FROM\"s\".\"left_t\"lLEFTJOIN\"s\".\"right_t\"rONl.\"id\"=r.\"id\"",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"left_t__op_1\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"left_t__op_1\"ASSELECTl.\"id\"AS\"id_x\",l.\"val\"AS\"val_x\",l.\"grp\"AS\"grp\",l.\"ts\"AS\"ts_x\",r.\"id\"AS\"id_y\",r.\"val\"AS\"val_y\",r.\"extra\"AS\"extra\",r.\"ts\"AS\"ts_y\"FROM\"s\".\"left_t\"lLEFTJOIN\"s\".\"right_t\"rONl.\"id\"=r.\"id\"",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"left_t__op_1\"",
+    []
+   ]
+  ]
+ },
+ "merge_on_outer": {
+  "clickhouse": [
+   [
+    "exec",
+    "CREATETABLE`s`.`left_t__op_1`ENGINE=MergeTree()ORDERBYtuple()ASSELECTl.`id`AS`id_x`,l.`val`AS`val_x`,l.`grp`AS`grp`,l.`ts`AS`ts_x`,r.`id`AS`id_y`,r.`val`AS`val_y`,r.`extra`AS`extra`,r.`ts`AS`ts_y`FROM`s`.`left_t`lFULLOUTERJOIN`s`.`right_t`rONl.`id`=r.`id`",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM`s`.`left_t__op_1`",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"left_t__op_1\"ASSELECTl.\"id\"AS\"id_x\",l.\"val\"AS\"val_x\",l.\"grp\"AS\"grp\",l.\"ts\"AS\"ts_x\",r.\"id\"AS\"id_y\",r.\"val\"AS\"val_y\",r.\"extra\"AS\"extra\",r.\"ts\"AS\"ts_y\"FROM\"s\".\"left_t\"lFULLOUTERJOIN\"s\".\"right_t\"rONl.\"id\"=r.\"id\"",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"left_t__op_1\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"left_t__op_1\"ASSELECTl.\"id\"AS\"id_x\",l.\"val\"AS\"val_x\",l.\"grp\"AS\"grp\",l.\"ts\"AS\"ts_x\",r.\"id\"AS\"id_y\",r.\"val\"AS\"val_y\",r.\"extra\"AS\"extra\",r.\"ts\"AS\"ts_y\"FROM\"s\".\"left_t\"lFULLOUTERJOIN\"s\".\"right_t\"rONl.\"id\"=r.\"id\"",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"left_t__op_1\"",
+    []
+   ]
+  ]
+ },
+ "merge_on_right": {
+  "clickhouse": [
+   [
+    "exec",
+    "CREATETABLE`s`.`left_t__op_1`ENGINE=MergeTree()ORDERBYtuple()ASSELECTl.`id`AS`id_x`,l.`val`AS`val_x`,l.`grp`AS`grp`,l.`ts`AS`ts_x`,r.`id`AS`id_y`,r.`val`AS`val_y`,r.`extra`AS`extra`,r.`ts`AS`ts_y`FROM`s`.`left_t`lRIGHTJOIN`s`.`right_t`rONl.`id`=r.`id`",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM`s`.`left_t__op_1`",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"left_t__op_1\"ASSELECTl.\"id\"AS\"id_x\",l.\"val\"AS\"val_x\",l.\"grp\"AS\"grp\",l.\"ts\"AS\"ts_x\",r.\"id\"AS\"id_y\",r.\"val\"AS\"val_y\",r.\"extra\"AS\"extra\",r.\"ts\"AS\"ts_y\"FROM\"s\".\"left_t\"lRIGHTJOIN\"s\".\"right_t\"rONl.\"id\"=r.\"id\"",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"left_t__op_1\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"left_t__op_1\"ASSELECTl.\"id\"AS\"id_x\",l.\"val\"AS\"val_x\",l.\"grp\"AS\"grp\",l.\"ts\"AS\"ts_x\",r.\"id\"AS\"id_y\",r.\"val\"AS\"val_y\",r.\"extra\"AS\"extra\",r.\"ts\"AS\"ts_y\"FROM\"s\".\"left_t\"lRIGHTJOIN\"s\".\"right_t\"rONl.\"id\"=r.\"id\"",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"left_t__op_1\"",
+    []
+   ]
+  ]
+ },
+ "merge_right_anti": {
+  "clickhouse": [
+   [
+    "exec",
+    "CREATETABLE`s`.`left_t__op_1`ENGINE=MergeTree()ORDERBYtuple()ASSELECTl.`id`AS`id_x`,l.`val`AS`val_x`,l.`grp`AS`grp`,l.`ts`AS`ts_x`,r.`id`AS`id_y`,r.`val`AS`val_y`,r.`extra`AS`extra`,r.`ts`AS`ts_y`FROM`s`.`left_t`lRIGHTJOIN`s`.`right_t`rONl.`id`=r.`id`WHEREl.`id`ISNULL",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM`s`.`left_t__op_1`",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"left_t__op_1\"ASSELECTl.\"id\"AS\"id_x\",l.\"val\"AS\"val_x\",l.\"grp\"AS\"grp\",l.\"ts\"AS\"ts_x\",r.\"id\"AS\"id_y\",r.\"val\"AS\"val_y\",r.\"extra\"AS\"extra\",r.\"ts\"AS\"ts_y\"FROM\"s\".\"left_t\"lRIGHTJOIN\"s\".\"right_t\"rONl.\"id\"=r.\"id\"WHEREl.\"id\"ISNULL",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"left_t__op_1\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"left_t__op_1\"ASSELECTl.\"id\"AS\"id_x\",l.\"val\"AS\"val_x\",l.\"grp\"AS\"grp\",l.\"ts\"AS\"ts_x\",r.\"id\"AS\"id_y\",r.\"val\"AS\"val_y\",r.\"extra\"AS\"extra\",r.\"ts\"AS\"ts_y\"FROM\"s\".\"left_t\"lRIGHTJOIN\"s\".\"right_t\"rONl.\"id\"=r.\"id\"WHEREl.\"id\"ISNULL",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"left_t__op_1\"",
+    []
+   ]
+  ]
+ },
+ "merge_split_cols": {
+  "clickhouse": [
+   [
+    "exec",
+    "CREATETABLE`s`.`left_t__op_1`ENGINE=MergeTree()ORDERBYtuple()ASSELECTl.`id`AS`id_x`,l.`val`AS`val_x`,l.`grp`AS`grp`,l.`ts`AS`ts_x`,r.`id`AS`id_y`,r.`val`AS`val_y`,r.`extra`AS`extra`,r.`ts`AS`ts_y`FROM`s`.`left_t`lINNERJOIN`s`.`right_t`rONl.`id`=r.`extra`",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM`s`.`left_t__op_1`",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"left_t__op_1\"ASSELECTl.\"id\"AS\"id_x\",l.\"val\"AS\"val_x\",l.\"grp\"AS\"grp\",l.\"ts\"AS\"ts_x\",r.\"id\"AS\"id_y\",r.\"val\"AS\"val_y\",r.\"extra\"AS\"extra\",r.\"ts\"AS\"ts_y\"FROM\"s\".\"left_t\"lINNERJOIN\"s\".\"right_t\"rONl.\"id\"=r.\"extra\"",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"left_t__op_1\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"left_t__op_1\"ASSELECTl.\"id\"AS\"id_x\",l.\"val\"AS\"val_x\",l.\"grp\"AS\"grp\",l.\"ts\"AS\"ts_x\",r.\"id\"AS\"id_y\",r.\"val\"AS\"val_y\",r.\"extra\"AS\"extra\",r.\"ts\"AS\"ts_y\"FROM\"s\".\"left_t\"lINNERJOIN\"s\".\"right_t\"rONl.\"id\"=r.\"extra\"",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"left_t__op_1\"",
+    []
+   ]
+  ]
+ },
+ "merge_streaming": {
+  "clickhouse": [
+   [
+    "exec",
+    "CREATETABLE`s`.`left_t__op_1`ENGINE=MergeTree()ORDERBYtuple()ASSELECTl.`id`AS`id_x`,l.`val`AS`val_x`,l.`grp`AS`grp`,l.`ts`AS`ts_x`,r.`id`AS`id_y`,r.`val`AS`val_y`,r.`extra`AS`extra`,r.`ts`AS`ts_y`FROM`s`.`left_t`lINNERJOIN`s`.`right_t`rONl.`id`=r.`id`",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"left_t__op_1\"ASSELECTl.\"id\"AS\"id_x\",l.\"val\"AS\"val_x\",l.\"grp\"AS\"grp\",l.\"ts\"AS\"ts_x\",r.\"id\"AS\"id_y\",r.\"val\"AS\"val_y\",r.\"extra\"AS\"extra\",r.\"ts\"AS\"ts_y\"FROM\"s\".\"left_t\"lINNERJOIN\"s\".\"right_t\"rONl.\"id\"=r.\"id\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"left_t__op_1\"ASSELECTl.\"id\"AS\"id_x\",l.\"val\"AS\"val_x\",l.\"grp\"AS\"grp\",l.\"ts\"AS\"ts_x\",r.\"id\"AS\"id_y\",r.\"val\"AS\"val_y\",r.\"extra\"AS\"extra\",r.\"ts\"AS\"ts_y\"FROM\"s\".\"left_t\"lINNERJOIN\"s\".\"right_t\"rONl.\"id\"=r.\"id\"",
+    []
+   ]
+  ]
+ }
+}
