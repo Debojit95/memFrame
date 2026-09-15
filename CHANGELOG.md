@@ -6,6 +6,11 @@ to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.7.2] - 2026-09-15
+
+### Fixed
+- **DuckDB's notebook progress bar** no longer appears on every operation. Local DuckDB sessions now set `enable_progress_bar=false` (and `enable_progress_bar_print=false`), so the black bar DuckDB renders into the cell output — and its injected JS that errors on Colab — is disabled. Regression-asserted in `tests/unit/test_pool.py`.
+
 ## [0.7.1] - 2026-09-15
 
 ### Changed
