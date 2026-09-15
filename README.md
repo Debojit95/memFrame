@@ -174,7 +174,7 @@ Full reference lives in [`docs/`](docs/):
 - [Dataset Operations](docs/api/database.md) — table and active-dataset management.
 - [Inspection](docs/api/inspect.md) · [Selection](docs/api/selection.md) · [Cleaning](docs/api/cleaning.md)
 - [Statistics](docs/api/stats.md) · [Arithmetic](docs/api/arithmetic.md)
-- [Sorting](docs/api/sorting.md) · [Reshape](docs/api/reshape.md) · [Merging](docs/api/merging.md)
+- [Sorting](docs/api/sorting.md) · [Reshape](docs/api/reshape.md) · [Merging](docs/api/merging.md) · [Preprocessing](docs/api/preprocessing.md)
 - [Plotting](docs/api/bar.md) · [Caching](docs/api/caching.md)
 
 Serve locally:
