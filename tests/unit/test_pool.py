@@ -71,3 +71,9 @@ class TestDuckDBPool:
         asyncio.run(p.connect())
         asyncio.run(p.close())
         asyncio.run(p.close())
+
+    def test_connect_disables_jupyter_progress_bar(self, pool):
+        # DuckDB's notebook progress bar renders a black HTML bar into the cell
+        # and its injected JS errors on Colab; must stay off.
+        assert asyncio.run(pool.fetchval("SELECT current_setting('enable_progress_bar')")) is False
+        assert asyncio.run(pool.fetchval("SELECT current_setting('enable_progress_bar_print')")) is False

@@ -46,6 +46,16 @@ class DuckDBPool(BasePool):
             self._conn.close()
             self._conn = None
         self._conn = duckdb.connect(self.db_path)
+        # ponytail: DuckDB draws a Jupyter progress-bar widget into the cell
+        # output for queries >2s (a black bar whose injected JS errors on
+        # Colab). Disable it for every session; config= at connect is rejected
+        # as a global option, so use session SETs. enable_progress_bar_print
+        # also keeps terminal output quiet.
+        try:
+            self._conn.execute("SET enable_progress_bar = false")
+            self._conn.execute("SET enable_progress_bar_print = false")
+        except Exception as exc:
+            logger.debug("DuckDB progress-bar disable skipped: %s", exc)
         logger.info(f"DuckDB connected: {self.db_path}")
 
     async def close(self):
