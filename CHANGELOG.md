@@ -6,6 +6,15 @@ to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-09-15
+
+### Changed
+- **Merge/join/concat return a live `ContextManager`** on the new output table instead of a `DataFrame` snapshot. Outputs are persisted as transient tables and are chainable (`merged.head()`, `merged.merge(...)`, or usable as the `right_ops` of another merge); deep-cache replays return a context too. `chunk_size` no longer changes the public return type. Docs updated.
+- **Library logging is silent by default** — memFrame no longer installs `StreamHandler`s or sets `INFO` at import, so notebooks (Colab/Kaggle) stop printing per-operation lines to stderr; the plot renderer's `print()` calls became `logger.debug`. Opt in with `memframe.enable_logging()`.
+
+### Fixed
+- **Merging across schemas**: each side is qualified with its own schema, so a merged output (transient schema) can be chained with an upload-schema dataset.
+
 ## [0.7.0] - 2026-09-14
 
 ### Added
