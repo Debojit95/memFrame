@@ -58,11 +58,11 @@ class PreprocessingOps:
         try:
             return row[column_name]
         except Exception:
-            row_lookup_failed = True
+            pass
         try:
             return row[index]
         except Exception:
-            index_lookup_failed = True
+            pass
         try:
             row_dict = dict(row)
             if column_name in row_dict:
@@ -70,7 +70,7 @@ class PreprocessingOps:
             if row_dict:
                 return next(iter(row_dict.values()))
         except Exception:
-            dict_lookup_failed = True
+            pass
         raise KeyError(column_name)
 
     async def _fetch_sample(self, table: str, schema: str, columns: Any = "*") -> pd.DataFrame:
@@ -243,12 +243,15 @@ class PreprocessingOps:
         involved_cols: List[str] = None,
         generated_cols: List[str] = None,
     ) -> Dict[str, Any]:
+        # ponytail: keep `result` key so is_operation_response/unwrap_response
+        # treat errors canonically instead of returning the raw dict
         return {
             "is_error": True,
             "message": "",
             "error_message": error_message,
             "involved_cols": involved_cols or [],
             "generated_cols": generated_cols or [],
+            "result": None,
         }
 
     def _unsupported_backend_error(self) -> NotImplementedError:
