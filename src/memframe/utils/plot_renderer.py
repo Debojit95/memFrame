@@ -1,8 +1,11 @@
 import contextvars
+import logging
 import os
 import webbrowser
 
 import plotly.io as pio
+
+logger = logging.getLogger("memFrame")
 
 # ponytail: when building a dashboard, the chat pipeline runs first and would
 # otherwise render every plot/table inline before the composed dashboard shows.
@@ -69,7 +72,7 @@ def setup_plotly_renderer():
 
     pio.renderers.default = renderer
 
-    print(f"[Plotly] Using renderer: {renderer}")
+    logger.debug("[Plotly] Using renderer: %s", renderer)
 
     return renderer
 
@@ -95,22 +98,22 @@ def smart_show(fig, filename="plot.html"):
         fig.show()
         return
     except Exception as e:
-        print(f"[Plotly] fig.show() failed: {e}")
-        print("[Plotly] Falling back to HTML export...")
+        logger.debug("[Plotly] fig.show() failed: %s", e)
+        logger.debug("[Plotly] Falling back to HTML export...")
 
     abs_path = os.path.abspath(filename)
     abs_uri = f"file://{abs_path}"
     try:
         fig.write_html(abs_path)
     except Exception as write_err:
-        print(f"[Plotly] HTML write failed: {write_err}")
+        logger.debug("[Plotly] HTML write failed: %s", write_err)
         return
     try:
         webbrowser.open(abs_uri, 1)
-        print(f"[Plotly] Opened: {abs_path}")
+        logger.debug("[Plotly] Opened: %s", abs_path)
     except Exception as browser_error:
-        print(f"[Plotly] Browser open failed: {browser_error}")
-        print(f"[Plotly] HTML saved at: {abs_path}")
+        logger.debug("[Plotly] Browser open failed: %s", browser_error)
+        logger.debug("[Plotly] HTML saved at: %s", abs_path)
 
 
 def _smart_show_html(html: str, filename: str = "dashboard.html") -> None:

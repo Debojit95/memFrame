@@ -2,7 +2,7 @@
 
 Every agent (intent classifier, specialists, orchestrator) is created with a
 ``Hooks`` capability built by :func:`make_hooks` so each model request, tool
-call, and completed run is logged through the standard ``memframe.ai`` logger.
+call, and completed run is logged through the standard ``memFrame.ai`` logger.
 
 The goal is to make a slow/looping chat query observable: which agent ran,
 exactly what context was sent to the model, which tools were called, and how
@@ -16,12 +16,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from pydantic_ai.capabilities.hooks import Hooks
 
-logger = logging.getLogger("memframe.ai")
-logger.setLevel(logging.INFO)
-if not logger.handlers:
-    _handler = logging.StreamHandler()
-    _handler.setFormatter(logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s"))
-    logger.addHandler(_handler)
+logger = logging.getLogger("memFrame.ai")
 
 _CTX_PREVIEW = 400
 

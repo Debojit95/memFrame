@@ -15,16 +15,6 @@ from memframe.core.orchestrator.analytix.arithmetic import ArithmeticOrchestrato
 from memframe.utils.async_sync import async_to_sync
 
 logger = logging.getLogger("memFrame")
-logger.setLevel(logging.INFO)
-
-if not logger.handlers:
-    handler = logging.StreamHandler()
-    handler.setFormatter(
-        logging.Formatter(
-            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-        )
-    )
-    logger.addHandler(handler)
 
 
 class ArithmeticWrapper(ArithmeticOrchestrator):

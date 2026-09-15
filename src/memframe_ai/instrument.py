@@ -7,7 +7,7 @@ without the extra installed. Enable by passing ``logfire_enabled=True`` to
 
 Once enabled, ``instrument_pydantic_ai()`` auto-traces every agent run, LLM call,
 and tool call across all agents (guardrail, planner, specialists, dashboard
-designer); ``instrument_logging()`` sends the standard ``memframe.ai`` log lines
+designer); ``instrument_logging()`` sends the standard ``memFrame.ai`` log lines
 to Logfire too. The ``span()`` helper wraps orchestration steps so the whole
 pipeline appears as one coherent trace.
 """
@@ -17,7 +17,7 @@ import inspect
 import logging
 from typing import Any
 
-logger = logging.getLogger("memframe.ai")
+logger = logging.getLogger("memFrame.ai")
 
 _configured = False
 
