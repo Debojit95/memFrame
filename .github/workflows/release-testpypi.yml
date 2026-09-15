@@ -12,10 +12,10 @@ jobs:
     name: Build and publish
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v7
       - run: uv build
       - run: uvx twine check dist/*
       - name: Publish to TestPyPI
@@ -30,6 +30,6 @@ jobs:
           awk -v v="## [$ver]" '$0 ~ "^## \\[" ver "\\]"{f=1;next} /^## \[/{if(f)exit} f' CHANGELOG.md > release_notes.md
           cat release_notes.md
       - name: Create GitHub release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           body_path: release_notes.md
