@@ -53,6 +53,9 @@ Every operation has synchronous and asynchronous forms:
 | `maxabs_scale(column)` | `await amaxabs_scale(...)` | MaxAbs scaling `x / max(|x|)` |
 | `normalize(column, norm="l2")` | `await anormalize(...)` | Single-col sign (multi-col deferred) |
 | `log_transform(column, base="e", epsilon=0)` | `await alog_transform(...)` | Log `ln`/`log10` with `x+eps>0` else NULL |
+| `quantile_transform(column, output="uniform")` | `await aquantile_transform(...)` | Quantile to uniform `[0,1]` via rank |
+| `power_transform(column, method="yeo-johnson")` | `await apower_transform(...)` | Power `sign*pow(|x|,0.5)` / Box-Cox |
+| `ordinal_encode(column)` | `await aordinal_encode(...)` | Ordinal alphabetical `0..n-1` |
 
 Public methods return the operation value directly (usually a sample
 DataFrame). Invalid operations raise `OperationError`.
@@ -115,3 +118,15 @@ DataFrame). Invalid operations raise `OperationError`.
         - log_transform
         - alog
         - log
+        - aquantile_transform
+        - quantile_transform
+        - aquantile
+        - quantile
+        - apower_transform
+        - power_transform
+        - apower
+        - power
+        - aordinal_encode
+        - ordinal_encode
+        - aordinal
+        - ordinal
