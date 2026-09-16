@@ -185,6 +185,58 @@ class PreprocessingWrapper(PreprocessingOrchestrator):
         return await self.acyclical_encode(column, features)
 
     # ------------------------------------------------------------------
+    # Tier1 scalers / transforms
+    # ------------------------------------------------------------------
+    async def arobust_scale(self, column: str, quantile_range: tuple = (25, 75)) -> Dict[str, Any]:
+        return await super().robust_scale(column, quantile_range)
+
+    @async_to_sync
+    async def robust_scale(self, column: str, quantile_range: tuple = (25, 75)) -> Dict[str, Any]:
+        return await self.arobust_scale(column, quantile_range)
+
+    async def arobust(self, column: str, quantile_range: tuple = (25, 75)) -> Dict[str, Any]:
+        return await self.arobust_scale(column, quantile_range)
+
+    @async_to_sync
+    async def robust(self, column: str, quantile_range: tuple = (25, 75)) -> Dict[str, Any]:
+        return await self.arobust(column, quantile_range)
+
+    async def amaxabs_scale(self, column: str) -> Dict[str, Any]:
+        return await super().maxabs_scale(column)
+
+    @async_to_sync
+    async def maxabs_scale(self, column: str) -> Dict[str, Any]:
+        return await self.amaxabs_scale(column)
+
+    async def amaxabs(self, column: str) -> Dict[str, Any]:
+        return await self.amaxabs_scale(column)
+
+    @async_to_sync
+    async def maxabs(self, column: str) -> Dict[str, Any]:
+        return await self.amaxabs(column)
+
+    async def anormalize(self, column: str, norm: str = "l2") -> Dict[str, Any]:
+        return await super().normalize(column, norm)
+
+    @async_to_sync
+    async def normalize(self, column: str, norm: str = "l2") -> Dict[str, Any]:
+        return await self.anormalize(column, norm)
+
+    async def alog(self, column: str, base: str = "e", epsilon: float = 0) -> Dict[str, Any]:
+        return await super().log(column, base, epsilon)
+
+    @async_to_sync
+    async def log(self, column: str, base: str = "e", epsilon: float = 0) -> Dict[str, Any]:
+        return await self.alog(column, base, epsilon)
+
+    async def alog_transform(self, column: str, base: str = "e", epsilon: float = 0) -> Dict[str, Any]:
+        return await self.alog(column, base, epsilon)
+
+    @async_to_sync
+    async def log_transform(self, column: str, base: str = "e", epsilon: float = 0) -> Dict[str, Any]:
+        return await self.alog_transform(column, base, epsilon)
+
+    # ------------------------------------------------------------------
     # Aliases
     # ------------------------------------------------------------------
     async def aget_dummies(

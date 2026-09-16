@@ -128,6 +128,45 @@ class PreprocessingOrchestrator:
         return await ops.datetime_cyclical_encode(table, schema, column, features, **self._persistence_context())
 
     # ------------------------------------------------------------------
+    # Tier1 scalers / transforms
+    # ------------------------------------------------------------------
+    @record_call(deep_cache=True)
+    async def robust_scale(self, column: str, quantile_range: tuple = (25, 75)) -> Dict[str, Any]:
+        ops = await self._ensure_ops()
+        table, schema = await self._get_context()
+        return await ops.numeric_robust_scale(table, schema, column, quantile_range, **self._persistence_context())
+
+    @record_call(deep_cache=True)
+    async def robust(self, column: str, quantile_range: tuple = (25, 75)) -> Dict[str, Any]:
+        return await self.robust_scale(column, quantile_range)
+
+    @record_call(deep_cache=True)
+    async def maxabs_scale(self, column: str) -> Dict[str, Any]:
+        ops = await self._ensure_ops()
+        table, schema = await self._get_context()
+        return await ops.numeric_maxabs_scale(table, schema, column, **self._persistence_context())
+
+    @record_call(deep_cache=True)
+    async def maxabs(self, column: str) -> Dict[str, Any]:
+        return await self.maxabs_scale(column)
+
+    @record_call(deep_cache=True)
+    async def normalize(self, column: str, norm: str = "l2") -> Dict[str, Any]:
+        ops = await self._ensure_ops()
+        table, schema = await self._get_context()
+        return await ops.numeric_normalize(table, schema, column, norm, **self._persistence_context())
+
+    @record_call(deep_cache=True)
+    async def log(self, column: str, base: str = "e", epsilon: float = 0) -> Dict[str, Any]:
+        ops = await self._ensure_ops()
+        table, schema = await self._get_context()
+        return await ops.numeric_log_transform(table, schema, column, base, epsilon, **self._persistence_context())
+
+    @record_call(deep_cache=True)
+    async def log_transform(self, column: str, base: str = "e", epsilon: float = 0) -> Dict[str, Any]:
+        return await self.log(column, base, epsilon)
+
+    # ------------------------------------------------------------------
     # Pandas/sklearn aliases
     # ------------------------------------------------------------------
     @record_call(deep_cache=True)

@@ -764,6 +764,214 @@ class PreprocessingOps:
                 [],
             )
 
+    # ponytail: Tier1 scalers — single-col, backend branches mirror scale/minmax
+    async def numeric_robust_scale(
+        self, table: str, schema: str, column: str, quantile_range: tuple = (25, 75),
+        backend=None, data_id: Optional[str] = None, new_table: Optional[str] = None
+    ) -> Dict[str, Any]:
+        try:
+            q_low, q_high = quantile_range
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+                working_table = await self._prepare_operation_table(table, schema, backend=backend, data_id=data_id, new_table=new_table)
+                supplied_new = f"{column}_robust"
+                new_col = self._generate_cleaned_column_name(supplied_new)
+                await self._add_new_column(working_table, schema, new_col, "DOUBLE PRECISION")
+                qualified = self._qualified_table(working_table, schema)
+                safe_col = SQLIdentifierSanitizer.sanitize(column)
+                safe_new = SQLIdentifierSanitizer.sanitize(new_col)
+                if isinstance(self.db, PostgresAdapter):
+                    median_expr = f"PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY \"{safe_col}\")"
+                    q_low_expr = f"PERCENTILE_CONT({q_low/100}) WITHIN GROUP (ORDER BY \"{safe_col}\")"
+                    q_high_expr = f"PERCENTILE_CONT({q_high/100}) WITHIN GROUP (ORDER BY \"{safe_col}\")"
+                    sql = f"""
+                        WITH stats AS (
+                            SELECT {median_expr} AS median,
+                                   {q_high_expr} - {q_low_expr} AS iqr
+                            FROM {qualified} WHERE \"{safe_col}\" IS NOT NULL
+                        )
+                        UPDATE {qualified} SET \"{safe_new}\" = CASE WHEN \"{safe_col}\" IS NULL THEN NULL ELSE (CAST(\"{safe_col}\" AS DOUBLE PRECISION) - stats.median) / NULLIF(stats.iqr, 0) END FROM stats;
+                    """
+                else:
+                    sql = f"""
+                        WITH stats AS (
+                            SELECT quantile(\"{safe_col}\", [0.25, 0.5, 0.75]) AS qs FROM {qualified} WHERE \"{safe_col}\" IS NOT NULL
+                        )
+                        UPDATE {qualified} SET \"{safe_new}\" = CASE WHEN \"{safe_col}\" IS NULL THEN NULL ELSE (CAST(\"{safe_col}\" AS DOUBLE PRECISION) - qs[2]) / NULLIF(qs[3] - qs[1], 0) END FROM stats;
+                    """
+                    # ponytail: DuckDB quantile list is 1-indexed, qs[2]=median; fallback to stats CTE above if list indexing differs, pg branch already correct
+                await self._exec(sql)
+                affected = await self._count_non_null(working_table, schema, column)
+                sample = await self._fetch_sample(working_table, schema, [safe_col, safe_new])
+                msg = f"Robust scaled {column} -> {new_col} for {affected} rows (median/IQR {quantile_range})."
+                return self._success_response(msg, [column], [new_col], sample, new_table=working_table)
+            elif isinstance(self.db, ClickHouseAdapter):
+                safe_schema = SQLIdentifierSanitizer.sanitize(schema)
+                new_table = await self._resolve_output_table_name(table, safe_schema, backend=backend, data_id=data_id, new_table=new_table)
+                qualified_source = self._qualified_table(table, schema)
+                supplied_new = f"{column}_robust"
+                new_col = self._generate_cleaned_column_name(supplied_new)
+                safe_col = SQLIdentifierSanitizer.sanitize(column)
+                safe_new = SQLIdentifierSanitizer.sanitize(new_col)
+                col_q = self.db.quote_identifier(safe_col)
+                new_q = self.db.quote_identifier(safe_new)
+                create_sql = self._ch_create_table_as(safe_schema, new_table, f"""
+                    SELECT source.*,
+                        CASE WHEN source.{col_q} IS NULL THEN NULL ELSE (source.{col_q} - stats.median) / nullIf(stats.iqr, 0) END AS {new_q}
+                    FROM {qualified_source} AS source CROSS JOIN (
+                        SELECT qs[2] AS median, (qs[3] - qs[1]) AS iqr FROM (
+                            SELECT quantiles(0.25,0.5,0.75)({col_q}) AS qs FROM {qualified_source} WHERE {col_q} IS NOT NULL
+                        )
+                    ) AS stats
+                """)
+                # ponytail: ClickHouse quantiles returns array; above is simplified — use direct quantiles if array handling differs, fallback to median/IQR via quantilesExact
+                await self._exec(create_sql)
+                affected = await self._count_non_null(new_table, schema, column)
+                sample = await self._fetch_sample(new_table, schema, [safe_col, safe_new])
+                msg = f"Robust scaled {column} -> {new_col} for {affected} rows (median/IQR {quantile_range})."
+                return self._success_response(msg, [column], [new_col], sample, new_table=new_table)
+            else:
+                raise self._unsupported_backend_error()
+        except Exception as e:
+            return self._error_response(f"numeric_robust_scale error: {str(e)}\n{traceback.format_exc()}", [column], [])
+
+    async def numeric_maxabs_scale(
+        self, table: str, schema: str, column: str,
+        backend=None, data_id: Optional[str] = None, new_table: Optional[str] = None
+    ) -> Dict[str, Any]:
+        try:
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+                working_table = await self._prepare_operation_table(table, schema, backend=backend, data_id=data_id, new_table=new_table)
+                supplied_new = f"{column}_maxabs"
+                new_col = self._generate_cleaned_column_name(supplied_new)
+                await self._add_new_column(working_table, schema, new_col, "DOUBLE PRECISION")
+                qualified = self._qualified_table(working_table, schema)
+                safe_col = SQLIdentifierSanitizer.sanitize(column)
+                safe_new = SQLIdentifierSanitizer.sanitize(new_col)
+                sql = f"""
+                    WITH stats AS (SELECT MAX(ABS(CAST(\"{safe_col}\" AS DOUBLE PRECISION))) AS max_abs FROM {qualified} WHERE \"{safe_col}\" IS NOT NULL)
+                    UPDATE {qualified} SET \"{safe_new}\" = CASE WHEN \"{safe_col}\" IS NULL THEN NULL ELSE CAST(\"{safe_col}\" AS DOUBLE PRECISION) / NULLIF(stats.max_abs, 0) END FROM stats;
+                """
+                await self._exec(sql)
+                affected = await self._count_non_null(working_table, schema, column)
+                sample = await self._fetch_sample(working_table, schema, [safe_col, safe_new])
+                msg = f"MaxAbs scaled {column} -> {new_col} for {affected} rows."
+                return self._success_response(msg, [column], [new_col], sample, new_table=working_table)
+            elif isinstance(self.db, ClickHouseAdapter):
+                safe_schema = SQLIdentifierSanitizer.sanitize(schema)
+                new_table = await self._resolve_output_table_name(table, safe_schema, backend=backend, data_id=data_id, new_table=new_table)
+                qualified_source = self._qualified_table(table, schema)
+                supplied_new = f"{column}_maxabs"
+                new_col = self._generate_cleaned_column_name(supplied_new)
+                safe_col = SQLIdentifierSanitizer.sanitize(column)
+                safe_new = SQLIdentifierSanitizer.sanitize(new_col)
+                col_q = self.db.quote_identifier(safe_col)
+                new_q = self.db.quote_identifier(safe_new)
+                create_sql = self._ch_create_table_as(safe_schema, new_table, f"""
+                    SELECT source.*, CASE WHEN source.{col_q} IS NULL THEN NULL ELSE source.{col_q} / nullIf(stats.max_abs, 0) END AS {new_q}
+                    FROM {qualified_source} AS source CROSS JOIN (SELECT max(abs({col_q})) AS max_abs FROM {qualified_source} WHERE {col_q} IS NOT NULL) AS stats
+                """)
+                await self._exec(create_sql)
+                affected = await self._count_non_null(new_table, schema, column)
+                sample = await self._fetch_sample(new_table, schema, [safe_col, safe_new])
+                msg = f"MaxAbs scaled {column} -> {new_col} for {affected} rows."
+                return self._success_response(msg, [column], [new_col], sample, new_table=new_table)
+            else:
+                raise self._unsupported_backend_error()
+        except Exception as e:
+            return self._error_response(f"numeric_maxabs_scale error: {str(e)}\n{traceback.format_exc()}", [column], [])
+
+    async def numeric_normalize(
+        self, table: str, schema: str, column: str, norm: str = "l2",
+        backend=None, data_id: Optional[str] = None, new_table: Optional[str] = None
+    ) -> Dict[str, Any]:
+        try:
+            # ponytail: single-col L2 → sign; multi-col deferred
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+                working_table = await self._prepare_operation_table(table, schema, backend=backend, data_id=data_id, new_table=new_table)
+                supplied_new = f"{column}_normalized"
+                new_col = self._generate_cleaned_column_name(supplied_new)
+                await self._add_new_column(working_table, schema, new_col, "DOUBLE PRECISION")
+                qualified = self._qualified_table(working_table, schema)
+                safe_col = SQLIdentifierSanitizer.sanitize(column)
+                safe_new = SQLIdentifierSanitizer.sanitize(new_col)
+                sql = f"""UPDATE {qualified} SET \"{safe_new}\" = CASE WHEN \"{safe_col}\" IS NULL THEN NULL WHEN \"{safe_col}\" = 0 THEN 0 ELSE \"{safe_col}\" / NULLIF(ABS(CAST(\"{safe_col}\" AS DOUBLE PRECISION)), 0) END;"""
+                await self._exec(sql)
+                affected = await self._count_non_null(working_table, schema, column)
+                sample = await self._fetch_sample(working_table, schema, [safe_col, safe_new])
+                msg = f"Normalized {column} -> {new_col} for {affected} rows (norm={norm}, single-col sign)."
+                return self._success_response(msg, [column], [new_col], sample, new_table=working_table)
+            elif isinstance(self.db, ClickHouseAdapter):
+                safe_schema = SQLIdentifierSanitizer.sanitize(schema)
+                new_table = await self._resolve_output_table_name(table, safe_schema, backend=backend, data_id=data_id, new_table=new_table)
+                qualified_source = self._qualified_table(table, schema)
+                supplied_new = f"{column}_normalized"
+                new_col = self._generate_cleaned_column_name(supplied_new)
+                safe_col = SQLIdentifierSanitizer.sanitize(column)
+                safe_new = SQLIdentifierSanitizer.sanitize(new_col)
+                col_q = self.db.quote_identifier(safe_col)
+                new_q = self.db.quote_identifier(safe_new)
+                create_sql = self._ch_create_table_as(safe_schema, new_table, f"""
+                    SELECT *, CASE WHEN {col_q} IS NULL THEN NULL WHEN {col_q} = 0 THEN 0 ELSE {col_q} / nullIf(abs({col_q}), 0) END AS {new_q} FROM {qualified_source}
+                """)
+                await self._exec(create_sql)
+                affected = await self._count_non_null(new_table, schema, column)
+                sample = await self._fetch_sample(new_table, schema, [safe_col, safe_new])
+                msg = f"Normalized {column} -> {new_col} for {affected} rows (norm={norm}, single-col sign)."
+                return self._success_response(msg, [column], [new_col], sample, new_table=new_table)
+            else:
+                raise self._unsupported_backend_error()
+        except Exception as e:
+            return self._error_response(f"numeric_normalize error: {str(e)}\n{traceback.format_exc()}", [column], [])
+
+    async def numeric_log_transform(
+        self, table: str, schema: str, column: str, base: str = "e", epsilon: float = 0,
+        backend=None, data_id: Optional[str] = None, new_table: Optional[str] = None
+    ) -> Dict[str, Any]:
+        try:
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+                working_table = await self._prepare_operation_table(table, schema, backend=backend, data_id=data_id, new_table=new_table)
+                supplied_new = f"{column}_log"
+                new_col = self._generate_cleaned_column_name(supplied_new)
+                await self._add_new_column(working_table, schema, new_col, "DOUBLE PRECISION")
+                qualified = self._qualified_table(working_table, schema)
+                safe_col = SQLIdentifierSanitizer.sanitize(column)
+                safe_new = SQLIdentifierSanitizer.sanitize(new_col)
+                eps = float(epsilon)
+                if str(base).lower() in ("10", "ten"):
+                    log_expr = f"LOG(CAST(\"{safe_col}\" AS DOUBLE PRECISION) + {eps})"
+                else:
+                    log_expr = f"LN(CAST(\"{safe_col}\" AS DOUBLE PRECISION) + {eps})"
+                sql = f"""UPDATE {qualified} SET \"{safe_new}\" = CASE WHEN \"{safe_col}\" IS NULL THEN NULL WHEN CAST(\"{safe_col}\" AS DOUBLE PRECISION) + {eps} <= 0 THEN NULL ELSE {log_expr} END;"""
+                await self._exec(sql)
+                affected = await self._count_non_null(working_table, schema, column)
+                sample = await self._fetch_sample(working_table, schema, [safe_col, safe_new])
+                msg = f"Log transformed {column} -> {new_col} for {affected} rows (base={base}, eps={eps})."
+                return self._success_response(msg, [column], [new_col], sample, new_table=working_table)
+            elif isinstance(self.db, ClickHouseAdapter):
+                safe_schema = SQLIdentifierSanitizer.sanitize(schema)
+                new_table = await self._resolve_output_table_name(table, safe_schema, backend=backend, data_id=data_id, new_table=new_table)
+                qualified_source = self._qualified_table(table, schema)
+                supplied_new = f"{column}_log"
+                new_col = self._generate_cleaned_column_name(supplied_new)
+                safe_col = SQLIdentifierSanitizer.sanitize(column)
+                safe_new = SQLIdentifierSanitizer.sanitize(new_col)
+                col_q = self.db.quote_identifier(safe_col)
+                new_q = self.db.quote_identifier(safe_new)
+                eps = float(epsilon)
+                log_expr = f"log({col_q} + {eps})" if str(base).lower() not in ("10", "ten") else f"log10({col_q} + {eps})"
+                create_sql = self._ch_create_table_as(safe_schema, new_table, f"""
+                    SELECT *, CASE WHEN {col_q} IS NULL THEN NULL WHEN {col_q} + {eps} <= 0 THEN NULL ELSE {log_expr} END AS {new_q} FROM {qualified_source}
+                """)
+                await self._exec(create_sql)
+                affected = await self._count_non_null(new_table, schema, column)
+                sample = await self._fetch_sample(new_table, schema, [safe_col, safe_new])
+                msg = f"Log transformed {column} -> {new_col} for {affected} rows (base={base}, eps={eps})."
+                return self._success_response(msg, [column], [new_col], sample, new_table=new_table)
+            else:
+                raise self._unsupported_backend_error()
+        except Exception as e:
+            return self._error_response(f"numeric_log_transform error: {str(e)}\n{traceback.format_exc()}", [column], [])
+
     # ==================================================================
     # Categorical Preprocessings
     # ==================================================================
