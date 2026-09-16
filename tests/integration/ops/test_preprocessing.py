@@ -602,6 +602,48 @@ class TestPreprocessingOperations:
         assert len(actual_vals) == len(sample_df)
         self._record_result(test_name="qcut", method_call='uploaded_ctx.qcut("numeric1", bins=2)', original_df=sample_df, memframe_df=res_df, pandas_df=res_df, backend=backend_config["connection_type"])
 
+    def test_robust_scale(self, uploaded_ctx, sample_df, backend_config):
+        result = uploaded_ctx.robust_scale("numeric1")
+        res_df = get_result_df(result)
+        new_col = self._get_new_col(res_df, sample_df.columns)
+        actual_vals = res_df[new_col] if new_col else res_df["numeric1"]
+        median = sample_df["numeric1"].median()
+        q75 = sample_df["numeric1"].quantile(0.75)
+        q25 = sample_df["numeric1"].quantile(0.25)
+        iqr = q75 - q25
+        expected_vals = (sample_df["numeric1"] - median) / iqr if iqr != 0 else sample_df["numeric1"] * 0
+        assert_series_equal_loose(actual_vals.astype(float), expected_vals.astype(float))
+        self._record_result(test_name="robust_scale", method_call='uploaded_ctx.robust_scale("numeric1")', original_df=sample_df, memframe_df=res_df, pandas_df=sample_df.assign(robust=expected_vals), backend=backend_config["connection_type"])
+
+    def test_maxabs_scale(self, uploaded_ctx, sample_df, backend_config):
+        result = uploaded_ctx.maxabs_scale("numeric1")
+        res_df = get_result_df(result)
+        new_col = self._get_new_col(res_df, sample_df.columns)
+        actual_vals = res_df[new_col] if new_col else res_df["numeric1"]
+        max_abs = sample_df["numeric1"].abs().max()
+        expected_vals = sample_df["numeric1"] / max_abs if max_abs != 0 else sample_df["numeric1"] * 0
+        assert_series_equal_loose(actual_vals.astype(float), expected_vals.astype(float))
+        self._record_result(test_name="maxabs_scale", method_call='uploaded_ctx.maxabs_scale("numeric1")', original_df=sample_df, memframe_df=res_df, pandas_df=sample_df.assign(maxabs=expected_vals), backend=backend_config["connection_type"])
+
+    def test_normalize(self, uploaded_ctx, sample_df, backend_config):
+        result = uploaded_ctx.normalize("numeric1")
+        res_df = get_result_df(result)
+        new_col = self._get_new_col(res_df, sample_df.columns)
+        actual_vals = res_df[new_col] if new_col else res_df["numeric1"]
+        # ponytail: single-col L2 → sign
+        expected_vals = sample_df["numeric1"].apply(lambda x: 0 if x == 0 else (1 if x > 0 else -1) if pd.notna(x) else np.nan)
+        assert_series_equal_loose(actual_vals.astype(float), expected_vals.astype(float))
+        self._record_result(test_name="normalize", method_call='uploaded_ctx.normalize("numeric1")', original_df=sample_df, memframe_df=res_df, pandas_df=sample_df.assign(norm=expected_vals), backend=backend_config["connection_type"])
+
+    def test_log_transform(self, uploaded_ctx, sample_df, backend_config):
+        result = uploaded_ctx.log_transform("numeric1", base="e", epsilon=0)
+        res_df = get_result_df(result)
+        new_col = self._get_new_col(res_df, sample_df.columns)
+        actual_vals = res_df[new_col] if new_col else res_df["numeric1"]
+        expected_vals = np.log(sample_df["numeric1"].astype(float))
+        assert_series_equal_loose(actual_vals.astype(float), expected_vals.astype(float))
+        self._record_result(test_name="log_transform", method_call='uploaded_ctx.log_transform("numeric1")', original_df=sample_df, memframe_df=res_df, pandas_df=sample_df.assign(log=expected_vals), backend=backend_config["connection_type"])
+
     # ----------------------------------------------------------------
     # Mutation safety
     # ----------------------------------------------------------------
