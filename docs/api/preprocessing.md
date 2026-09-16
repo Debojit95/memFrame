@@ -49,6 +49,10 @@ Every operation has synchronous and asynchronous forms:
 | `get_dummies(column, max_categories=10)` | `await aget_dummies(...)` | Alias for `onehot` |
 | `cut(column, bins=5, strategy="uniform")` | `await acut(...)` | Alias for `bin` |
 | `qcut(column, bins=5)` | `await aqcut(...)` | Quantile binning |
+| `robust_scale(column, quantile_range=(25,75))` | `await arobust_scale(...)` | Robust scaling `(x-median)/IQR` |
+| `maxabs_scale(column)` | `await amaxabs_scale(...)` | MaxAbs scaling `x / max(|x|)` |
+| `normalize(column, norm="l2")` | `await anormalize(...)` | Single-col sign (multi-col deferred) |
+| `log_transform(column, base="e", epsilon=0)` | `await alog_transform(...)` | Log `ln`/`log10` with `x+eps>0` else NULL |
 
 Public methods return the operation value directly (usually a sample
 DataFrame). Invalid operations raise `OperationError`.
@@ -97,3 +101,17 @@ DataFrame). Invalid operations raise `OperationError`.
         - cut
         - aqcut
         - qcut
+        - arobust_scale
+        - robust_scale
+        - arobust
+        - robust
+        - amaxabs_scale
+        - maxabs_scale
+        - amaxabs
+        - maxabs
+        - anormalize
+        - normalize
+        - alog_transform
+        - log_transform
+        - alog
+        - log
