@@ -644,6 +644,38 @@ class TestPreprocessingOperations:
         assert_series_equal_loose(actual_vals.astype(float), expected_vals.astype(float))
         self._record_result(test_name="log_transform", method_call='uploaded_ctx.log_transform("numeric1")', original_df=sample_df, memframe_df=res_df, pandas_df=sample_df.assign(log=expected_vals), backend=backend_config["connection_type"])
 
+    def test_quantile_transform(self, uploaded_ctx, sample_df, backend_config):
+        result = uploaded_ctx.quantile_transform("numeric1")
+        res_df = get_result_df(result)
+        new_col = self._get_new_col(res_df, sample_df.columns)
+        actual_vals = res_df[new_col] if new_col else res_df["numeric1"]
+        # uniform rank/(n-1)
+        ranked = sample_df["numeric1"].rank(method="min").astype(float) - 1
+        expected_vals = ranked / (len(sample_df) - 1)
+        assert_series_equal_loose(actual_vals.astype(float), expected_vals.astype(float))
+        self._record_result(test_name="quantile_transform", method_call='uploaded_ctx.quantile_transform("numeric1")', original_df=sample_df, memframe_df=res_df, pandas_df=sample_df.assign(quantile=expected_vals), backend=backend_config["connection_type"])
+
+    def test_power_transform(self, uploaded_ctx, sample_df, backend_config):
+        result = uploaded_ctx.power_transform("numeric1", method="yeo-johnson")
+        res_df = get_result_df(result)
+        new_col = self._get_new_col(res_df, sample_df.columns)
+        actual_vals = res_df[new_col] if new_col else res_df["numeric1"]
+        expected_vals = np.sign(sample_df["numeric1"].astype(float)) * np.power(np.abs(sample_df["numeric1"].astype(float)), 0.5)
+        assert_series_equal_loose(actual_vals.astype(float), expected_vals.astype(float))
+        self._record_result(test_name="power_transform", method_call='uploaded_ctx.power_transform("numeric1")', original_df=sample_df, memframe_df=res_df, pandas_df=sample_df.assign(power=expected_vals), backend=backend_config["connection_type"])
+
+    def test_ordinal_encode(self, uploaded_ctx, sample_df, backend_config):
+        result = uploaded_ctx.ordinal_encode("category_col")
+        res_df = get_result_df(result)
+        new_col = self._get_new_col(res_df, sample_df.columns)
+        actual_vals = res_df[new_col] if new_col else res_df["category_col"]
+        # alphabetical 0..n-1
+        cats = sorted(sample_df["category_col"].unique())
+        mapping = {cat: i for i, cat in enumerate(cats)}
+        expected_vals = sample_df["category_col"].map(mapping)
+        assert_series_equal_loose(actual_vals.astype(int), expected_vals.astype(int))
+        self._record_result(test_name="ordinal_encode", method_call='uploaded_ctx.ordinal_encode("category_col")', original_df=sample_df, memframe_df=res_df, pandas_df=sample_df.assign(ordinal=expected_vals), backend=backend_config["connection_type"])
+
     # ----------------------------------------------------------------
     # Mutation safety
     # ----------------------------------------------------------------
