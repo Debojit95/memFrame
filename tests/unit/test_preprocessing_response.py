@@ -86,6 +86,27 @@ def test_log_transform_null_on_nonpositive(preprocessing_context):
     assert isinstance(response["result"], pd.DataFrame)
 
 
+def test_quantile_transform_returns_canonical(preprocessing_context):
+    response = PreprocessingWrapper(preprocessing_context).quantile_transform("age")
+    assert response["is_error"] is False
+    assert response["generated_cols"] == ["transformed_age_quantile"]
+    assert isinstance(response["result"], pd.DataFrame)
+
+
+def test_power_transform_returns_canonical(preprocessing_context):
+    response = PreprocessingWrapper(preprocessing_context).power_transform("age")
+    assert response["is_error"] is False
+    assert response["generated_cols"] == ["transformed_age_power"]
+    assert isinstance(response["result"], pd.DataFrame)
+
+
+def test_ordinal_encode_returns_canonical(preprocessing_context):
+    response = PreprocessingWrapper(preprocessing_context).ordinal_encode("city")
+    assert response["is_error"] is False
+    assert response["generated_cols"] == ["transformed_city_ordinal"]
+    assert isinstance(response["result"], pd.DataFrame)
+
+
 def test_context_exposes_preprocessing_methods(preprocessing_context):
-    for name in ("scale", "minmax", "bin", "onehot", "binarize", "robust_scale", "maxabs_scale", "normalize", "log_transform"):
+    for name in ("scale", "minmax", "bin", "onehot", "binarize", "robust_scale", "maxabs_scale", "normalize", "log_transform", "quantile_transform", "power_transform", "ordinal_encode"):
         assert hasattr(preprocessing_context, name), name
