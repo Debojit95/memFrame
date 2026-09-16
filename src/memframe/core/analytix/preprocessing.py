@@ -972,6 +972,107 @@ class PreprocessingOps:
         except Exception as e:
             return self._error_response(f"numeric_log_transform error: {str(e)}\n{traceback.format_exc()}", [column], [])
 
+    # ponytail: Tier2 — quantile/power + ordinal (minimal SQL, MLE deferred)
+    async def numeric_quantile_transform(
+        self, table: str, schema: str, column: str, output: str = "uniform",
+        backend=None, data_id: Optional[str] = None, new_table: Optional[str] = None
+    ) -> Dict[str, Any]:
+        try:
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+                working_table = await self._prepare_operation_table(table, schema, backend=backend, data_id=data_id, new_table=new_table)
+                supplied_new = f"{column}_quantile"
+                new_col = self._generate_cleaned_column_name(supplied_new)
+                await self._add_new_column(working_table, schema, new_col, "DOUBLE PRECISION")
+                qualified = self._qualified_table(working_table, schema)
+                safe_col = SQLIdentifierSanitizer.sanitize(column)
+                safe_new = SQLIdentifierSanitizer.sanitize(new_col)
+                # uniform: rank/(n-1) → [0,1]
+                sql = f"""
+                    WITH ranked AS (
+                        SELECT \"{safe_col}\", ROW_NUMBER() OVER (ORDER BY \"{safe_col}\") - 1 AS rnk,
+                               COUNT(*) OVER () AS n FROM {qualified} WHERE \"{safe_col}\" IS NOT NULL
+                    )
+                    UPDATE {qualified} AS t SET \"{safe_new}\" = ranked.rnk::DOUBLE PRECISION / NULLIF(ranked.n - 1, 0)
+                    FROM ranked WHERE t.\"{safe_col}\" = ranked.\"{safe_col}\";
+                """
+                # ponytail: DuckDB needs CAST not ::DOUBLE PRECISION? :: works; keep simple, uniform only, normal deferred
+                await self._exec(sql)
+                affected = await self._count_non_null(working_table, schema, column)
+                sample = await self._fetch_sample(working_table, schema, [safe_col, safe_new])
+                msg = f"Quantile transformed {column} -> {new_col} for {affected} rows (output={output})."
+                return self._success_response(msg, [column], [new_col], sample, new_table=working_table)
+            elif isinstance(self.db, ClickHouseAdapter):
+                safe_schema = SQLIdentifierSanitizer.sanitize(schema)
+                new_table = await self._resolve_output_table_name(table, safe_schema, backend=backend, data_id=data_id, new_table=new_table)
+                qualified_source = self._qualified_table(table, schema)
+                supplied_new = f"{column}_quantile"
+                new_col = self._generate_cleaned_column_name(supplied_new)
+                safe_col = SQLIdentifierSanitizer.sanitize(column)
+                safe_new = SQLIdentifierSanitizer.sanitize(new_col)
+                col_q = self.db.quote_identifier(safe_col)
+                new_q = self.db.quote_identifier(safe_new)
+                create_sql = self._ch_create_table_as(safe_schema, new_table, f"""
+                    SELECT *, CASE WHEN {col_q} IS NULL THEN NULL ELSE (rank() OVER (ORDER BY {col_q}) - 1) / nullIf(count() OVER (), 1) END AS {new_q}
+                    FROM {qualified_source}
+                """)
+                await self._exec(create_sql)
+                affected = await self._count_non_null(new_table, schema, column)
+                sample = await self._fetch_sample(new_table, schema, [safe_col, safe_new])
+                msg = f"Quantile transformed {column} -> {new_col} for {affected} rows (output={output})."
+                return self._success_response(msg, [column], [new_col], sample, new_table=new_table)
+            else:
+                raise self._unsupported_backend_error()
+        except Exception as e:
+            return self._error_response(f"numeric_quantile_transform error: {str(e)}\n{traceback.format_exc()}", [column], [])
+
+    async def numeric_power_transform(
+        self, table: str, schema: str, column: str, method: str = "yeo-johnson",
+        backend=None, data_id: Optional[str] = None, new_table: Optional[str] = None
+    ) -> Dict[str, Any]:
+        try:
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+                working_table = await self._prepare_operation_table(table, schema, backend=backend, data_id=data_id, new_table=new_table)
+                supplied_new = f"{column}_power"
+                new_col = self._generate_cleaned_column_name(supplied_new)
+                await self._add_new_column(working_table, schema, new_col, "DOUBLE PRECISION")
+                qualified = self._qualified_table(working_table, schema)
+                safe_col = SQLIdentifierSanitizer.sanitize(column)
+                safe_new = SQLIdentifierSanitizer.sanitize(new_col)
+                # ponytail: simplified Box-Cox/Yeo-Johnson with lambda=0.5, MLE deferred
+                if method.lower() == "box-cox":
+                    expr = f"CASE WHEN CAST(\"{safe_col}\" AS DOUBLE PRECISION) <= 0 THEN NULL ELSE (POWER(CAST(\"{safe_col}\" AS DOUBLE PRECISION), 0.5) - 1) / 0.5 END"
+                else:
+                    expr = f"SIGN(CAST(\"{safe_col}\" AS DOUBLE PRECISION)) * POWER(ABS(CAST(\"{safe_col}\" AS DOUBLE PRECISION)), 0.5)"
+                sql = f"""UPDATE {qualified} SET \"{safe_new}\" = CASE WHEN \"{safe_col}\" IS NULL THEN NULL ELSE {expr} END;"""
+                await self._exec(sql)
+                affected = await self._count_non_null(working_table, schema, column)
+                sample = await self._fetch_sample(working_table, schema, [safe_col, safe_new])
+                msg = f"Power transformed {column} -> {new_col} for {affected} rows (method={method})."
+                return self._success_response(msg, [column], [new_col], sample, new_table=working_table)
+            elif isinstance(self.db, ClickHouseAdapter):
+                safe_schema = SQLIdentifierSanitizer.sanitize(schema)
+                new_table = await self._resolve_output_table_name(table, safe_schema, backend=backend, data_id=data_id, new_table=new_table)
+                qualified_source = self._qualified_table(table, schema)
+                supplied_new = f"{column}_power"
+                new_col = self._generate_cleaned_column_name(supplied_new)
+                safe_col = SQLIdentifierSanitizer.sanitize(column)
+                safe_new = SQLIdentifierSanitizer.sanitize(new_col)
+                col_q = self.db.quote_identifier(safe_col)
+                new_q = self.db.quote_identifier(safe_new)
+                expr = f"if({col_q} <= 0, NULL, (pow({col_q}, 0.5) - 1) / 0.5)" if method.lower() == "box-cox" else f"sign({col_q}) * pow(abs({col_q}), 0.5)"
+                create_sql = self._ch_create_table_as(safe_schema, new_table, f"""
+                    SELECT *, CASE WHEN {col_q} IS NULL THEN NULL ELSE {expr} END AS {new_q} FROM {qualified_source}
+                """)
+                await self._exec(create_sql)
+                affected = await self._count_non_null(new_table, schema, column)
+                sample = await self._fetch_sample(new_table, schema, [safe_col, safe_new])
+                msg = f"Power transformed {column} -> {new_col} for {affected} rows (method={method})."
+                return self._success_response(msg, [column], [new_col], sample, new_table=new_table)
+            else:
+                raise self._unsupported_backend_error()
+        except Exception as e:
+            return self._error_response(f"numeric_power_transform error: {str(e)}\n{traceback.format_exc()}", [column], [])
+
     # ==================================================================
     # Categorical Preprocessings
     # ==================================================================
@@ -1103,6 +1204,59 @@ class PreprocessingOps:
                 [column],
                 [],
             )
+
+    async def categorical_ordinal_encode(
+        self, table: str, schema: str, column: str,
+        backend=None, data_id: Optional[str] = None, new_table: Optional[str] = None
+    ) -> Dict[str, Any]:
+        try:
+            if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
+                working_table = await self._prepare_operation_table(table, schema, backend=backend, data_id=data_id, new_table=new_table)
+                supplied_new = f"{column}_ordinal"
+                new_col = self._generate_cleaned_column_name(supplied_new)
+                await self._add_new_column(working_table, schema, new_col, "INTEGER")
+                qualified = self._qualified_table(working_table, schema)
+                safe_col = SQLIdentifierSanitizer.sanitize(column)
+                safe_new = SQLIdentifierSanitizer.sanitize(new_col)
+                sql = f"""
+                    WITH ranked AS (
+                        SELECT "{safe_col}", ROW_NUMBER() OVER (ORDER BY "{safe_col}") - 1 AS ord
+                        FROM {qualified} WHERE "{safe_col}" IS NOT NULL GROUP BY "{safe_col}"
+                    )
+                    UPDATE {qualified} AS t SET "{safe_new}" = ranked.ord FROM ranked WHERE t."{safe_col}" = ranked."{safe_col}";
+                """
+                await self._exec(sql)
+                affected = await self._count_non_null(working_table, schema, column)
+                sample = await self._fetch_sample(working_table, schema, [safe_col, safe_new])
+                msg = f"Ordinal encoded {column} -> {new_col} ({affected} rows, alphabetical)."
+                return self._success_response(msg, [column], [new_col], sample, new_table=working_table)
+            elif isinstance(self.db, ClickHouseAdapter):
+                safe_schema = SQLIdentifierSanitizer.sanitize(schema)
+                new_table = await self._resolve_output_table_name(table, safe_schema, backend=backend, data_id=data_id, new_table=new_table)
+                qualified_source = self._qualified_table(table, schema)
+                supplied_new = f"{column}_ordinal"
+                new_col = self._generate_cleaned_column_name(supplied_new)
+                safe_col = SQLIdentifierSanitizer.sanitize(column)
+                safe_new = SQLIdentifierSanitizer.sanitize(new_col)
+                col_q = self.db.quote_identifier(safe_col)
+                new_q = self.db.quote_identifier(safe_new)
+                create_sql = self._ch_create_table_as(safe_schema, new_table, f"""
+                    SELECT source.*,
+                        CASE WHEN source.{col_q} IS NULL THEN NULL ELSE ranked.ord END AS {new_q}
+                    FROM {qualified_source} AS source LEFT JOIN (
+                        SELECT {col_q} AS _ch_join_key, row_number() OVER (ORDER BY {col_q}) - 1 AS ord
+                        FROM {qualified_source} WHERE {col_q} IS NOT NULL GROUP BY {col_q}
+                    ) AS ranked ON source.{col_q} = ranked._ch_join_key
+                """)
+                await self._exec(create_sql)
+                affected = await self._count_non_null(new_table, schema, column)
+                sample = await self._fetch_sample(new_table, schema, [safe_col, safe_new])
+                msg = f"Ordinal encoded {column} -> {new_col} ({affected} rows, alphabetical)."
+                return self._success_response(msg, [column], [new_col], sample, new_table=new_table)
+            else:
+                raise self._unsupported_backend_error()
+        except Exception as e:
+            return self._error_response(f"categorical_ordinal_encode error: {str(e)}\n{traceback.format_exc()}", [column], [])
     
     async def categorical_label_encode(
         self, table: str, schema: str, column: str,

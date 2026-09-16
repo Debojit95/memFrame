@@ -166,6 +166,36 @@ class PreprocessingOrchestrator:
     async def log_transform(self, column: str, base: str = "e", epsilon: float = 0) -> Dict[str, Any]:
         return await self.log(column, base, epsilon)
 
+    @record_call(deep_cache=True)
+    async def quantile_transform(self, column: str, output: str = "uniform") -> Dict[str, Any]:
+        ops = await self._ensure_ops()
+        table, schema = await self._get_context()
+        return await ops.numeric_quantile_transform(table, schema, column, output, **self._persistence_context())
+
+    @record_call(deep_cache=True)
+    async def quantile(self, column: str, output: str = "uniform") -> Dict[str, Any]:
+        return await self.quantile_transform(column, output)
+
+    @record_call(deep_cache=True)
+    async def power_transform(self, column: str, method: str = "yeo-johnson") -> Dict[str, Any]:
+        ops = await self._ensure_ops()
+        table, schema = await self._get_context()
+        return await ops.numeric_power_transform(table, schema, column, method, **self._persistence_context())
+
+    @record_call(deep_cache=True)
+    async def power(self, column: str, method: str = "yeo-johnson") -> Dict[str, Any]:
+        return await self.power_transform(column, method)
+
+    @record_call(deep_cache=True)
+    async def ordinal_encode(self, column: str) -> Dict[str, Any]:
+        ops = await self._ensure_ops()
+        table, schema = await self._get_context()
+        return await ops.categorical_ordinal_encode(table, schema, column, **self._persistence_context())
+
+    @record_call(deep_cache=True)
+    async def ordinal(self, column: str) -> Dict[str, Any]:
+        return await self.ordinal_encode(column)
+
     # ------------------------------------------------------------------
     # Pandas/sklearn aliases
     # ------------------------------------------------------------------

@@ -236,6 +236,48 @@ class PreprocessingWrapper(PreprocessingOrchestrator):
     async def log_transform(self, column: str, base: str = "e", epsilon: float = 0) -> Dict[str, Any]:
         return await self.alog_transform(column, base, epsilon)
 
+    async def aquantile_transform(self, column: str, output: str = "uniform") -> Dict[str, Any]:
+        return await super().quantile_transform(column, output)
+
+    @async_to_sync
+    async def quantile_transform(self, column: str, output: str = "uniform") -> Dict[str, Any]:
+        return await self.aquantile_transform(column, output)
+
+    async def aquantile(self, column: str, output: str = "uniform") -> Dict[str, Any]:
+        return await self.aquantile_transform(column, output)
+
+    @async_to_sync
+    async def quantile(self, column: str, output: str = "uniform") -> Dict[str, Any]:
+        return await self.aquantile(column, output)
+
+    async def apower_transform(self, column: str, method: str = "yeo-johnson") -> Dict[str, Any]:
+        return await super().power_transform(column, method)
+
+    @async_to_sync
+    async def power_transform(self, column: str, method: str = "yeo-johnson") -> Dict[str, Any]:
+        return await self.apower_transform(column, method)
+
+    async def apower(self, column: str, method: str = "yeo-johnson") -> Dict[str, Any]:
+        return await self.apower_transform(column, method)
+
+    @async_to_sync
+    async def power(self, column: str, method: str = "yeo-johnson") -> Dict[str, Any]:
+        return await self.apower(column, method)
+
+    async def aordinal_encode(self, column: str) -> Dict[str, Any]:
+        return await super().ordinal_encode(column)
+
+    @async_to_sync
+    async def ordinal_encode(self, column: str) -> Dict[str, Any]:
+        return await self.aordinal_encode(column)
+
+    async def aordinal(self, column: str) -> Dict[str, Any]:
+        return await self.aordinal_encode(column)
+
+    @async_to_sync
+    async def ordinal(self, column: str) -> Dict[str, Any]:
+        return await self.aordinal(column)
+
     # ------------------------------------------------------------------
     # Aliases
     # ------------------------------------------------------------------
