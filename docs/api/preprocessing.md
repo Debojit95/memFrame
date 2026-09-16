@@ -1,8 +1,8 @@
-# Preprocessing
+# Transform
 
 Source: `src/memframe/wrappers/analytix/preprocessing.py`
 
-`PreprocessingWrapper` is the public feature-engineering interface exposed
+`PreprocessingWrapper` (Transform — `transform` in `sklearn`/`pandas` sense) is the public feature-engineering interface exposed
 through a `ContextManager`. It provides sklearn/pandas-style numeric scaling,
 binning, categorical encoding, and cyclical datetime features, compiled to
 backend-native SQL across DuckDB, PostgreSQL, and ClickHouse.

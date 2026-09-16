@@ -1,8 +1,8 @@
-# Cleaning
+# Clean
 
-Source: `src/wrappers/analytix/cleaning.py`
+Source: `src/memframe/wrappers/analytix/cleaning.py`
 
-`CleaningWrapper` is the public cleaning interface exposed through a
+`CleaningWrapper` (Clean — formerly Cleaning) is the public cleaning interface exposed through a
 `ContextManager`. It provides pandas-like methods for filling missing values,
 cleaning numeric/categorical/datetime columns, dropping missing or duplicate
 data, and generating basic data-quality reports.

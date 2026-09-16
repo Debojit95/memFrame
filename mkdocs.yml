@@ -54,15 +54,15 @@ nav:
           - Dataset Operations: api/database.md
       - memFrame:
           - Inspect: api/inspect.md
-          - Cleaning: api/cleaning.md
+          - Clean: api/cleaning.md
           - Arithmetic: api/arithmetic.md
           - Selection: api/selection.md
           - Stats: api/stats.md
           - Datetime: api/datetime.md
           - Sorting: api/sorting.md
           - Reshape: api/reshape.md
-          - Merging: api/merging.md
-          - Preprocessing: api/preprocessing.md
+          - Merge: api/merging.md
+          - Transform: api/preprocessing.md
       - Plots:
           - Bar: api/bar.md
           - Bar Polar: api/bar_polar.md

@@ -358,6 +358,8 @@ class PreprocessingOps:
                 safe_col = SQLIdentifierSanitizer.sanitize(column)
                 safe_new = SQLIdentifierSanitizer.sanitize(new_col)
 
+                # ponytail: cast to float for Postgres integer columns (else integer division)
+                col_expr = f'CAST("{safe_col}" AS DOUBLE PRECISION)'
                 sql = f"""
                     WITH stats AS (
                         SELECT MIN("{safe_col}") AS min_val, MAX("{safe_col}") AS max_val
@@ -367,7 +369,7 @@ class PreprocessingOps:
                     UPDATE {qualified}
                     SET "{safe_new}" = CASE
                         WHEN "{safe_col}" IS NULL THEN NULL
-                        ELSE ("{safe_col}" - stats.min_val) / NULLIF((stats.max_val - stats.min_val), 0)
+                        ELSE ({col_expr} - CAST(stats.min_val AS DOUBLE PRECISION)) / NULLIF(CAST((stats.max_val - stats.min_val) AS DOUBLE PRECISION), 0)
                     END
                     FROM stats;
                 """
@@ -944,6 +946,7 @@ class PreprocessingOps:
                 col_q = self.db.quote_identifier(safe_col)
                 new_q = self.db.quote_identifier(safe_new)
 
+                # ponytail: alias join key to avoid source.* -> source.col prefix on collision
                 create_sql = self._ch_create_table_as(safe_schema, new_table, f"""
                     SELECT source.*,
                         CASE WHEN source.{col_q} IS NULL THEN NULL
@@ -951,11 +954,11 @@ class PreprocessingOps:
                         END AS {new_q}
                     FROM {qualified_source} AS source
                     LEFT JOIN (
-                        SELECT {col_q}, row_number() OVER (ORDER BY count(*) DESC) - 1 AS label
+                        SELECT {col_q} AS _ch_join_key, row_number() OVER (ORDER BY count(*) DESC) - 1 AS label
                         FROM {qualified_source}
                         WHERE {col_q} IS NOT NULL
                         GROUP BY {col_q}
-                    ) AS ranked ON source.{col_q} = ranked.{col_q}
+                    ) AS ranked ON source.{col_q} = ranked._ch_join_key
                 """)
                 await self._exec(create_sql)
 
@@ -1031,12 +1034,12 @@ class PreprocessingOps:
                         END AS {new_q}
                     FROM {qualified_source} AS source
                     LEFT JOIN (
-                        SELECT {col_q},
+                        SELECT {col_q} AS _ch_join_key,
                                CAST(count(*) AS Float64) / (SELECT count(*) FROM {qualified_source} WHERE {col_q} IS NOT NULL) AS frequency
                         FROM {qualified_source}
                         WHERE {col_q} IS NOT NULL
                         GROUP BY {col_q}
-                    ) AS freq ON source.{col_q} = freq.{col_q}
+                    ) AS freq ON source.{col_q} = freq._ch_join_key
                 """)
                 await self._exec(create_sql)
 
@@ -1124,11 +1127,11 @@ class PreprocessingOps:
                         END AS {new_q}
                     FROM {qualified_source} AS source
                     LEFT JOIN (
-                        SELECT {col_q}, avg({target_q}) AS cat_mean, count(*) AS cnt
+                        SELECT {col_q} AS _ch_join_key, avg({target_q}) AS cat_mean, count(*) AS cnt
                         FROM {qualified_source}
                         WHERE {col_q} IS NOT NULL AND {target_q} IS NOT NULL
                         GROUP BY {col_q}
-                    ) AS cat_stats ON source.{col_q} = cat_stats.{col_q}
+                    ) AS cat_stats ON source.{col_q} = cat_stats._ch_join_key
                     CROSS JOIN (
                         SELECT avg({target_q}) AS global_mean
                         FROM {qualified_source}

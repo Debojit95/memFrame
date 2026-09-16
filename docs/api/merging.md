@@ -1,8 +1,8 @@
-# Merging
+# Merge
 
 Source: `src/memframe/wrappers/analytix/merging.py`
 
-`MergeWrapper` is the public merging interface exposed through a `ContextManager`.
+`MergeWrapper` (Merge — formerly Merging) is the public merging interface exposed through a `ContextManager`.
 It provides pandas-like `merge`, `join`, and `concat` APIs backed by
 backend-native SQL across DuckDB, PostgreSQL, and ClickHouse.
 
