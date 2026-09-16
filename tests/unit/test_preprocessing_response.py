@@ -58,6 +58,34 @@ def test_unknown_strategy_error_has_result_key(preprocessing_context):
     assert response["result"] is None
 
 
+def test_robust_scale_returns_canonical(preprocessing_context):
+    response = PreprocessingWrapper(preprocessing_context).robust_scale("age")
+    assert response["is_error"] is False
+    assert response["generated_cols"] == ["transformed_age_robust"]
+    assert isinstance(response["result"], pd.DataFrame)
+
+
+def test_maxabs_scale_range(preprocessing_context):
+    response = PreprocessingWrapper(preprocessing_context).maxabs_scale("age")
+    assert response["is_error"] is False
+    assert response["generated_cols"] == ["transformed_age_maxabs"]
+    assert isinstance(response["result"], pd.DataFrame)
+
+
+def test_normalize_sign(preprocessing_context):
+    response = PreprocessingWrapper(preprocessing_context).normalize("age")
+    assert response["is_error"] is False
+    assert response["generated_cols"] == ["transformed_age_normalized"]
+    assert isinstance(response["result"], pd.DataFrame)
+
+
+def test_log_transform_null_on_nonpositive(preprocessing_context):
+    response = PreprocessingWrapper(preprocessing_context).log_transform("age", base="e", epsilon=0)
+    assert response["is_error"] is False
+    assert response["generated_cols"] == ["transformed_age_log"]
+    assert isinstance(response["result"], pd.DataFrame)
+
+
 def test_context_exposes_preprocessing_methods(preprocessing_context):
-    for name in ("scale", "minmax", "bin", "onehot", "binarize"):
+    for name in ("scale", "minmax", "bin", "onehot", "binarize", "robust_scale", "maxabs_scale", "normalize", "log_transform"):
         assert hasattr(preprocessing_context, name), name
