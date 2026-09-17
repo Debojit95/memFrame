@@ -6,6 +6,21 @@ to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-09-17
+
+### Added
+- **Transform (new umbrella, Tier1+2)**: 7 ops via `ContextManager` (`robust_scale`/`robust`, `maxabs_scale`/`maxabs`, `normalize`, `log_transform`/`log`, `quantile_transform`/`quantile`, `power_transform`/`power` (yeo-johnson λ=0.5, box-cox), `ordinal_encode`/`ordinal` — `0..n-1` alphabetical) backed by backend-native SQL across DuckDB, PostgreSQL, and ClickHouse. `Transform` is `sklearn transform` / `pandas transform` sense.
+- **Transform docs**: `docs/api/preprocessing.md` now `# Transform` (title-only, file kept `preprocessing.md`), table 15→22 ops, `Source: src/memframe/...` fix, members 28→44; nav `Clean`/`Merge`/`Transform` + README docs line.
+- **Transform tests**: `tests/unit/test_preprocessing_response.py` 4→11 (happy/canonical/error/public API) + `tests/integration/ops/test_preprocessing.py` 16→23 (20→23 on duckdb, pg/ch verified).
+- **Docs titles**: `Cleaning`→`Clean`, `Merging`→`Merge` (title-only, filenames kept).
+
+### Fixed
+- `numeric_minmax_scale` PG integer division (`CAST DOUBLE PRECISION`).
+- `categorical_{label,frequency,target}_encode` ClickHouse `source.*` collision (`_ch_join_key` alias).
+
+### Changed
+- None beyond Transform/docs titles.
+
 ## [0.7.2] - 2026-09-15
 
 ### Fixed
