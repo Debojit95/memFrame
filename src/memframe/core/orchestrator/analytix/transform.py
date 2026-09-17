@@ -1,5 +1,5 @@
 from typing import Any, Dict, List, Optional
-from memframe.core.analytix.transform import TransformOps
+from memframe.core.analytix.transform import TransformOps, make_transform_ops
 from memframe.cache import record_call
 
 
@@ -25,7 +25,7 @@ class TransformOrchestrator:
     async def _ensure_ops(self) -> TransformOps:
         if self._Transform_ops is None:
             await self._ops_parent._ensure_adapter()
-            self._Transform_ops = TransformOps(self._ops_parent._adapter)
+            self._Transform_ops = make_transform_ops(self._ops_parent._adapter)
         return self._Transform_ops
 
     async def _get_context(self):
