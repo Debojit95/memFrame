@@ -73,6 +73,7 @@ class ContextManager:
         from memframe.wrappers.analytix.reshape import ReshapingWrapper
         from memframe.wrappers.analytix.merging import MergeWrapper
         from memframe.wrappers.analytix.transform import TransformWrapper
+        from memframe.wrappers.analytix.cumulative import CumulativeWrapper
         from memframe.wrappers.plots.bar import BarWrapper
         from memframe.wrappers.plots.bar_polar import BarPolarWrapper
         from memframe.wrappers.plots.pie import PieWrapper
@@ -90,6 +91,7 @@ class ContextManager:
             ReshapingWrapper(self),
             MergeWrapper(self),
             TransformWrapper(self),
+            CumulativeWrapper(self),
             BarWrapper(self),
             BarPolarWrapper(self),
             PieWrapper(self),
