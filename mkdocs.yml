@@ -62,7 +62,7 @@ nav:
           - Sorting: api/sorting.md
           - Reshape: api/reshape.md
           - Merge: api/merging.md
-          - Transform: api/preprocessing.md
+          - Transform: api/transform.md
       - Plots:
           - Bar: api/bar.md
           - Bar Polar: api/bar_polar.md

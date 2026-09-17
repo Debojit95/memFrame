@@ -1,4 +1,4 @@
-# tests/integration/ops/test_preprocessing.py
+# tests/integration/ops/test_transform.py
 
 import os
 import asyncio
@@ -56,7 +56,7 @@ RESULT_DIR = Path(__file__).resolve().parent / "result"
 
 
 def _usage_error(message: str) -> pytest.UsageError:
-    return pytest.UsageError(f"Invalid preprocessing DB configuration: {message}")
+    return pytest.UsageError(f"Invalid transform DB configuration: {message}")
 
 
 def _parse_connection_params(raw_params: str) -> Dict[str, Any]:
@@ -249,7 +249,7 @@ def connected_memframe(backend_config) -> MemFrame:
 
 @pytest.fixture(scope="function")
 def uploaded_ctx(connected_memframe, sample_df) -> Any:
-    ctx = connected_memframe.upload_df(sample_df, filename="preprocess_dataset")
+    ctx = connected_memframe.upload_df(sample_df, filename="transform_dataset")
     return ctx
 
 
@@ -368,7 +368,7 @@ def render_df_to_pdf_page(pdf, title, method_call, original_df, memframe_df, pan
 # ----------------------------------------------------------------------
 # Test class
 # ----------------------------------------------------------------------
-class TestPreprocessingOperations:
+class TestTransformOperations:
     _save_to_file = False
     _saved_results = []
 
@@ -380,7 +380,7 @@ class TestPreprocessingOperations:
         yield
         if cls._save_to_file and cls._saved_results:
             RESULT_DIR.mkdir(parents=True, exist_ok=True)
-            pdf_path = RESULT_DIR / f"test_preprocess_report_{request.node.name}.pdf"
+            pdf_path = RESULT_DIR / f"test_transform_report_{request.node.name}.pdf"
             with PdfPages(pdf_path) as pdf:
                 for result in cls._saved_results:
                     render_df_to_pdf_page(pdf, result["test_name"], result["method_call"], result["original_df"], result["memframe_df"], result["pandas_df"], result["backend"], result.get("status", "PASSED"), result.get("error_message", ""))
@@ -412,7 +412,7 @@ class TestPreprocessingOperations:
         return lines[-1][:500]
 
     def _record_failure_from_report(self, request, error_message: str) -> None:
-        frame_locals = getattr(request.node, "_preprocessing_failure_locals", None)
+        frame_locals = getattr(request.node, "_transform_failure_locals", None)
         if frame_locals is None:
             frame_locals = getattr(request.node, "_failure_locals", {})
         original_df = _coerce_pdf_df(frame_locals.get("sample_df"), "sample_df was not available when this test failed")

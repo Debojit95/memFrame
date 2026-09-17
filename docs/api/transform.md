@@ -1,13 +1,13 @@
 # Transform
 
-Source: `src/memframe/wrappers/analytix/preprocessing.py`
+Source: `src/memframe/wrappers/analytix/transform.py`
 
-`PreprocessingWrapper` (Transform — `transform` in `sklearn`/`pandas` sense) is the public feature-engineering interface exposed
+`TransformWrapper` is the public feature-engineering interface exposed
 through a `ContextManager`. It provides sklearn/pandas-style numeric scaling,
 binning, categorical encoding, and cyclical datetime features, compiled to
 backend-native SQL across DuckDB, PostgreSQL, and ClickHouse.
 
-Users normally call preprocessing directly on a dataset context returned by an
+Users normally call transform directly on a dataset context returned by an
 upload operation:
 
 ```python
@@ -22,11 +22,11 @@ encoded = await dataset.aonehot(column="city", max_categories=10)
 
 The lower-level files are implementation details:
 
-- `src/memframe/core/analytix/preprocessing.py` builds and executes
+- `src/memframe/core/analytix/transform.py` builds and executes
   backend-specific SQL (single file, `isinstance` branches per backend).
-- `src/memframe/core/orchestrator/analytix/preprocessing.py` resolves the
+- `src/memframe/core/orchestrator/analytix/transform.py` resolves the
   active dataset context and passes persistence metadata (`deep_cache`).
-- `src/memframe/wrappers/analytix/preprocessing.py` exposes synchronous and
+- `src/memframe/wrappers/analytix/transform.py` exposes synchronous and
   asynchronous public methods.
 
 ## Public API
@@ -71,7 +71,7 @@ DataFrame). Invalid operations raise `OperationError`.
 
 ## API Reference
 
-::: memframe.wrappers.analytix.preprocessing.PreprocessingWrapper
+::: memframe.wrappers.analytix.transform.TransformWrapper
     options:
       show_root_heading: true
       show_root_full_path: true
