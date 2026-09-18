@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import traceback
-from datetime import datetime, UTC
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Union
 
 import pandas as pd
@@ -132,7 +132,7 @@ class CumulativeOps:
             )
         else:
             candidate = (
-                f"{safe_table}__op_{datetime.now(UTC).strftime('%Y%m%d%H%M%S%f')}"
+                f"{safe_table}__op_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}"
             )
 
         output_table = SQLIdentifierSanitizer.sanitize(candidate)
