@@ -173,7 +173,7 @@ Full reference lives in [`docs/`](docs/):
 - [Sync Existing Tables](docs/api/syncdb.md) — register pre-existing DB tables as datasets.
 - [Dataset Operations](docs/api/database.md) — table and active-dataset management.
 - [Inspection](docs/api/inspect.md) · [Selection](docs/api/selection.md) · [Clean](docs/api/cleaning.md)
-- [Statistics](docs/api/stats.md) · [Arithmetic](docs/api/arithmetic.md)
+- [Statistics](docs/api/stats.md) · [Arithmetic](docs/api/arithmetic.md) · [Cumulative](docs/api/cumulative.md)
 - [Sorting](docs/api/sorting.md) · [Reshape](docs/api/reshape.md) · [Merge](docs/api/merging.md) · [Transform](docs/api/transform.md)
 - [Plotting](docs/api/bar.md) · [Caching](docs/api/caching.md)
 
