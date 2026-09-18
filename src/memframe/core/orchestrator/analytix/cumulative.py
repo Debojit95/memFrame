@@ -1,6 +1,6 @@
 from typing import Any, Dict, List, Optional, Union
 
-from memframe.core.analytix.cumulative import DataCumulativeOps
+from memframe.core.analytix.cumulative import CumulativeOps, make_cumulative_ops
 from memframe.cache import record_call
 
 
@@ -28,10 +28,10 @@ class CumulativeOrchestrator:
         return cls.replay_create(memframe, data_id)
     
     
-    async def _ensure_ops(self) -> DataCumulativeOps:
+    async def _ensure_ops(self) -> CumulativeOps:
         if self._cumulative_ops is None:
             await self._ops_parent._ensure_adapter()
-            self._cumulative_ops = DataCumulativeOps(
+            self._cumulative_ops = make_cumulative_ops(
                 self._ops_parent._adapter)
         return self._cumulative_ops
 

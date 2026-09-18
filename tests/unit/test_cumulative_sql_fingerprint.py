@@ -1,10 +1,9 @@
 """SQL-fingerprint regression net for cumulative ops.
 
 Same pattern as test_arithmetic_sql_fingerprint.py: record every SQL string
-DataCumulativeOps emits for a fixed scenario set and compare against a
-snapshot. Cumulative has no per-backend subclasses, so backend personas are
-RecordingAdapter mixins over the real adapter classes (real quoting and
-placeholder styles, stubbed I/O).
+the cumulative ops classes emit for a fixed scenario set and compare against
+a snapshot. Backend personas are RecordingAdapter mixins over the real
+adapter classes (real quoting and placeholder styles, stubbed I/O).
 
 Regenerate with:  MEMFRAME_REGEN_FINGERPRINT=1 pytest tests/unit/test_cumulative_sql_fingerprint.py
 """
@@ -17,7 +16,12 @@ from datetime import datetime, timezone
 
 import pytest
 
-from memframe.core.analytix.cumulative import DataCumulativeOps
+from memframe.core.analytix.cumulative import (
+    ClickHouseCumulativeOps,
+    CumulativeOps,
+    DuckDBCumulativeOps,
+    PostgresCumulativeOps,
+)
 from memframe.db_manager.adapters.clickhouse import ClickHouseAdapter
 from memframe.db_manager.adapters.duckdb import DuckDBAdapter
 from memframe.db_manager.adapters.postgresql import PostgresAdapter
@@ -102,27 +106,27 @@ def _scenarios():
 SCENARIOS = _scenarios()
 
 BACKENDS = {
-    "duckdb": _DuckDBPersona,
-    "postgres": _PostgresPersona,
-    "clickhouse": _ClickHousePersona,
+    "duckdb": (DuckDBCumulativeOps, _DuckDBPersona),
+    "postgres": (PostgresCumulativeOps, _PostgresPersona),
+    "clickhouse": (ClickHouseCumulativeOps, _ClickHousePersona),
 }
 
 
 def _capture():
-    cumulative_mod = importlib.import_module("memframe.core.analytix.cumulative")
-    real_datetime = cumulative_mod.datetime
-    cumulative_mod.datetime = _FrozenDatetime
+    base_mod = importlib.import_module("memframe.core.analytix.cumulative.base")
+    real_datetime = base_mod.datetime
+    base_mod.datetime = _FrozenDatetime
     try:
         snapshot = {}
         for name, scenario in SCENARIOS.items():
             snapshot[name] = {}
-            for backend_name, cls in BACKENDS.items():
-                ops = DataCumulativeOps(cls())
+            for backend_name, (ops_cls, persona_cls) in BACKENDS.items():
+                ops = ops_cls(persona_cls())
                 asyncio.run(scenario(ops))
                 snapshot[name][backend_name] = ops.db.calls
         return snapshot
     finally:
-        cumulative_mod.datetime = real_datetime
+        base_mod.datetime = real_datetime
 
 
 def test_cumulative_sql_fingerprint_unchanged():
@@ -150,3 +154,8 @@ def test_cumulative_personas_match_real_backends():
     assert isinstance(_DuckDBPersona(), DuckDBAdapter)
     assert isinstance(_PostgresPersona(), PostgresAdapter)
     assert isinstance(_ClickHousePersona(), ClickHouseAdapter)
+
+
+def test_all_backends_are_cumulative_ops():
+    for ops_cls, _ in BACKENDS.values():
+        assert issubclass(ops_cls, CumulativeOps)

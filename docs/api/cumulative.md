@@ -26,10 +26,10 @@ reserved for `DateTimeWrapper`.
 
 The lower-level files are implementation details:
 
-- `src/memframe/core/analytix/cumulative.py` builds and executes
-  backend-specific SQL. Unlike other domains it is a single
-  `DataCumulativeOps` class with no `base`/`duckdb`/`postgres`/`clickhouse`
-  split — the PostgreSQL/DuckDB path is shared and only ClickHouse diverges.
+- `src/memframe/core/analytix/cumulative/` builds and executes backend-specific
+  SQL (`base.py` holds the DuckDB-flavoured shared engine plus dialect hooks,
+  `postgres.py`/`clickhouse.py` override per backend, `factory.py` dispatches
+  `make_cumulative_ops(adapter)` on `isinstance`).
 - `src/memframe/core/orchestrator/analytix/cumulative.py` resolves the active
   dataset context and passes persistence metadata.
 - `src/memframe/wrappers/analytix/cumulative.py` exposes synchronous and

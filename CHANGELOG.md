@@ -7,9 +7,10 @@ to [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
-- **Cumulative (new domain)**: 8 ops via `ContextManager` (`cumsum`/`cumprod`/`cummax`/`cummin`/`cummean`/`cumcount`/`cumstd`/`cumvar` — pandas `expanding()` sense, `(column, order_col=None, target_col=None)`) backed by backend-native SQL across DuckDB, PostgreSQL, and ClickHouse. Single `DataCumulativeOps` class (no factory split): PostgreSQL/DuckDB share clone → `ADD COLUMN` → `UPDATE … FROM` on `ctid`/`rowid`; ClickHouse uses one CTAS (`MergeTree ORDER BY tuple()`, synthetic `_ch_rowid` for default order). Population `STDDEV_POP`/`VAR_POP` (`stddevPop`/`varPop` on ClickHouse); `cumcount` is `BIGINT`/`UInt64`.
+- **Cumulative (new domain)**: 8 ops via `ContextManager` (`cumsum`/`cumprod`/`cummax`/`cummin`/`cummean`/`cumcount`/`cumstd`/`cumvar` — pandas `expanding()` sense, `(column, order_col=None, target_col=None)`) backed by backend-native SQL across DuckDB, PostgreSQL, and ClickHouse. `CumulativeOps` base holds the shared engine (PostgreSQL/DuckDB share clone → `ADD COLUMN` → `UPDATE … FROM` on `ctid`/`rowid`); ClickHouse overrides hooks plus one structural CTAS (`MergeTree ORDER BY tuple()`, synthetic `_ch_rowid` for default order). Population `STDDEV_POP`/`VAR_POP` (`stddevPop`/`varPop` on ClickHouse); `cumcount` is `BIGINT`/`UInt64`.
 - **Cumulative tests**: `tests/unit/test_cumulative_response.py` (11: values, order/target variants, all-ops, error shape) + `tests/unit/test_cumulative_sql_fingerprint.py` (24 scenarios × 3 backends); happy path verified live on PostgreSQL and ClickHouse.
 - **Cumulative docs**: `docs/api/cumulative.md` (datetime-style: Public API, per-op params, backend behavior, mkdocstrings reference); nav after `Arithmetic` + README docs line.
+- **Cumulative refactor**: split `core/analytix/cumulative.py` (`DataCumulativeOps`) into `cumulative/` (`CumulativeOps` base + `duckdb`/`postgres`/`clickhouse` + `factory.make_cumulative_ops`, responses via shared `ok()`/`fail()`); SQL proven unchanged by the existing fingerprint snapshot.
 
 ## [0.8.0] - 2026-09-17
 
