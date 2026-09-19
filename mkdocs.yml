@@ -57,6 +57,7 @@ nav:
           - Clean: api/cleaning.md
           - Arithmetic: api/arithmetic.md
           - Cumulative: api/cumulative.md
+          - Window: api/window.md
           - Selection: api/selection.md
           - Stats: api/stats.md
           - Datetime: api/datetime.md

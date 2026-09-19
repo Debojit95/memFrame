@@ -1,0 +1,442 @@
+# Window
+
+Source: `src/memframe/wrappers/analytix/window.py`
+
+`WindowWrapper` is the public rolling / expanding / exponentially-weighted
+interface exposed through a `ContextManager`. Every operation compiles to
+backend-native SQL and runs in-engine across DuckDB, PostgreSQL, and
+ClickHouse; each call writes a new transient table (`<table>__op_<n>`) and the
+source upload table is never mutated in place.
+
+Users normally call window methods directly on a dataset context returned by an
+upload operation. There are two equivalent entry points:
+
+- a direct call — `dataset.rolling(...)`, `dataset.expanding(...)`,
+  `dataset.ewm(...)` — with `order_by` passed as an argument;
+- a pandas-style fluent builder — `dataset.on("sales").rolling(7).mean(...)`.
+
+```python
+dataset = mf.upload_df(frame)
+
+rolling = dataset.rolling(column="sales", window=7, func="mean", order_by="date")
+expanding = dataset.expanding(column="sales", func="sum", order_by="date")
+smoothed = dataset.ewm(column="sales", span=3, func="mean", order_by="date")
+fluent = dataset.on("sales").rolling(7).mean(order_by="date")
+```
+
+```python
+dataset = await mf.aupload_df(frame)
+
+rolling = await dataset.arolling(column="sales", window=7, func="mean", order_by="date")
+expanding = await dataset.aexpanding(column="sales", func="sum", order_by="date")
+smoothed = await dataset.aewm(column="sales", span=3, func="mean", order_by="date")
+```
+
+`window` is top-level (`dataset.rolling`, not `dataset.dt.*`) — `dt` is reserved
+for `DateTimeWrapper`.
+
+The lower-level files are implementation details:
+
+- `src/memframe/core/analytix/window.py` holds `WindowOps`, a single
+  backend-branching engine (there is no per-backend factory split — the
+  `isinstance` dispatch lives inline).
+- `src/memframe/core/orchestrator/analytix/window.py` resolves the active
+  dataset context, detects the column dtype, maps the requested functions to
+  the dtype-appropriate engine methods, and applies `@record_call`.
+- `src/memframe/wrappers/analytix/window.py` exposes the synchronous and
+  asynchronous public methods plus the fluent builders.
+
+## Public API
+
+### Rolling
+
+Each rolling method has a synchronous and asynchronous form. Direct rolling
+takes `(column, window, func, order_by=None, q=0.5)`; the named shorthands fix
+`func`.
+
+| Synchronous (via builder or `rolling`) | Purpose |
+| --- | --- |
+| `rolling(column, window, func, order_by=None, q=0.5)` / `await arolling(...)` | Generic — `func` may be a string or list |
+| `.rolling(column, window).sum(order_by=None)` / `.asum(...)` | Rolling sum |
+| `.mean(...)` / `.amean(...)` | Rolling mean |
+| `.min(...)` / `.amin(...)` | Rolling minimum |
+| `.max(...)` / `.amax(...)` | Rolling maximum |
+| `.count(...)` / `.acount(...)` | Rolling non-null count |
+| `.std(...)` / `.astd(...)` | Rolling population standard deviation |
+| `.var(...)` / `.avar(...)` | Rolling sample variance |
+| `.quantile(q=0.5, order_by=None)` / `.aquantile(...)` | Rolling quantile |
+| `.sem(...)` / `.asem(...)` | Rolling standard error |
+| `.rank(...)` / `.arank(...)` | Rolling rank within the window |
+| `.nunique(...)` / `.anunique(...)` | Rolling distinct count |
+| `.first(...)` / `.afirst(...)` | First value in the window |
+| `.last(...)` / `.alast(...)` | Last value in the window |
+
+### Expanding
+
+Expanding methods mirror rolling but have no `window`; they add `min_periods`
+(default `1`). Expansion runs from the first row to the current row
+(`ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW`).
+
+| Synchronous | Purpose |
+| --- | --- |
+| `expanding(column, func, order_by=None, q=0.5, min_periods=1)` / `await aexpanding(...)` | Generic |
+| `.expanding(column).sum(min_periods=1)` / `.asum(...)` | Running sum |
+| `.mean(...)` / `.amean(...)` | Running mean |
+| `.min(...)` / `.amin(...)` | Running minimum |
+| `.max(...)` / `.amax(...)` | Running maximum |
+| `.count(...)` / `.acount(...)` | Running non-null count |
+| `.std(...)` / `.astd(...)` | Running sample standard deviation |
+| `.var(...)` / `.avar(...)` | Running sample variance |
+| `.quantile(q=0.5, min_periods=1)` / `.aquantile(...)` | Running quantile |
+| `.sem(...)` / `.asem(...)` | Running standard error |
+| `.rank(...)` / `.arank(...)` | Running rank |
+| `.nunique(...)` / `.anunique(...)` | Running distinct count |
+| `.first(...)` / `.afirst(...)` | Running first value |
+| `.last(...)` / `.alast(...)` | Running last value |
+
+### EWM
+
+Exponentially-weighted operations are numeric-only and support four functions.
+
+| Synchronous | Purpose |
+| --- | --- |
+| `ewm(column, com=None, span=None, halflife=None, alpha=None, adjust=True, ignore_na=False, min_periods=0, func="mean", order_by=None)` / `await aewm(...)` | Generic EWM |
+| `.ewm(column, ...).mean(...)` / `.amean(...)` | EWM mean |
+| `.sum(...)` / `.asum(...)` | EWM sum |
+| `.std(...)` / `.astd(...)` | EWM standard deviation |
+| `.var(...)` / `.avar(...)` | EWM variance |
+
+## Usage Overview
+
+```python
+dataset = mf.upload_df(frame)
+
+sample = dataset.rolling(column="sales", window=7, func="mean", order_by="date")
+sample = dataset.rolling(column="sales", window=7, func=["sum", "mean"], order_by="date")
+sample = dataset.expanding(column="sales", func="sum", order_by="date", min_periods=3)
+sample = dataset.ewm(column="sales", span=3, func="mean", order_by="date")
+sample = dataset.on("sales").rolling(7).mean(order_by="date")
+```
+
+```python
+dataset = await mf.aupload_df(frame)
+
+sample = await dataset.arolling(column="sales", window=7, func="mean", order_by="date")
+sample = await dataset.aexpanding(column="sales", func="sum", order_by="date", min_periods=3)
+sample = await dataset.aewm(column="sales", span=3, func="mean", order_by="date")
+```
+
+## Common Parameters
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `column` | `str` | Column to window over. |
+| `window` | `int` | Rolling window size in rows, **inclusive of the current row** (`window=3` → 2 preceding + current). Must be `>= 1`. |
+| `func` | `str` or `list[str]` | Aggregation(s) to apply. A list chains them into a single output table. |
+| `order_by` | `str`, `list[str]`, or `None` | Row ordering for the window. `None` (default) uses physical row order. A list orders by multiple columns. |
+| `q` | `float` | Quantile in `[0, 1]` for `quantile` (default `0.5`). |
+| `min_periods` | `int` | Expanding/EWM only — minimum non-null count before a value is emitted. |
+
+`order_by` accepts a single column or a list:
+
+```python
+result = dataset.rolling(column="sales", window=7, func="mean", order_by="date")
+result = dataset.rolling(
+    column="sales", window=7, func="mean", order_by=["region", "date"]
+)
+```
+
+With no `order_by`, rows are processed in physical storage order (PostgreSQL
+`ctid`, DuckDB `rowid`). Some paths materialize a temporary `__totem_order`
+column; ClickHouse has no stable row id, so a synthetic `ROW_NUMBER() OVER ()`
+is generated in a subquery.
+
+## Type Support
+
+The orchestrator samples the target column and infers one of three kinds, then
+maps each requested function to the dtype-appropriate engine method:
+
+| Function | numeric | datetime | categorical |
+| --- | --- | --- | --- |
+| `sum`, `mean`, `std`, `var`, `quantile`, `sem` | ✅ | — | — |
+| `min`, `max`, `count`, `nunique`, `rank`, `first`, `last` | ✅ | ✅ | ✅ |
+| `median`, `mode` | — | ✅ | — |
+
+Datetime columns route `min`/`max` through the generic value aggregation, while
+`mean`/`median`/`mode` are computed over the column's epoch value and converted
+back to a timestamp (or `DATE` for date-only columns). Requesting an
+unsupported function for a detected dtype returns a canonical error envelope
+rather than raising; EWM on a non-numeric column is rejected the same way.
+
+## Rolling
+
+A rolling window of size `w = window` covers the rows from `w - 1` preceding
+the current row through the current row:
+
+```sql
+AGG(col) OVER (ORDER BY <order_by> ROWS BETWEEN <w-1> PRECEDING AND CURRENT ROW)
+```
+
+For the first rows the window is partial (fewer than `w` rows) and the
+aggregation runs over whatever is available — except `quantile`, which returns
+`NULL` until the window is full (`CASE WHEN COUNT(col) OVER (...) >= w`).
+
+```python
+result = dataset.rolling(column="sales", window=3, func="sum", order_by="day")
+```
+
+Example `sales=[10, 20, 30, 40, 50]` → `sales_rolling_sum_w3=[10, 30, 60, 90, 120]`.
+
+`mean` follows the same frame:
+
+```python
+result = dataset.rolling(column="sales", window=2, func="mean", order_by="day")
+# sales_rolling_mean_w2 = [10, 15, 25, 35, 45]
+```
+
+### Multiple functions
+
+Passing a list chains each function onto the table produced by the previous
+one, so all result columns land in a single transient table:
+
+```python
+result = dataset.rolling(
+    column="sales", window=3, func=["sum", "mean"], order_by="day"
+)
+```
+
+The response reports `new_columns`, `successful_funcs`, `skipped_funcs`,
+`failed_funcs`, and `is_partial`. Unknown functions and functions unsupported
+for the detected dtype are skipped (partial result); if every requested
+function fails, an error envelope is returned instead.
+
+### Datetime rolling
+
+`min`, `max`, `mean`, `median`, and `mode` are supported on datetime columns.
+`mean`/`median`/`mode` convert to epoch seconds, aggregate, then convert back:
+
+```python
+result = dataset.rolling(column="event_time", window=3, func="median", order_by="day")
+```
+
+Date-only columns are cast back to `DATE` (`toDate` on ClickHouse) so the
+result keeps the original granularity.
+
+### Standard deviation, variance, and SEM
+
+- `std` uses the **population** form (`STDDEV_POP`).
+- `var` uses the **sample** form (`VARIANCE` on PostgreSQL, `VAR_SAMP` on
+  DuckDB, `varSamp` on ClickHouse).
+- `sem` is `STDDEV(col) / SQRT(COUNT(col))` over the same frame, using the
+  sample stddev (`STDDEV`, `STDDEV_SAMP`, `stddevSamp`).
+
+### Rank and nunique
+
+`rank` counts, within the window, how many rows are `<=` the current value:
+
+```sql
+SELECT COUNT(*) FROM __base r
+WHERE r.__rn BETWEEN b.__rn - (w-1) AND b.__rn
+  AND r.col <= b.col
+```
+
+`nunique` maps to `COUNT(DISTINCT col) OVER (...)` on DuckDB and `uniq(col)`
+on ClickHouse. On **PostgreSQL** there is no windowed distinct-count, so it
+falls back to a Python `deque(maxlen=window)` pass over the ordered values,
+then writes the counts back in chunked `UPDATE ... FROM (VALUES ...)`
+statements.
+
+## Expanding
+
+Expanding operations run from the first row through the current row:
+
+```sql
+AGG(col) OVER (ORDER BY <order_by> ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)
+```
+
+```python
+result = dataset.expanding(column="sales", func="sum", order_by="day")
+```
+
+Example `sales=[10, 20, 30, 40, 50]` → `sales_expanding_sum=[10, 30, 60, 100, 150]`.
+
+`min_periods` gates output for the early rows. When `min_periods > 1` the
+aggregation is wrapped so the value is `NULL` until enough non-null values have
+been seen:
+
+```sql
+CASE WHEN COUNT(col) OVER (...) >= min_periods THEN AGG(col) OVER (...) ELSE NULL END
+```
+
+```python
+result = dataset.expanding(
+    column="sales", func="mean", order_by="day", min_periods=3
+)
+```
+
+Expanding `std`/`var` are both **sample** statistics (`STDDEV`/`VARIANCE`,
+`STDDEV_SAMP`/`VAR_SAMP`, `stddevSamp`/`varSamp`). Datetime expanding supports
+`min`, `max`, `mean`, `median`, and `mode`.
+
+## EWM
+
+Exponentially-weighted operations compute a smoothing factor from exactly one
+of `com`, `span`, `halflife`, or `alpha`:
+
+| Parameter | Relation |
+| --- | --- |
+| `alpha` | used directly, must be in `(0, 1]` |
+| `com` | `α = 1 / (1 + com)`, `com >= 0` |
+| `span` | `α = 2 / (span + 1)`, `span >= 1` |
+| `halflife` | `α = 1 - exp(-ln(2) / halflife)`, `halflife > 0` |
+
+If none is provided, `α` defaults to `0.5`. Providing more than one raises.
+
+```python
+result = dataset.ewm(column="sales", span=3, func="mean", order_by="date")
+result = dataset.ewm(
+    column="sales", halflife=5, func=["mean", "std"], order_by="date",
+    adjust=True, ignore_na=False, min_periods=0,
+)
+```
+
+- `adjust=True` normalizes by the decaying weights (pandas `adjust=True`);
+  `adjust=False` is the recursive form.
+- `ignore_na=True` drops nulls before weighting; `ignore_na=False` keeps their
+  position and decays across them.
+- `min_periods` suppresses output until that many non-null values are seen.
+
+Values are computed in NumPy (O(n)) and materialized into the result table —
+via a `VALUES` CTE on PostgreSQL/DuckDB, or a temporary `ENGINE = Memory`
+staging table on ClickHouse. Result columns are named
+`<column>_ewm_<func>`.
+
+## Fluent Builder
+
+`dataset.on(column)` returns a builder mirroring the pandas chained style:
+
+```python
+dataset.on("sales").rolling(7).mean(order_by="date")
+dataset.on("sales").rolling(7).sum(order_by="date")
+dataset.on("sales").expanding().mean(order_by="date")
+dataset.on("sales").ewm(span=3).mean(order_by="date")
+```
+
+`rolling` / `expanding` / `ewm` also work directly on the wrapper and return a
+builder when `func` is omitted:
+
+```python
+dataset.rolling(column="sales", window=7).mean(order_by="date")
+dataset.expanding(column="sales").sum(order_by="date")
+```
+
+Each builder exposes the named shorthands above plus a generic
+`apply(func, order_by=None)` / `await aapply(...)` escape hatch.
+
+## Return Values and Errors
+
+On a `ContextManager`, public methods return the resulting **DataFrame**
+directly. Calling the wrapper class directly (or using a builder's terminal
+method) returns the raw operation envelope:
+
+```python
+{
+    "is_error": False,
+    "message": "Rolling mean on 'sales' (window=2)",
+    "result": <pandas.DataFrame>,
+    "new_table": "ab12CD__op_3",
+    "new_columns": ["sales_rolling_mean_w2"],
+    "new_column": "sales_rolling_mean_w2",   # single-function calls only
+    "window": 2,
+    # multi-function calls also include:
+    # "successful_funcs", "skipped_funcs", "failed_funcs", "is_partial", "dtype"
+}
+```
+
+Invalid operations surface as `OperationError` when the envelope is unwrapped
+(e.g. via a `ContextManager`): an unknown function, a function unsupported for
+the detected dtype, an EWM on a non-numeric column, an invalid alpha, or a
+missing `backend`/`data_id`. When inspecting the raw envelope, check
+`is_error` / `error_message` instead.
+
+## Generated Tables
+
+Every window operation is non-destructive to the source upload table. It
+creates a new transient table holding the source rows plus the generated
+column(s), then returns a preview of it:
+
+- **PostgreSQL / DuckDB:** clone via `CREATE TABLE … AS SELECT *`, `ADD COLUMN`
+  for each result, then `UPDATE … FROM (SELECT ctid/rowid, <window> AS val …)
+  WHERE t.<rid> = s.<rid>`. Some shapes (quantile, rank, nunique, ewm) use a
+  single `CREATE TABLE … AS SELECT …, <window>` instead.
+- **ClickHouse:** a single `CREATE TABLE … AS SELECT *, <window> AS <target>`
+  per operation — window functions are computed inline. EWM stages its values
+  in a temporary `ENGINE = Memory` table, then joins it in.
+
+Window operations apply `@record_call`, so repeat calls are recorded in the
+transient registry (L1). With `MemFrame(deep_cache=True)` the result tables are
+persisted and replayed on a hit (L2).
+
+## Backend Behavior
+
+Window operations support DuckDB, PostgreSQL, and ClickHouse:
+
+- Identifiers are sanitized and quoted before SQL is generated.
+- `order_by` may be a single column, a list, or omitted (physical order).
+- Dialect differences: quantile `PERCENTILE_CONT` (PG) vs `QUANTILE_CONT`
+  (DuckDB) vs `quantile(q)` (CH); stddev/variance `STDDEV`/`VARIANCE` (PG,
+  sample) vs `STDDEV_SAMP`/`VAR_SAMP` (DuckDB) vs `stddevSamp`/`varSamp` (CH);
+  distinct-count `COUNT(DISTINCT …)` (DuckDB) vs `uniq(…)` (CH) vs a Python
+  fallback (PG).
+- The per-backend SQL is locked by
+  `tests/unit/test_window_sql_fingerprint.py` (21 scenarios × 3 backends).
+
+## Errors
+
+Window methods raise `OperationError` (once unwrapped) for validation or
+backend failures:
+
+- Unknown function, or a function unsupported for the detected dtype.
+- EWM requested on a non-numeric column.
+- Invalid EWM parameters (more than one of `com`/`span`/`halflife`/`alpha`, or
+  an out-of-range value).
+- Missing or renamed `column` / `order_by`.
+
+## API Reference
+
+::: memframe.wrappers.analytix.window.WindowWrapper
+    options:
+      show_root_heading: true
+      show_root_full_path: true
+      members:
+        - arolling
+        - rolling
+        - aexpanding
+        - expanding
+        - aewm
+        - ewm
+        - "on"
+
+::: memframe.wrappers.analytix.window.WindowBuilderWrapper
+    options:
+      show_root_heading: true
+      show_root_full_path: true
+      members:
+        - rolling
+        - expanding
+        - ewm
+
+::: memframe.wrappers.analytix.window.RollingWindowBuilderWrapper
+    options:
+      show_root_heading: true
+      show_root_full_path: true
+
+::: memframe.wrappers.analytix.window.ExpandingWindowBuilderWrapper
+    options:
+      show_root_heading: true
+      show_root_full_path: true
+
+::: memframe.wrappers.analytix.window.EWMWindowBuilderWrapper
+    options:
+      show_root_heading: true
+      show_root_full_path: true
