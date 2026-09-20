@@ -230,15 +230,21 @@ def pytest_generate_tests(metafunc):
 # ----------------------------------------------------------------------
 @pytest.fixture(scope="function")
 def time_series_df() -> pd.DataFrame:
-    """DataFrame with a datetime index-like column and numeric values."""
+    """DataFrame with a datetime column, numeric values, and a null.
+
+    Deliberately shuffled so physical row order differs from ``date`` order —
+    ``order_by`` tests exercise real ordering, and no-``order_by`` tests run
+    against an unordered table.
+    """
     dates = pd.date_range("2025-01-01", periods=6, freq="D")
-    return pd.DataFrame({
+    df = pd.DataFrame({
         "date": dates,
         "sales": [10, 20, 15, 30, 25, 35],
         "quantity": [1, 2, 1, 3, 2, 3],
         "category": ["A", "B", "A", "B", "A", "B"],
         "score": [85.5, 92.3, 78.9, None, 88.0, 91.2],  # includes NaN
     })
+    return df.sample(frac=1, random_state=42).reset_index(drop=True)
 
 # ----------------------------------------------------------------------
 # Backend fixtures
@@ -318,6 +324,72 @@ def assert_series_equal_loose(actual: pd.Series, expected: pd.Series):
         check_dtype=False,
         check_names=False,
     )
+
+
+def _generated_col(res_df: pd.DataFrame, column: str) -> str:
+    for col in res_df.columns:
+        if col != column and str(col).startswith(str(column)):
+            return col
+    raise AssertionError(f"No generated column for {column!r} in {list(res_df.columns)}")
+
+
+def _ordered(df: pd.DataFrame) -> pd.DataFrame:
+    return df.sort_values("date").reset_index(drop=True)
+
+
+def _assert_ordered_result(res_df: pd.DataFrame, value_col: str, expected: pd.Series) -> None:
+    """Compare an order_by='date' result; preview rows are in physical order."""
+    actual = res_df.sort_values("date").reset_index(drop=True)[value_col]
+    assert_series_equal_loose(actual.astype(float), expected.astype(float))
+
+
+def _assert_positional_result(res_df: pd.DataFrame, value_col: str, expected: pd.Series) -> None:
+    """Compare a no-order_by result; physical/insertion order is preserved."""
+    assert_series_equal_loose(res_df[value_col].astype(float), expected.astype(float))
+
+
+def _assert_datetime_by_key(res_df: pd.DataFrame, value_col: str, key_df: pd.DataFrame) -> None:
+    """Compare a datetime result ordered by a non-date key (merge on date)."""
+    actual = res_df[["date", value_col]].copy()
+    exp = key_df[["date", "expected"]].copy()
+    actual["date"] = pd.to_datetime(actual["date"])
+    exp["date"] = pd.to_datetime(exp["date"])
+    merged = actual.merge(exp, on="date", how="inner").sort_values("date")
+    actual_vals = pd.to_datetime(merged[value_col])
+    expected_vals = pd.to_datetime(merged["expected"])
+    assert list(actual_vals.isna()) == list(expected_vals.isna())
+    mask = expected_vals.notna()
+    assert_series_equal_loose(
+        actual_vals[mask].astype("int64"), expected_vals[mask].astype("int64")
+    )
+
+
+def _pandas_rolling_oracle(func: str, series: pd.Series, window: int) -> pd.Series:
+    """pandas equivalent of each engine rolling function (min_periods=1)."""
+    r = series.rolling(window, min_periods=1)
+    if func == "min":
+        return r.min()
+    if func == "max":
+        return r.max()
+    if func == "count":
+        return r.count()
+    if func == "mean":
+        return r.mean()
+    if func == "sum":
+        return r.sum()
+    if func == "std":
+        return r.std(ddof=0)  # engine rolling std is population
+    if func == "sem":
+        return r.std(ddof=1) / r.count().pow(0.5)
+    if func == "rank":
+        return r.rank()
+    if func == "nunique":
+        return r.apply(lambda x: len(set(x)), raw=True)
+    if func == "first":
+        return r.apply(lambda x: x.iloc[0], raw=False)
+    if func == "last":
+        return r.apply(lambda x: x.iloc[-1], raw=False)
+    raise ValueError(f"no pandas oracle for {func!r}")
 
 # ----------------------------------------------------------------------
 # PDF helpers
@@ -520,36 +592,81 @@ class TestWindowOperations:
                 current_records.append(result)
 
     # ----------------------------------------------------------------
-    # Rolling (direct)
+    # Rolling (direct, order_by="date")
     # ----------------------------------------------------------------
     def test_rolling_mean_direct(self, uploaded_ctx, time_series_df, backend_config):
         result = uploaded_ctx.rolling(column="sales", window=3, func="mean", order_by="date")
         res_df = get_result_df(result)
-        expected = time_series_df.copy()
-        expected["sales"] = expected["sales"].rolling(3, min_periods=1).mean()
-        sales_col = [c for c in res_df.columns if "sales" in c and c != "date"]
-        actual_vals = res_df[sales_col[0]] if sales_col else res_df["sales"]
-        assert_series_equal_loose(actual_vals.astype(float), expected["sales"].astype(float))
+        expected = _ordered(time_series_df)["sales"].rolling(3, min_periods=1).mean()
+        _assert_ordered_result(res_df, _generated_col(res_df, "sales"), expected)
         self._record_result(
             test_name="rolling_mean_direct",
             method_call='rolling(column="sales", window=3, func="mean", order_by="date")',
             original_df=time_series_df,
             memframe_df=res_df,
-            pandas_df=expected.assign(rolling_sales=expected["sales"]),
+            pandas_df=expected,
             backend=backend_config["connection_type"],
         )
 
     def test_rolling_sum_direct(self, uploaded_ctx, time_series_df, backend_config):
         result = uploaded_ctx.rolling(column="sales", window=2, func="sum", order_by="date")
         res_df = get_result_df(result)
-        expected = time_series_df.copy()
-        expected["sales"] = expected["sales"].rolling(2, min_periods=1).sum()
-        sales_col = [c for c in res_df.columns if "sales" in c and c != "date"]
-        actual_vals = res_df[sales_col[0]] if sales_col else res_df["sales"]
-        assert_series_equal_loose(actual_vals.astype(float), expected["sales"].astype(float))
+        expected = _ordered(time_series_df)["sales"].rolling(2, min_periods=1).sum()
+        _assert_ordered_result(res_df, _generated_col(res_df, "sales"), expected)
         self._record_result(
             test_name="rolling_sum_direct",
             method_call='rolling(column="sales", window=2, func="sum", order_by="date")',
+            original_df=time_series_df,
+            memframe_df=res_df,
+            pandas_df=expected,
+            backend=backend_config["connection_type"],
+        )
+
+    # ----------------------------------------------------------------
+    # Rolling (direct, no order_by — unordered physical order)
+    # ----------------------------------------------------------------
+    def test_rolling_mean_no_order(self, uploaded_ctx, time_series_df, backend_config):
+        result = uploaded_ctx.rolling(column="sales", window=3, func="mean")
+        res_df = get_result_df(result)
+        expected = time_series_df["sales"].rolling(3, min_periods=1).mean()
+        _assert_positional_result(res_df, _generated_col(res_df, "sales"), expected)
+        self._record_result(
+            test_name="rolling_mean_no_order",
+            method_call='rolling(column="sales", window=3, func="mean")  # no order_by',
+            original_df=time_series_df,
+            memframe_df=res_df,
+            pandas_df=expected,
+            backend=backend_config["connection_type"],
+        )
+
+    def test_expanding_sum_no_order(self, uploaded_ctx, time_series_df, backend_config):
+        result = uploaded_ctx.expanding(column="sales", func="sum", min_periods=1)
+        res_df = get_result_df(result)
+        expected = time_series_df["sales"].expanding(1).sum()
+        _assert_positional_result(res_df, _generated_col(res_df, "sales"), expected)
+        self._record_result(
+            test_name="expanding_sum_no_order",
+            method_call='expanding(column="sales", func="sum", min_periods=1)  # no order_by',
+            original_df=time_series_df,
+            memframe_df=res_df,
+            pandas_df=expected,
+            backend=backend_config["connection_type"],
+        )
+
+    def test_ewm_mean_no_order(self, uploaded_ctx, time_series_df, backend_config):
+        result = uploaded_ctx.ewm(
+            column="sales", span=2, func="mean", adjust=False, ignore_na=False
+        )
+        res_df = get_result_df(result)
+        expected = (
+            time_series_df["sales"]
+            .ewm(span=2, adjust=False, ignore_na=False)
+            .mean()
+        )
+        _assert_positional_result(res_df, _generated_col(res_df, "sales"), expected)
+        self._record_result(
+            test_name="ewm_mean_no_order",
+            method_call='ewm(column="sales", span=2, func="mean", adjust=False)  # no order_by',
             original_df=time_series_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -562,11 +679,8 @@ class TestWindowOperations:
     def test_fluent_rolling_mean(self, uploaded_ctx, time_series_df, backend_config):
         result = uploaded_ctx.on("sales").rolling(3).mean(order_by="date")
         res_df = get_result_df(result)
-        expected = time_series_df.copy()
-        expected["sales"] = expected["sales"].rolling(3, min_periods=1).mean()
-        sales_col = [c for c in res_df.columns if "sales" in c and c != "date"]
-        actual_vals = res_df[sales_col[0]] if sales_col else res_df["sales"]
-        assert_series_equal_loose(actual_vals.astype(float), expected["sales"].astype(float))
+        expected = _ordered(time_series_df)["sales"].rolling(3, min_periods=1).mean()
+        _assert_ordered_result(res_df, _generated_col(res_df, "sales"), expected)
         self._record_result(
             test_name="fluent_rolling_mean",
             method_call='on("sales").rolling(3).mean(order_by="date")',
@@ -579,11 +693,8 @@ class TestWindowOperations:
     def test_fluent_rolling_std(self, uploaded_ctx, time_series_df, backend_config):
         result = uploaded_ctx.on("sales").rolling(3).std(order_by="date")
         res_df = get_result_df(result)
-        expected = time_series_df.copy()
-        expected["sales"] = expected["sales"].rolling(3, min_periods=1).std(ddof=0)  # SQL usually population std
-        sales_col = [c for c in res_df.columns if "sales" in c and c != "date"]
-        actual_vals = res_df[sales_col[0]] if sales_col else res_df["sales"]
-        assert_series_equal_loose(actual_vals.astype(float), expected["sales"].astype(float))
+        expected = _ordered(time_series_df)["sales"].rolling(3, min_periods=1).std(ddof=0)
+        _assert_ordered_result(res_df, _generated_col(res_df, "sales"), expected)
         self._record_result(
             test_name="fluent_rolling_std",
             method_call='on("sales").rolling(3).std(order_by="date")',
@@ -596,14 +707,152 @@ class TestWindowOperations:
     def test_fluent_rolling_quantile(self, uploaded_ctx, time_series_df, backend_config):
         result = uploaded_ctx.on("sales").rolling(3).quantile(q=0.5, order_by="date")
         res_df = get_result_df(result)
-        expected = time_series_df.copy()
-        expected["sales"] = expected["sales"].rolling(3).quantile(0.5)
-        sales_col = [c for c in res_df.columns if "sales" in c and c != "date"]
-        actual_vals = res_df[sales_col[0]] if sales_col else res_df["sales"]
-        assert_series_equal_loose(actual_vals.astype(float), expected["sales"].astype(float))
+        expected = _ordered(time_series_df)["sales"].rolling(3).quantile(0.5)
+        _assert_ordered_result(res_df, _generated_col(res_df, "sales"), expected)
         self._record_result(
             test_name="fluent_rolling_quantile",
             method_call='on("sales").rolling(3).quantile(q=0.5, order_by="date")',
+            original_df=time_series_df,
+            memframe_df=res_df,
+            pandas_df=expected,
+            backend=backend_config["connection_type"],
+        )
+
+    # ----------------------------------------------------------------
+    # Rolling — variable coverage (multi-func, nulls, func sweep)
+    # ----------------------------------------------------------------
+    def test_rolling_multi_func(self, uploaded_ctx, time_series_df, backend_config):
+        result = uploaded_ctx.rolling(
+            column="sales", window=3, func=["sum", "mean"], order_by="date"
+        )
+        res_df = get_result_df(result)
+        ordered = _ordered(time_series_df)
+        for func in ("sum", "mean"):
+            col = f"sales_rolling_{func}_w3"
+            expected = _pandas_rolling_oracle(func, ordered["sales"], 3)
+            _assert_ordered_result(res_df, col, expected)
+        self._record_result(
+            test_name="rolling_multi_func",
+            method_call='rolling(column="sales", window=3, func=["sum", "mean"], order_by="date")',
+            original_df=time_series_df,
+            memframe_df=res_df,
+            pandas_df=ordered,
+            backend=backend_config["connection_type"],
+        )
+
+    def test_rolling_mean_with_nulls(self, uploaded_ctx, time_series_df, backend_config):
+        result = uploaded_ctx.rolling(column="score", window=3, func="mean", order_by="date")
+        res_df = get_result_df(result)
+        expected = _ordered(time_series_df)["score"].rolling(3, min_periods=1).mean()
+        _assert_ordered_result(res_df, _generated_col(res_df, "score"), expected)
+        self._record_result(
+            test_name="rolling_mean_with_nulls",
+            method_call='rolling(column="score", window=3, func="mean", order_by="date")',
+            original_df=time_series_df,
+            memframe_df=res_df,
+            pandas_df=expected,
+            backend=backend_config["connection_type"],
+        )
+
+    @pytest.mark.parametrize(
+        "func",
+        ["min", "max", "count", "mean", "sum", "std", "sem", "rank", "nunique", "first", "last"],
+    )
+    def test_rolling_func_sweep(self, uploaded_ctx, time_series_df, backend_config, func):
+        result = uploaded_ctx.rolling(
+            column="sales", window=3, func=func, order_by="date"
+        )
+        res_df = get_result_df(result)
+        expected = _pandas_rolling_oracle(func, _ordered(time_series_df)["sales"], 3)
+        _assert_ordered_result(res_df, _generated_col(res_df, "sales"), expected)
+        self._record_result(
+            test_name=f"rolling_func_sweep_{func}",
+            method_call=f'rolling(column="sales", window=3, func="{func}", order_by="date")',
+            original_df=time_series_df,
+            memframe_df=res_df,
+            pandas_df=expected,
+            backend=backend_config["connection_type"],
+        )
+
+    # ----------------------------------------------------------------
+    # Rolling — datetime + edge windows
+    # ----------------------------------------------------------------
+    def test_rolling_median_datetime(self, uploaded_ctx, time_series_df, backend_config):
+        result = uploaded_ctx.rolling(
+            column="date", window=3, func="median", order_by="sales"
+        )
+        res_df = get_result_df(result)
+        by_sales = time_series_df.sort_values("sales").reset_index(drop=True)
+        epoch = by_sales["date"].astype("int64")
+        expected = pd.to_datetime(epoch.rolling(3, min_periods=1).median())
+        _assert_datetime_by_key(
+            res_df,
+            _generated_col(res_df, "date"),
+            pd.DataFrame({"date": by_sales["date"], "expected": expected}),
+        )
+        self._record_result(
+            test_name="rolling_median_datetime",
+            method_call='rolling(column="date", window=3, func="median", order_by="sales")',
+            original_df=time_series_df,
+            memframe_df=res_df,
+            pandas_df=by_sales,
+            backend=backend_config["connection_type"],
+        )
+
+    def test_rolling_min_datetime(self, uploaded_ctx, time_series_df, backend_config):
+        result = uploaded_ctx.rolling(
+            column="date", window=3, func="min", order_by="sales"
+        )
+        res_df = get_result_df(result)
+        by_sales = time_series_df.sort_values("sales").reset_index(drop=True)
+        epoch = by_sales["date"].astype("int64")
+        expected = pd.to_datetime(epoch.rolling(3, min_periods=1).min())
+        _assert_datetime_by_key(
+            res_df,
+            _generated_col(res_df, "date"),
+            pd.DataFrame({"date": by_sales["date"], "expected": expected}),
+        )
+        self._record_result(
+            test_name="rolling_min_datetime",
+            method_call='rolling(column="date", window=3, func="min", order_by="sales")',
+            original_df=time_series_df,
+            memframe_df=res_df,
+            pandas_df=by_sales,
+            backend=backend_config["connection_type"],
+        )
+
+    def test_rolling_window_one(self, uploaded_ctx, time_series_df, backend_config):
+        result = uploaded_ctx.rolling(column="sales", window=1, func="sum", order_by="date")
+        res_df = get_result_df(result)
+        expected = _ordered(time_series_df)["sales"].rolling(1, min_periods=1).sum()
+        _assert_ordered_result(res_df, _generated_col(res_df, "sales"), expected)
+        self._record_result(
+            test_name="rolling_window_one",
+            method_call='rolling(column="sales", window=1, func="sum", order_by="date")',
+            original_df=time_series_df,
+            memframe_df=res_df,
+            pandas_df=expected,
+            backend=backend_config["connection_type"],
+        )
+
+    def test_rolling_window_larger_than_frame(
+        self, uploaded_ctx, time_series_df, backend_config
+    ):
+        result = uploaded_ctx.rolling(
+            column="sales", window=10, func="mean", order_by="date"
+        )
+        res_df = get_result_df(result)
+        expected = _ordered(time_series_df)["sales"].rolling(10, min_periods=1).mean()
+        _assert_ordered_result(res_df, _generated_col(res_df, "sales"), expected)
+
+        quantile = uploaded_ctx.rolling(
+            column="sales", window=10, func="quantile", order_by="date", q=0.5
+        )
+        quantile_df = get_result_df(quantile)
+        assert quantile_df[_generated_col(quantile_df, "sales")].isna().all()
+        self._record_result(
+            test_name="rolling_window_larger_than_frame",
+            method_call='rolling(column="sales", window=10, ...) on a 6-row frame',
             original_df=time_series_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -616,11 +865,8 @@ class TestWindowOperations:
     def test_expanding_sum_direct(self, uploaded_ctx, time_series_df, backend_config):
         result = uploaded_ctx.expanding(column="sales", func="sum", order_by="date", min_periods=1)
         res_df = get_result_df(result)
-        expected = time_series_df.copy()
-        expected["sales"] = expected["sales"].expanding(1).sum()
-        sales_col = [c for c in res_df.columns if "sales" in c and c != "date"]
-        actual_vals = res_df[sales_col[0]] if sales_col else res_df["sales"]
-        assert_series_equal_loose(actual_vals.astype(float), expected["sales"].astype(float))
+        expected = _ordered(time_series_df)["sales"].expanding(1).sum()
+        _assert_ordered_result(res_df, _generated_col(res_df, "sales"), expected)
         self._record_result(
             test_name="expanding_sum_direct",
             method_call='expanding(column="sales", func="sum", order_by="date", min_periods=1)',
@@ -633,14 +879,29 @@ class TestWindowOperations:
     def test_fluent_expanding_mean(self, uploaded_ctx, time_series_df, backend_config):
         result = uploaded_ctx.on("sales").expanding(min_periods=2).mean(order_by="date")
         res_df = get_result_df(result)
-        expected = time_series_df.copy()
-        expected["sales"] = expected["sales"].expanding(2).mean()
-        sales_col = [c for c in res_df.columns if "sales" in c and c != "date"]
-        actual_vals = res_df[sales_col[0]] if sales_col else res_df["sales"]
-        assert_series_equal_loose(actual_vals.astype(float), expected["sales"].astype(float))
+        expected = _ordered(time_series_df)["sales"].expanding(2).mean()
+        _assert_ordered_result(res_df, _generated_col(res_df, "sales"), expected)
         self._record_result(
             test_name="fluent_expanding_mean",
             method_call='on("sales").expanding(min_periods=2).mean(order_by="date")',
+            original_df=time_series_df,
+            memframe_df=res_df,
+            pandas_df=expected,
+            backend=backend_config["connection_type"],
+        )
+
+    def test_expanding_mean_min_periods_nulls(
+        self, uploaded_ctx, time_series_df, backend_config
+    ):
+        result = uploaded_ctx.expanding(
+            column="score", func="mean", order_by="date", min_periods=2
+        )
+        res_df = get_result_df(result)
+        expected = _ordered(time_series_df)["score"].expanding(2).mean()
+        _assert_ordered_result(res_df, _generated_col(res_df, "score"), expected)
+        self._record_result(
+            test_name="expanding_mean_min_periods_nulls",
+            method_call='expanding(column="score", func="mean", order_by="date", min_periods=2)',
             original_df=time_series_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -653,11 +914,12 @@ class TestWindowOperations:
     def test_ewm_mean_direct(self, uploaded_ctx, time_series_df, backend_config):
         result = uploaded_ctx.ewm(column="sales", span=2, func="mean", order_by="date", adjust=False, ignore_na=False)
         res_df = get_result_df(result)
-        expected = time_series_df.copy()
-        expected["sales"] = expected["sales"].ewm(span=2, adjust=False, ignore_na=False).mean()
-        sales_col = [c for c in res_df.columns if "sales" in c and c != "date"]
-        actual_vals = res_df[sales_col[0]] if sales_col else res_df["sales"]
-        assert_series_equal_loose(actual_vals.astype(float), expected["sales"].astype(float))
+        expected = (
+            _ordered(time_series_df)["sales"]
+            .ewm(span=2, adjust=False, ignore_na=False)
+            .mean()
+        )
+        _assert_ordered_result(res_df, _generated_col(res_df, "sales"), expected)
         self._record_result(
             test_name="ewm_mean_direct",
             method_call='ewm(column="sales", span=2, func="mean", order_by="date", adjust=False)',
@@ -670,11 +932,12 @@ class TestWindowOperations:
     def test_fluent_ewm_std(self, uploaded_ctx, time_series_df, backend_config):
         result = uploaded_ctx.on("sales").ewm(halflife=2, adjust=False).std(order_by="date")
         res_df = get_result_df(result)
-        expected = time_series_df.copy()
-        expected["sales"] = expected["sales"].ewm(halflife=2, adjust=False).std()
-        sales_col = [c for c in res_df.columns if "sales" in c and c != "date"]
-        actual_vals = res_df[sales_col[0]] if sales_col else res_df["sales"]
-        assert_series_equal_loose(actual_vals.astype(float), expected["sales"].astype(float))
+        expected = (
+            _ordered(time_series_df)["sales"]
+            .ewm(halflife=2, adjust=False)
+            .std()
+        )
+        _assert_ordered_result(res_df, _generated_col(res_df, "sales"), expected)
         self._record_result(
             test_name="fluent_ewm_std",
             method_call='on("sales").ewm(halflife=2, adjust=False).std(order_by="date")',
