@@ -1362,13 +1362,15 @@
     []
    ],
    [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_1\"ADDCOLUMNIFNOTEXISTS\"num_rolling_q0.5_w3\"DOUBLEPRECISION",
-    []
+    "fetchval",
+    "SELECTCOALESCE(MAX(opidx),0)FROMmemframe_csv_registry.memframe_transient_registryWHEREdata_id=$1",
+    [
+     "abc123"
+    ]
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t__op_1\"AStSET\"num_rolling_q0.5_w3\"=s.valFROM(SELECTctid,CASEWHENCOUNT(\"num\")OVER(ORDERBY\"g\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)>=3THENPERCENTILE_CONT(0.5)WITHINGROUP(ORDERBY\"num\")OVER(ORDERBY\"g\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)ELSENULLENDASvalFROM\"s\".\"t__op_1\")ASsWHEREt.ctid=s.ctid",
+    "CREATETABLE\"s\".\"t__op_1\"ASWITH__baseAS(SELECT*,ROW_NUMBER()OVER(ORDERBY\"g\")AS\"__totem_quant_rn\"FROM\"s\".\"t__op_1\")SELECTb.*,CASEWHEN(SELECTCOUNT(r.\"num\")FROM__baserWHEREr.\"__totem_quant_rn\"BETWEENb.\"__totem_quant_rn\"-2ANDb.\"__totem_quant_rn\")>=3THEN(SELECTPERCENTILE_CONT(0.5)WITHINGROUP(ORDERBYr.\"num\")FROM__baserWHEREr.\"__totem_quant_rn\"BETWEENb.\"__totem_quant_rn\"-2ANDb.\"__totem_quant_rn\")ELSENULLENDAS\"num_rolling_q0.5_w3\"FROM__baseb",
     []
    ],
    [

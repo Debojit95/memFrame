@@ -883,17 +883,52 @@ class WindowOps:
 
                 qualified = self._qualified_table(ordered_table, schema)
 
-                # --- 3. Add column to the cloned table ---
+                # --- 3. Postgres: ordered-set aggregates reject OVER() with a
+                # ---    frame, so compute the quantile per-row in a CTAS.
+                if isinstance(self.db, PostgresAdapter):
+                    result_table = await self._resolve_output_table_name(
+                        table, schema, backend=backend, data_id=data_id, new_table=new_table
+                    )
+                    q_col = self.db.quote_identifier(safe_col)
+                    q_rn = self.db.quote_identifier("__totem_quant_rn")
+                    sql = f"""
+                        CREATE TABLE {self.db.quote_identifier(schema)}.{self.db.quote_identifier(result_table)} AS
+                        WITH __base AS (
+                            SELECT *,
+                                ROW_NUMBER() OVER (ORDER BY {order_sql}) AS {q_rn}
+                            FROM {qualified}
+                        )
+                        SELECT b.*,
+                            CASE WHEN (
+                                SELECT COUNT(r.{q_col})
+                                FROM __base r
+                                WHERE r.{q_rn} BETWEEN b.{q_rn} - {w} AND b.{q_rn}
+                            ) >= {int(window)}
+                            THEN (
+                                SELECT PERCENTILE_CONT({q}) WITHIN GROUP (ORDER BY r.{q_col})
+                                FROM __base r
+                                WHERE r.{q_rn} BETWEEN b.{q_rn} - {w} AND b.{q_rn}
+                            )
+                            ELSE NULL END AS {self.db.quote_identifier(new_col)}
+                        FROM __base b
+                    """
+                    await self._exec(sql)
+
+                    preview_cols = [new_col, column] + safe_orders
+                    res = await self._fetch_data(result_table, schema, preview_cols)
+
+                    return self._success_response(
+                        "Rolling quantile",
+                        res,
+                        new_table=result_table,
+                        new_column=new_col,
+                    )
+
+                # --- 3. DuckDB: add column to the cloned table ---
                 await self._add_col(working_table, schema, new_col, "DOUBLE PRECISION")
 
                 # --- 4. Build window expression ---
-                if isinstance(self.db, PostgresAdapter):
-                    func = f"PERCENTILE_CONT({q}) WITHIN GROUP (ORDER BY {self.db.quote_identifier(safe_col)})"
-                elif isinstance(self.db, DuckDBAdapter):
-                    func = f"QUANTILE_CONT({self.db.quote_identifier(safe_col)}, {q})"
-                else:
-                    raise self._unsupported_backend_error()
-
+                func = f"QUANTILE_CONT({self.db.quote_identifier(safe_col)}, {q})"
                 count_over = f"""
                     COUNT({self.db.quote_identifier(safe_col)})
                     OVER (
@@ -911,12 +946,7 @@ class WindowOps:
                 window_sql = f"CASE WHEN {count_over} >= {int(window)} THEN {agg_over} ELSE NULL END"
 
                 # --- 5. Update the column using FROM (avoid CREATE TABLE AS) ---
-                if isinstance(self.db, PostgresAdapter):
-                    rid = "ctid"
-                elif isinstance(self.db, DuckDBAdapter):
-                    rid = "rowid"
-                else:
-                    raise self._unsupported_backend_error()
+                rid = "rowid"
                 await self._exec(f"""
                     UPDATE {qualified} AS t
                     SET {self.db.quote_identifier(new_col)} = s.val
