@@ -4,6 +4,11 @@ All notable changes to memFrame are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and the project adheres
 to [Semantic Versioning](https://semver.org/).
 
+## [0.10.1] - 2026-09-21
+
+### Fixed
+- **Python 3.10 import**: `core/analytix/window.py` used `datetime.UTC` (added in Python 3.11), which broke importing memFrame on 3.10; switched to `timezone.utc`. Caught by the `tox py310-py313` CI job.
+
 ## [0.10.0] - 2026-09-21
 
 ### Added
