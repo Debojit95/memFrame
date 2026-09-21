@@ -1,5 +1,8 @@
 <div class="memframe-hero">
-  <img src="assets/memframe-logo-full.png" alt="memFrame">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/memframe-full-logo-dark.png">
+    <img src="assets/memframe-full-logo-light.png" alt="memFrame">
+  </picture>
 </div>
 
 # memFrame

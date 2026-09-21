@@ -4,8 +4,23 @@ site_url: https://debojit95.github.io/memFrame/
 
 theme:
   name: material
-  logo: assets/logo-nav.png
-  favicon: assets/logo-nav.png
+  logo: assets/logo-nav-light.png
+  favicon: assets/logo-nav-light.png
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
   features:
     - navigation.sections
     - navigation.top

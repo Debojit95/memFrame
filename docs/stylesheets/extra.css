@@ -10,6 +10,12 @@
   object-fit: contain;
 }
 
+/* Material serves a single logo file; swap to the light-artwork variant
+   on the dark scheme so the mark stays legible. */
+[data-md-color-scheme="slate"] .md-header__button.md-logo img {
+  content: url("../assets/logo-nav-dark.png");
+}
+
 .memframe-hero {
   margin: 0 auto 1.5rem;
   max-width: 38rem;

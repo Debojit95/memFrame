@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="docs/assets/memframe-logo-full.png" alt="memFrame logo" width="720">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/memframe-full-logo-dark.png">
+    <img src="docs/assets/memframe-full-logo-light.png" alt="memFrame logo" width="720">
+  </picture>
 </p>
 
 # memFrame
