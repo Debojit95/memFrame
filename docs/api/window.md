@@ -37,9 +37,14 @@ for `DateTimeWrapper`.
 
 The lower-level files are implementation details:
 
-- `src/memframe/core/analytix/window.py` holds `WindowOps`, a single
-  backend-branching engine (there is no per-backend factory split — the
-  `isinstance` dispatch lives inline).
+- `src/memframe/core/analytix/window/` holds the engine: `base.py` is the
+  shared `WindowOps` with DuckDB-flavoured defaults plus dialect hooks
+  (`_row_id_col`, `_std_agg`/`_var_agg`, `_datetime_epoch_expr`,
+  `_median_epoch_sql`, `_from_epoch_expr`, `_ewm_row_types`); `duckdb.py` /
+  `postgres.py` / `clickhouse.py` override those hooks (and the structurally
+  divergent operations — PostgreSQL's correlated-subquery quantile and Python
+  `nunique` fallback, ClickHouse's single-CTAS windows); `factory.py` dispatches
+  `make_window_ops(adapter)` on `isinstance`.
 - `src/memframe/core/orchestrator/analytix/window.py` resolves the active
   dataset context, detects the column dtype, maps the requested functions to
   the dtype-appropriate engine methods, and applies `@record_call`.

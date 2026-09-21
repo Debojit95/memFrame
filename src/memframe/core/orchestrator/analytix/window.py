@@ -1,7 +1,7 @@
 from typing import Any, Dict, List, Tuple, Union
 
 import numpy as np
-from memframe.core.analytix.window import WindowOps
+from memframe.core.analytix.window import WindowOps, make_window_ops
 from memframe.core.ingestion.datatype_detector import DatatypeDetector
 from memframe.cache import record_call
 
@@ -32,7 +32,7 @@ class WindowOrchestrator:
     async def _ensure_ops(self) -> WindowOps:
         if self._window_ops is None:
             await self._ops_parent._ensure_adapter()
-            self._window_ops = WindowOps(self._ops_parent._adapter)
+            self._window_ops = make_window_ops(self._ops_parent._adapter)
         return self._window_ops
 
     async def _get_context(self):

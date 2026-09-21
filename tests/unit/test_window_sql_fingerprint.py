@@ -16,7 +16,11 @@ from datetime import datetime, timezone
 
 import pytest
 
-from memframe.core.analytix.window import WindowOps
+from memframe.core.analytix.window import (
+    ClickHouseWindowOps,
+    DuckDBWindowOps,
+    PostgresWindowOps,
+)
 from memframe.db_manager.adapters.clickhouse import ClickHouseAdapter
 from memframe.db_manager.adapters.duckdb import DuckDBAdapter
 from memframe.db_manager.adapters.postgresql import PostgresAdapter
@@ -168,28 +172,28 @@ def _scenarios():
 SCENARIOS = _scenarios()
 
 BACKENDS = {
-    "duckdb": _DuckDBPersona,
-    "postgres": _PostgresPersona,
-    "clickhouse": _ClickHousePersona,
+    "duckdb": (DuckDBWindowOps, _DuckDBPersona),
+    "postgres": (PostgresWindowOps, _PostgresPersona),
+    "clickhouse": (ClickHouseWindowOps, _ClickHousePersona),
 }
 
 
 def _capture():
-    window_mod = importlib.import_module("memframe.core.analytix.window")
-    real_datetime = window_mod.datetime
-    window_mod.datetime = _FrozenDatetime
+    window_base = importlib.import_module("memframe.core.analytix.window.base")
+    real_datetime = window_base.datetime
+    window_base.datetime = _FrozenDatetime
     try:
         snapshot = {}
         for name, scenario in SCENARIOS.items():
             snapshot[name] = {}
-            for backend_name, persona_cls in BACKENDS.items():
+            for backend_name, (ops_cls, persona_cls) in BACKENDS.items():
                 rec = persona_cls()
-                ops = WindowOps(rec)
+                ops = ops_cls(rec)
                 asyncio.run(scenario(ops, _FakeBackend(rec)))
                 snapshot[name][backend_name] = rec.calls
         return snapshot
     finally:
-        window_mod.datetime = real_datetime
+        window_base.datetime = real_datetime
 
 
 def test_window_sql_fingerprint_unchanged():
