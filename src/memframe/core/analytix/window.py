@@ -2,7 +2,7 @@ from typing import Any, Dict, List, Optional, Union
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 import traceback
-from datetime import datetime, UTC
+from datetime import datetime, timezone
 import pandas as pd
 
 from memframe.db_manager.adapters.base import DatabaseAdapter
@@ -105,7 +105,7 @@ class WindowOps:
 
         rowid_col = "__totem_rowid"
         temp_table = SQLIdentifierSanitizer.sanitize(
-            f"{table}__rowid_{datetime.now(UTC).strftime('%Y%m%d%H%M%S%f')}"
+            f"{table}__rowid_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}"
         )
 
         qualified = self._qualified_table(table, schema)
@@ -179,7 +179,7 @@ class WindowOps:
         elif backend is not None and data_id:
             candidate = await self._generate_transient_table_name(safe_table, backend, data_id)
         else:
-            candidate = f"{safe_table}__op_{datetime.now(UTC).strftime('%Y%m%d%H%M%S%f')}"
+            candidate = f"{safe_table}__op_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}"
 
         output_table = SQLIdentifierSanitizer.sanitize(candidate)
         dedupe_idx = 1
@@ -2880,7 +2880,7 @@ class WindowOps:
 
                 if isinstance(self.db, ClickHouseAdapter):
                     stage_table = SQLIdentifierSanitizer.sanitize(
-                        f"{result_table}__ewm_stage_{datetime.now(UTC).strftime('%Y%m%d%H%M%S%f')}"
+                        f"{result_table}__ewm_stage_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}"
                     )
                     q_stage = self._qualified_table(stage_table, schema)
                     nullable_value_type = f"Nullable({value_type})"
