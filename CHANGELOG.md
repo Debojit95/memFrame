@@ -4,6 +4,18 @@ All notable changes to memFrame are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and the project adheres
 to [Semantic Versioning](https://semver.org/).
 
+## [0.10.0] - 2026-09-21
+
+### Added
+- **Window (new domain)**: rolling, expanding, and exponentially-weighted ops via `ContextManager` — direct calls (`rolling`/`arolling`, `expanding`/`aexpanding`, `ewm`/`aewm`) and a fluent builder (`on(column).rolling(n).mean(...)`, `.expanding(...)`, `.ewm(...)`) — backed by backend-native SQL across DuckDB, PostgreSQL, and ClickHouse. `WindowOps` is a single backend-branching engine (no factory split); the orchestrator detects the column dtype (numeric / datetime / categorical) and maps each requested function to the dtype-appropriate engine method, chaining multi-function requests into one transient table. Datetime rolling supports `min`/`max`/`mean`/`median`/`mode` (epoch conversion); EWM is numeric-only with `com`/`span`/`halflife`/`alpha`, `adjust`, `ignore_na`, and `min_periods`.
+- **Window tests**: `tests/unit/test_window_response.py` (10: values, multi-func chaining, dtype/error shapes, datetime rolling, EWM, fluent builder) + `tests/unit/test_window_sql_fingerprint.py` (21 scenarios × 3 backends, fixture `window_sql_fingerprint.json`); `tests/integration/ops/test_window.py` (31 tests × 3 backends: shuffled unordered fixture, no-`order_by` cases, multi-func, null handling, datetime rolling, a `min`/`max`/`count`/`mean`/`sum`/`std`/`sem`/`rank`/`nunique`/`first`/`last` sweep, and edge windows `w=1` / `w>frame`).
+- **Window docs**: `docs/api/window.md` (Public API, dtype support matrix, per-op semantics, fluent builder, backend behavior, mkdocstrings reference) + nav entry after `Cumulative`.
+- **Wrapper type stubs**: `window.pyi` and `merging.pyi`.
+- **Adaptive logos**: dark/light logo variants for the docs site (`palette` light/dark toggle + scheme-aware nav-logo swap) and `<picture>` swaps in `README.md` / `docs/index.md`.
+
+### Fixed
+- **PostgreSQL `rolling_quantile`**: ordered-set aggregate `PERCENTILE_CONT(...) WITHIN GROUP (...)` rejects a window frame (`OVER is not supported for ordered-set aggregate percentile_cont`); the PostgreSQL branch now computes the windowed quantile per-row in a correlated-subquery `CREATE TABLE AS`, matching the DuckDB `QUANTILE_CONT` path. SQL fingerprint regenerated.
+
 ## [0.9.0] - 2026-09-18
 
 ### Added
