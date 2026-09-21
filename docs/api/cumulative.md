@@ -71,6 +71,14 @@ sample = await dataset.acumsum("revenue", order_col="month")
 sample = await dataset.acummean("score", target_col="running_avg")
 ```
 
+`order_col` is optional — omit it to use physical row order:
+
+```python
+sample = dataset.cumsum("revenue")
+sample = dataset.cummean("score")
+sample = dataset.cumcount("user_id")
+```
+
 ## Common Parameters
 
 | Parameter | Type | Description |

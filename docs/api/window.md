@@ -43,7 +43,7 @@ The lower-level files are implementation details:
   `_median_epoch_sql`, `_from_epoch_expr`, `_ewm_row_types`); `duckdb.py` /
   `postgres.py` / `clickhouse.py` override those hooks (and the structurally
   divergent operations — PostgreSQL's correlated-subquery quantile and Python
-  `nunique` fallback, ClickHouse's single-CTAS windows); `factory.py` dispatches
+  `nunique` fallback, ClickHouse's single-pass windows); `factory.py` dispatches
   `make_window_ops(adapter)` on `isinstance`.
 - `src/memframe/core/orchestrator/analytix/window.py` resolves the active
   dataset context, detects the column dtype, maps the requested functions to
@@ -79,8 +79,7 @@ takes `(column, window, func, order_by=None, q=0.5)`; the named shorthands fix
 ### Expanding
 
 Expanding methods mirror rolling but have no `window`; they add `min_periods`
-(default `1`). Expansion runs from the first row to the current row
-(`ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW`).
+(default `1`). Expansion runs from the first row to the current row.
 
 | Synchronous | Purpose |
 | --- | --- |
@@ -131,6 +130,14 @@ sample = await dataset.aexpanding(column="sales", func="sum", order_by="date", m
 sample = await dataset.aewm(column="sales", span=3, func="mean", order_by="date")
 ```
 
+`order_by` is optional — omit it to use physical row order:
+
+```python
+sample = dataset.rolling(column="sales", window=7, func="mean")
+sample = dataset.expanding(column="sales", func="sum", min_periods=3)
+sample = dataset.ewm(column="sales", span=3, func="mean")
+```
+
 ## Common Parameters
 
 | Parameter | Type | Description |
@@ -151,10 +158,10 @@ result = dataset.rolling(
 )
 ```
 
-With no `order_by`, rows are processed in physical storage order (PostgreSQL
-`ctid`, DuckDB `rowid`). Some paths materialize a temporary `__totem_order`
-column; ClickHouse has no stable row id, so a synthetic `ROW_NUMBER() OVER ()`
-is generated in a subquery.
+With no `order_by`, rows are processed in physical storage order (using each
+backend's physical row identifier). Some paths materialize a temporary ordering
+column; ClickHouse has no stable row id, so a synthetic row number is generated
+in a subquery.
 
 ## Type Support
 
@@ -176,15 +183,11 @@ rather than raising; EWM on a non-numeric column is rejected the same way.
 ## Rolling
 
 A rolling window of size `w = window` covers the rows from `w - 1` preceding
-the current row through the current row:
-
-```sql
-AGG(col) OVER (ORDER BY <order_by> ROWS BETWEEN <w-1> PRECEDING AND CURRENT ROW)
-```
+the current row through the current row.
 
 For the first rows the window is partial (fewer than `w` rows) and the
 aggregation runs over whatever is available — except `quantile`, which returns
-`NULL` until the window is full (`CASE WHEN COUNT(col) OVER (...) >= w`).
+`NULL` until the window is full.
 
 ```python
 result = dataset.rolling(column="sales", window=3, func="sum", order_by="day")
@@ -224,40 +227,28 @@ function fails, an error envelope is returned instead.
 result = dataset.rolling(column="event_time", window=3, func="median", order_by="day")
 ```
 
-Date-only columns are cast back to `DATE` (`toDate` on ClickHouse) so the
-result keeps the original granularity.
+Date-only columns are cast back to a date so the result keeps the original
+granularity.
 
 ### Standard deviation, variance, and SEM
 
-- `std` uses the **population** form (`STDDEV_POP`).
-- `var` uses the **sample** form (`VARIANCE` on PostgreSQL, `VAR_SAMP` on
-  DuckDB, `varSamp` on ClickHouse).
-- `sem` is `STDDEV(col) / SQRT(COUNT(col))` over the same frame, using the
-  sample stddev (`STDDEV`, `STDDEV_SAMP`, `stddevSamp`).
+- `std` uses the **population** form.
+- `var` uses the **sample** form.
+- `sem` is the sample standard deviation divided by the square root of the
+  non-null count over the same frame.
 
 ### Rank and nunique
 
-`rank` counts, within the window, how many rows are `<=` the current value:
+`rank` counts, within the window, how many rows are `<=` the current value.
 
-```sql
-SELECT COUNT(*) FROM __base r
-WHERE r.__rn BETWEEN b.__rn - (w-1) AND b.__rn
-  AND r.col <= b.col
-```
-
-`nunique` maps to `COUNT(DISTINCT col) OVER (...)` on DuckDB and `uniq(col)`
-on ClickHouse. On **PostgreSQL** there is no windowed distinct-count, so it
-falls back to a Python `deque(maxlen=window)` pass over the ordered values,
-then writes the counts back in chunked `UPDATE ... FROM (VALUES ...)`
-statements.
+`nunique` is a windowed distinct count on DuckDB and ClickHouse. On
+**PostgreSQL** there is no windowed distinct-count, so it falls back to a
+Python `deque(maxlen=window)` pass over the ordered values, then writes the
+counts back in chunks.
 
 ## Expanding
 
-Expanding operations run from the first row through the current row:
-
-```sql
-AGG(col) OVER (ORDER BY <order_by> ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)
-```
+Expanding operations run from the first row through the current row.
 
 ```python
 result = dataset.expanding(column="sales", func="sum", order_by="day")
@@ -265,13 +256,8 @@ result = dataset.expanding(column="sales", func="sum", order_by="day")
 
 Example `sales=[10, 20, 30, 40, 50]` → `sales_expanding_sum=[10, 30, 60, 100, 150]`.
 
-`min_periods` gates output for the early rows. When `min_periods > 1` the
-aggregation is wrapped so the value is `NULL` until enough non-null values have
-been seen:
-
-```sql
-CASE WHEN COUNT(col) OVER (...) >= min_periods THEN AGG(col) OVER (...) ELSE NULL END
-```
+`min_periods` gates output for the early rows: when `min_periods > 1` the value
+is `NULL` until enough non-null values have been seen.
 
 ```python
 result = dataset.expanding(
@@ -279,9 +265,8 @@ result = dataset.expanding(
 )
 ```
 
-Expanding `std`/`var` are both **sample** statistics (`STDDEV`/`VARIANCE`,
-`STDDEV_SAMP`/`VAR_SAMP`, `stddevSamp`/`varSamp`). Datetime expanding supports
-`min`, `max`, `mean`, `median`, and `mode`.
+Expanding `std`/`var` are both **sample** statistics. Datetime expanding
+supports `min`, `max`, `mean`, `median`, and `mode`.
 
 ## EWM
 
@@ -312,9 +297,8 @@ result = dataset.ewm(
 - `min_periods` suppresses output until that many non-null values are seen.
 
 Values are computed in NumPy (O(n)) and materialized into the result table —
-via a `VALUES` CTE on PostgreSQL/DuckDB, or a temporary `ENGINE = Memory`
-staging table on ClickHouse. Result columns are named
-`<column>_ewm_<func>`.
+via a values-based CTE on PostgreSQL/DuckDB, or a temporary in-memory staging
+table on ClickHouse. Result columns are named `<column>_ewm_<func>`.
 
 ## Fluent Builder
 
@@ -370,13 +354,12 @@ Every window operation is non-destructive to the source upload table. It
 creates a new transient table holding the source rows plus the generated
 column(s), then returns a preview of it:
 
-- **PostgreSQL / DuckDB:** clone via `CREATE TABLE … AS SELECT *`, `ADD COLUMN`
-  for each result, then `UPDATE … FROM (SELECT ctid/rowid, <window> AS val …)
-  WHERE t.<rid> = s.<rid>`. Some shapes (quantile, rank, nunique, ewm) use a
-  single `CREATE TABLE … AS SELECT …, <window>` instead.
-- **ClickHouse:** a single `CREATE TABLE … AS SELECT *, <window> AS <target>`
-  per operation — window functions are computed inline. EWM stages its values
-  in a temporary `ENGINE = Memory` table, then joins it in.
+- **PostgreSQL / DuckDB:** the source is cloned, each result column is added,
+  then the window values are written back per physical row. Some shapes
+  (quantile, rank, nunique, ewm) build the result in a single pass instead.
+- **ClickHouse:** each operation builds the result table in a single pass —
+  window functions are computed inline. EWM stages its values in a temporary
+  in-memory table, then joins it in.
 
 Window operations apply `@record_call`, so repeat calls are recorded in the
 transient registry (L1). With `MemFrame(deep_cache=True)` the result tables are
@@ -388,11 +371,9 @@ Window operations support DuckDB, PostgreSQL, and ClickHouse:
 
 - Identifiers are sanitized and quoted before SQL is generated.
 - `order_by` may be a single column, a list, or omitted (physical order).
-- Dialect differences: quantile `PERCENTILE_CONT` (PG) vs `QUANTILE_CONT`
-  (DuckDB) vs `quantile(q)` (CH); stddev/variance `STDDEV`/`VARIANCE` (PG,
-  sample) vs `STDDEV_SAMP`/`VAR_SAMP` (DuckDB) vs `stddevSamp`/`varSamp` (CH);
-  distinct-count `COUNT(DISTINCT …)` (DuckDB) vs `uniq(…)` (CH) vs a Python
-  fallback (PG).
+- Backend dialect differences (quantile, stddev/variance, and distinct-count
+  implementations) are handled per backend; PostgreSQL's windowed distinct-count
+  falls back to Python.
 - The per-backend SQL is locked by
   `tests/unit/test_window_sql_fingerprint.py` (21 scenarios × 3 backends).
 
