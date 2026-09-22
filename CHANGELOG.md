@@ -4,6 +4,18 @@ All notable changes to memFrame are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and the project adheres
 to [Semantic Versioning](https://semver.org/).
 
+## [0.10.2] - 2026-09-22
+
+### Changed
+- **Window core split**: `core/analytix/window.py` (single backend-branching `WindowOps`) is now a `window/` package — `base.py` holds the shared `WindowOps` with DuckDB-flavoured defaults plus dialect hooks (`_row_id_col`, `_std_agg`/`_var_agg`, `_datetime_epoch_expr`, `_median_epoch_sql`, `_from_epoch_expr`, `_avg_fn`/`_count_fn`, `_quantile_cont_sql`, `_ewm_row_types`, `_ewm_uses_stage_table`); `duckdb.py`/`postgres.py`/`clickhouse.py` override the hooks and the structurally divergent operations (PostgreSQL's correlated-subquery quantile and Python `nunique` fallback, ClickHouse's single-pass windows); `factory.make_window_ops(adapter)` dispatches on `isinstance`. The orchestrator builds the ops via the factory. Generated SQL is proven byte-identical by the unchanged `window_sql_fingerprint.json` snapshot.
+
+### Fixed
+- **PostgreSQL EWM type names**: restored `BIGINT`/`DOUBLE PRECISION` in the EWM `VALUES` cast (the split initially defaulted to DuckDB's `DOUBLE`); caught by the live window integration suite.
+
+### Docs
+- Window page: removed SQL snippets; added examples omitting `order_by`.
+- Cumulative page: added examples omitting `order_col`.
+
 ## [0.10.1] - 2026-09-21
 
 ### Fixed
