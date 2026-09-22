@@ -75,6 +75,7 @@ class ContextManager:
         from memframe.wrappers.analytix.transform import TransformWrapper
         from memframe.wrappers.analytix.cumulative import CumulativeWrapper
         from memframe.wrappers.analytix.window import WindowWrapper
+        from memframe.wrappers.analytix.groupby_stats import GroupByStatsWrapper
         from memframe.wrappers.plots.bar import BarWrapper
         from memframe.wrappers.plots.bar_polar import BarPolarWrapper
         from memframe.wrappers.plots.pie import PieWrapper
@@ -94,6 +95,7 @@ class ContextManager:
             TransformWrapper(self),
             CumulativeWrapper(self),
             WindowWrapper(self),
+            GroupByStatsWrapper(self),
             BarWrapper(self),
             BarPolarWrapper(self),
             PieWrapper(self),
