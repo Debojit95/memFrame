@@ -23,6 +23,7 @@ theme:
         name: Switch to light mode
   features:
     - navigation.sections
+    - navigation.indexes
     - navigation.top
     - content.code.copy
 
@@ -68,6 +69,7 @@ nav:
           - Sync Existing Tables: api/syncdb.md
           - Dataset Operations: api/database.md
       - memFrame:
+          - Overview: api/memframe.md
           - Inspect: api/inspect.md
           - Clean: api/cleaning.md
           - Arithmetic: api/arithmetic.md
