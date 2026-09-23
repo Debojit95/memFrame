@@ -311,6 +311,16 @@ def get_generated_col(result: Any, fallback: str) -> str:
     return fallback
 
 
+def assert_allclose_numeric(actual, desired, rtol=1e-5) -> None:
+    # ponytail: Postgres returns Decimal for SUM/AVG/VAR aggregates while
+    # DuckDB returns float; coerce both sides so assert_allclose can subtract.
+    np.testing.assert_allclose(
+        pd.to_numeric(actual, errors="coerce"),
+        pd.to_numeric(desired, errors="coerce"),
+        rtol=rtol,
+    )
+
+
 def assert_series_equal_loose(
     actual: pd.Series,
     expected: pd.Series,
@@ -577,7 +587,7 @@ class TestGroupByStatsOperations:
 
         # Align on group and compare the value column
         merged = res_df.merge(expected, on="group", suffixes=("_lib", "_pandas"))
-        np.testing.assert_allclose(merged[lib_col + "_lib"], merged[lib_col + "_pandas"], rtol=1e-5)
+        assert_allclose_numeric(merged[lib_col + "_lib"], merged[lib_col + "_pandas"], rtol=1e-5)
 
         self._record_result(
             test_name="sum",
@@ -594,7 +604,7 @@ class TestGroupByStatsOperations:
         expected = sample_df.groupby("group", as_index=False)["value"].mean()
         value_col = get_generated_col(result, "value_mean")
         merged = res_df.merge(expected, on="group")
-        np.testing.assert_allclose(merged[value_col], merged["value"], rtol=1e-5)
+        assert_allclose_numeric(merged[value_col], merged["value"], rtol=1e-5)
         self._record_result(
             test_name="mean",
             method_call='uploaded_ctx.groupby("group").mean("value")',
@@ -610,7 +620,7 @@ class TestGroupByStatsOperations:
         expected = sample_df.groupby("group", as_index=False)["value"].min()
         value_col = get_generated_col(result, "value_min")
         merged = res_df.merge(expected, on="group")
-        np.testing.assert_allclose(merged[value_col], merged["value"], rtol=1e-5)
+        assert_allclose_numeric(merged[value_col], merged["value"], rtol=1e-5)
         self._record_result(
             test_name="min",
             method_call='uploaded_ctx.groupby("group").min("value")',
@@ -626,7 +636,7 @@ class TestGroupByStatsOperations:
         expected = sample_df.groupby("group", as_index=False)["value"].max()
         value_col = get_generated_col(result, "value_max")
         merged = res_df.merge(expected, on="group")
-        np.testing.assert_allclose(merged[value_col], merged["value"], rtol=1e-5)
+        assert_allclose_numeric(merged[value_col], merged["value"], rtol=1e-5)
         self._record_result(
             test_name="max",
             method_call='uploaded_ctx.groupby("group").max("value")',
@@ -645,7 +655,7 @@ class TestGroupByStatsOperations:
         expected = expected.rename(columns={"value": lib_col})
 
         merged = res_df.merge(expected, on="group", suffixes=("_lib", "_pandas"))
-        np.testing.assert_allclose(
+        assert_allclose_numeric(
             merged[lib_col + "_lib"].values,
             merged[lib_col + "_pandas"].values,
             rtol=1e-5,
@@ -665,7 +675,7 @@ class TestGroupByStatsOperations:
         expected = sample_df.groupby("group", as_index=False)["value"].median()
         value_col = get_generated_col(result, "value_median")
         merged = res_df.merge(expected, on="group")
-        np.testing.assert_allclose(merged[value_col], merged["value"], rtol=1e-5)
+        assert_allclose_numeric(merged[value_col], merged["value"], rtol=1e-5)
         self._record_result(
             test_name="median",
             method_call='uploaded_ctx.groupby("group").median("value")',
@@ -684,12 +694,12 @@ class TestGroupByStatsOperations:
         value_col = get_generated_col(result, "value_std")
         merged = res_df.merge(expected, on="group")
         try:
-            np.testing.assert_allclose(merged[value_col], merged["value"], rtol=1e-5)
+            assert_allclose_numeric(merged[value_col], merged["value"], rtol=1e-5)
         except AssertionError:
             # maybe population std
             expected = sample_df.groupby("group", as_index=False)["value"].std(ddof=0)
             merged = res_df.merge(expected, on="group")
-            np.testing.assert_allclose(merged[value_col], merged["value"], rtol=1e-5)
+            assert_allclose_numeric(merged[value_col], merged["value"], rtol=1e-5)
         self._record_result(
             test_name="std",
             method_call='uploaded_ctx.groupby("group").std("value")',
@@ -706,11 +716,11 @@ class TestGroupByStatsOperations:
         value_col = get_generated_col(result, "value_var")
         merged = res_df.merge(expected, on="group")
         try:
-            np.testing.assert_allclose(merged[value_col], merged["value"], rtol=1e-5)
+            assert_allclose_numeric(merged[value_col], merged["value"], rtol=1e-5)
         except AssertionError:
             expected = sample_df.groupby("group", as_index=False)["value"].var(ddof=0)
             merged = res_df.merge(expected, on="group")
-            np.testing.assert_allclose(merged[value_col], merged["value"], rtol=1e-5)
+            assert_allclose_numeric(merged[value_col], merged["value"], rtol=1e-5)
         self._record_result(
             test_name="var",
             method_call='uploaded_ctx.groupby("group").var("value")',
@@ -727,11 +737,11 @@ class TestGroupByStatsOperations:
         value_col = get_generated_col(result, "value_sem")
         merged = res_df.merge(expected, on="group")
         try:
-            np.testing.assert_allclose(merged[value_col], merged["value"], rtol=1e-5)
+            assert_allclose_numeric(merged[value_col], merged["value"], rtol=1e-5)
         except AssertionError:
             expected = sample_df.groupby("group", as_index=False)["value"].sem(ddof=0)
             merged = res_df.merge(expected, on="group")
-            np.testing.assert_allclose(merged[value_col], merged["value"], rtol=1e-5)
+            assert_allclose_numeric(merged[value_col], merged["value"], rtol=1e-5)
         self._record_result(
             test_name="sem",
             method_call='uploaded_ctx.groupby("group").sem("value")',
@@ -750,7 +760,7 @@ class TestGroupByStatsOperations:
         expected = expected.rename(columns={"category": lib_col})
 
         merged = res_df.merge(expected, on="group", suffixes=("_lib", "_pandas"))
-        np.testing.assert_allclose(merged[lib_col + "_lib"].values,
+        assert_allclose_numeric(merged[lib_col + "_lib"].values,
             merged[lib_col + "_pandas"].values,  rtol=1e-5)
         
         self._record_result(
@@ -769,7 +779,7 @@ class TestGroupByStatsOperations:
         # expected is Series with same order as groups; merge on group to align
         expected_df = sample_df.groupby("group")["value"].agg(lambda x: x.max()-x.min()).reset_index(name="range")
         merged = res_df.merge(expected_df, on="group")
-        np.testing.assert_allclose(merged[value_col], merged["range"], rtol=1e-5)
+        assert_allclose_numeric(merged[value_col], merged["range"], rtol=1e-5)
         self._record_result(
             test_name="range",
             method_call='uploaded_ctx.groupby("group").range("value")',
@@ -785,7 +795,7 @@ class TestGroupByStatsOperations:
         expected = sample_df.groupby("group", as_index=False)["value"].prod()
         value_col = get_generated_col(result, "value_product")
         merged = res_df.merge(expected, on="group")
-        np.testing.assert_allclose(merged[value_col], merged["value"], rtol=1e-5)
+        assert_allclose_numeric(merged[value_col], merged["value"], rtol=1e-5)
         self._record_result(
             test_name="product",
             method_call='uploaded_ctx.groupby("group").product("value")',
@@ -820,7 +830,7 @@ class TestGroupByStatsOperations:
         # Merge on group and compare each value column
         merged = res_df.merge(expected, on="group", suffixes=("_lib", "_pandas"))
         for lib_col in lib_cols:
-            np.testing.assert_allclose(
+            assert_allclose_numeric(
                 merged[lib_col + "_lib"], merged[lib_col + "_pandas"], rtol=1e-5
             )
 
@@ -848,7 +858,7 @@ class TestGroupByStatsOperations:
 
         merged = res_df.merge(expected, on="group", suffixes=("_lib", "_pandas"))
         for lib_col in lib_cols:
-            np.testing.assert_allclose(
+            assert_allclose_numeric(
                 merged[lib_col + "_lib"], merged[lib_col + "_pandas"], rtol=1e-5
             )
 
@@ -875,7 +885,7 @@ class TestGroupByStatsOperations:
 
         merged = res_df.merge(expected, on="group", suffixes=("_lib", "_pandas"))
         for lib_col in lib_cols:
-            np.testing.assert_allclose(
+            assert_allclose_numeric(
                 merged[lib_col + "_lib"], merged[lib_col + "_pandas"], rtol=1e-5
             )
 
@@ -954,7 +964,7 @@ class TestGroupByStatsOperations:
         # The library returns new_columns ["cnt", "event_rate"]; compare the rate.
         value_col = "event_rate"
         merged = res_df.merge(expected, on="group", suffixes=("_lib", "_pandas"))
-        np.testing.assert_allclose(merged[value_col], merged["event_rate_day"], rtol=1e-5)
+        assert_allclose_numeric(merged[value_col], merged["event_rate_day"], rtol=1e-5)
         self._record_result(
             test_name="event_rate",
             method_call='uploaded_ctx.groupby("group").event_rate("dt", unit="day")',
