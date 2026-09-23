@@ -69,18 +69,32 @@ nav:
           - Sync Existing Tables: api/syncdb.md
           - Dataset Operations: api/database.md
       - memFrame:
-          - Overview: api/memframe.md
+            - Overview: api/memframe.md
+      - Inspect:
           - Inspect: api/inspect.md
+      - Clean:
           - Clean: api/cleaning.md
+      - Arithmetic:
           - Arithmetic: api/arithmetic.md
+      - Cumulative:
           - Cumulative: api/cumulative.md
+      - Window:
           - Window: api/window.md
+      - GroupBy:
+          - GroupBy Stats: api/groupby/groupby_stats.md
+      - Selection:
           - Selection: api/selection.md
+      - Stats:
           - Stats: api/stats.md
+      - Datetime:
           - Datetime: api/datetime.md
+      - Sorting:
           - Sorting: api/sorting.md
+      - Reshape:
           - Reshape: api/reshape.md
+      - Merge:
           - Merge: api/merging.md
+      - Transform:
           - Transform: api/transform.md
       - Plots:
           - Bar: api/bar.md
