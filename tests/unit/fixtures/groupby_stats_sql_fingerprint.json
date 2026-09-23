@@ -128,7 +128,7 @@
    ],
    [
     "exec",
-    "CREATETABLE`s`.`t__op_1`ENGINE=MergeTree()ORDERBYtuple()ASSELECT`g`,count()AScnt,CASEWHENMAX(`ts`)=MIN(`ts`)THEN0.0ELSEcount()/(toUnixTimestamp(MAX(`ts`))-toUnixTimestamp(MIN(`ts`))/86400)ENDASevent_rateFROM`s`.`t`WHERE`ts`ISNOTNULLGROUPBY`g`",
+    "CREATETABLE`s`.`t__op_1`ENGINE=MergeTree()ORDERBYtuple()ASSELECT`g`,count()AScnt,CASEWHENMAX(`ts`)=MIN(`ts`)THEN0.0ELSEcount()/((toUnixTimestamp(MAX(`ts`))-toUnixTimestamp(MIN(`ts`)))/86400)ENDASevent_rateFROM`s`.`t`WHERE`ts`ISNOTNULLGROUPBY`g`",
     []
    ],
    [
@@ -147,7 +147,7 @@
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_1\"ASSELECT\"g\",COUNT(*)AScnt,CASEWHENMAX(\"ts\")=MIN(\"ts\")THEN0.0ELSECOUNT(*)/(EPOCH(MAX(CAST(\"ts\"ASTIMESTAMP)))-EPOCH(MIN(CAST(\"ts\"ASTIMESTAMP)))/86400)ENDASevent_rateFROM\"s\".\"t\"WHERE\"ts\"ISNOTNULLGROUPBY\"g\"",
+    "CREATETABLE\"s\".\"t__op_1\"ASSELECT\"g\",COUNT(*)AScnt,CASEWHENMAX(\"ts\")=MIN(\"ts\")THEN0.0ELSECOUNT(*)/((EPOCH(MAX(CAST(\"ts\"ASTIMESTAMP)))-EPOCH(MIN(CAST(\"ts\"ASTIMESTAMP))))/86400)ENDASevent_rateFROM\"s\".\"t\"WHERE\"ts\"ISNOTNULLGROUPBY\"g\"",
     []
    ],
    [
@@ -166,7 +166,7 @@
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_1\"ASSELECT\"g\",COUNT(*)AScnt,CASEWHENMAX(\"ts\")=MIN(\"ts\")THEN0.0ELSECOUNT(*)/(EXTRACT(EPOCHFROM(MAX(\"ts\")-MIN(\"ts\")))/86400)ENDASevent_rateFROM\"s\".\"t\"WHERE\"ts\"ISNOTNULLGROUPBY\"g\"",
+    "CREATETABLE\"s\".\"t__op_1\"ASSELECT\"g\",COUNT(*)AScnt,CASEWHENMAX(\"ts\")=MIN(\"ts\")THEN0.0ELSECOUNT(*)/((EXTRACT(EPOCHFROM(MAX(\"ts\")-MIN(\"ts\"))))/86400)ENDASevent_rateFROM\"s\".\"t\"WHERE\"ts\"ISNOTNULLGROUPBY\"g\"",
     []
    ],
    [
@@ -187,7 +187,7 @@
    ],
    [
     "exec",
-    "CREATETABLE`s`.`t__op_1`ENGINE=MergeTree()ORDERBYtuple()ASSELECT`g`,count()AScnt,CASEWHENMAX(`ts`)=MIN(`ts`)THEN0.0ELSEcount()/(toUnixTimestamp(MAX(`ts`))-toUnixTimestamp(MIN(`ts`))/3600)ENDASevent_rateFROM`s`.`t`WHERE`ts`ISNOTNULLGROUPBY`g`",
+    "CREATETABLE`s`.`t__op_1`ENGINE=MergeTree()ORDERBYtuple()ASSELECT`g`,count()AScnt,CASEWHENMAX(`ts`)=MIN(`ts`)THEN0.0ELSEcount()/((toUnixTimestamp(MAX(`ts`))-toUnixTimestamp(MIN(`ts`)))/3600)ENDASevent_rateFROM`s`.`t`WHERE`ts`ISNOTNULLGROUPBY`g`",
     []
    ],
    [
@@ -206,7 +206,7 @@
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_1\"ASSELECT\"g\",COUNT(*)AScnt,CASEWHENMAX(\"ts\")=MIN(\"ts\")THEN0.0ELSECOUNT(*)/(EPOCH(MAX(CAST(\"ts\"ASTIMESTAMP)))-EPOCH(MIN(CAST(\"ts\"ASTIMESTAMP)))/3600)ENDASevent_rateFROM\"s\".\"t\"WHERE\"ts\"ISNOTNULLGROUPBY\"g\"",
+    "CREATETABLE\"s\".\"t__op_1\"ASSELECT\"g\",COUNT(*)AScnt,CASEWHENMAX(\"ts\")=MIN(\"ts\")THEN0.0ELSECOUNT(*)/((EPOCH(MAX(CAST(\"ts\"ASTIMESTAMP)))-EPOCH(MIN(CAST(\"ts\"ASTIMESTAMP))))/3600)ENDASevent_rateFROM\"s\".\"t\"WHERE\"ts\"ISNOTNULLGROUPBY\"g\"",
     []
    ],
    [
@@ -225,7 +225,7 @@
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_1\"ASSELECT\"g\",COUNT(*)AScnt,CASEWHENMAX(\"ts\")=MIN(\"ts\")THEN0.0ELSECOUNT(*)/(EXTRACT(EPOCHFROM(MAX(\"ts\")-MIN(\"ts\")))/3600)ENDASevent_rateFROM\"s\".\"t\"WHERE\"ts\"ISNOTNULLGROUPBY\"g\"",
+    "CREATETABLE\"s\".\"t__op_1\"ASSELECT\"g\",COUNT(*)AScnt,CASEWHENMAX(\"ts\")=MIN(\"ts\")THEN0.0ELSECOUNT(*)/((EXTRACT(EPOCHFROM(MAX(\"ts\")-MIN(\"ts\"))))/3600)ENDASevent_rateFROM\"s\".\"t\"WHERE\"ts\"ISNOTNULLGROUPBY\"g\"",
     []
    ],
    [

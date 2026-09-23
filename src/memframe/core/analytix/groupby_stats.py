@@ -422,7 +422,7 @@ class GroupByStatsOps:
                 SELECT {', '.join(quoted_group_cols)},
                        COUNT(*) AS cnt,
                        CASE WHEN MAX({qcol}) = MIN({qcol}) THEN 0.0
-                            ELSE COUNT(*) / ({elapsed_seconds} / {secs})
+                            ELSE COUNT(*) / (({elapsed_seconds}) / {secs})
                        END AS event_rate
                 FROM {qualified}
                 WHERE {qcol} IS NOT NULL
@@ -478,7 +478,7 @@ class GroupByStatsOps:
                 SELECT {', '.join(quoted_group_cols)},
                        count() AS cnt,
                        CASE WHEN MAX({qcol}) = MIN({qcol}) THEN 0.0
-                            ELSE count() / ({elapsed_seconds} / {secs})
+                            ELSE count() / (({elapsed_seconds}) / {secs})
                        END AS event_rate
                 FROM {qualified}
                 WHERE {qcol} IS NOT NULL
