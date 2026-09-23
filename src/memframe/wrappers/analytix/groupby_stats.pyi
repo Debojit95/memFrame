@@ -8,12 +8,14 @@ class GroupByWrapper:
         self,
         agg_dict: Dict[str, List[str]],
         new_table: Optional[str] = ...,
+        map_feature: bool = ...,
     ) -> Dict[str, Any]: ...
 
     def agg(
         self,
         agg_dict: Dict[str, List[str]],
         new_table: Optional[str] = ...,
+        map_feature: bool = ...,
     ) -> Dict[str, Any]: ...
 
     async def asum(self, column: str) -> Dict[str, Any]: ...
@@ -78,6 +80,7 @@ class GroupByStatsWrapper:
         group_cols: Union[str, List[str]],
         agg_dict: Dict[str, List[str]],
         new_table: Optional[str] = ...,
+        map_feature: bool = ...,
     ) -> Dict[str, Any]: ...
 
     def agg(
@@ -85,6 +88,7 @@ class GroupByStatsWrapper:
         group_cols: Union[str, List[str]],
         agg_dict: Dict[str, List[str]],
         new_table: Optional[str] = ...,
+        map_feature: bool = ...,
     ) -> Dict[str, Any]: ...
 
     async def aevent_rate(

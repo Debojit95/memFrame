@@ -103,6 +103,10 @@ def _scenarios():
         "event_rate_hour": lambda ops: ops.group_event_rate(
             "t", "s", ["g"], "ts", "hour", backend=backend, data_id=data_id,
         ),
+        "map_feature": lambda ops: ops.group_aggregate(
+            "t", "s", ["g"], {"num": ["sum", "mean"]},
+            backend=backend, data_id=data_id, map_feature=True,
+        ),
     }
 
 

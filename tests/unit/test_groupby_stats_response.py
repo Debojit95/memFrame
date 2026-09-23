@@ -139,3 +139,54 @@ def test_agg_missing_column_returns_canonical_error_shape(groupby_context):
     assert response["message"] == ""
     assert response["error_message"]
     assert response.get("result") is None
+
+
+def test_map_feature_adds_columns_to_original(groupby_context):
+    wrapper = GroupByStatsWrapper(groupby_context)
+    response = wrapper.groupby("region").agg({"sales": ["sum"]}, map_feature=True)
+
+    assert response["is_error"] is False
+    assert response["mapped_columns"] == ["sales_sum"]
+    assert response["mapped_table"]
+    assert dict(
+        zip(response["result"]["region"], response["result"]["sales_sum"])
+    ) == {"a": 30, "b": 70}
+
+    original = groupby_context.head(n=10)
+    assert "sales_sum" in list(original.columns)
+    assert dict(zip(original["region"], original["sales_sum"])) == {
+        "a": 30,
+        "b": 70,
+    }
+
+
+def test_map_feature_identical_rerun_succeeds(groupby_context):
+    wrapper = GroupByStatsWrapper(groupby_context)
+    first = wrapper.groupby("region").agg({"sales": ["sum"]}, map_feature=True)
+    assert first["is_error"] is False
+
+    second = wrapper.groupby("region").agg({"sales": ["sum"]}, map_feature=True)
+    assert second["is_error"] is False
+
+    original = groupby_context.head(n=10)
+    assert list(original.columns).count("sales_sum") == 1
+
+
+def test_map_feature_foreign_collision_errors(groupby_context):
+    async def _add_foreign_column():
+        table, schema = await groupby_context._get_active_context()
+        await groupby_context.memframe._backend.execute(
+            f'ALTER TABLE {schema}."{table}" ADD COLUMN sales_sum INTEGER'
+        )
+
+    asyncio.run(_add_foreign_column())
+    response = (
+        GroupByStatsWrapper(groupby_context)
+        .groupby("region")
+        .agg({"sales": ["sum"]}, map_feature=True)
+    )
+
+    assert response["is_error"] is True
+    assert response["message"] == ""
+    assert "already exist" in response["error_message"]
+    assert response.get("result") is None

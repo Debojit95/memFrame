@@ -59,13 +59,16 @@ class GroupByStatsOrchestrator:
         self,
         group_cols: Union[str, List[str]],
         agg_dict: Dict[str, List[str]],
-        new_table: Optional[str] = None,) -> Dict[str, Any]:
+        new_table: Optional[str] = None,
+        map_feature: bool = False,) -> Dict[str, Any]:
         """
         Directly perform group-by aggregation on the active dataset.
         group_cols: single column name or list of column names
         agg_dict: mapping of column -> list of stats (e.g. {"sales": ["sum","mean"]})
+        map_feature: when True, LEFT JOIN the new feature columns back onto
+            the original table (no extra result table).
         """
-        
+
         ops = await self._ensure_ops()
         table, schema = await self._get_active_context()
         backend = self._memframe._backend
@@ -77,6 +80,7 @@ class GroupByStatsOrchestrator:
         return await ops.group_aggregate(
             table, schema, group_cols, agg_dict,
             backend=backend, data_id=data_id, new_table=new_table,
+            map_feature=map_feature,
         )
 
     @record_call
@@ -146,11 +150,13 @@ class GroupBy:
         self,
         agg_dict: Dict[str, List[str]],
         new_table: Optional[str] = None,
+        map_feature: bool = False,
     ) -> Dict[str, Any]:
         ops, table, schema, backend, data_id = await self._get_ops_and_context()
         return await ops.group_aggregate(
             table, schema, self.group_cols, agg_dict,
             backend=backend, data_id=data_id, new_table=new_table,
+            map_feature=map_feature,
         )
 
     # public async agg – can be overridden by wrappers
@@ -159,8 +165,9 @@ class GroupBy:
         self,
         agg_dict: Dict[str, List[str]],
         new_table: Optional[str] = None,
+        map_feature: bool = False,
     ) -> Dict[str, Any]:
-        return await self._agg(agg_dict, new_table)
+        return await self._agg(agg_dict, new_table, map_feature)
 
     # ------------------------------------------------------------------
     # convenience methods – always use the safe _agg

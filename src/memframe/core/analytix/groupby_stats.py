@@ -6,6 +6,7 @@ Supports DuckDB, PostgreSQL, and ClickHouse.
 """
 
 from typing import Dict, List, Optional, Any
+import json
 import traceback
 from datetime import datetime, timezone
 import pandas as pd
@@ -88,6 +89,154 @@ class GroupByStatsOps:
             dedupe_idx += 1
 
         return output_table
+
+    # ------------------------------------------------------------------
+    # map_feature helpers: LEFT JOIN group results back onto the original
+    # table (new feature columns only). Marker rows in the transient
+    # registry tell our own re-runs apart from foreign column collisions.
+    # ------------------------------------------------------------------
+    def _map_sig(
+        self,
+        group_cols: List[str],
+        agg_spec: Dict[str, List[str]],
+        new_columns: List[str],
+    ) -> str:
+        return json.dumps(
+            {"group_cols": group_cols, "agg_spec": agg_spec, "new_columns": new_columns},
+            sort_keys=True,
+        )
+
+    async def _check_map_collision(
+        self,
+        table: str,
+        schema: str,
+        backend,
+        data_id: str,
+        safe_group_cols: List[str],
+        agg_spec: Dict[str, List[str]],
+        new_columns: List[str],
+    ) -> Optional[str]:
+        """Drop our own re-run columns; error on foreign collisions."""
+        try:
+            orig_cols = set(await self.db.get_column_types(table, schema) or {})
+        except Exception:
+            orig_cols = set()
+        clashes = [c for c in new_columns if c in orig_cols]
+        if not clashes:
+            return None
+        sig = self._map_sig(safe_group_cols, agg_spec, new_columns)
+        rows = await self._fetch(
+            f"""SELECT kwargs FROM {backend.transient_registry_table}
+                WHERE data_id = {backend.placeholder(1)}
+                  AND operation_type = 'groupby_map'
+                  AND generated_table_name = {backend.placeholder(2)}""",
+            data_id,
+            table,
+        )
+        for row in rows or []:
+            try:
+                # ponytail: adapters disagree (dicts on DuckDB, tuples on
+                # Postgres) — read both shapes.
+                stored = row.get("kwargs") if isinstance(row, dict) else row[0]
+                if json.loads(stored or "{}") == json.loads(sig):
+                    for col in clashes:
+                        await self._exec(
+                            f"ALTER TABLE {self._qualified_table(table, schema)} "
+                            f"DROP COLUMN {self.db.quote_identifier(col)}"
+                        )
+                    return None
+            except Exception:
+                continue
+        return (
+            f"map_feature: column(s) {clashes} already exist on "
+            f"{schema}.{table} and were not created by a previous identical "
+            f"group-by mapping. Drop or rename them first."
+        )
+
+    async def _record_map_marker(
+        self,
+        table: str,
+        schema: str,
+        backend,
+        data_id: str,
+        sig: str,
+    ) -> None:
+        max_op = await self._backend_fetch_val(
+            backend,
+            f"""
+            SELECT COALESCE(MAX(opidx), 0)
+            FROM {backend.transient_registry_table}
+            WHERE data_id = {backend.placeholder(1)}
+            """,
+            data_id,
+        )
+        opidx = (max_op or 0) + 1
+        await self._exec(
+            f"""INSERT INTO {backend.transient_registry_table}
+                (data_id, opidx, operation_type, class_name, method_name,
+                 args, kwargs, generated_table_name, is_deep_cache, schema)
+                VALUES ({backend.placeholder(1)}, {backend.placeholder(2)},
+                        'groupby_map', 'GroupByStatsOps', 'map_feature',
+                        {backend.placeholder(3)}, {backend.placeholder(4)},
+                        {backend.placeholder(5)}, {backend.placeholder(6)},
+                        {backend.placeholder(7)})""",
+            data_id, opidx, "", sig, table, False, schema,
+        )
+
+    async def _apply_map(
+        self,
+        table: str,
+        schema: str,
+        group_table: str,
+        safe_group_cols: List[str],
+        new_columns: List[str],
+        backend,
+        data_id: str,
+        sig: str,
+    ) -> None:
+        orig_q = self._qualified_table(table, schema)
+        group_q = self._qualified_table(group_table, schema)
+        cond = " AND ".join(
+            f'o.{self.db.quote_identifier(c)} = g.{self.db.quote_identifier(c)}'
+            for c in safe_group_cols
+        )
+        feats = ", ".join(
+            f'g.{self.db.quote_identifier(c)} AS {self.db.quote_identifier(c)}'
+            for c in new_columns
+        )
+        if isinstance(self.db, ClickHouseAdapter):
+            tmp = SQLIdentifierSanitizer.sanitize(f"{table}__map_tmp")
+            tmp_q = self._qualified_table(tmp, schema)
+            await self._exec(f"DROP TABLE IF EXISTS {tmp_q}")
+            await self._exec(
+                f"""CREATE TABLE {tmp_q}
+                    ENGINE = MergeTree()
+                    ORDER BY tuple()
+                    AS SELECT o.*, {feats}
+                    FROM {orig_q} o LEFT JOIN {group_q} g ON {cond}"""
+            )
+            await self._exec(f"EXCHANGE TABLES {orig_q} AND {tmp_q}")
+            await self._exec(f"DROP TABLE {tmp_q}")
+        elif isinstance(self.db, PostgresAdapter):
+            tmp = SQLIdentifierSanitizer.sanitize(f"{table}__map_tmp")
+            tmp_q = self._qualified_table(tmp, schema)
+            await self._exec(f"DROP TABLE IF EXISTS {tmp_q}")
+            await self._exec(
+                f"""CREATE TABLE {tmp_q} AS
+                    SELECT o.*, {feats}
+                    FROM {orig_q} o LEFT JOIN {group_q} g ON {cond}"""
+            )
+            await self._exec(f"DROP TABLE {orig_q}")
+            await self._exec(
+                f"ALTER TABLE {tmp_q} RENAME TO {self.db.quote_identifier(SQLIdentifierSanitizer.sanitize(table))}"
+            )
+        else:
+            await self._exec(
+                f"""CREATE OR REPLACE TABLE {orig_q} AS
+                    SELECT o.*, {feats}
+                    FROM {orig_q} o LEFT JOIN {group_q} g ON {cond}"""
+            )
+        await self._record_map_marker(table, schema, backend, data_id, sig)
 
     # ------------------------------------------------------------------
     # Response wrappers
@@ -230,9 +379,12 @@ class GroupByStatsOps:
         backend=None,
         data_id=None,
         new_table: Optional[str] = None,
+        map_feature: bool = False,
     ) -> Dict[str, Any]:
         """
         Execute GROUP BY, store results in a new table, and return a preview.
+        With map_feature=True the new feature columns are additionally
+        LEFT JOINed back onto the original table (no extra result table).
         """
         try:
             # ============================================================
@@ -264,6 +416,18 @@ class GroupByStatsOps:
                 if not select_parts:
                     raise ValueError("No valid aggregate expressions generated.")
 
+                map_sig = self._map_sig(safe_group_cols, agg_spec, new_columns)
+                if map_feature:
+                    collision = await self._check_map_collision(
+                        table, schema, backend, data_id,
+                        safe_group_cols, agg_spec, new_columns,
+                    )
+                    if collision:
+                        return self._error_response(
+                            f"Group-by aggregation failed: {collision}",
+                            group_cols=safe_group_cols,
+                        )
+
                 qualified_source = self._qualified_table(table, schema)
                 group_clause = ", ".join(quoted_group_cols)
                 select_clause = ", ".join(quoted_group_cols + select_parts)
@@ -281,6 +445,12 @@ class GroupByStatsOps:
                 """
                 await self._exec(create_sql)
 
+                if map_feature:
+                    await self._apply_map(
+                        table, schema, output_table,
+                        safe_group_cols, new_columns, backend, data_id, map_sig,
+                    )
+
                 # Fetch preview (all rows)
                 preview_cols = safe_group_cols + new_columns
                 rows = await self._fetch(
@@ -296,6 +466,8 @@ class GroupByStatsOps:
                     new_columns=new_columns,
                     group_cols=safe_group_cols,
                     agg_spec=agg_spec,
+                    mapped_table=table if map_feature else None,
+                    mapped_columns=new_columns if map_feature else [],
                 )
 
             # ============================================================
@@ -328,6 +500,18 @@ class GroupByStatsOps:
                 if not select_parts:
                     raise ValueError("No valid aggregate expressions generated.")
 
+                map_sig = self._map_sig(safe_group_cols, agg_spec, new_columns)
+                if map_feature:
+                    collision = await self._check_map_collision(
+                        table, schema, backend, data_id,
+                        safe_group_cols, agg_spec, new_columns,
+                    )
+                    if collision:
+                        return self._error_response(
+                            f"Group-by aggregation failed: {collision}",
+                            group_cols=safe_group_cols,
+                        )
+
                 qualified_source = self._qualified_table(table, schema)
                 group_clause = ", ".join(quoted_group_cols)
                 select_clause = ", ".join(quoted_group_cols + select_parts)
@@ -349,6 +533,12 @@ class GroupByStatsOps:
                 """
                 await self._exec(create_sql)
 
+                if map_feature:
+                    await self._apply_map(
+                        table, schema, output_table,
+                        safe_group_cols, new_columns, backend, data_id, map_sig,
+                    )
+
                 # Fetch preview (all rows)
                 preview_cols = safe_group_cols + new_columns
                 rows = await self._fetch(
@@ -364,6 +554,8 @@ class GroupByStatsOps:
                     new_columns=new_columns,
                     group_cols=safe_group_cols,
                     agg_spec=agg_spec,
+                    mapped_table=table if map_feature else None,
+                    mapped_columns=new_columns if map_feature else [],
                 )
 
             else:

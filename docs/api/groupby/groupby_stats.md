@@ -116,6 +116,7 @@ result = dataset.groupby("region", "month").sum("sales")
 | `datetime_col` | `str` | Datetime column for `event_rate`. |
 | `unit` | `str` | Rate unit for `event_rate`: `second`, `minute`, `hour`, `day` (default), or `week`. |
 | `new_table` | `str` or `None` | Explicit name for the output table. Auto-generated as `<table>__op_<n>` (chained) when omitted. |
+| `map_feature` | `bool` | When `True` (default `False`), LEFT JOIN the new feature columns back onto the original table — one value per row, matched on the group keys. No extra result table is created; the envelope gains `mapped_table` / `mapped_columns`. Agg only (not `event_rate`). |
 
 ## Aggregation Statistics
 
@@ -160,9 +161,30 @@ GROUP` on PostgreSQL, `MODE(col)` on DuckDB, and `topK(1)(col)[1]`
 (approximate) on ClickHouse.
 
 ```python
-result = dataset.groupby("region").median("sales")
-result = dataset.groupby("region").mode("sales")
+result = dataset.groupby("region").mean("sales")
 ```
+
+## Map Feature Back (`map_feature`)
+
+With `map_feature=True`, the new `<column>_<stat>` columns are LEFT JOINed
+back onto the original table — every original row gains its group's value
+(pandas: `df.merge(grouped)`). Only the feature columns are added; group
+keys are already on the original table and no extra result table is created.
+Only the group table is recorded by `@record_call`.
+
+```python
+result = dataset.groupby("region").agg({"sales": ["sum"]}, map_feature=True)
+# original table now has: region, sales, sales_sum
+```
+
+Rules:
+
+- A repeated identical call re-runs cleanly (its own columns are dropped and
+  re-added). This also holds in non-deep mode, which saves nothing.
+- If the column name already exists from anything else, the call fails with
+  an error — drop or rename it first.
+- Backend swaps keep the original table name: DuckDB `CREATE OR REPLACE`,
+  PostgreSQL create-swap-rename, ClickHouse atomic `EXCHANGE TABLES`.
 
 ## Event Rate
 

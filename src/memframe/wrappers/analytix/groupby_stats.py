@@ -26,11 +26,13 @@ class GroupByWrapper(GroupBy):
         self,
         agg_dict: Dict[str, List[str]],
         new_table: Optional[str] = None,
+        map_feature: bool = False,
     ) -> Dict[str, Any]:
         """Asynchronously aggregate grouped data with an aggregation mapping."""
         return await super().agg(
             agg_dict=agg_dict,
             new_table=new_table,
+            map_feature=map_feature,
         )
 
     @async_to_sync
@@ -38,11 +40,13 @@ class GroupByWrapper(GroupBy):
         self,
         agg_dict: Dict[str, List[str]],
         new_table: Optional[str] = None,
+        map_feature: bool = False,
     ) -> Dict[str, Any]:
         """Synchronously aggregate grouped data with an aggregation mapping."""
         return await self.aagg(
             agg_dict=agg_dict,
             new_table=new_table,
+            map_feature=map_feature,
         )
 
     # ------------------------------------------------------------------
@@ -214,12 +218,14 @@ class GroupByStatsWrapper(GroupByStatsOrchestrator):
         group_cols: Union[str, List[str]],
         agg_dict: Dict[str, List[str]],
         new_table: Optional[str] = None,
+        map_feature: bool = False,
     ) -> Dict[str, Any]:
         """Asynchronously aggregate using explicit group columns."""
         return await super().agg(
             group_cols=group_cols,
             agg_dict=agg_dict,
             new_table=new_table,
+            map_feature=map_feature,
         )
 
     @async_to_sync
@@ -228,12 +234,14 @@ class GroupByStatsWrapper(GroupByStatsOrchestrator):
         group_cols: Union[str, List[str]],
         agg_dict: Dict[str, List[str]],
         new_table: Optional[str] = None,
+        map_feature: bool = False,
     ) -> Dict[str, Any]:
         """Synchronously aggregate using explicit group columns."""
         return await self.aagg(
             group_cols=group_cols,
             agg_dict=agg_dict,
             new_table=new_table,
+            map_feature=map_feature,
         )
 
     async def aevent_rate(
