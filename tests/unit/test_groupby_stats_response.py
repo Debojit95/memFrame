@@ -190,3 +190,59 @@ def test_map_feature_foreign_collision_errors(groupby_context):
     assert response["message"] == ""
     assert "already exist" in response["error_message"]
     assert response.get("result") is None
+
+
+def test_map_feature_direct_agg(groupby_context):
+    response = GroupByStatsWrapper(groupby_context).agg(
+        group_cols=["region"], agg_dict={"sales": ["mean"]}, map_feature=True
+    )
+
+    assert response["is_error"] is False
+    assert response["mapped_columns"] == ["sales_mean"]
+
+    original = groupby_context.head(n=10)
+    assert dict(zip(original["region"], original["sales_mean"])) == {
+        "a": 15.0,
+        "b": 35.0,
+    }
+
+
+def test_map_feature_multicolumn_keys(groupby_context):
+    response = (
+        GroupByStatsWrapper(groupby_context)
+        .groupby("region", "ts")
+        .agg({"sales": ["sum"]}, map_feature=True)
+    )
+
+    assert response["is_error"] is False
+
+    original = groupby_context.head(n=10)
+    assert "sales_sum" in list(original.columns)
+    # each (region, ts) group holds a single row, so the mapped sum
+    # equals the row's own sales regardless of physical row order
+    assert sorted(original["sales_sum"]) == [10, 20, 30, 40]
+    assert (original["sales_sum"] == original["sales"]).all()
+
+
+def test_map_feature_second_spec_stacks(groupby_context):
+    wrapper = GroupByStatsWrapper(groupby_context)
+    assert (
+        wrapper.groupby("region").agg({"sales": ["sum"]}, map_feature=True)[
+            "is_error"
+        ]
+        is False
+    )
+    response = wrapper.groupby("region").agg(
+        {"sales": ["mean"]}, map_feature=True
+    )
+    assert response["is_error"] is False
+
+    original = groupby_context.head(n=10)
+    assert dict(zip(original["region"], original["sales_sum"])) == {
+        "a": 30,
+        "b": 70,
+    }
+    assert dict(zip(original["region"], original["sales_mean"])) == {
+        "a": 15.0,
+        "b": 35.0,
+    }
