@@ -50,7 +50,7 @@ The lower-level files are implementation details:
 
 | Synchronous | Asynchronous | Purpose |
 | --- | --- | --- |
-| `agg(group_cols, agg_dict, new_table=None)` | `await aagg(...)` | Group-by aggregation over an explicit column mapping |
+| `agg(group_cols, agg_dict, new_table=None, map_feature=False)` | `await aagg(...)` | Group-by aggregation over an explicit column mapping |
 | `event_rate(group_cols, datetime_col, unit="day", new_table=None)` | `await aevent_rate(...)` | Grouped event rate over a time unit |
 
 `group_cols` accepts a single column name or a list of names. `agg_dict`
@@ -64,7 +64,7 @@ Each terminal method has a synchronous and asynchronous form:
 
 | Synchronous | Asynchronous | Purpose |
 | --- | --- | --- |
-| `agg(agg_dict, new_table=None)` | `await aagg(...)` | Generic — any column → stats mapping |
+| `agg(agg_dict, new_table=None, map_feature=False)` | `await aagg(...)` | Generic — any column → stats mapping |
 | `sum(column)` | `await asum(...)` | Group-wise sum |
 | `mean(column)` | `await amean(...)` | Group-wise mean |
 | `min(column)` | `await amin(...)` | Group-wise minimum |
@@ -175,6 +175,14 @@ Only the group table is recorded by `@record_call`.
 ```python
 result = dataset.groupby("region").agg({"sales": ["sum"]}, map_feature=True)
 # original table now has: region, sales, sales_sum
+```
+
+```python
+result = await dataset.aagg(
+    group_cols=["region", "month"],
+    agg_dict={"sales": ["sum"], "qty": ["max"]},
+    map_feature=True,
+)
 ```
 
 Rules:
