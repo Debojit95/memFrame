@@ -975,6 +975,70 @@ class TestGroupByStatsOperations:
         )
 
     # ------------------------------------------------------------------
+    # map_feature=True: single and multi-column group-by
+    # ------------------------------------------------------------------
+    def test_map_feature_single_groupby(self, uploaded_ctx, sample_df, backend_config):
+        result = uploaded_ctx.groupby("group").agg(
+            {"value": ["sum"]}, map_feature=True
+        )
+        assert result["mapped_columns"] == ["value_sum"]
+
+        mapped = get_result_df(uploaded_ctx.head(n=len(sample_df)))
+        assert "value_sum" in list(mapped.columns)
+        assert "group" in list(mapped.columns)  # keys not duplicated
+
+        expected_groups = sample_df.groupby("group", as_index=False).agg(
+            value_sum=("value", "sum")
+        )
+        expected = sample_df.merge(expected_groups, on="group")
+        for frame in (mapped, expected):
+            frame.sort_values(["group", "value"], inplace=True)
+            frame.reset_index(drop=True, inplace=True)
+        assert_allclose_numeric(mapped["value_sum"], expected["value_sum"])
+
+        self._record_result(
+            test_name="map_feature_single_groupby",
+            method_call='uploaded_ctx.groupby("group").agg({"value": ["sum"]}, map_feature=True)',
+            original_df=sample_df,
+            memframe_df=mapped,
+            pandas_df=expected,
+            backend=backend_config["connection_type"],
+        )
+
+    def test_map_feature_multi_groupby(self, uploaded_ctx, sample_df, backend_config):
+        result = uploaded_ctx.groupby("group", "category").agg(
+            {"value": ["sum"], "score": ["max"]}, map_feature=True
+        )
+        assert result["mapped_columns"] == ["value_sum", "score_max"]
+
+        mapped = get_result_df(uploaded_ctx.head(n=len(sample_df)))
+        assert "value_sum" in list(mapped.columns)
+        assert "score_max" in list(mapped.columns)
+
+        expected_groups = sample_df.groupby(
+            ["group", "category"], as_index=False
+        ).agg(
+            value_sum=("value", "sum"),
+            score_max=("score", "max"),
+        )
+        expected = sample_df.merge(expected_groups, on=["group", "category"])
+        sort_keys = ["group", "category", "value"]
+        for frame in (mapped, expected):
+            frame.sort_values(sort_keys, inplace=True)
+            frame.reset_index(drop=True, inplace=True)
+        assert_allclose_numeric(mapped["value_sum"], expected["value_sum"])
+        assert_allclose_numeric(mapped["score_max"], expected["score_max"])
+
+        self._record_result(
+            test_name="map_feature_multi_groupby",
+            method_call='uploaded_ctx.groupby("group", "category").agg({"value": ["sum"], "score": ["max"]}, map_feature=True)',
+            original_df=sample_df,
+            memframe_df=mapped,
+            pandas_df=expected,
+            backend=backend_config["connection_type"],
+        )
+
+    # ------------------------------------------------------------------
     # Mutation safety
     # ------------------------------------------------------------------
     def test_mutation_safety(self, uploaded_ctx, sample_df, backend_config):
