@@ -1,10 +1,9 @@
 """SQL-fingerprint regression net for groupby stats ops.
 
 Same pattern as test_cumulative_sql_fingerprint.py: record every SQL string
-the groupby ops class emits for a fixed scenario set and compare against
+the groupby ops classes emit for a fixed scenario set and compare against
 a snapshot. Backend personas are RecordingAdapter mixins over the real
-adapter classes (real quoting, stubbed I/O). GroupByStatsOps is a single
-class with isinstance branches, so one ops class runs against 3 personas.
+adapter classes (real quoting and placeholder styles, stubbed I/O).
 
 Regenerate with:  MEMFRAME_REGEN_FINGERPRINT=1 pytest tests/unit/test_groupby_stats_sql_fingerprint.py
 """
@@ -15,7 +14,12 @@ import os
 
 import pytest
 
-from memframe.core.analytix.groupby_stats import GroupByStatsOps
+from memframe.core.analytix.groupby_stats import (
+    ClickHouseGroupByStatsOps,
+    DuckDBGroupByStatsOps,
+    GroupByStatsOps,
+    PostgresGroupByStatsOps,
+)
 from memframe.db_manager.adapters.clickhouse import ClickHouseAdapter
 from memframe.db_manager.adapters.duckdb import DuckDBAdapter
 from memframe.db_manager.adapters.postgresql import PostgresAdapter
@@ -113,9 +117,9 @@ def _scenarios():
 SCENARIOS = _scenarios()
 
 BACKENDS = {
-    "duckdb": _DuckDBPersona,
-    "postgres": _PostgresPersona,
-    "clickhouse": _ClickHousePersona,
+    "duckdb": (DuckDBGroupByStatsOps, _DuckDBPersona),
+    "postgres": (PostgresGroupByStatsOps, _PostgresPersona),
+    "clickhouse": (ClickHouseGroupByStatsOps, _ClickHousePersona),
 }
 
 
@@ -123,9 +127,9 @@ def _capture():
     snapshot = {}
     for name, scenario in SCENARIOS.items():
         snapshot[name] = {}
-        for backend_name, persona_cls in BACKENDS.items():
+        for backend_name, (ops_cls, persona_cls) in BACKENDS.items():
             persona = persona_cls()
-            ops = GroupByStatsOps(persona)
+            ops = ops_cls(persona)
             asyncio.run(scenario(ops))
             snapshot[name][backend_name] = persona.calls
     return snapshot
@@ -156,3 +160,8 @@ def test_groupby_stats_personas_match_real_backends():
     assert isinstance(_DuckDBPersona(), DuckDBAdapter)
     assert isinstance(_PostgresPersona(), PostgresAdapter)
     assert isinstance(_ClickHousePersona(), ClickHouseAdapter)
+
+
+def test_all_backends_are_groupby_stats_ops():
+    for ops_cls, _ in BACKENDS.values():
+        assert issubclass(ops_cls, GroupByStatsOps)

@@ -5,7 +5,10 @@ All operations record the generated table via @record_call.
 """
 
 from typing import Any, Dict, List, Optional, Union
-from memframe.core.analytix.groupby_stats import GroupByStatsOps
+from memframe.core.analytix.groupby_stats import (
+    GroupByStatsOps,
+    make_groupby_stats_ops,
+)
 from memframe.cache import record_call
 
 
@@ -48,7 +51,7 @@ class GroupByStatsOrchestrator:
     async def _ensure_ops(self) -> GroupByStatsOps:
         if self._core_ops is None:
             await self._ensure_adapter()
-            self._core_ops = GroupByStatsOps(self._adapter)
+            self._core_ops = make_groupby_stats_ops(self._adapter)
         return self._core_ops
 
     # ------------------------------------------------------------------
