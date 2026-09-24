@@ -4,6 +4,21 @@ All notable changes to memFrame are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and the project adheres
 to [Semantic Versioning](https://semver.org/).
 
+## [0.11.0] - 2026-09-24
+
+### Added
+- **GroupBy (new domain)**: group-by aggregations via `ContextManager` — direct `agg(group_cols, agg_dict)`/`aagg` and a fluent builder (`groupby("region").sum("sales")`, all 14 stats + `a`-prefixed async forms) plus grouped `event_rate` — backed by backend-native SQL across DuckDB, PostgreSQL, and ClickHouse. Each call writes a `<table>__op_<n>` transient table; the source table is never mutated.
+- **GroupBy `map_feature`**: opt-in `map_feature=True` LEFT JOINs the new `<column>_<stat>` feature columns back onto the original table under the same name (DuckDB `CREATE OR REPLACE`, PostgreSQL create-swap-rename, ClickHouse atomic `EXCHANGE TABLES`). Identical re-runs drop and re-add their own columns (tracked by `groupby_map` marker rows); foreign name collisions fail with an error. Only the group table is recorded by `@record_call`.
+- **GroupBy tests**: `tests/unit/test_groupby_stats_response.py` (24: values, builder/direct, error shape, event rate, map/rerun/collision, multicolumn, stacked specs) + `tests/unit/test_groupby_stats_sql_fingerprint.py` (7 scenarios × 3 backends); `tests/integration/ops/test_groupby_stats.py` (21 × backends incl. multi-column agg dicts, multicolumn group-by, `map_feature` single/multi, `Decimal`-tolerant compares for PostgreSQL).
+- **GroupBy docs**: `docs/api/groupby/groupby_stats.md` (Public API, per-stat semantics, event rate, map-back, backend behavior, mkdocstrings reference); memFrame nav is now flat per-page sections with no dropdown.
+
+### Changed
+- **GroupBy core split**: `core/analytix/groupby_stats.py` (single backend-branching `GroupByStatsOps`) is now a `groupby_stats/` package — `base.py` holds the shared flow on DuckDB-flavoured defaults plus dialect hooks, `duckdb.py`/`postgres.py`/`clickhouse.py` override function spellings, epoch extraction, table creation, and the map-back swap; `factory.make_groupby_stats_ops(adapter)` dispatches on `isinstance`. The orchestrator builds the ops via the factory. Generated SQL is proven byte-identical by the unchanged `groupby_stats_sql_fingerprint.json` snapshot.
+
+### Fixed
+- **GroupBy `event_rate` precedence**: `COUNT(*) / (A - B / 86400)` divided before subtracting, yielding ~1e-9/day on all backends; now `COUNT(*) / ((A - B) / 86400)`.
+- **Python 3.10 import**: `core/analytix/groupby_stats.py` used `datetime.UTC` (added in Python 3.11); switched to `timezone.utc`. Caught by the `tox py310-py313` CI job.
+
 ## [0.10.2] - 2026-09-22
 
 ### Changed
