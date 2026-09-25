@@ -4,6 +4,20 @@ All notable changes to memFrame are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and the project adheres
 to [Semantic Versioning](https://semver.org/).
 
+## [0.12.0] - 2026-09-25
+
+### Added
+- **GroupBy cumulative (new domain)**: group-wise running computations via the unified `ContextManager.groupby(*columns)` facade — `cumsum`/`cumprod`/`cummax`/`cummin`/`cummean`/`cumcount`/`cumstd`/`cumvar` (sync + `a`-prefixed async, `(column, order_col=None, target_col=None)`) backed by backend-native partitioned windows across DuckDB, PostgreSQL, and ClickHouse (ClickHouse uses a `_mf_row_num` fallback when unordered).
+- **GroupBy cumulative `map_feature`**: opt-in `map_feature=True` LEFT JOINs the new running-value column back onto the original table on full row identity (same swaps and rerun/collision rules as GroupBy Stats).
+- **GroupBy cumulative tests**: `tests/unit/test_groupby_cumulative_response.py` (19: per-op values, routing, error shapes, map/rerun/collision) + `tests/unit/test_groupby_cumulative_sql_fingerprint.py` (11 scenarios × 3 backends); `tests/integration/ops/test_groupby_cumulative.py` (11: per-op, multicolumn, `map_feature`).
+- **GroupBy docs section**: sidebar `GroupBy` section with `Stats` + new `Cumulative` pages; `map_feature` documented on both.
+- **GroupBy stubs fix**: `groupby.pyi` now declares the full routed surface (was init/repr only, invisible to type checkers); `map_feature` added to all `groupby_cumulative.pyi` methods. Proven with pyright, 0 errors.
+
+### Changed
+- **GroupBy cumulative core split**: `core/analytix/groupby_cumulative.py` is now a `groupby_cumulative/` package (`base.py` + `duckdb`/`postgres`/`clickhouse` + `factory.make_groupby_cumulative_ops`); the orchestrator builds via the factory.
+- **Unified `GroupBy` facade**: explicit `ContextManager.groupby(*columns)` returns one object routing stats/cumulative calls (window builder deferred as `None`); flat `cumsum/...` behavior unchanged.
+- **PostgreSQL test compares**: integration numeric asserts coerce `Decimal`/`float` via `pd.to_numeric` (Postgres returns `Decimal` for aggregates).
+
 ## [0.11.0] - 2026-09-24
 
 ### Added
