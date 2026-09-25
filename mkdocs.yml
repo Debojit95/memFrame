@@ -75,7 +75,9 @@ nav:
           - Arithmetic: api/arithmetic.md
           - Cumulative: api/cumulative.md
           - Window: api/window.md
-          - GroupBy Stats: api/groupby/groupby_stats.md
+          - GroupBy:
+              - Stats: api/groupby/groupby_stats.md
+              - Cumulative: api/groupby/groupby_cumulative.md
           - Selection: api/selection.md
           - Stats: api/stats.md
           - Datetime: api/datetime.md
