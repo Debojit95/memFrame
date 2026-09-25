@@ -7,7 +7,10 @@ All operations record the generated table via @record_call.
 from typing import Any, Dict, List, Optional, Union
 
 
-from memframe.core.analytix.groupby_cumulative import GroupbyCumulativeOps
+from memframe.core.analytix.groupby_cumulative import (
+    GroupbyCumulativeOps,
+    make_groupby_cumulative_ops,
+)
 from memframe.cache import record_call
 
 
@@ -49,7 +52,7 @@ class GroupByCumulativeOrchestrator:
     async def _ensure_ops(self) -> GroupbyCumulativeOps:
         if self._core_ops is None:
             await self._ensure_adapter()
-            self._core_ops = GroupbyCumulativeOps(self._adapter)
+            self._core_ops = make_groupby_cumulative_ops(self._adapter)
         return self._core_ops
 
     # ------------------------------------------------------------------
