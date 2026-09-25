@@ -9,6 +9,7 @@ class GroupByCumulativeBuilderWrapper:
         column: str,
         order_col: Union[str, List[str], None] = ...,
         target_col: Optional[str] = ...,
+        map_feature: bool = ...,
     ) -> Dict[str, Any]: ...
 
     def cumsum(
@@ -16,6 +17,7 @@ class GroupByCumulativeBuilderWrapper:
         column: str,
         order_col: Union[str, List[str], None] = ...,
         target_col: Optional[str] = ...,
+        map_feature: bool = ...,
     ) -> Dict[str, Any]: ...
 
     async def acumprod(
@@ -23,6 +25,7 @@ class GroupByCumulativeBuilderWrapper:
         column: str,
         order_col: Union[str, List[str], None] = ...,
         target_col: Optional[str] = ...,
+        map_feature: bool = ...,
     ) -> Dict[str, Any]: ...
 
     def cumprod(
@@ -30,6 +33,7 @@ class GroupByCumulativeBuilderWrapper:
         column: str,
         order_col: Union[str, List[str], None] = ...,
         target_col: Optional[str] = ...,
+        map_feature: bool = ...,
     ) -> Dict[str, Any]: ...
 
     async def acummax(
@@ -37,6 +41,7 @@ class GroupByCumulativeBuilderWrapper:
         column: str,
         order_col: Union[str, List[str], None] = ...,
         target_col: Optional[str] = ...,
+        map_feature: bool = ...,
     ) -> Dict[str, Any]: ...
 
     def cummax(
@@ -44,6 +49,7 @@ class GroupByCumulativeBuilderWrapper:
         column: str,
         order_col: Union[str, List[str], None] = ...,
         target_col: Optional[str] = ...,
+        map_feature: bool = ...,
     ) -> Dict[str, Any]: ...
 
     async def acummin(
@@ -51,6 +57,7 @@ class GroupByCumulativeBuilderWrapper:
         column: str,
         order_col: Union[str, List[str], None] = ...,
         target_col: Optional[str] = ...,
+        map_feature: bool = ...,
     ) -> Dict[str, Any]: ...
 
     def cummin(
@@ -58,6 +65,7 @@ class GroupByCumulativeBuilderWrapper:
         column: str,
         order_col: Union[str, List[str], None] = ...,
         target_col: Optional[str] = ...,
+        map_feature: bool = ...,
     ) -> Dict[str, Any]: ...
 
     async def acummean(
@@ -65,6 +73,7 @@ class GroupByCumulativeBuilderWrapper:
         column: str,
         order_col: Union[str, List[str], None] = ...,
         target_col: Optional[str] = ...,
+        map_feature: bool = ...,
     ) -> Dict[str, Any]: ...
 
     def cummean(
@@ -72,6 +81,7 @@ class GroupByCumulativeBuilderWrapper:
         column: str,
         order_col: Union[str, List[str], None] = ...,
         target_col: Optional[str] = ...,
+        map_feature: bool = ...,
     ) -> Dict[str, Any]: ...
 
     async def acumcount(
@@ -79,6 +89,7 @@ class GroupByCumulativeBuilderWrapper:
         column: str,
         order_col: Union[str, List[str], None] = ...,
         target_col: Optional[str] = ...,
+        map_feature: bool = ...,
     ) -> Dict[str, Any]: ...
 
     def cumcount(
@@ -86,6 +97,7 @@ class GroupByCumulativeBuilderWrapper:
         column: str,
         order_col: Union[str, List[str], None] = ...,
         target_col: Optional[str] = ...,
+        map_feature: bool = ...,
     ) -> Dict[str, Any]: ...
 
     async def acumstd(
@@ -93,6 +105,7 @@ class GroupByCumulativeBuilderWrapper:
         column: str,
         order_col: Union[str, List[str], None] = ...,
         target_col: Optional[str] = ...,
+        map_feature: bool = ...,
     ) -> Dict[str, Any]: ...
 
     def cumstd(
@@ -100,6 +113,7 @@ class GroupByCumulativeBuilderWrapper:
         column: str,
         order_col: Union[str, List[str], None] = ...,
         target_col: Optional[str] = ...,
+        map_feature: bool = ...,
     ) -> Dict[str, Any]: ...
 
     async def acumvar(
@@ -107,6 +121,7 @@ class GroupByCumulativeBuilderWrapper:
         column: str,
         order_col: Union[str, List[str], None] = ...,
         target_col: Optional[str] = ...,
+        map_feature: bool = ...,
     ) -> Dict[str, Any]: ...
 
     def cumvar(
@@ -114,6 +129,7 @@ class GroupByCumulativeBuilderWrapper:
         column: str,
         order_col: Union[str, List[str], None] = ...,
         target_col: Optional[str] = ...,
+        map_feature: bool = ...,
     ) -> Dict[str, Any]: ...
 
 
