@@ -97,6 +97,7 @@ sample = dataset.groupby("region").cummean("score")
 | `column` | `str` | Numeric column to accumulate. |
 | `order_col` | `str`, `list[str]`, or `None` | Row ordering inside each group. `None` (default) uses physical row order. A list orders by multiple columns. |
 | `target_col` | `str` or `None` | Name for the result column. Auto-generated as `cum_<column>_<op>_by_<groups>` with `_order_by_<orders>` appended when `order_col` is given (e.g. `cum_revenue_sum_by_region_order_by_month`). |
+| `map_feature` | `bool` | When `True` (default `False`), LEFT JOIN the new feature column back onto the original table — matched on full row identity. No extra result table is created; the envelope gains `mapped_table` / `mapped_columns`. |
 
 `group_cols` are fixed at builder creation (`groupby("region", "month")`)
 and accept one or more columns.
@@ -178,6 +179,30 @@ Running **population** (not sample) statistics within each group:
 result = dataset.groupby("region").cumstd("score", order_col="month")
 result = dataset.groupby("region").cumvar("score", order_col="month")
 ```
+
+## Map Feature Back (`map_feature`)
+
+With `map_feature=True`, the new running-value column is LEFT JOINed back
+onto the original table — every original row gains its own running value
+(one output row per input row, matched on full row identity). Only the
+feature column is added and no extra result table is created. Only the
+group table is recorded by `@record_call`.
+
+```python
+result = dataset.groupby("region").cumsum("revenue", map_feature=True)
+# original table now has: region, revenue, cum_revenue_sum_by_region
+```
+
+Rules:
+
+- A repeated identical call re-runs cleanly (its own column is dropped and
+  re-added). This also holds in non-deep mode, which saves nothing.
+- If the column name already exists from anything else, the call fails with
+  an error — drop or rename it first.
+- Backend swaps keep the original table name: DuckDB `CREATE OR REPLACE`,
+  PostgreSQL create-swap-rename, ClickHouse atomic `EXCHANGE TABLES`.
+- Rows with `NULL` key columns match nothing (`NULL = NULL` is false in
+  SQL) and keep a `NULL` feature value.
 
 ## Return Values and Errors
 
