@@ -23,9 +23,10 @@ class GroupByCumulativeBuilderWrapper(GroupByCumulative):
         column: str,
         order_col: Union[str, List[str], None] = None,
         target_col: Optional[str] = None,
+        map_feature: bool = False,
     ) -> Dict[str, Any]:
         """Asynchronously compute group-wise cumulative sum."""
-        return await super().cumsum(column, order_col, target_col)
+        return await super().cumsum(column, order_col, target_col, map_feature)
 
     @async_to_sync
     async def cumsum(
@@ -33,18 +34,20 @@ class GroupByCumulativeBuilderWrapper(GroupByCumulative):
         column: str,
         order_col: Union[str, List[str], None] = None,
         target_col: Optional[str] = None,
+        map_feature: bool = False,
     ) -> Dict[str, Any]:
         """Synchronously compute group-wise cumulative sum."""
-        return await self.acumsum(column, order_col, target_col)
+        return await self.acumsum(column, order_col, target_col, map_feature)
 
     async def acumprod(
         self,
         column: str,
         order_col: Union[str, List[str], None] = None,
         target_col: Optional[str] = None,
+        map_feature: bool = False,
     ) -> Dict[str, Any]:
         """Asynchronously compute group-wise cumulative product."""
-        return await super().cumprod(column, order_col, target_col)
+        return await super().cumprod(column, order_col, target_col, map_feature)
 
     @async_to_sync
     async def cumprod(
@@ -52,18 +55,20 @@ class GroupByCumulativeBuilderWrapper(GroupByCumulative):
         column: str,
         order_col: Union[str, List[str], None] = None,
         target_col: Optional[str] = None,
+        map_feature: bool = False,
     ) -> Dict[str, Any]:
         """Synchronously compute group-wise cumulative product."""
-        return await self.acumprod(column, order_col, target_col)
+        return await self.acumprod(column, order_col, target_col, map_feature)
 
     async def acummax(
         self,
         column: str,
         order_col: Union[str, List[str], None] = None,
         target_col: Optional[str] = None,
+        map_feature: bool = False,
     ) -> Dict[str, Any]:
         """Asynchronously compute group-wise cumulative maximum."""
-        return await super().cummax(column, order_col, target_col)
+        return await super().cummax(column, order_col, target_col, map_feature)
 
     @async_to_sync
     async def cummax(
@@ -71,18 +76,20 @@ class GroupByCumulativeBuilderWrapper(GroupByCumulative):
         column: str,
         order_col: Union[str, List[str], None] = None,
         target_col: Optional[str] = None,
+        map_feature: bool = False,
     ) -> Dict[str, Any]:
         """Synchronously compute group-wise cumulative maximum."""
-        return await self.acummax(column, order_col, target_col)
+        return await self.acummax(column, order_col, target_col, map_feature)
 
     async def acummin(
         self,
         column: str,
         order_col: Union[str, List[str], None] = None,
         target_col: Optional[str] = None,
+        map_feature: bool = False,
     ) -> Dict[str, Any]:
         """Asynchronously compute group-wise cumulative minimum."""
-        return await super().cummin(column, order_col, target_col)
+        return await super().cummin(column, order_col, target_col, map_feature)
 
     @async_to_sync
     async def cummin(
@@ -90,18 +97,20 @@ class GroupByCumulativeBuilderWrapper(GroupByCumulative):
         column: str,
         order_col: Union[str, List[str], None] = None,
         target_col: Optional[str] = None,
+        map_feature: bool = False,
     ) -> Dict[str, Any]:
         """Synchronously compute group-wise cumulative minimum."""
-        return await self.acummin(column, order_col, target_col)
+        return await self.acummin(column, order_col, target_col, map_feature)
 
     async def acummean(
         self,
         column: str,
         order_col: Union[str, List[str], None] = None,
         target_col: Optional[str] = None,
+        map_feature: bool = False,
     ) -> Dict[str, Any]:
         """Asynchronously compute group-wise cumulative mean."""
-        return await super().cummean(column, order_col, target_col)
+        return await super().cummean(column, order_col, target_col, map_feature)
 
     @async_to_sync
     async def cummean(
@@ -109,18 +118,20 @@ class GroupByCumulativeBuilderWrapper(GroupByCumulative):
         column: str,
         order_col: Union[str, List[str], None] = None,
         target_col: Optional[str] = None,
+        map_feature: bool = False,
     ) -> Dict[str, Any]:
         """Synchronously compute group-wise cumulative mean."""
-        return await self.acummean(column, order_col, target_col)
+        return await self.acummean(column, order_col, target_col, map_feature)
 
     async def acumcount(
         self,
         column: str,
         order_col: Union[str, List[str], None] = None,
         target_col: Optional[str] = None,
+        map_feature: bool = False,
     ) -> Dict[str, Any]:
         """Asynchronously compute group-wise cumulative count."""
-        return await super().cumcount(column, order_col, target_col)
+        return await super().cumcount(column, order_col, target_col, map_feature)
 
     @async_to_sync
     async def cumcount(
@@ -128,18 +139,20 @@ class GroupByCumulativeBuilderWrapper(GroupByCumulative):
         column: str,
         order_col: Union[str, List[str], None] = None,
         target_col: Optional[str] = None,
+        map_feature: bool = False,
     ) -> Dict[str, Any]:
         """Synchronously compute group-wise cumulative count."""
-        return await self.acumcount(column, order_col, target_col)
+        return await self.acumcount(column, order_col, target_col, map_feature)
 
     async def acumstd(
         self,
         column: str,
         order_col: Union[str, List[str], None] = None,
         target_col: Optional[str] = None,
+        map_feature: bool = False,
     ) -> Dict[str, Any]:
         """Asynchronously compute group-wise cumulative standard deviation."""
-        return await super().cumstd(column, order_col, target_col)
+        return await super().cumstd(column, order_col, target_col, map_feature)
 
     @async_to_sync
     async def cumstd(
@@ -147,18 +160,20 @@ class GroupByCumulativeBuilderWrapper(GroupByCumulative):
         column: str,
         order_col: Union[str, List[str], None] = None,
         target_col: Optional[str] = None,
+        map_feature: bool = False,
     ) -> Dict[str, Any]:
         """Synchronously compute group-wise cumulative standard deviation."""
-        return await self.acumstd(column, order_col, target_col)
+        return await self.acumstd(column, order_col, target_col, map_feature)
 
     async def acumvar(
         self,
         column: str,
         order_col: Union[str, List[str], None] = None,
         target_col: Optional[str] = None,
+        map_feature: bool = False,
     ) -> Dict[str, Any]:
         """Asynchronously compute group-wise cumulative variance."""
-        return await super().cumvar(column, order_col, target_col)
+        return await super().cumvar(column, order_col, target_col, map_feature)
 
     @async_to_sync
     async def cumvar(
@@ -166,9 +181,10 @@ class GroupByCumulativeBuilderWrapper(GroupByCumulative):
         column: str,
         order_col: Union[str, List[str], None] = None,
         target_col: Optional[str] = None,
+        map_feature: bool = False,
     ) -> Dict[str, Any]:
         """Synchronously compute group-wise cumulative variance."""
-        return await self.acumvar(column, order_col, target_col)
+        return await self.acumvar(column, order_col, target_col, map_feature)
 
 
 class GroupByCumulativeWrapper(GroupByCumulativeOrchestrator):

@@ -61,7 +61,8 @@ class GroupByCumulativeOrchestrator:
         column: str,
         group_cols: Union[str, List[str]],
         order_col: Union[str, List[str], None] = None,
-        target_col: Optional[str] = None,) -> Dict[str, Any]:
+        target_col: Optional[str] = None,
+        map_feature: bool = False,) -> Dict[str, Any]:
         
         ops = await self._ensure_ops()
         table, schema = await self._get_active_context()
@@ -72,7 +73,7 @@ class GroupByCumulativeOrchestrator:
         return await ops.cumsum(
             table, schema, column, group_cols,
             order_col=order_col, target_col=target_col,
-            backend=backend, data_id=data_id,
+            backend=backend, data_id=data_id, map_feature=map_feature,
         )
 
     @record_call
@@ -82,6 +83,7 @@ class GroupByCumulativeOrchestrator:
         group_cols: Union[str, List[str]],
         order_col: Union[str, List[str], None] = None,
         target_col: Optional[str] = None,
+        map_feature: bool = False,
     ) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_active_context()
@@ -92,7 +94,7 @@ class GroupByCumulativeOrchestrator:
         return await ops.cumprod(
             table, schema, column, group_cols,
             order_col=order_col, target_col=target_col,
-            backend=backend, data_id=data_id,
+            backend=backend, data_id=data_id, map_feature=map_feature,
         )
 
     @record_call
@@ -102,6 +104,7 @@ class GroupByCumulativeOrchestrator:
         group_cols: Union[str, List[str]],
         order_col: Union[str, List[str], None] = None,
         target_col: Optional[str] = None,
+        map_feature: bool = False,
     ) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_active_context()
@@ -112,7 +115,7 @@ class GroupByCumulativeOrchestrator:
         return await ops.cummax(
             table, schema, column, group_cols,
             order_col=order_col, target_col=target_col,
-            backend=backend, data_id=data_id,
+            backend=backend, data_id=data_id, map_feature=map_feature,
         )
 
     @record_call
@@ -122,6 +125,7 @@ class GroupByCumulativeOrchestrator:
         group_cols: Union[str, List[str]],
         order_col: Union[str, List[str], None] = None,
         target_col: Optional[str] = None,
+        map_feature: bool = False,
     ) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_active_context()
@@ -132,7 +136,7 @@ class GroupByCumulativeOrchestrator:
         return await ops.cummin(
             table, schema, column, group_cols,
             order_col=order_col, target_col=target_col,
-            backend=backend, data_id=data_id,
+            backend=backend, data_id=data_id, map_feature=map_feature,
         )
 
     @record_call
@@ -142,6 +146,7 @@ class GroupByCumulativeOrchestrator:
         group_cols: Union[str, List[str]],
         order_col: Union[str, List[str], None] = None,
         target_col: Optional[str] = None,
+        map_feature: bool = False,
     ) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_active_context()
@@ -152,7 +157,7 @@ class GroupByCumulativeOrchestrator:
         return await ops.cummean(
             table, schema, column, group_cols,
             order_col=order_col, target_col=target_col,
-            backend=backend, data_id=data_id,
+            backend=backend, data_id=data_id, map_feature=map_feature,
         )
 
     @record_call
@@ -162,6 +167,7 @@ class GroupByCumulativeOrchestrator:
         group_cols: Union[str, List[str]],
         order_col: Union[str, List[str], None] = None,
         target_col: Optional[str] = None,
+        map_feature: bool = False,
     ) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_active_context()
@@ -172,7 +178,7 @@ class GroupByCumulativeOrchestrator:
         return await ops.cumcount(
             table, schema, column, group_cols,
             order_col=order_col, target_col=target_col,
-            backend=backend, data_id=data_id,
+            backend=backend, data_id=data_id, map_feature=map_feature,
         )
 
     @record_call
@@ -182,6 +188,7 @@ class GroupByCumulativeOrchestrator:
         group_cols: Union[str, List[str]],
         order_col: Union[str, List[str], None] = None,
         target_col: Optional[str] = None,
+        map_feature: bool = False,
     ) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_active_context()
@@ -192,7 +199,7 @@ class GroupByCumulativeOrchestrator:
         return await ops.cumstd(
             table, schema, column, group_cols,
             order_col=order_col, target_col=target_col,
-            backend=backend, data_id=data_id,
+            backend=backend, data_id=data_id, map_feature=map_feature,
         )
 
     @record_call
@@ -202,6 +209,7 @@ class GroupByCumulativeOrchestrator:
         group_cols: Union[str, List[str]],
         order_col: Union[str, List[str], None] = None,
         target_col: Optional[str] = None,
+        map_feature: bool = False,
     ) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_active_context()
@@ -212,7 +220,7 @@ class GroupByCumulativeOrchestrator:
         return await ops.cumvar(
             table, schema, column, group_cols,
             order_col=order_col, target_col=target_col,
-            backend=backend, data_id=data_id,
+            backend=backend, data_id=data_id, map_feature=map_feature,
         )
 
     # ------------------------------------------------------------------
@@ -235,81 +243,89 @@ class GroupByCumulative:
         self.group_cols = group_cols
 
     async def cumsum(self, column: str,
-                     order_col=None, target_col=None) -> Dict[str, Any]:
+                     order_col=None, target_col=None, map_feature: bool = False) -> Dict[str, Any]:
         return await self._parent.cumsum(
             column=column,
             group_cols=self.group_cols,
             order_col=order_col,
             target_col=target_col,
+            map_feature=map_feature,
         )
 
     
     async def cumprod(self, column: str,
-                      order_col=None, target_col=None) -> Dict[str, Any]:
+                      order_col=None, target_col=None, map_feature: bool = False) -> Dict[str, Any]:
         return await self._parent.cumprod(
             column=column,
             group_cols=self.group_cols,
             order_col=order_col,
             target_col=target_col,
+            map_feature=map_feature,
         )
 
     
     async def cummax(self, column: str,
-                     order_col=None, target_col=None) -> Dict[str, Any]:
+                     order_col=None, target_col=None, map_feature: bool = False) -> Dict[str, Any]:
         return await self._parent.cummax(
             column=column,
             group_cols=self.group_cols,
             order_col=order_col,
             target_col=target_col,
+            map_feature=map_feature,
         )
 
     async def cummin(self, column: str,
-                     order_col=None, target_col=None) -> Dict[str, Any]:
+                     order_col=None, target_col=None, map_feature: bool = False) -> Dict[str, Any]:
         return await self._parent.cummin(
             column=column,
             group_cols=self.group_cols,
             order_col=order_col,
             target_col=target_col,
+            map_feature=map_feature,
         )
 
     
     async def cummean(self, column: str,
-                      order_col=None, target_col=None) -> Dict[str, Any]:
+                      order_col=None, target_col=None, map_feature: bool = False) -> Dict[str, Any]:
         return await self._parent.cummean(
             column=column,
             group_cols=self.group_cols,
             order_col=order_col,
             target_col=target_col,
+            map_feature=map_feature,
         )
 
     
     async def cumcount(self, column: str,
-                       order_col=None, target_col=None) -> Dict[str, Any]:
+                       order_col=None, target_col=None, map_feature: bool = False) -> Dict[str, Any]:
         return await self._parent.cumcount(
             column=column,
             group_cols=self.group_cols,
             order_col=order_col,
             target_col=target_col,
+            map_feature=map_feature,
         )
 
     
     async def cumstd(self, column: str,
-                     order_col=None, target_col=None) -> Dict[str, Any]:
+                     order_col=None, target_col=None, map_feature: bool = False) -> Dict[str, Any]:
         return await self._parent.cumstd(
             column=column,
             group_cols=self.group_cols,
             order_col=order_col,
             target_col=target_col,
+            map_feature=map_feature,
         )
 
     
     async def cumvar(self, column: str,
-                     order_col=None, target_col=None) -> Dict[str, Any]:
+                     order_col=None, target_col=None, map_feature: bool = False) -> Dict[str, Any]:
         return await self._parent.cumvar(
             column=column,
             group_cols=self.group_cols,
             order_col=order_col,
             target_col=target_col,
+            map_feature=map_feature,
         )
 
 
