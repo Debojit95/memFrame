@@ -149,3 +149,53 @@ def test_cumsum_missing_column_returns_canonical_error_shape(
     assert response["message"] == ""
     assert response["error_message"]
     assert response.get("result") is None
+
+
+def test_map_feature_adds_column_to_original(groupby_cumulative_context):
+    wrapper = GroupByCumulativeWrapper(groupby_cumulative_context)
+    response = wrapper.groupby("g").cumsum("x", map_feature=True)
+
+    assert response["is_error"] is False
+    assert response["mapped_columns"] == ["cum_x_sum_by_g"]
+    assert response["mapped_table"]
+
+    original = groupby_cumulative_context.head(n=10)
+    assert "cum_x_sum_by_g" in list(original.columns)
+    assert dict(zip(original["x"], original["cum_x_sum_by_g"])) == {
+        1.0: 1.0,
+        2.0: 3.0,
+        3.0: 3.0,
+        4.0: 7.0,
+    }
+
+
+def test_map_feature_identical_rerun_succeeds(groupby_cumulative_context):
+    wrapper = GroupByCumulativeWrapper(groupby_cumulative_context)
+    first = wrapper.groupby("g").cumsum("x", map_feature=True)
+    assert first["is_error"] is False
+
+    second = wrapper.groupby("g").cumsum("x", map_feature=True)
+    assert second["is_error"] is False
+
+    original = groupby_cumulative_context.head(n=10)
+    assert list(original.columns).count("cum_x_sum_by_g") == 1
+
+
+def test_map_feature_foreign_collision_errors(groupby_cumulative_context):
+    async def _add_foreign_column():
+        table, schema = await groupby_cumulative_context._get_active_context()
+        await groupby_cumulative_context.memframe._backend.execute(
+            f'ALTER TABLE {schema}."{table}" ADD COLUMN cum_x_sum_by_g DOUBLE'
+        )
+
+    asyncio.run(_add_foreign_column())
+    response = (
+        GroupByCumulativeWrapper(groupby_cumulative_context)
+        .groupby("g")
+        .cumsum("x", map_feature=True)
+    )
+
+    assert response["is_error"] is True
+    assert response["message"] == ""
+    assert "already exist" in response["error_message"]
+    assert response.get("result") is None
