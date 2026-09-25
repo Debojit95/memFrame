@@ -77,6 +77,7 @@ class ContextManager:
         from memframe.wrappers.analytix.window import WindowWrapper
         from memframe.wrappers.analytix.groupby_stats import GroupByStatsWrapper
         from memframe.wrappers.analytix.groupby_cumulative import GroupByCumulativeWrapper
+        from memframe.wrappers.analytix.groupby_window import GroupByWindowStatsWrapper
         from memframe.wrappers.plots.bar import BarWrapper
         from memframe.wrappers.plots.bar_polar import BarPolarWrapper
         from memframe.wrappers.plots.pie import PieWrapper
@@ -98,6 +99,7 @@ class ContextManager:
             WindowWrapper(self),
             GroupByStatsWrapper(self),
             GroupByCumulativeWrapper(self),
+            GroupByWindowStatsWrapper(self),
             BarWrapper(self),
             BarPolarWrapper(self),
             PieWrapper(self),
@@ -132,21 +134,24 @@ class ContextManager:
         return self._dt_wrapper
 
     def groupby(self, *columns: str):
-        # ponytail: unified GroupBy facade (stats + cumulative builders) so
-        # the flat `groupby` name doesn't collide between wrappers. Window
-        # builder is None until partitioned windows exist (their builder
-        # needs a value column, groupby only has group cols).
+        # ponytail: unified GroupBy facade (stats + cumulative + window
+        # builders) so the flat `groupby` name doesn't collide between
+        # wrappers.
         from memframe.wrappers.analytix.groupby import GroupBy as UnifiedGroupBy
         from memframe.wrappers.analytix.groupby_cumulative import (
             GroupByCumulativeWrapper,
         )
         from memframe.wrappers.analytix.groupby_stats import GroupByStatsWrapper
+        from memframe.wrappers.analytix.groupby_window import (
+            GroupByWindowStatsWrapper,
+        )
 
         if not columns:
             raise ValueError("Must provide at least one group-by column.")
         stats_builder = GroupByStatsWrapper(self).groupby(*columns)
         cum_builder = GroupByCumulativeWrapper(self).groupby(*columns)
-        return UnifiedGroupBy(stats_builder, cum_builder, None)
+        window_builder = GroupByWindowStatsWrapper(self).groupby(*columns)
+        return UnifiedGroupBy(stats_builder, cum_builder, window_builder)
 
     def __getattr__(self, name: str) -> Any:
         # `dt` is a property, not a wrapper method
