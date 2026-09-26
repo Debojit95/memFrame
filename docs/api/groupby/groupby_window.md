@@ -139,6 +139,7 @@ sample = dataset.groupby("region").expanding().sum("sales")
 | `q` | `float` | Quantile level for `quantile` (default `0.5`). |
 | `min_periods` | `int` | Minimum rows before an expanding value is produced (default `1`). |
 | `new_table` | `str` or `None` | Explicit name for the output table (chaining). Auto-generated as `<table>__op_<n>` when omitted. |
+| `map_feature` | `bool` | When `True` (default `False`), LEFT JOIN the new feature column(s) back onto the original table — matched on full row identity. No extra result table is created; the envelope gains `mapped_table` / `mapped_columns`. Rolling, expanding, and the specials; not EWM. |
 
 With no `order_by`, rows accumulate in physical storage order
 (PostgreSQL `ctid`, DuckDB `rowid`). ClickHouse has no stable row id, so
@@ -232,6 +233,33 @@ The orchestrator detects the value column dtype (numeric / datetime /
 categorical) and maps each requested function to the dtype-appropriate
 engine method; datetime columns support `min`/`max`/`mean`/`median`/
 `mode`/`count`/`nunique`/`rank`/`first`/`last` via epoch conversion.
+
+## Map Feature Back (`map_feature`)
+
+With `map_feature=True`, the new window column(s) are LEFT JOINed back
+onto the original table — every original row gains its own running value
+(one output row per input row, matched on full row identity). Only the
+feature column(s) are added and no extra result table is created. Only
+the window table is recorded by `@record_call`.
+
+```python
+result = dataset.groupby("region").rolling(3, order_by="month").agg(
+    "sales", ["mean"], map_feature=True
+)
+# original table now has: region, month, sales, sales_rolling_mean_w3_by_region
+```
+
+Rules:
+
+- A repeated identical call re-runs cleanly (its own column(s) are
+  dropped and re-added). This also holds in non-deep mode, which saves
+  nothing.
+- If the column name already exists from anything else, the call fails
+  with an error — drop or rename it first.
+- Backend swaps keep the original table name: DuckDB `CREATE OR REPLACE`,
+  PostgreSQL create-swap-rename, ClickHouse atomic `EXCHANGE TABLES`.
+- Rows with `NULL` key columns match nothing (`NULL = NULL` is false in
+  SQL) and keep a `NULL` feature value.
 
 ## Return Values and Errors
 
