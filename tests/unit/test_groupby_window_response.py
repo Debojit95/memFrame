@@ -143,3 +143,66 @@ def test_rolling_missing_column_raises(groupby_window_context):
             .rolling(2, order_by="o")
             .mean("missing_col")
         )
+
+
+def test_map_feature_rolling_adds_column_to_original(groupby_window_context):
+    wrapper = GroupByWindowStatsWrapper(groupby_window_context)
+    response = (
+        wrapper.groupby("g").rolling(2, order_by="o").agg("x", ["mean"], map_feature=True)
+    )
+
+    assert response["is_error"] is False
+    assert response["mapped_columns"] == ["x_rolling_mean_w2_by_g"]
+    assert response["mapped_table"]
+
+    original = groupby_window_context.head(n=10)
+    assert "x_rolling_mean_w2_by_g" in list(original.columns)
+    frame = original.sort_values(["g", "o"]).reset_index(drop=True)
+    assert list(frame["x_rolling_mean_w2_by_g"]) == [10.0, 15.0, 25.0, 5.0, 10.0, 20.0]
+
+
+def test_map_feature_expanding_adds_column_to_original(groupby_window_context):
+    wrapper = GroupByWindowStatsWrapper(groupby_window_context)
+    response = (
+        wrapper.groupby("g").expanding(order_by="o").agg("x", ["sum"], map_feature=True)
+    )
+
+    assert response["is_error"] is False
+    assert response["mapped_columns"] == ["x_expanding_sum_by_g"]
+
+    original = groupby_window_context.head(n=10)
+    frame = original.sort_values(["g", "o"]).reset_index(drop=True)
+    assert list(frame["x_expanding_sum_by_g"]) == [10.0, 30.0, 60.0, 5.0, 20.0, 45.0]
+
+
+def test_map_feature_identical_rerun_succeeds(groupby_window_context):
+    wrapper = GroupByWindowStatsWrapper(groupby_window_context)
+    first = wrapper.groupby("g").rolling(2, order_by="o").agg("x", ["mean"], map_feature=True)
+    assert first["is_error"] is False
+
+    second = wrapper.groupby("g").rolling(2, order_by="o").agg("x", ["mean"], map_feature=True)
+    assert second["is_error"] is False
+
+    original = groupby_window_context.head(n=10)
+    assert list(original.columns).count("x_rolling_mean_w2_by_g") == 1
+
+
+def test_map_feature_foreign_collision_errors(groupby_window_context):
+    async def _add_foreign_column():
+        table, schema = await groupby_window_context._get_active_context()
+        await groupby_window_context.memframe._backend.execute(
+            f'ALTER TABLE {schema}."{table}" ADD COLUMN x_rolling_mean_w2_by_g DOUBLE'
+        )
+
+    asyncio.run(_add_foreign_column())
+    response = (
+        GroupByWindowStatsWrapper(groupby_window_context)
+        .groupby("g")
+        .rolling(2, order_by="o")
+        .agg("x", ["mean"], map_feature=True)
+    )
+
+    assert response["is_error"] is True
+    assert response["message"] == ""
+    assert "already exist" in response["error_message"]
+    assert response.get("result") is None

@@ -36,6 +36,13 @@ class GroupbyWindowOps(WindowOps):
             f"Unsupported database backend for groupby window operation: {self.db.__class__.__name__}"
         )
 
+    def _error_response(self, msg, **extra):
+        # ponytail: the pre-split engine accepted extras (e.g. group_cols);
+        # keep that shape on top of the narrowed base signature.
+        resp = super()._error_response(msg)
+        resp.update(extra)
+        return resp
+
     # ------------------------------------------------------------------
     #  ClickHouse helpers
     # ------------------------------------------------------------------
