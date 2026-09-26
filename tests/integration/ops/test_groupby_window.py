@@ -787,6 +787,65 @@ class TestGroupByWindowOperations:
             sample_df, res_df, pandas_df, backend_config["connection_type"],
         )
 
+    # --- map_feature=True: single and multi-column group-by ---
+    def test_map_feature_single_groupby(self, uploaded_ctx, sample_df, backend_config):
+        result = uploaded_ctx.groupby("group").rolling(2, order_by="id").agg(
+            "value", ["mean"], map_feature=True
+        )
+        assert result["mapped_columns"] == ["value_rolling_mean_w2_by_group"]
+
+        mapped = get_result_df(uploaded_ctx.head(n=len(sample_df)))
+        assert "value_rolling_mean_w2_by_group" in list(mapped.columns)
+        assert "group" in list(mapped.columns)  # keys not duplicated
+
+        check = mapped.sort_values(["group", "id"]).reset_index(drop=True)
+        exp_ordered = sample_df.sort_values(["group", "id"]).reset_index(drop=True)
+        exp_vals = self._pandas_rolling(exp_ordered, ["group"], "value", 2, "mean")
+        assert_allclose_numeric(check["value_rolling_mean_w2_by_group"], exp_vals)
+        self._record_result(
+            "map_feature_single_groupby",
+            'groupby("group").rolling(2).agg("value", ["mean"], map_feature=True)',
+            sample_df, mapped, exp_ordered, backend_config["connection_type"],
+        )
+
+    def test_map_feature_multi_groupby(self, uploaded_ctx, sample_df, backend_config):
+        result = uploaded_ctx.groupby("group", "sub").rolling(2, order_by="id").agg(
+            "value", ["sum"], map_feature=True
+        )
+        assert result["mapped_columns"] == ["value_rolling_sum_w2_by_group_sub"]
+
+        mapped = get_result_df(uploaded_ctx.head(n=len(sample_df)))
+        assert "value_rolling_sum_w2_by_group_sub" in list(mapped.columns)
+
+        check = mapped.sort_values(["group", "sub", "id"]).reset_index(drop=True)
+        exp_ordered = sample_df.sort_values(["group", "sub", "id"]).reset_index(drop=True)
+        exp_vals = self._pandas_rolling(exp_ordered, ["group", "sub"], "value", 2, "sum")
+        assert_allclose_numeric(check["value_rolling_sum_w2_by_group_sub"], exp_vals)
+        self._record_result(
+            "map_feature_multi_groupby",
+            'groupby("group", "sub").rolling(2).agg("value", ["sum"], map_feature=True)',
+            sample_df, mapped, exp_ordered, backend_config["connection_type"],
+        )
+
+    def test_map_feature_expanding(self, uploaded_ctx, sample_df, backend_config):
+        result = uploaded_ctx.groupby("group").expanding(order_by="id").agg(
+            "value", ["sum"], map_feature=True
+        )
+        assert result["mapped_columns"] == ["value_expanding_sum_by_group"]
+
+        mapped = get_result_df(uploaded_ctx.head(n=len(sample_df)))
+        check = mapped.sort_values(["group", "id"]).reset_index(drop=True)
+        exp_ordered = sample_df.sort_values(["group", "id"]).reset_index(drop=True)
+        exp_vals = (
+            exp_ordered.groupby("group")["value"].expanding().sum().reset_index(level=0, drop=True)
+        )
+        assert_allclose_numeric(check["value_expanding_sum_by_group"], exp_vals)
+        self._record_result(
+            "map_feature_expanding",
+            'groupby("group").expanding().agg("value", ["sum"], map_feature=True)',
+            sample_df, mapped, exp_ordered, backend_config["connection_type"],
+        )
+
     # --- Mutation safety ---
     def test_mutation_safety(self, uploaded_ctx, sample_df, backend_config):
         original_uploaded = get_result_df(uploaded_ctx.head(n=len(sample_df)))
