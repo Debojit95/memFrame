@@ -448,10 +448,12 @@ class GroupByWindowStatsWrapper(GroupByWindowOrchestrator):
         group_cols: Union[str, List[str]],
         order_by=None,
         q: float = 0.5,
+        map_feature: bool = False,
     ) -> Dict[str, Any]:
         """Asynchronously run grouped rolling window operation directly."""
         return await super().rolling(column=column, window=window, func=func,
-                                     group_cols=group_cols, order_by=order_by, q=q)
+                                     group_cols=group_cols, order_by=order_by, q=q,
+                                     map_feature=map_feature)
 
     @async_to_sync
     async def rolling(
@@ -462,10 +464,12 @@ class GroupByWindowStatsWrapper(GroupByWindowOrchestrator):
         group_cols: Union[str, List[str]],
         order_by=None,
         q: float = 0.5,
+        map_feature: bool = False,
     ) -> Dict[str, Any]:
         """Synchronously run grouped rolling window operation directly."""
         return await self.arolling(column=column, window=window, func=func,
-                                   group_cols=group_cols, order_by=order_by, q=q)
+                                   group_cols=group_cols, order_by=order_by, q=q,
+                                   map_feature=map_feature)
 
     async def aexpanding(
         self,
@@ -475,10 +479,12 @@ class GroupByWindowStatsWrapper(GroupByWindowOrchestrator):
         order_by=None,
         q: float = 0.5,
         min_periods: int = 1,
+        map_feature: bool = False,
     ) -> Dict[str, Any]:
         """Asynchronously run grouped expanding window operation directly."""
         return await super().expanding(column=column, func=func, group_cols=group_cols,
-                                       order_by=order_by, q=q, min_periods=min_periods)
+                                       order_by=order_by, q=q, min_periods=min_periods,
+                                       map_feature=map_feature)
 
     @async_to_sync
     async def expanding(
@@ -489,10 +495,12 @@ class GroupByWindowStatsWrapper(GroupByWindowOrchestrator):
         order_by=None,
         q: float = 0.5,
         min_periods: int = 1,
+        map_feature: bool = False,
     ) -> Dict[str, Any]:
         """Synchronously run grouped expanding window operation directly."""
         return await self.aexpanding(column=column, func=func, group_cols=group_cols,
-                                     order_by=order_by, q=q, min_periods=min_periods)
+                                     order_by=order_by, q=q, min_periods=min_periods,
+                                     map_feature=map_feature)
 
     async def aewm(
         self,

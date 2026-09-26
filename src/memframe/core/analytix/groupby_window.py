@@ -8,6 +8,7 @@ Supports DuckDB, PostgreSQL, and ClickHouse.
 
 from __future__ import annotations
 from datetime import datetime, timezone
+import json
 import traceback
 from typing import Any, Dict, List, Union
 import pandas as pd
@@ -61,6 +62,148 @@ class GroupbyWindowOps(WindowOps):
             f"CREATE TABLE {output_qualified} "
             f"ENGINE = MergeTree() ORDER BY tuple() AS\n{select_sql}"
         )
+
+    # ------------------------------------------------------------------
+    # map_feature helpers: LEFT JOIN the new feature column(s) back onto the
+    # original table on full row identity (one output row per input row).
+    # Marker rows in the transient registry tell our own re-runs apart
+    # from foreign column collisions.
+    # ------------------------------------------------------------------
+    def _map_sig(
+        self,
+        group_cols,
+        column,
+        operation_name,
+        order_cols,
+        target_col,
+        new_columns,
+    ):
+        return json.dumps(
+            {
+                "group_cols": group_cols,
+                "column": column,
+                "operation": operation_name,
+                "order_cols": order_cols or [],
+                "target_col": target_col,
+                "new_columns": new_columns,
+            },
+            sort_keys=True,
+        )
+
+    async def _check_map_collision(
+        self, table, schema, backend, data_id, sig, new_columns,
+    ):
+        """Drop our own re-run columns; error on foreign collisions."""
+        try:
+            orig_cols = set(await self.db.get_column_types(table, schema) or {})
+        except Exception:
+            orig_cols = set()
+        clashes = [c for c in new_columns if c in orig_cols]
+        if not clashes:
+            return None
+        rows = await self._fetch(
+            f"""SELECT kwargs FROM {backend.transient_registry_table}
+                WHERE data_id = {backend.placeholder(1)}
+                  AND operation_type = 'groupby_win_map'
+                  AND generated_table_name = {backend.placeholder(2)}""",
+            data_id,
+            table,
+        )
+        for row in rows or []:
+            try:
+                # ponytail: adapters disagree (dicts on DuckDB, tuples on
+                # Postgres) — read both shapes.
+                stored = row.get("kwargs") if isinstance(row, dict) else row[0]
+                if json.loads(stored or "{}") == json.loads(sig):
+                    for col in clashes:
+                        await self._exec(
+                            f"ALTER TABLE {self._qualified_table(table, schema)} "
+                            f"DROP COLUMN {self.db.quote_identifier(col)}"
+                        )
+                    return None
+            except Exception:
+                continue
+        return (
+            f"map_feature: column(s) {clashes} already exist on "
+            f"{schema}.{table} and were not created by a previous identical "
+            f"group-by window mapping. Drop or rename them first."
+        )
+
+    async def _record_map_marker(self, table, schema, backend, data_id, sig):
+        max_op = await self._backend_fetch_val(
+            backend,
+            f"""
+            SELECT COALESCE(MAX(opidx), 0)
+            FROM {backend.transient_registry_table}
+            WHERE data_id = {backend.placeholder(1)}
+            """,
+            data_id,
+        )
+        opidx = (max_op or 0) + 1
+        await self._exec(
+            f"""INSERT INTO {backend.transient_registry_table}
+                (data_id, opidx, operation_type, class_name, method_name,
+                 args, kwargs, generated_table_name, is_deep_cache, schema)
+                VALUES ({backend.placeholder(1)}, {backend.placeholder(2)},
+                        'groupby_win_map', 'GroupbyWindowOps', 'map_feature',
+                        {backend.placeholder(3)}, {backend.placeholder(4)},
+                        {backend.placeholder(5)}, {backend.placeholder(6)},
+                        {backend.placeholder(7)})""",
+            data_id, opidx, "", sig, table, False, schema,
+        )
+
+    async def _apply_map(
+        self, table, schema, group_table, new_columns, backend, data_id, sig,
+    ):
+        try:
+            orig_cols = list(await self.db.get_column_types(table, schema) or {})
+        except Exception:
+            orig_cols = []
+        if not orig_cols:
+            raise ValueError(f"map_feature: could not list columns of {schema}.{table}")
+        orig_q = self._qualified_table(table, schema)
+        group_q = self._qualified_table(group_table, schema)
+        cond = " AND ".join(
+            f'o.{self.db.quote_identifier(c)} = g.{self.db.quote_identifier(c)}'
+            for c in orig_cols
+        )
+        feats = ", ".join(
+            f'g.{self.db.quote_identifier(c)} AS {self.db.quote_identifier(c)}'
+            for c in new_columns
+        )
+        if isinstance(self.db, ClickHouseAdapter):
+            tmp = SQLIdentifierSanitizer.sanitize(f"{table}__map_tmp")
+            tmp_q = self._qualified_table(tmp, schema)
+            await self._exec(f"DROP TABLE IF EXISTS {tmp_q}")
+            await self._exec(
+                f"""CREATE TABLE {tmp_q}
+                    ENGINE = MergeTree()
+                    ORDER BY tuple()
+                    AS SELECT o.*, {feats}
+                    FROM {orig_q} o LEFT JOIN {group_q} g ON {cond}"""
+            )
+            await self._exec(f"EXCHANGE TABLES {orig_q} AND {tmp_q}")
+            await self._exec(f"DROP TABLE {tmp_q}")
+        elif isinstance(self.db, PostgresAdapter):
+            tmp = SQLIdentifierSanitizer.sanitize(f"{table}__map_tmp")
+            tmp_q = self._qualified_table(tmp, schema)
+            await self._exec(f"DROP TABLE IF EXISTS {tmp_q}")
+            await self._exec(
+                f"""CREATE TABLE {tmp_q} AS
+                    SELECT o.*, {feats}
+                    FROM {orig_q} o LEFT JOIN {group_q} g ON {cond}"""
+            )
+            await self._exec(f"DROP TABLE {orig_q}")
+            await self._exec(
+                f"ALTER TABLE {tmp_q} RENAME TO {self.db.quote_identifier(SQLIdentifierSanitizer.sanitize(table))}"
+            )
+        else:
+            await self._exec(
+                f"""CREATE OR REPLACE TABLE {orig_q} AS
+                    SELECT o.*, {feats}
+                    FROM {orig_q} o LEFT JOIN {group_q} g ON {cond}"""
+            )
+        await self._record_map_marker(table, schema, backend, data_id, sig)
 
     async def _projection_sql(
         self,
@@ -157,6 +300,7 @@ class GroupbyWindowOps(WindowOps):
         backend=None,
         data_id=None,
         new_table: str = None,
+        map_feature: bool = False,
     ) -> Dict[str, Any]:
         """Generic rolling aggregation with PARTITION BY group_cols."""
         try:
@@ -239,7 +383,26 @@ class GroupbyWindowOps(WindowOps):
                         {window_sql}
                     FROM {qualified}
                 """
+                map_sig = self._map_sig(
+                    safe_groups, safe_col, "rolling", safe_orders,
+                    new_cols[0] if len(new_cols) == 1 else "rolling", new_cols,
+                )
+                map_collision = None
+                if map_feature:
+                    map_collision = await self._check_map_collision(
+                        table, schema, backend, data_id, map_sig, new_cols,
+                    )
+                    if map_collision:
+                        return self._error_response(
+                            f"Rolling group-by error: {map_collision}",
+                            group_cols=safe_groups,
+                        )
                 await self._exec(create_sql)
+                if map_feature:
+                    await self._apply_map(
+                        table, schema, new_table_name, new_cols,
+                        backend, data_id, map_sig,
+                    )
 
                 preview_cols = [column, *new_cols]
                 if order_by:
@@ -253,6 +416,8 @@ class GroupbyWindowOps(WindowOps):
                     f"Rolling {agg_label} on '{column}' grouped by {safe_groups} (window={window})",
                     result=res,
                     new_table=new_table_name,
+                    mapped_table=table if map_feature else None,
+                    mapped_columns=new_cols if map_feature else [],
                     new_columns=new_cols,
                     window=window,
                     group_cols=safe_groups,
@@ -344,7 +509,26 @@ class GroupbyWindowOps(WindowOps):
                 )
 
                 create_sql = self._ch_create_table_as(output_qualified, select_sql)
+                map_sig = self._map_sig(
+                    safe_groups, safe_col, "rolling", safe_orders,
+                    new_cols[0] if len(new_cols) == 1 else "rolling", new_cols,
+                )
+                map_collision = None
+                if map_feature:
+                    map_collision = await self._check_map_collision(
+                        table, schema, backend, data_id, map_sig, new_cols,
+                    )
+                    if map_collision:
+                        return self._error_response(
+                            f"Rolling group-by error: {map_collision}",
+                            group_cols=safe_groups,
+                        )
                 await self._exec(create_sql)
+                if map_feature:
+                    await self._apply_map(
+                        table, schema, new_table_name, new_cols,
+                        backend, data_id, map_sig,
+                    )
 
                 # ------ Preview ------
                 preview_cols = [column, *new_cols]
@@ -359,6 +543,8 @@ class GroupbyWindowOps(WindowOps):
                     f"Rolling {agg_label} on '{column}' grouped by {safe_groups} (window={window})",
                     result=res,
                     new_table=new_table_name,
+                    mapped_table=table if map_feature else None,
+                    mapped_columns=new_cols if map_feature else [],
                     new_columns=new_cols,
                     window=window,
                     group_cols=safe_groups,
@@ -463,7 +649,8 @@ class GroupbyWindowOps(WindowOps):
 
     # ---------- Rolling Specials ----------
     async def rolling_quantile_groupby(
-        self, table, schema, column, group_cols, order_by=None, window=3, q=0.5, backend=None, data_id=None, new_table=None
+        self, table, schema, column, group_cols, order_by=None, window=3, q=0.5, backend=None, data_id=None, new_table=None,
+        map_feature: bool = False
     ):
         try:
             # ============================================================
@@ -516,7 +703,26 @@ class GroupbyWindowOps(WindowOps):
                         ) AS {q_new_col}
                     FROM __base b
                     """
+                    map_sig = self._map_sig(
+                        safe_groups, safe_col, "rolling_quantile", safe_orders,
+                        [new_col][0] if len([new_col]) == 1 else "rolling_quantile", [new_col],
+                    )
+                    map_collision = None
+                    if map_feature:
+                        map_collision = await self._check_map_collision(
+                            table, schema, backend, data_id, map_sig, [new_col],
+                        )
+                        if map_collision:
+                            return self._error_response(
+                                f"Rolling quantile group-by error: {map_collision}",
+                                group_cols=safe_groups,
+                            )
                     await self._exec(sql)
+                    if map_feature:
+                        await self._apply_map(
+                            table, schema, new_table_name, [new_col],
+                            backend, data_id, map_sig,
+                        )
                 elif isinstance(self.db, DuckDBAdapter):
                     func = f"QUANTILE_CONT({self.db.quote_identifier(safe_col)}, {q})"
 
@@ -535,7 +741,26 @@ class GroupbyWindowOps(WindowOps):
                         {window_sql} AS {self.db.quote_identifier(new_col)}
                     FROM {qualified}
                     """
+                    map_sig = self._map_sig(
+                        safe_groups, safe_col, "rolling_quantile", safe_orders,
+                        [new_col][0] if len([new_col]) == 1 else "rolling_quantile", [new_col],
+                    )
+                    map_collision = None
+                    if map_feature:
+                        map_collision = await self._check_map_collision(
+                            table, schema, backend, data_id, map_sig, [new_col],
+                        )
+                        if map_collision:
+                            return self._error_response(
+                                f"Rolling quantile group-by error: {map_collision}",
+                                group_cols=safe_groups,
+                            )
                     await self._exec(sql)
+                    if map_feature:
+                        await self._apply_map(
+                            table, schema, new_table_name, [new_col],
+                            backend, data_id, map_sig,
+                        )
                 else:
                     raise self._unsupported_backend_error()
 
@@ -549,6 +774,8 @@ class GroupbyWindowOps(WindowOps):
                     f"Rolling quantile on '{column}' grouped by {safe_groups} (window={window}, q={q})",
                     res,
                     new_table=new_table_name,
+                    mapped_table=table if map_feature else None,
+                    mapped_columns=[new_col] if map_feature else [],
                     new_column=new_col,
                 )
 
@@ -607,7 +834,26 @@ class GroupbyWindowOps(WindowOps):
                 )
 
                 create_sql = self._ch_create_table_as(output_qualified, select_sql)
+                map_sig = self._map_sig(
+                    safe_groups, safe_col, "rolling_quantile", safe_orders,
+                    [new_col][0] if len([new_col]) == 1 else "rolling_quantile", [new_col],
+                )
+                map_collision = None
+                if map_feature:
+                    map_collision = await self._check_map_collision(
+                        table, schema, backend, data_id, map_sig, [new_col],
+                    )
+                    if map_collision:
+                        return self._error_response(
+                            f"Rolling quantile group-by error: {map_collision}",
+                            group_cols=safe_groups,
+                        )
                 await self._exec(create_sql)
+                if map_feature:
+                    await self._apply_map(
+                        table, schema, new_table_name, [new_col],
+                        backend, data_id, map_sig,
+                    )
 
                 preview_cols = [column, new_col]
                 if order_by:
@@ -619,6 +865,8 @@ class GroupbyWindowOps(WindowOps):
                     f"Rolling quantile on '{column}' grouped by {safe_groups} (window={window}, q={q})",
                     res,
                     new_table=new_table_name,
+                    mapped_table=table if map_feature else None,
+                    mapped_columns=[new_col] if map_feature else [],
                     new_column=new_col,
                 )
 
@@ -628,7 +876,8 @@ class GroupbyWindowOps(WindowOps):
             return self._error_response(f"rolling quantile group-by error: {str(e)}")
 
     async def rolling_sem_groupby(
-        self, table, schema, column, group_cols, order_by=None, window=3, backend=None, data_id=None, new_table=None
+        self, table, schema, column, group_cols, order_by=None, window=3, backend=None, data_id=None, new_table=None,
+        map_feature: bool = False
     ):
         try:
             # ============================================================
@@ -689,7 +938,26 @@ class GroupbyWindowOps(WindowOps):
                 SELECT *, {sem_expr} AS {self.db.quote_identifier(new_col)}
                 FROM {qualified}
                 """
+                map_sig = self._map_sig(
+                    safe_groups, safe_col, "rolling_sem", safe_orders,
+                    [new_col][0] if len([new_col]) == 1 else "rolling_sem", [new_col],
+                )
+                map_collision = None
+                if map_feature:
+                    map_collision = await self._check_map_collision(
+                        table, schema, backend, data_id, map_sig, [new_col],
+                    )
+                    if map_collision:
+                        return self._error_response(
+                            f"Rolling sem group-by error: {map_collision}",
+                            group_cols=safe_groups,
+                        )
                 await self._exec(sql)
+                if map_feature:
+                    await self._apply_map(
+                        table, schema, new_table_name, [new_col],
+                        backend, data_id, map_sig,
+                    )
 
                 preview_cols = [column, new_col]
                 if order_by:
@@ -701,6 +969,8 @@ class GroupbyWindowOps(WindowOps):
                     f"Rolling SEM on '{column}' grouped by {safe_groups} (window={window})",
                     res,
                     new_table=new_table_name,
+                    mapped_table=table if map_feature else None,
+                    mapped_columns=[new_col] if map_feature else [],
                     new_column=new_col,
                 )
 
@@ -757,7 +1027,26 @@ class GroupbyWindowOps(WindowOps):
                 )
 
                 create_sql = self._ch_create_table_as(output_qualified, select_sql)
+                map_sig = self._map_sig(
+                    safe_groups, safe_col, "rolling_sem", safe_orders,
+                    [new_col][0] if len([new_col]) == 1 else "rolling_sem", [new_col],
+                )
+                map_collision = None
+                if map_feature:
+                    map_collision = await self._check_map_collision(
+                        table, schema, backend, data_id, map_sig, [new_col],
+                    )
+                    if map_collision:
+                        return self._error_response(
+                            f"Rolling sem group-by error: {map_collision}",
+                            group_cols=safe_groups,
+                        )
                 await self._exec(create_sql)
+                if map_feature:
+                    await self._apply_map(
+                        table, schema, new_table_name, [new_col],
+                        backend, data_id, map_sig,
+                    )
 
                 preview_cols = [column, new_col]
                 if order_by:
@@ -769,6 +1058,8 @@ class GroupbyWindowOps(WindowOps):
                     f"Rolling SEM on '{column}' grouped by {safe_groups} (window={window})",
                     res,
                     new_table=new_table_name,
+                    mapped_table=table if map_feature else None,
+                    mapped_columns=[new_col] if map_feature else [],
                     new_column=new_col,
                 )
 
@@ -778,7 +1069,8 @@ class GroupbyWindowOps(WindowOps):
             return self._error_response(f"rolling sem group-by error: {str(e)}")
 
     async def rolling_nunique_groupby(
-        self, table, schema, column, group_cols, order_by=None, window=3, backend=None, data_id=None, new_table=None
+        self, table, schema, column, group_cols, order_by=None, window=3, backend=None, data_id=None, new_table=None,
+        map_feature: bool = False
     ):
         try:
             # ============================================================
@@ -824,7 +1116,26 @@ class GroupbyWindowOps(WindowOps):
                     SELECT *, {nunique_expr} AS {self.db.quote_identifier(new_col)}
                     FROM {qualified}
                     """
+                    map_sig = self._map_sig(
+                        safe_groups, safe_col, "rolling_nunique", safe_orders,
+                        [new_col][0] if len([new_col]) == 1 else "rolling_nunique", [new_col],
+                    )
+                    map_collision = None
+                    if map_feature:
+                        map_collision = await self._check_map_collision(
+                            table, schema, backend, data_id, map_sig, [new_col],
+                        )
+                        if map_collision:
+                            return self._error_response(
+                                f"Rolling nunique group-by error: {map_collision}",
+                                group_cols=safe_groups,
+                            )
                     await self._exec(sql)
+                    if map_feature:
+                        await self._apply_map(
+                            table, schema, new_table_name, [new_col],
+                            backend, data_id, map_sig,
+                        )
                 elif isinstance(self.db, PostgresAdapter):
                     sql = f"""
                     CREATE TABLE {self.db.quote_identifier(schema)}.{self.db.quote_identifier(new_table_name)} AS
@@ -841,7 +1152,26 @@ class GroupbyWindowOps(WindowOps):
                         ) AS {self.db.quote_identifier(new_col)}
                     FROM __base b
                     """
+                    map_sig = self._map_sig(
+                        safe_groups, safe_col, "rolling_nunique", safe_orders,
+                        [new_col][0] if len([new_col]) == 1 else "rolling_nunique", [new_col],
+                    )
+                    map_collision = None
+                    if map_feature:
+                        map_collision = await self._check_map_collision(
+                            table, schema, backend, data_id, map_sig, [new_col],
+                        )
+                        if map_collision:
+                            return self._error_response(
+                                f"Rolling nunique group-by error: {map_collision}",
+                                group_cols=safe_groups,
+                            )
                     await self._exec(sql)
+                    if map_feature:
+                        await self._apply_map(
+                            table, schema, new_table_name, [new_col],
+                            backend, data_id, map_sig,
+                        )
                 else:
                     raise self._unsupported_backend_error()
 
@@ -855,6 +1185,8 @@ class GroupbyWindowOps(WindowOps):
                     f"Rolling nunique on '{column}' grouped by {safe_groups} (window={window})",
                     res,
                     new_table=new_table_name,
+                    mapped_table=table if map_feature else None,
+                    mapped_columns=[new_col] if map_feature else [],
                     new_column=new_col,
                 )
 
@@ -910,7 +1242,26 @@ class GroupbyWindowOps(WindowOps):
                 )
 
                 create_sql = self._ch_create_table_as(output_qualified, select_sql)
+                map_sig = self._map_sig(
+                    safe_groups, safe_col, "rolling_nunique", safe_orders,
+                    [new_col][0] if len([new_col]) == 1 else "rolling_nunique", [new_col],
+                )
+                map_collision = None
+                if map_feature:
+                    map_collision = await self._check_map_collision(
+                        table, schema, backend, data_id, map_sig, [new_col],
+                    )
+                    if map_collision:
+                        return self._error_response(
+                            f"Rolling nunique group-by error: {map_collision}",
+                            group_cols=safe_groups,
+                        )
                 await self._exec(create_sql)
+                if map_feature:
+                    await self._apply_map(
+                        table, schema, new_table_name, [new_col],
+                        backend, data_id, map_sig,
+                    )
 
                 preview_cols = [column, new_col]
                 if order_by:
@@ -922,6 +1273,8 @@ class GroupbyWindowOps(WindowOps):
                     f"Rolling nunique on '{column}' grouped by {safe_groups} (window={window})",
                     res,
                     new_table=new_table_name,
+                    mapped_table=table if map_feature else None,
+                    mapped_columns=[new_col] if map_feature else [],
                     new_column=new_col,
                 )
 
@@ -931,7 +1284,8 @@ class GroupbyWindowOps(WindowOps):
             return self._error_response(f"rolling nunique group-by error: {str(e)}")
 
     async def rolling_rank_groupby(
-        self, table, schema, column, group_cols, order_by=None, window=3, backend=None, data_id=None, new_table=None
+        self, table, schema, column, group_cols, order_by=None, window=3, backend=None, data_id=None, new_table=None,
+        map_feature: bool = False
     ):
         try:
             # ============================================================
@@ -979,7 +1333,26 @@ class GroupbyWindowOps(WindowOps):
                     ) AS {self.db.quote_identifier(new_col)}
                 FROM __base b
                 """
+                map_sig = self._map_sig(
+                    safe_groups, safe_col, "rolling_rank", safe_orders,
+                    [new_col][0] if len([new_col]) == 1 else "rolling_rank", [new_col],
+                )
+                map_collision = None
+                if map_feature:
+                    map_collision = await self._check_map_collision(
+                        table, schema, backend, data_id, map_sig, [new_col],
+                    )
+                    if map_collision:
+                        return self._error_response(
+                            f"Rolling rank group-by error: {map_collision}",
+                            group_cols=safe_groups,
+                        )
                 await self._exec(sql)
+                if map_feature:
+                    await self._apply_map(
+                        table, schema, new_table_name, [new_col],
+                        backend, data_id, map_sig,
+                    )
 
                 preview_cols = [column, new_col]
                 if order_by:
@@ -991,6 +1364,8 @@ class GroupbyWindowOps(WindowOps):
                     f"Rolling rank on '{column}' grouped by {safe_groups} (window={window})",
                     res,
                     new_table=new_table_name,
+                    mapped_table=table if map_feature else None,
+                    mapped_columns=[new_col] if map_feature else [],
                     new_column=new_col,
                 )
 
@@ -1047,7 +1422,26 @@ class GroupbyWindowOps(WindowOps):
                 )
 
                 create_sql = self._ch_create_table_as(output_qualified, select_sql)
+                map_sig = self._map_sig(
+                    safe_groups, safe_col, "rolling_rank", safe_orders,
+                    [new_col][0] if len([new_col]) == 1 else "rolling_rank", [new_col],
+                )
+                map_collision = None
+                if map_feature:
+                    map_collision = await self._check_map_collision(
+                        table, schema, backend, data_id, map_sig, [new_col],
+                    )
+                    if map_collision:
+                        return self._error_response(
+                            f"Rolling rank group-by error: {map_collision}",
+                            group_cols=safe_groups,
+                        )
                 await self._exec(create_sql)
+                if map_feature:
+                    await self._apply_map(
+                        table, schema, new_table_name, [new_col],
+                        backend, data_id, map_sig,
+                    )
 
                 preview_cols = [column, new_col]
                 if order_by:
@@ -1059,6 +1453,8 @@ class GroupbyWindowOps(WindowOps):
                     f"Rolling rank on '{column}' grouped by {safe_groups} (window={window})",
                     res,
                     new_table=new_table_name,
+                    mapped_table=table if map_feature else None,
+                    mapped_columns=[new_col] if map_feature else [],
                     new_column=new_col,
                 )
 
@@ -1085,49 +1481,59 @@ class GroupbyWindowOps(WindowOps):
             raise self._unsupported_backend_error()
 
     async def rolling_mean_datetime_groupby(
-        self, table, schema, column, group_cols, order_by=None, window=3, backend=None, data_id=None, new_table=None
+        self, table, schema, column, group_cols, order_by=None, window=3, backend=None, data_id=None, new_table=None,
+        map_feature: bool = False
     ):
         if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
             return await self._rolling_datetime_stat_with_partition(
-                table, schema, column, group_cols, order_by, window, stat="mean", backend=backend, data_id=data_id, new_table=new_table
+                table, schema, column, group_cols, order_by, window, stat="mean", backend=backend, data_id=data_id, new_table=new_table,
+                map_feature=map_feature
             )
         elif isinstance(self.db, ClickHouseAdapter):
             return await self._rolling_datetime_stat_with_partition(
-                table, schema, column, group_cols, order_by, window, stat="mean", backend=backend, data_id=data_id, new_table=new_table
+                table, schema, column, group_cols, order_by, window, stat="mean", backend=backend, data_id=data_id, new_table=new_table,
+                map_feature=map_feature
             )
         else:
             raise self._unsupported_backend_error()
 
     async def rolling_median_datetime_groupby(
-        self, table, schema, column, group_cols, order_by=None, window=3, backend=None, data_id=None, new_table=None
+        self, table, schema, column, group_cols, order_by=None, window=3, backend=None, data_id=None, new_table=None,
+        map_feature: bool = False
     ):
         if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
             return await self._rolling_datetime_stat_with_partition(
-                table, schema, column, group_cols, order_by, window, stat="median", backend=backend, data_id=data_id, new_table=new_table
+                table, schema, column, group_cols, order_by, window, stat="median", backend=backend, data_id=data_id, new_table=new_table,
+                map_feature=map_feature
             )
         elif isinstance(self.db, ClickHouseAdapter):
             return await self._rolling_datetime_stat_with_partition(
-                table, schema, column, group_cols, order_by, window, stat="median", backend=backend, data_id=data_id, new_table=new_table
+                table, schema, column, group_cols, order_by, window, stat="median", backend=backend, data_id=data_id, new_table=new_table,
+                map_feature=map_feature
             )
         else:
             raise self._unsupported_backend_error()
 
     async def rolling_mode_datetime_groupby(
-        self, table, schema, column, group_cols, order_by=None, window=3, backend=None, data_id=None, new_table=None
+        self, table, schema, column, group_cols, order_by=None, window=3, backend=None, data_id=None, new_table=None,
+        map_feature: bool = False
     ):
         if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
             return await self._rolling_datetime_stat_with_partition(
-                table, schema, column, group_cols, order_by, window, stat="mode", backend=backend, data_id=data_id, new_table=new_table
+                table, schema, column, group_cols, order_by, window, stat="mode", backend=backend, data_id=data_id, new_table=new_table,
+                map_feature=map_feature
             )
         elif isinstance(self.db, ClickHouseAdapter):
             return await self._rolling_datetime_stat_with_partition(
-                table, schema, column, group_cols, order_by, window, stat="mode", backend=backend, data_id=data_id, new_table=new_table
+                table, schema, column, group_cols, order_by, window, stat="mode", backend=backend, data_id=data_id, new_table=new_table,
+                map_feature=map_feature
             )
         else:
             raise self._unsupported_backend_error()
 
     async def _rolling_datetime_stat_with_partition(
-        self, table, schema, column, group_cols, order_by, window, stat, backend, data_id, new_table=None
+        self, table, schema, column, group_cols, order_by, window, stat, backend, data_id, new_table=None,
+        map_feature: bool = False
     ):
         """Copy of _rolling_datetime_stat with PARTITION BY added. Supports ClickHouse."""
         try:
@@ -1226,7 +1632,26 @@ class GroupbyWindowOps(WindowOps):
                         ({value_sql}) AS {self.db.quote_identifier(new_col)}
                     FROM __base b
                 """
+                map_sig = self._map_sig(
+                    safe_groups, safe_col, "rolling_datetime", safe_orders,
+                    [new_col][0] if len([new_col]) == 1 else "rolling_datetime", [new_col],
+                )
+                map_collision = None
+                if map_feature:
+                    map_collision = await self._check_map_collision(
+                        table, schema, backend, data_id, map_sig, [new_col],
+                    )
+                    if map_collision:
+                        return self._error_response(
+                            f"Rolling datetime group-by error: {map_collision}",
+                            group_cols=safe_groups,
+                        )
                 await self._exec(sql)
+                if map_feature:
+                    await self._apply_map(
+                        table, schema, new_table_name, [new_col],
+                        backend, data_id, map_sig,
+                    )
 
                 preview_cols = [column, new_col]
                 if order_by:
@@ -1238,6 +1663,8 @@ class GroupbyWindowOps(WindowOps):
                     f"Rolling datetime {stat_key} on '{column}' grouped by {safe_groups} (window={window})",
                     res,
                     new_table=new_table_name,
+                    mapped_table=table if map_feature else None,
+                    mapped_columns=[new_col] if map_feature else [],
                     new_column=new_col,
                     window=window,
                     group_cols=safe_groups,
@@ -1333,7 +1760,26 @@ class GroupbyWindowOps(WindowOps):
                 )
 
                 create_sql = self._ch_create_table_as(output_qualified, select_sql)
+                map_sig = self._map_sig(
+                    safe_groups, safe_col, "rolling_datetime", safe_orders,
+                    [new_col][0] if len([new_col]) == 1 else "rolling_datetime", [new_col],
+                )
+                map_collision = None
+                if map_feature:
+                    map_collision = await self._check_map_collision(
+                        table, schema, backend, data_id, map_sig, [new_col],
+                    )
+                    if map_collision:
+                        return self._error_response(
+                            f"Rolling datetime group-by error: {map_collision}",
+                            group_cols=safe_groups,
+                        )
                 await self._exec(create_sql)
+                if map_feature:
+                    await self._apply_map(
+                        table, schema, new_table_name, [new_col],
+                        backend, data_id, map_sig,
+                    )
 
                 preview_cols = [column, new_col]
                 if order_by:
@@ -1345,6 +1791,8 @@ class GroupbyWindowOps(WindowOps):
                     f"Rolling datetime {stat_key} on '{column}' grouped by {safe_groups} (window={window})",
                     res,
                     new_table=new_table_name,
+                    mapped_table=table if map_feature else None,
+                    mapped_columns=[new_col] if map_feature else [],
                     new_column=new_col,
                     window=window,
                     group_cols=safe_groups,
@@ -1363,6 +1811,7 @@ class GroupbyWindowOps(WindowOps):
         table, schema, column, group_cols,
         order_by=None, agg="SUM", min_periods=1,
         backend=None, data_id=None, new_table=None,
+        map_feature: bool = False,
     ) -> Dict[str, Any]:
         try:
             # ============================================================
@@ -1439,7 +1888,26 @@ class GroupbyWindowOps(WindowOps):
                     SELECT *, {window_sql}
                     FROM {qualified}
                 """
+                map_sig = self._map_sig(
+                    safe_groups, safe_col, "expanding", safe_orders,
+                    new_cols[0] if len(new_cols) == 1 else "expanding", new_cols,
+                )
+                map_collision = None
+                if map_feature:
+                    map_collision = await self._check_map_collision(
+                        table, schema, backend, data_id, map_sig, new_cols,
+                    )
+                    if map_collision:
+                        return self._error_response(
+                            f"Expanding group-by error: {map_collision}",
+                            group_cols=safe_groups,
+                        )
                 await self._exec(create_sql)
+                if map_feature:
+                    await self._apply_map(
+                        table, schema, new_table_name, new_cols,
+                        backend, data_id, map_sig,
+                    )
 
                 preview_cols = [column, *new_cols]
                 if order_by:
@@ -1452,6 +1920,8 @@ class GroupbyWindowOps(WindowOps):
                     f"Expanding {', '.join(raw_aggs)} on '{column}' grouped by {safe_groups} (min_periods={min_periods})",
                     res,
                     new_table=new_table_name,
+                    mapped_table=table if map_feature else None,
+                    mapped_columns=new_cols if map_feature else [],
                     new_columns=new_cols,
                     min_periods=min_periods,
                     group_cols=safe_groups,
@@ -1539,7 +2009,26 @@ class GroupbyWindowOps(WindowOps):
                 )
 
                 create_sql = self._ch_create_table_as(output_qualified, select_sql)
+                map_sig = self._map_sig(
+                    safe_groups, safe_col, "expanding", safe_orders,
+                    new_cols[0] if len(new_cols) == 1 else "expanding", new_cols,
+                )
+                map_collision = None
+                if map_feature:
+                    map_collision = await self._check_map_collision(
+                        table, schema, backend, data_id, map_sig, new_cols,
+                    )
+                    if map_collision:
+                        return self._error_response(
+                            f"Expanding group-by error: {map_collision}",
+                            group_cols=safe_groups,
+                        )
                 await self._exec(create_sql)
+                if map_feature:
+                    await self._apply_map(
+                        table, schema, new_table_name, new_cols,
+                        backend, data_id, map_sig,
+                    )
 
                 preview_cols = [column, *new_cols]
                 if order_by:
@@ -1552,6 +2041,8 @@ class GroupbyWindowOps(WindowOps):
                     f"Expanding {', '.join(raw_aggs)} on '{column}' grouped by {safe_groups} (min_periods={min_periods})",
                     res,
                     new_table=new_table_name,
+                    mapped_table=table if map_feature else None,
+                    mapped_columns=new_cols if map_feature else [],
                     new_columns=new_cols,
                     min_periods=min_periods,
                     group_cols=safe_groups,
@@ -1654,7 +2145,8 @@ class GroupbyWindowOps(WindowOps):
 
     # ---------- Expanding Specials ----------
     async def expanding_quantile_groupby(
-        self, table, schema, column, group_cols, order_by=None, q=0.5, min_periods=1, backend=None, data_id=None, new_table=None
+        self, table, schema, column, group_cols, order_by=None, q=0.5, min_periods=1, backend=None, data_id=None, new_table=None,
+        map_feature: bool = False
     ):
         try:
             # ============================================================
@@ -1715,7 +2207,26 @@ class GroupbyWindowOps(WindowOps):
                         {quantile_expr} AS {q_new_col}
                     FROM __base b
                     """
+                    map_sig = self._map_sig(
+                        safe_groups, safe_col, "expanding_quantile", safe_orders,
+                        [new_col][0] if len([new_col]) == 1 else "expanding_quantile", [new_col],
+                    )
+                    map_collision = None
+                    if map_feature:
+                        map_collision = await self._check_map_collision(
+                            table, schema, backend, data_id, map_sig, [new_col],
+                        )
+                        if map_collision:
+                            return self._error_response(
+                                f"Expanding quantile group-by error: {map_collision}",
+                                group_cols=safe_groups,
+                            )
                     await self._exec(sql)
+                    if map_feature:
+                        await self._apply_map(
+                            table, schema, new_table_name, [new_col],
+                            backend, data_id, map_sig,
+                        )
                 elif isinstance(self.db, DuckDBAdapter):
                     base_func = f"QUANTILE_CONT({safe_col_quoted}, {q})"
 
@@ -1730,7 +2241,26 @@ class GroupbyWindowOps(WindowOps):
                     SELECT *, {quantile_expr} AS {self.db.quote_identifier(new_col)}
                     FROM {qualified}
                     """
+                    map_sig = self._map_sig(
+                        safe_groups, safe_col, "expanding_quantile", safe_orders,
+                        [new_col][0] if len([new_col]) == 1 else "expanding_quantile", [new_col],
+                    )
+                    map_collision = None
+                    if map_feature:
+                        map_collision = await self._check_map_collision(
+                            table, schema, backend, data_id, map_sig, [new_col],
+                        )
+                        if map_collision:
+                            return self._error_response(
+                                f"Expanding quantile group-by error: {map_collision}",
+                                group_cols=safe_groups,
+                            )
                     await self._exec(sql)
+                    if map_feature:
+                        await self._apply_map(
+                            table, schema, new_table_name, [new_col],
+                            backend, data_id, map_sig,
+                        )
                 else:
                     raise self._unsupported_backend_error()
 
@@ -1743,6 +2273,8 @@ class GroupbyWindowOps(WindowOps):
                     f"Expanding quantile on '{column}' grouped by {safe_groups} (q={q})",
                     res,
                     new_table=new_table_name,
+                    mapped_table=table if map_feature else None,
+                    mapped_columns=[new_col] if map_feature else [],
                     new_column=new_col,
                     min_periods=min_periods,
                 )
@@ -1809,7 +2341,26 @@ class GroupbyWindowOps(WindowOps):
                 )
 
                 create_sql = self._ch_create_table_as(output_qualified, select_sql)
+                map_sig = self._map_sig(
+                    safe_groups, safe_col, "expanding_quantile", safe_orders,
+                    [new_col][0] if len([new_col]) == 1 else "expanding_quantile", [new_col],
+                )
+                map_collision = None
+                if map_feature:
+                    map_collision = await self._check_map_collision(
+                        table, schema, backend, data_id, map_sig, [new_col],
+                    )
+                    if map_collision:
+                        return self._error_response(
+                            f"Expanding quantile group-by error: {map_collision}",
+                            group_cols=safe_groups,
+                        )
                 await self._exec(create_sql)
+                if map_feature:
+                    await self._apply_map(
+                        table, schema, new_table_name, [new_col],
+                        backend, data_id, map_sig,
+                    )
 
                 preview_cols = [column, new_col]
                 if order_by:
@@ -1820,6 +2371,8 @@ class GroupbyWindowOps(WindowOps):
                     f"Expanding quantile on '{column}' grouped by {safe_groups} (q={q})",
                     res,
                     new_table=new_table_name,
+                    mapped_table=table if map_feature else None,
+                    mapped_columns=[new_col] if map_feature else [],
                     new_column=new_col,
                     min_periods=min_periods,
                 )
@@ -1830,7 +2383,8 @@ class GroupbyWindowOps(WindowOps):
             return self._error_response(f"expanding quantile group-by error: {str(e)}")
 
     async def expanding_sem_groupby(
-        self, table, schema, column, group_cols, order_by=None, min_periods=1, backend=None, data_id=None, new_table=None
+        self, table, schema, column, group_cols, order_by=None, min_periods=1, backend=None, data_id=None, new_table=None,
+        map_feature: bool = False
     ):
         try:
             # ============================================================
@@ -1882,7 +2436,26 @@ class GroupbyWindowOps(WindowOps):
                 SELECT *, {sem_expr} AS {self.db.quote_identifier(new_col)}
                 FROM {qualified}
                 """
+                map_sig = self._map_sig(
+                    safe_groups, safe_col, "expanding_sem", safe_orders,
+                    [new_col][0] if len([new_col]) == 1 else "expanding_sem", [new_col],
+                )
+                map_collision = None
+                if map_feature:
+                    map_collision = await self._check_map_collision(
+                        table, schema, backend, data_id, map_sig, [new_col],
+                    )
+                    if map_collision:
+                        return self._error_response(
+                            f"Expanding sem group-by error: {map_collision}",
+                            group_cols=safe_groups,
+                        )
                 await self._exec(sql)
+                if map_feature:
+                    await self._apply_map(
+                        table, schema, new_table_name, [new_col],
+                        backend, data_id, map_sig,
+                    )
                 preview_cols = [column, new_col]
                 if order_by:
                     preview_cols.extend(safe_orders)
@@ -1892,6 +2465,8 @@ class GroupbyWindowOps(WindowOps):
                     f"Expanding SEM on '{column}' grouped by {safe_groups} (min_periods={min_periods})",
                     res,
                     new_table=new_table_name,
+                    mapped_table=table if map_feature else None,
+                    mapped_columns=[new_col] if map_feature else [],
                     new_column=new_col,
                     min_periods=min_periods,
                 )
@@ -1945,7 +2520,26 @@ class GroupbyWindowOps(WindowOps):
                 )
 
                 create_sql = self._ch_create_table_as(output_qualified, select_sql)
+                map_sig = self._map_sig(
+                    safe_groups, safe_col, "expanding_sem", safe_orders,
+                    [new_col][0] if len([new_col]) == 1 else "expanding_sem", [new_col],
+                )
+                map_collision = None
+                if map_feature:
+                    map_collision = await self._check_map_collision(
+                        table, schema, backend, data_id, map_sig, [new_col],
+                    )
+                    if map_collision:
+                        return self._error_response(
+                            f"Expanding sem group-by error: {map_collision}",
+                            group_cols=safe_groups,
+                        )
                 await self._exec(create_sql)
+                if map_feature:
+                    await self._apply_map(
+                        table, schema, new_table_name, [new_col],
+                        backend, data_id, map_sig,
+                    )
 
                 preview_cols = [column, new_col]
                 if order_by:
@@ -1956,6 +2550,8 @@ class GroupbyWindowOps(WindowOps):
                     f"Expanding SEM on '{column}' grouped by {safe_groups} (min_periods={min_periods})",
                     res,
                     new_table=new_table_name,
+                    mapped_table=table if map_feature else None,
+                    mapped_columns=[new_col] if map_feature else [],
                     new_column=new_col,
                     min_periods=min_periods,
                 )
@@ -1966,7 +2562,8 @@ class GroupbyWindowOps(WindowOps):
             return self._error_response(f"expanding sem group-by error: {str(e)}")
 
     async def expanding_rank_groupby(
-        self, table, schema, column, group_cols, order_by=None, min_periods=1, backend=None, data_id=None, new_table=None
+        self, table, schema, column, group_cols, order_by=None, min_periods=1, backend=None, data_id=None, new_table=None,
+        map_feature: bool = False
     ):
         try:
             # ============================================================
@@ -2021,7 +2618,26 @@ class GroupbyWindowOps(WindowOps):
                 SELECT b.*, {rank_expr} AS {self.db.quote_identifier(new_col)}
                 FROM __base b
                 """
+                map_sig = self._map_sig(
+                    safe_groups, safe_col, "expanding_rank", safe_orders,
+                    [new_col][0] if len([new_col]) == 1 else "expanding_rank", [new_col],
+                )
+                map_collision = None
+                if map_feature:
+                    map_collision = await self._check_map_collision(
+                        table, schema, backend, data_id, map_sig, [new_col],
+                    )
+                    if map_collision:
+                        return self._error_response(
+                            f"Expanding rank group-by error: {map_collision}",
+                            group_cols=safe_groups,
+                        )
                 await self._exec(sql)
+                if map_feature:
+                    await self._apply_map(
+                        table, schema, new_table_name, [new_col],
+                        backend, data_id, map_sig,
+                    )
 
                 preview_cols = [column, new_col]
                 if order_by:
@@ -2032,6 +2648,8 @@ class GroupbyWindowOps(WindowOps):
                     f"Expanding rank on '{column}' grouped by {safe_groups} (min_periods={min_periods})",
                     res,
                     new_table=new_table_name,
+                    mapped_table=table if map_feature else None,
+                    mapped_columns=[new_col] if map_feature else [],
                     new_column=new_col,
                     min_periods=min_periods,
                 )
@@ -2095,7 +2713,26 @@ class GroupbyWindowOps(WindowOps):
                 )
 
                 create_sql = self._ch_create_table_as(output_qualified, select_sql)
+                map_sig = self._map_sig(
+                    safe_groups, safe_col, "expanding_rank", safe_orders,
+                    [new_col][0] if len([new_col]) == 1 else "expanding_rank", [new_col],
+                )
+                map_collision = None
+                if map_feature:
+                    map_collision = await self._check_map_collision(
+                        table, schema, backend, data_id, map_sig, [new_col],
+                    )
+                    if map_collision:
+                        return self._error_response(
+                            f"Expanding rank group-by error: {map_collision}",
+                            group_cols=safe_groups,
+                        )
                 await self._exec(create_sql)
+                if map_feature:
+                    await self._apply_map(
+                        table, schema, new_table_name, [new_col],
+                        backend, data_id, map_sig,
+                    )
 
                 preview_cols = [column, new_col]
                 if order_by:
@@ -2106,6 +2743,8 @@ class GroupbyWindowOps(WindowOps):
                     f"Expanding rank on '{column}' grouped by {safe_groups} (min_periods={min_periods})",
                     res,
                     new_table=new_table_name,
+                    mapped_table=table if map_feature else None,
+                    mapped_columns=[new_col] if map_feature else [],
                     new_column=new_col,
                     min_periods=min_periods,
                 )
@@ -2116,7 +2755,8 @@ class GroupbyWindowOps(WindowOps):
             return self._error_response(f"expanding rank group-by error: {str(e)}")
 
     async def expanding_nunique_groupby(
-        self, table, schema, column, group_cols, order_by=None, min_periods=1, backend=None, data_id=None, new_table=None
+        self, table, schema, column, group_cols, order_by=None, min_periods=1, backend=None, data_id=None, new_table=None,
+        map_feature: bool = False
     ):
         try:
             # ============================================================
@@ -2161,7 +2801,26 @@ class GroupbyWindowOps(WindowOps):
                     SELECT *, {nunique_expr} AS {self.db.quote_identifier(new_col)}
                     FROM {qualified}
                     """
+                    map_sig = self._map_sig(
+                        safe_groups, safe_col, "expanding_nunique", safe_orders,
+                        [new_col][0] if len([new_col]) == 1 else "expanding_nunique", [new_col],
+                    )
+                    map_collision = None
+                    if map_feature:
+                        map_collision = await self._check_map_collision(
+                            table, schema, backend, data_id, map_sig, [new_col],
+                        )
+                        if map_collision:
+                            return self._error_response(
+                                f"Expanding nunique group-by error: {map_collision}",
+                                group_cols=safe_groups,
+                            )
                     await self._exec(sql)
+                    if map_feature:
+                        await self._apply_map(
+                            table, schema, new_table_name, [new_col],
+                            backend, data_id, map_sig,
+                        )
                 elif isinstance(self.db, PostgresAdapter):
                     sql = f"""
                     CREATE TABLE {self.db.quote_identifier(schema)}.{self.db.quote_identifier(new_table_name)} AS
@@ -2178,7 +2837,26 @@ class GroupbyWindowOps(WindowOps):
                         ) AS {self.db.quote_identifier(new_col)}
                     FROM __base b
                     """
+                    map_sig = self._map_sig(
+                        safe_groups, safe_col, "expanding_nunique", safe_orders,
+                        [new_col][0] if len([new_col]) == 1 else "expanding_nunique", [new_col],
+                    )
+                    map_collision = None
+                    if map_feature:
+                        map_collision = await self._check_map_collision(
+                            table, schema, backend, data_id, map_sig, [new_col],
+                        )
+                        if map_collision:
+                            return self._error_response(
+                                f"Expanding nunique group-by error: {map_collision}",
+                                group_cols=safe_groups,
+                            )
                     await self._exec(sql)
+                    if map_feature:
+                        await self._apply_map(
+                            table, schema, new_table_name, [new_col],
+                            backend, data_id, map_sig,
+                        )
                 else:
                     raise self._unsupported_backend_error()
 
@@ -2191,6 +2869,8 @@ class GroupbyWindowOps(WindowOps):
                     f"Expanding nunique on '{column}' grouped by {safe_groups} (min_periods={min_periods})",
                     res,
                     new_table=new_table_name,
+                    mapped_table=table if map_feature else None,
+                    mapped_columns=[new_col] if map_feature else [],
                     new_column=new_col,
                     min_periods=min_periods,
                 )
@@ -2253,7 +2933,26 @@ class GroupbyWindowOps(WindowOps):
                 )
 
                 create_sql = self._ch_create_table_as(output_qualified, select_sql)
+                map_sig = self._map_sig(
+                    safe_groups, safe_col, "expanding_nunique", safe_orders,
+                    [new_col][0] if len([new_col]) == 1 else "expanding_nunique", [new_col],
+                )
+                map_collision = None
+                if map_feature:
+                    map_collision = await self._check_map_collision(
+                        table, schema, backend, data_id, map_sig, [new_col],
+                    )
+                    if map_collision:
+                        return self._error_response(
+                            f"Expanding nunique group-by error: {map_collision}",
+                            group_cols=safe_groups,
+                        )
                 await self._exec(create_sql)
+                if map_feature:
+                    await self._apply_map(
+                        table, schema, new_table_name, [new_col],
+                        backend, data_id, map_sig,
+                    )
 
                 preview_cols = [column, new_col]
                 if order_by:
@@ -2264,6 +2963,8 @@ class GroupbyWindowOps(WindowOps):
                     f"Expanding nunique on '{column}' grouped by {safe_groups} (min_periods={min_periods})",
                     res,
                     new_table=new_table_name,
+                    mapped_table=table if map_feature else None,
+                    mapped_columns=[new_col] if map_feature else [],
                     new_column=new_col,
                     min_periods=min_periods,
                 )
@@ -2293,49 +2994,59 @@ class GroupbyWindowOps(WindowOps):
             raise self._unsupported_backend_error()
 
     async def expanding_mean_datetime_groupby(
-        self, table, schema, column, group_cols, order_by=None, min_periods=1, backend=None, data_id=None, new_table=None
+        self, table, schema, column, group_cols, order_by=None, min_periods=1, backend=None, data_id=None, new_table=None,
+        map_feature: bool = False
     ):
         if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
             return await self._expanding_datetime_stat_with_partition(
-                table, schema, column, group_cols, order_by, stat="mean", min_periods=min_periods, backend=backend, data_id=data_id, new_table=new_table
+                table, schema, column, group_cols, order_by, stat="mean", min_periods=min_periods, backend=backend, data_id=data_id, new_table=new_table,
+                map_feature=map_feature
             )
         elif isinstance(self.db, ClickHouseAdapter):
             return await self._expanding_datetime_stat_with_partition(
-                table, schema, column, group_cols, order_by, stat="mean", min_periods=min_periods, backend=backend, data_id=data_id, new_table=new_table
+                table, schema, column, group_cols, order_by, stat="mean", min_periods=min_periods, backend=backend, data_id=data_id, new_table=new_table,
+                map_feature=map_feature
             )
         else:
             raise self._unsupported_backend_error()
 
     async def expanding_median_datetime_groupby(
-        self, table, schema, column, group_cols, order_by=None, min_periods=1, backend=None, data_id=None, new_table=None
+        self, table, schema, column, group_cols, order_by=None, min_periods=1, backend=None, data_id=None, new_table=None,
+        map_feature: bool = False
     ):
         if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
             return await self._expanding_datetime_stat_with_partition(
-                table, schema, column, group_cols, order_by, stat="median", min_periods=min_periods, backend=backend, data_id=data_id, new_table=new_table
+                table, schema, column, group_cols, order_by, stat="median", min_periods=min_periods, backend=backend, data_id=data_id, new_table=new_table,
+                map_feature=map_feature
             )
         elif isinstance(self.db, ClickHouseAdapter):
             return await self._expanding_datetime_stat_with_partition(
-                table, schema, column, group_cols, order_by, stat="median", min_periods=min_periods, backend=backend, data_id=data_id, new_table=new_table
+                table, schema, column, group_cols, order_by, stat="median", min_periods=min_periods, backend=backend, data_id=data_id, new_table=new_table,
+                map_feature=map_feature
             )
         else:
             raise self._unsupported_backend_error()
 
     async def expanding_mode_datetime_groupby(
-        self, table, schema, column, group_cols, order_by=None, min_periods=1, backend=None, data_id=None, new_table=None
+        self, table, schema, column, group_cols, order_by=None, min_periods=1, backend=None, data_id=None, new_table=None,
+        map_feature: bool = False
     ):
         if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
             return await self._expanding_datetime_stat_with_partition(
-                table, schema, column, group_cols, order_by, stat="mode", min_periods=min_periods, backend=backend, data_id=data_id, new_table=new_table
+                table, schema, column, group_cols, order_by, stat="mode", min_periods=min_periods, backend=backend, data_id=data_id, new_table=new_table,
+                map_feature=map_feature
             )
         elif isinstance(self.db, ClickHouseAdapter):
             return await self._expanding_datetime_stat_with_partition(
-                table, schema, column, group_cols, order_by, stat="mode", min_periods=min_periods, backend=backend, data_id=data_id, new_table=new_table
+                table, schema, column, group_cols, order_by, stat="mode", min_periods=min_periods, backend=backend, data_id=data_id, new_table=new_table,
+                map_feature=map_feature
             )
         else:
             raise self._unsupported_backend_error()
 
     async def _expanding_datetime_stat_with_partition(
-        self, table, schema, column, group_cols, order_by, stat, min_periods, backend, data_id, new_table=None
+        self, table, schema, column, group_cols, order_by, stat, min_periods, backend, data_id, new_table=None,
+        map_feature: bool = False
     ):
         """Copy of _expanding_datetime_stat with PARTITION BY. Supports ClickHouse."""
         try:
@@ -2428,7 +3139,26 @@ class GroupbyWindowOps(WindowOps):
                 SELECT b.*, {value_sql} AS {self.db.quote_identifier(new_col)}
                 FROM __base b
                 """
+                map_sig = self._map_sig(
+                    safe_groups, safe_col, "expanding_datetime", safe_orders,
+                    [new_col][0] if len([new_col]) == 1 else "expanding_datetime", [new_col],
+                )
+                map_collision = None
+                if map_feature:
+                    map_collision = await self._check_map_collision(
+                        table, schema, backend, data_id, map_sig, [new_col],
+                    )
+                    if map_collision:
+                        return self._error_response(
+                            f"Expanding datetime group-by error: {map_collision}",
+                            group_cols=safe_groups,
+                        )
                 await self._exec(sql)
+                if map_feature:
+                    await self._apply_map(
+                        table, schema, new_table_name, [new_col],
+                        backend, data_id, map_sig,
+                    )
 
                 preview_cols = [column, new_col]
                 if order_by:
@@ -2440,6 +3170,8 @@ class GroupbyWindowOps(WindowOps):
                     f"Expanding datetime {stat} on '{column}' grouped by {safe_groups} (min_periods={min_periods})",
                     res,
                     new_table=new_table_name,
+                    mapped_table=table if map_feature else None,
+                    mapped_columns=[new_col] if map_feature else [],
                     new_column=new_col,
                     min_periods=min_periods,
                     group_cols=safe_groups,
@@ -2533,7 +3265,26 @@ class GroupbyWindowOps(WindowOps):
                 )
 
                 create_sql = self._ch_create_table_as(output_qualified, select_sql)
+                map_sig = self._map_sig(
+                    safe_groups, safe_col, "expanding_datetime", safe_orders,
+                    [new_col][0] if len([new_col]) == 1 else "expanding_datetime", [new_col],
+                )
+                map_collision = None
+                if map_feature:
+                    map_collision = await self._check_map_collision(
+                        table, schema, backend, data_id, map_sig, [new_col],
+                    )
+                    if map_collision:
+                        return self._error_response(
+                            f"Expanding datetime group-by error: {map_collision}",
+                            group_cols=safe_groups,
+                        )
                 await self._exec(create_sql)
+                if map_feature:
+                    await self._apply_map(
+                        table, schema, new_table_name, [new_col],
+                        backend, data_id, map_sig,
+                    )
 
                 preview_cols = [column, new_col]
                 if order_by:
@@ -2545,6 +3296,8 @@ class GroupbyWindowOps(WindowOps):
                     f"Expanding datetime {stat} on '{column}' grouped by {safe_groups} (min_periods={min_periods})",
                     res,
                     new_table=new_table_name,
+                    mapped_table=table if map_feature else None,
+                    mapped_columns=[new_col] if map_feature else [],
                     new_column=new_col,
                     min_periods=min_periods,
                     group_cols=safe_groups,
@@ -2566,6 +3319,7 @@ class GroupbyWindowOps(WindowOps):
         adjust=True, ignore_na=False, min_periods=0,
         agg="mean",
         backend=None, data_id=None, new_table=None,
+        map_feature: bool = False,
     ):
         try:
             # ============================================================
@@ -2689,6 +3443,8 @@ class GroupbyWindowOps(WindowOps):
                     f"EWM {aggs} on '{column}' grouped by {safe_groups}",
                     res,
                     new_table=new_table_name,
+                    mapped_table=table if map_feature else None,
+                    mapped_columns=new_cols if map_feature else [],
                     new_columns=new_cols,
                     group_cols=safe_groups,
                 )
@@ -2864,6 +3620,8 @@ class GroupbyWindowOps(WindowOps):
                     f"EWM {aggs} on '{column}' grouped by {safe_groups}",
                     res,
                     new_table=new_table_name,
+                    mapped_table=table if map_feature else None,
+                    mapped_columns=new_col_names if map_feature else [],
                     new_columns=new_col_names,
                     group_cols=safe_groups,
                 )

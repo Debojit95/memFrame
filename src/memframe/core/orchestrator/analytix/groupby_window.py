@@ -415,6 +415,7 @@ class GroupByWindowOrchestrator:
         group_cols: Union[str, List[str]],
         order_by: Union[str, List[str]] = None,
         q: float = 0.5,
+        map_feature: bool = False,
     ) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_active_context()
@@ -478,6 +479,7 @@ class GroupByWindowOrchestrator:
                 window=window,
                 backend=backend,
                 data_id=data_id,
+                map_feature=map_feature,
             )
             if func_key == "quantile":
                 call_kwargs["q"] = q
@@ -567,6 +569,7 @@ class GroupByWindowOrchestrator:
         order_by: Union[str, List[str]] = None,
         q: float = 0.5,
         min_periods: int = 1,
+        map_feature: bool = False,
     ) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_active_context()
@@ -629,6 +632,7 @@ class GroupByWindowOrchestrator:
                 min_periods=min_periods,
                 backend=backend,
                 data_id=data_id,
+                map_feature=map_feature,
             )
             if func_key == "quantile":
                 call_kwargs["q"] = q
