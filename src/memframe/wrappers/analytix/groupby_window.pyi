@@ -2,16 +2,15 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Union
 
-from src.core.orchestrator.analytix.groupby_window import (
+from memframe.core.orchestrator.analytix.groupby_window import (
     GroupByWindowOrchestrator,
     GroupByWindow,
     GroupByRolling,
     GroupByExpanding,
     GroupByEWM,
 )
-from src.utils.async_sync import async_to_sync
 
 
 class GroupByRollingWrapper(GroupByRolling):

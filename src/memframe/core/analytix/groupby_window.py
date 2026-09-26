@@ -280,14 +280,12 @@ class GroupbyWindowOps(WindowOps):
 
                 # ------ Resolve ordering ------
                 if order_by:
-                    use_row_num_fallback = False
                     if isinstance(order_by, (list, tuple)):
                         safe_orders = [SQLIdentifierSanitizer.sanitize(c) for c in order_by]
                     else:
                         safe_orders = [SQLIdentifierSanitizer.sanitize(order_by)]
                     source_expr = self._qualified_table(table, schema)
                 else:
-                    use_row_num_fallback = True
                     safe_orders = [self._CH_ROW_NUM]
                     source_expr = self._ch_source_with_rownum(
                         self._qualified_table(table, schema)
@@ -564,14 +562,12 @@ class GroupbyWindowOps(WindowOps):
                 safe_groups = [SQLIdentifierSanitizer.sanitize(c) for c in group_cols]
 
                 if order_by:
-                    use_row_num_fallback = False
                     if isinstance(order_by, (list, tuple)):
                         safe_orders = [SQLIdentifierSanitizer.sanitize(c) for c in order_by]
                     else:
                         safe_orders = [SQLIdentifierSanitizer.sanitize(order_by)]
                     source_expr = self._qualified_table(table, schema)
                 else:
-                    use_row_num_fallback = True
                     safe_orders = [self._CH_ROW_NUM]
                     source_expr = self._ch_source_with_rownum(
                         self._qualified_table(table, schema)
@@ -718,14 +714,12 @@ class GroupbyWindowOps(WindowOps):
                 safe_groups = [SQLIdentifierSanitizer.sanitize(c) for c in group_cols]
 
                 if order_by:
-                    use_row_num_fallback = False
                     if isinstance(order_by, (list, tuple)):
                         safe_orders = [SQLIdentifierSanitizer.sanitize(c) for c in order_by]
                     else:
                         safe_orders = [SQLIdentifierSanitizer.sanitize(order_by)]
                     source_expr = self._qualified_table(table, schema)
                 else:
-                    use_row_num_fallback = True
                     safe_orders = [self._CH_ROW_NUM]
                     source_expr = self._ch_source_with_rownum(
                         self._qualified_table(table, schema)
@@ -875,14 +869,12 @@ class GroupbyWindowOps(WindowOps):
                 q_col = self.db.quote_identifier(safe_col)
 
                 if order_by:
-                    use_row_num_fallback = False
                     if isinstance(order_by, (list, tuple)):
                         safe_orders = [SQLIdentifierSanitizer.sanitize(c) for c in order_by]
                     else:
                         safe_orders = [SQLIdentifierSanitizer.sanitize(order_by)]
                     source_expr = self._qualified_table(table, schema)
                 else:
-                    use_row_num_fallback = True
                     safe_orders = [self._CH_ROW_NUM]
                     source_expr = self._ch_source_with_rownum(
                         self._qualified_table(table, schema)
@@ -1013,14 +1005,12 @@ class GroupbyWindowOps(WindowOps):
                 q_col = self.db.quote_identifier(safe_col)
 
                 if order_by:
-                    use_row_num_fallback = False
                     if isinstance(order_by, (list, tuple)):
                         safe_orders = [SQLIdentifierSanitizer.sanitize(c) for c in order_by]
                     else:
                         safe_orders = [SQLIdentifierSanitizer.sanitize(order_by)]
                     source_expr = self._qualified_table(table, schema)
                 else:
-                    use_row_num_fallback = True
                     safe_orders = [self._CH_ROW_NUM]
                     source_expr = self._ch_source_with_rownum(
                         self._qualified_table(table, schema)
@@ -1263,14 +1253,12 @@ class GroupbyWindowOps(WindowOps):
                 safe_groups = [SQLIdentifierSanitizer.sanitize(c) for c in group_cols]
 
                 if order_by:
-                    use_row_num_fallback = False
                     if isinstance(order_by, (list, tuple)):
                         safe_orders = [SQLIdentifierSanitizer.sanitize(c) for c in order_by]
                     else:
                         safe_orders = [SQLIdentifierSanitizer.sanitize(order_by)]
                     source_expr = self._qualified_table(table, schema)
                 else:
-                    use_row_num_fallback = True
                     safe_orders = [self._CH_ROW_NUM]
                     source_expr = self._ch_source_with_rownum(
                         self._qualified_table(table, schema)
@@ -1332,7 +1320,7 @@ class GroupbyWindowOps(WindowOps):
                 else:
                     return self._error_response(f"Unsupported datetime rolling stat '{stat}'")
 
-                except_clause = f"EXCEPT({self._CH_ROW_NUM}, __rn)" if use_row_num_fallback else "EXCEPT(__rn)"
+                except_clause = f"EXCEPT({self._CH_ROW_NUM}, __rn)" if self._CH_ROW_NUM in safe_orders else "EXCEPT(__rn)"
 
                 select_sql = (
                     f"WITH __base AS (\n"
@@ -1490,14 +1478,12 @@ class GroupbyWindowOps(WindowOps):
 
                 # ------ Resolve ordering ------
                 if order_by:
-                    use_row_num_fallback = False
                     if isinstance(order_by, (list, tuple)):
                         safe_orders = [SQLIdentifierSanitizer.sanitize(c) for c in order_by]
                     else:
                         safe_orders = [SQLIdentifierSanitizer.sanitize(order_by)]
                     source_expr = self._qualified_table(table, schema)
                 else:
-                    use_row_num_fallback = True
                     safe_orders = [self._CH_ROW_NUM]
                     source_expr = self._ch_source_with_rownum(
                         self._qualified_table(table, schema)
@@ -1773,14 +1759,12 @@ class GroupbyWindowOps(WindowOps):
                 q_col = self.db.quote_identifier(safe_col)
 
                 if order_by:
-                    use_row_num_fallback = False
                     if isinstance(order_by, (list, tuple)):
                         safe_orders = [SQLIdentifierSanitizer.sanitize(c) for c in order_by]
                     else:
                         safe_orders = [SQLIdentifierSanitizer.sanitize(order_by)]
                     source_expr = self._qualified_table(table, schema)
                 else:
-                    use_row_num_fallback = True
                     safe_orders = [self._CH_ROW_NUM]
                     source_expr = self._ch_source_with_rownum(
                         self._qualified_table(table, schema)
@@ -1922,14 +1906,12 @@ class GroupbyWindowOps(WindowOps):
                 safe_groups = [SQLIdentifierSanitizer.sanitize(c) for c in group_cols]
 
                 if order_by:
-                    use_row_num_fallback = False
                     if isinstance(order_by, (list, tuple)):
                         safe_orders = [SQLIdentifierSanitizer.sanitize(c) for c in order_by]
                     else:
                         safe_orders = [SQLIdentifierSanitizer.sanitize(order_by)]
                     source_expr = self._qualified_table(table, schema)
                 else:
-                    use_row_num_fallback = True
                     safe_orders = [self._CH_ROW_NUM]
                     source_expr = self._ch_source_with_rownum(
                         self._qualified_table(table, schema)
@@ -2065,14 +2047,12 @@ class GroupbyWindowOps(WindowOps):
                 q_col = self.db.quote_identifier(safe_col)
 
                 if order_by:
-                    use_row_num_fallback = False
                     if isinstance(order_by, (list, tuple)):
                         safe_orders = [SQLIdentifierSanitizer.sanitize(c) for c in order_by]
                     else:
                         safe_orders = [SQLIdentifierSanitizer.sanitize(order_by)]
                     source_expr = self._qualified_table(table, schema)
                 else:
-                    use_row_num_fallback = True
                     safe_orders = [self._CH_ROW_NUM]
                     source_expr = self._ch_source_with_rownum(
                         self._qualified_table(table, schema)
@@ -2226,14 +2206,12 @@ class GroupbyWindowOps(WindowOps):
                 q_col = self.db.quote_identifier(safe_col)
 
                 if order_by:
-                    use_row_num_fallback = False
                     if isinstance(order_by, (list, tuple)):
                         safe_orders = [SQLIdentifierSanitizer.sanitize(c) for c in order_by]
                     else:
                         safe_orders = [SQLIdentifierSanitizer.sanitize(order_by)]
                     source_expr = self._qualified_table(table, schema)
                 else:
-                    use_row_num_fallback = True
                     safe_orders = [self._CH_ROW_NUM]
                     source_expr = self._ch_source_with_rownum(
                         self._qualified_table(table, schema)
@@ -2478,14 +2456,12 @@ class GroupbyWindowOps(WindowOps):
                 q_col = self.db.quote_identifier(safe_col)
 
                 if order_by:
-                    use_row_num_fallback = False
                     if isinstance(order_by, (list, tuple)):
                         safe_orders = [SQLIdentifierSanitizer.sanitize(c) for c in order_by]
                     else:
                         safe_orders = [SQLIdentifierSanitizer.sanitize(order_by)]
                     source_expr = self._qualified_table(table, schema)
                 else:
-                    use_row_num_fallback = True
                     safe_orders = [self._CH_ROW_NUM]
                     source_expr = self._ch_source_with_rownum(
                         self._qualified_table(table, schema)
@@ -2544,7 +2520,7 @@ class GroupbyWindowOps(WindowOps):
                     else:
                         value_sql = f"({value_subq})"
 
-                except_clause = f"EXCEPT({self._CH_ROW_NUM}, __rn)" if use_row_num_fallback else "EXCEPT(__rn)"
+                except_clause = f"EXCEPT({self._CH_ROW_NUM}, __rn)" if self._CH_ROW_NUM in safe_orders else "EXCEPT(__rn)"
 
                 select_sql = (
                     f"WITH __base AS (\n"
