@@ -78,6 +78,7 @@ nav:
           - GroupBy:
               - Stats: api/groupby/groupby_stats.md
               - Cumulative: api/groupby/groupby_cumulative.md
+              - Window: api/groupby/groupby_window.md
           - Selection: api/selection.md
           - Stats: api/stats.md
           - Datetime: api/datetime.md
