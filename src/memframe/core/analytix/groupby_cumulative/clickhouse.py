@@ -194,10 +194,16 @@ class ClickHouseGroupbyCumulativeOps(GroupbyCumulativeOps):
             # SELECT * EXCEPT(_mf_row_num) so the transient result
             # stays clean for downstream chaining.
             if use_row_num_fallback:
+                fallback_star = await self._source_star(table, schema, [tgt_safe])
+                fallback_head = (
+                    "SELECT * EXCEPT(_mf_row_num),"
+                    if fallback_star == "*"
+                    else f"SELECT {fallback_star},"
+                )
                 create_sql = (
                     f"CREATE TABLE {output_qualified} "
                     f"ENGINE = MergeTree() ORDER BY tuple() AS\n"
-                    f"SELECT * EXCEPT(_mf_row_num),\n"
+                    f"{fallback_head}\n"
                     f"    {full_window} AS {self.db.quote_identifier(tgt_safe)}\n"
                     f"FROM (\n"
                     f"    SELECT *, ROW_NUMBER() OVER() AS _mf_row_num\n"
@@ -205,10 +211,11 @@ class ClickHouseGroupbyCumulativeOps(GroupbyCumulativeOps):
                     f")"
                 )
             else:
+                ordered_star = await self._source_star(table, schema, [tgt_safe])
                 create_sql = (
                     f"CREATE TABLE {output_qualified} "
                     f"ENGINE = MergeTree() ORDER BY tuple() AS\n"
-                    f"SELECT *,\n"
+                    f"SELECT {ordered_star},\n"
                     f"    {full_window} AS {self.db.quote_identifier(tgt_safe)}\n"
                     f"FROM {source_qualified}"
                 )

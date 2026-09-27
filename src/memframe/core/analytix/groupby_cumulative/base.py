@@ -295,6 +295,28 @@ class GroupbyCumulativeOps:
             f"Unsupported database backend for groupby cumulative operation: {self.db.__class__.__name__}"
         )
 
+    async def _source_star(
+        self, table: str, schema: str, exclude=(), prefix: str = "",
+        extra=(),
+    ) -> str:
+        # ponytail: SELECT * stays byte-identical unless a previous
+        # map_feature run left one of the about-to-be-created columns on the
+        # source table — then an explicit list minus those names avoids
+        # duplicate-column failures (hard error on ClickHouse/Postgres).
+        # Only the no-clash shape is fingerprint-locked.
+        try:
+            cols = list(await self.db.get_column_types(table, schema) or {})
+        except Exception:
+            cols = []
+        bare_star = "*" if not prefix else f"{prefix}.*"
+        if not any(c in cols for c in exclude):
+            return bare_star
+        keep = [c for c in cols if c not in set(exclude)]
+        qualifier = f"{prefix}." if prefix else ""
+        parts = [f"{qualifier}{self.db.quote_identifier(c)}" for c in keep]
+        parts += [f"{qualifier}{self.db.quote_identifier(c)}" for c in extra]
+        return ", ".join(parts) if parts else bare_star
+
     # ------------------------------------------------------------------
     # Generic cumulative operation – creates a new table
     # ------------------------------------------------------------------
@@ -369,10 +391,11 @@ class GroupbyCumulativeOps:
             )
             output_qualified = self._qualified_table(output_table, schema)
             source_qualified = self._qualified_table(table, schema)
+            src_star = await self._source_star(table, schema, [tgt_safe])
 
             create_sql = f"""
             CREATE TABLE {output_qualified} AS
-            SELECT *,
+            SELECT {src_star},
                 {full_window} AS {self.db.quote_identifier(tgt_safe)}
             FROM {source_qualified}
             """
