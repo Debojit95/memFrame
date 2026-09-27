@@ -219,6 +219,7 @@ class GroupByStatsOps:
                             f"ALTER TABLE {self._qualified_table(table, schema)} "
                             f"DROP COLUMN {self.db.quote_identifier(col)}"
                         )
+                    await self._after_drop_columns(table, schema)
                     return None
             except Exception:
                 continue
@@ -227,6 +228,12 @@ class GroupByStatsOps:
             f"{schema}.{table} and were not created by a previous identical "
             f"group-by mapping. Drop or rename them first."
         )
+
+    async def _after_drop_columns(self, table: str, schema: str) -> None:
+        # ponytail: hook — ClickHouse applies DROP COLUMN as an async
+        # mutation, so its override waits until the drop is visible before
+        # the caller rebuilds the table. Synchronous backends no-op.
+        return None
 
     async def _record_map_marker(
         self,

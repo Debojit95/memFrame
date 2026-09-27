@@ -29,6 +29,31 @@ class ClickHouseGroupbyCumulativeOps(GroupbyCumulativeOps):
             "in _groupby_cumulative_op."
         )
 
+    async def _after_drop_columns(self, table: str, schema: str) -> None:
+        # ponytail: DROP COLUMN is an async MergeTree mutation; poll until
+        # none are pending so the rebuild sees the drop. Row-shape
+        # agnostic (adapters disagree on dicts vs tuples).
+        import asyncio
+
+        qualified = self._qualified_table(table, schema)
+        parts = qualified.replace("`", "").replace('"', "").split(".")
+        table_name_only = parts[-1] if len(parts) > 1 else parts[0]
+        database = parts[0] if len(parts) > 1 else "currentDatabase()"
+        for _ in range(120):
+            rows = await self._fetch(
+                "SELECT count() AS pending FROM system.mutations "
+                f"WHERE database = '{database}' "
+                f"AND table = '{table_name_only}' "
+                "AND is_done = 0"
+            )
+            if not rows:
+                return
+            first = rows[0]
+            pending = first.get("pending") if isinstance(first, dict) else first[0]
+            if not pending:
+                return
+            await asyncio.sleep(1)
+
     def _std_window(self, col_q: str) -> str:
         # ClickHouse native name: stddevPop (STDDEV_POP works as alias,
         # but using the canonical name avoids any version surprises)

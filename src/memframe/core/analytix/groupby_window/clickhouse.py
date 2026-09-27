@@ -22,6 +22,31 @@ class ClickHouseGroupbyWindowOps(GroupbyWindowOps):
     # Internal row-number column used for ClickHouse ordering fallback
     _CH_ROW_NUM = "_mf_row_num"
 
+    async def _after_drop_columns(self, table: str, schema: str) -> None:
+        # ponytail: DROP COLUMN is an async MergeTree mutation; poll until
+        # none are pending so the rebuild sees the drop. Row-shape
+        # agnostic (adapters disagree on dicts vs tuples).
+        import asyncio
+
+        qualified = self._qualified_table(table, schema)
+        parts = qualified.replace("`", "").replace('"', "").split(".")
+        table_name_only = parts[-1] if len(parts) > 1 else parts[0]
+        database = parts[0] if len(parts) > 1 else "currentDatabase()"
+        for _ in range(120):
+            rows = await self._fetch(
+                "SELECT count() AS pending FROM system.mutations "
+                f"WHERE database = '{database}' "
+                f"AND table = '{table_name_only}' "
+                "AND is_done = 0"
+            )
+            if not rows:
+                return
+            first = rows[0]
+            pending = first.get("pending") if isinstance(first, dict) else first[0]
+            if not pending:
+                return
+            await asyncio.sleep(1)
+
     def _ch_datetime_epoch_expr(self, col_expr: str) -> str:
         """Extract Unix epoch (seconds) from a datetime column in ClickHouse."""
         return f"toUnixTimestamp({col_expr})"
@@ -60,7 +85,7 @@ class ClickHouseGroupbyWindowOps(GroupbyWindowOps):
         exclude: set[str] | None = None,
     ) -> str:
         """Return an explicit projection for source columns, excluding internal row ids."""
-        exclude = exclude or set()
+        exclude = set(exclude or set())
         internal_cols = {self._CH_ROW_NUM, "__rn"} | exclude
         column_types = await self.db.get_column_types(table, schema)
         columns = [
@@ -191,7 +216,7 @@ class ClickHouseGroupbyWindowOps(GroupbyWindowOps):
 
             window_sql = ", ".join(window_exprs)
             output_qualified = self._qualified_table(new_table_name, schema)
-            source_projection = await self._projection_sql(table, schema)
+            source_projection = await self._projection_sql(table, schema, exclude=new_cols)
             select_sql = (
                 f"SELECT {source_projection},\n"
                 f"    {window_sql}\n"
@@ -292,7 +317,7 @@ class ClickHouseGroupbyWindowOps(GroupbyWindowOps):
                 table, schema, backend=backend, data_id=data_id, new_table=new_table
             )
             output_qualified = self._qualified_table(new_table_name, schema)
-            source_projection = await self._projection_sql(table, schema, prefix="b")
+            source_projection = await self._projection_sql(table, schema, prefix="b", exclude=[new_col])
 
             # ClickHouse exposes quantile(q)(x); quantileCont is not available
             # in all server builds.
@@ -388,7 +413,7 @@ class ClickHouseGroupbyWindowOps(GroupbyWindowOps):
                 table, schema, backend=backend, data_id=data_id, new_table=new_table
             )
             output_qualified = self._qualified_table(new_table_name, schema)
-            source_projection = await self._projection_sql(table, schema)
+            source_projection = await self._projection_sql(table, schema, exclude=[new_col])
 
             sem_expr = (
                 f"(stddevSamp({q_col}) OVER (\n"
@@ -486,7 +511,7 @@ class ClickHouseGroupbyWindowOps(GroupbyWindowOps):
                 table, schema, backend=backend, data_id=data_id, new_table=new_table
             )
             output_qualified = self._qualified_table(new_table_name, schema)
-            source_projection = await self._projection_sql(table, schema, prefix="b")
+            source_projection = await self._projection_sql(table, schema, prefix="b", exclude=[new_col])
 
             nunique_subq = f"""
                 SELECT countDistinct(r.{q_col})
@@ -581,7 +606,7 @@ class ClickHouseGroupbyWindowOps(GroupbyWindowOps):
                 table, schema, backend=backend, data_id=data_id, new_table=new_table
             )
             output_qualified = self._qualified_table(new_table_name, schema)
-            source_projection = await self._projection_sql(table, schema, prefix="b")
+            source_projection = await self._projection_sql(table, schema, prefix="b", exclude=[new_col])
 
             rank_subq = f"""
                 SELECT COUNT(*)
@@ -858,7 +883,7 @@ class ClickHouseGroupbyWindowOps(GroupbyWindowOps):
                 numeric_aggs.append(f"{agg_with_null} AS {self.db.quote_identifier(col_name)}")
 
             window_sql = ", ".join(numeric_aggs)
-            source_projection = await self._projection_sql(table, schema)
+            source_projection = await self._projection_sql(table, schema, exclude=new_cols)
             select_sql = (
                 f"SELECT {source_projection},\n"
                 f"    {window_sql}\n"
@@ -971,7 +996,7 @@ class ClickHouseGroupbyWindowOps(GroupbyWindowOps):
             else:
                 value_expr = f"({quantile_subq})"
 
-            source_projection = await self._projection_sql(table, schema, prefix="b")
+            source_projection = await self._projection_sql(table, schema, prefix="b", exclude=[new_col])
 
             select_sql = (
                 f"WITH __base AS (\n"
@@ -1068,7 +1093,7 @@ class ClickHouseGroupbyWindowOps(GroupbyWindowOps):
             else:
                 sem_expr = sem_base
 
-            source_projection = await self._projection_sql(table, schema)
+            source_projection = await self._projection_sql(table, schema, exclude=[new_col])
             select_sql = (
                 f"SELECT {source_projection},\n"
                 f"    {sem_expr} AS {self.db.quote_identifier(new_col)}\n"
@@ -1165,7 +1190,7 @@ class ClickHouseGroupbyWindowOps(GroupbyWindowOps):
             else:
                 rank_expr = f"({rank_subq})"
 
-            source_projection = await self._projection_sql(table, schema, prefix="b")
+            source_projection = await self._projection_sql(table, schema, prefix="b", exclude=[new_col])
 
             select_sql = (
                 f"WITH __base AS (\n"
@@ -1266,7 +1291,7 @@ class ClickHouseGroupbyWindowOps(GroupbyWindowOps):
             else:
                 value_expr = f"({nunique_subq})"
 
-            source_projection = await self._projection_sql(table, schema, prefix="b")
+            source_projection = await self._projection_sql(table, schema, prefix="b", exclude=[new_col])
 
             select_sql = (
                 f"WITH __base AS (\n"
@@ -1674,8 +1699,6 @@ class ClickHouseGroupbyWindowOps(GroupbyWindowOps):
         raise RuntimeError(
             f"ClickHouse mutations on {table_qualified} did not finish within timeout"
         )
-
-    @staticmethod
 
     async def _apply_map(
         self, table, schema, group_table, new_columns, backend, data_id, sig,

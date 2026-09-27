@@ -28,6 +28,28 @@ class GroupbyWindowOps(WindowOps):
             f"Unsupported database backend for groupby window operation: {self.db.__class__.__name__}"
         )
 
+    async def _source_star(
+        self, table: str, schema: str, exclude=(), prefix: str = "",
+        extra=(),
+    ) -> str:
+        # ponytail: SELECT * stays byte-identical unless a previous
+        # map_feature run left one of the about-to-be-created columns on the
+        # source table — then an explicit list minus those names avoids
+        # duplicate-column failures (hard error on ClickHouse/Postgres).
+        # Only the no-clash shape is fingerprint-locked.
+        try:
+            cols = list(await self.db.get_column_types(table, schema) or {})
+        except Exception:
+            cols = []
+        bare_star = "*" if not prefix else f"{prefix}.*"
+        if not any(c in cols for c in exclude):
+            return bare_star
+        keep = [c for c in cols if c not in set(exclude)]
+        qualifier = f"{prefix}." if prefix else ""
+        parts = [f"{qualifier}{self.db.quote_identifier(c)}" for c in keep]
+        parts += [f"{qualifier}{self.db.quote_identifier(c)}" for c in extra]
+        return ", ".join(parts) if parts else bare_star if parts else bare_star
+
     def _error_response(self, msg, **extra):
         # ponytail: the pre-split engine accepted extras (e.g. group_cols);
         # keep that shape on top of the narrowed base signature.
@@ -89,6 +111,7 @@ class GroupbyWindowOps(WindowOps):
                             f"ALTER TABLE {self._qualified_table(table, schema)} "
                             f"DROP COLUMN {self.db.quote_identifier(col)}"
                         )
+                    await self._after_drop_columns(table, schema)
                     return None
             except Exception:
                 continue
@@ -97,6 +120,12 @@ class GroupbyWindowOps(WindowOps):
             f"{schema}.{table} and were not created by a previous identical "
             f"group-by window mapping. Drop or rename them first."
         )
+
+    async def _after_drop_columns(self, table: str, schema: str) -> None:
+        # ponytail: hook — ClickHouse applies DROP COLUMN as an async
+        # mutation, so its override waits until the drop is visible before
+        # the caller rebuilds the table. Synchronous backends no-op.
+        return None
 
     async def _record_map_marker(self, table, schema, backend, data_id, sig):
         max_op = await self._backend_fetch_val(
@@ -268,10 +297,11 @@ class GroupbyWindowOps(WindowOps):
                 )
 
             window_sql = ", ".join(window_exprs)
+            src_star = await self._source_star(working_table, schema, new_cols)
 
             create_sql = f"""
                 CREATE TABLE {self.db.quote_identifier(schema)}.{self.db.quote_identifier(new_table_name)} AS
-                SELECT *,
+                SELECT {src_star},
                     {window_sql}
                 FROM {qualified}
             """
@@ -387,6 +417,8 @@ class GroupbyWindowOps(WindowOps):
             partition_sql = ", ".join(self.db.quote_identifier(c) for c in safe_groups)
             w = int(window) - 1
             new_col = f"{safe_col}_rolling_q{q}_w{window}_by_{'_'.join(safe_groups)}"
+            src_star = await self._source_star(working_table, schema, [new_col])
+            src_bstar = await self._source_star(working_table, schema, [new_col], prefix="b", extra=("__rn",))
 
             qualified = self._qualified_table(working_table, schema)
 
@@ -405,7 +437,7 @@ class GroupbyWindowOps(WindowOps):
                         ROW_NUMBER() OVER (PARTITION BY {partition_sql} ORDER BY {order_sql}) AS {q_rn}
                     FROM {qualified}
                 )
-                SELECT b.*,
+                SELECT {src_bstar},
                     (
                         SELECT PERCENTILE_CONT({q}) WITHIN GROUP (ORDER BY r.{q_col})
                         FROM __base r
@@ -448,7 +480,7 @@ class GroupbyWindowOps(WindowOps):
 
                 sql = f"""
                 CREATE TABLE {self.db.quote_identifier(schema)}.{self.db.quote_identifier(new_table_name)} AS
-                SELECT *,
+                SELECT {src_star},
                     {window_sql} AS {self.db.quote_identifier(new_col)}
                 FROM {qualified}
                 """
@@ -523,6 +555,7 @@ class GroupbyWindowOps(WindowOps):
             partition_sql = ", ".join(self.db.quote_identifier(c) for c in safe_groups)
             w = int(window) - 1
             new_col = f"{safe_col}_rolling_sem_w{window}_by_{'_'.join(safe_groups)}"
+            src_star = await self._source_star(working_table, schema, [new_col])
             qualified = self._qualified_table(working_table, schema)
 
             new_table_name = await self._resolve_output_table_name(
@@ -555,7 +588,7 @@ class GroupbyWindowOps(WindowOps):
 
             sql = f"""
             CREATE TABLE {self.db.quote_identifier(schema)}.{self.db.quote_identifier(new_table_name)} AS
-            SELECT *, {sem_expr} AS {self.db.quote_identifier(new_col)}
+            SELECT {src_star}, {sem_expr} AS {self.db.quote_identifier(new_col)}
             FROM {qualified}
             """
             map_sig = self._map_sig(
@@ -627,6 +660,8 @@ class GroupbyWindowOps(WindowOps):
             partition_sql = ", ".join(self.db.quote_identifier(c) for c in safe_groups)
             w = int(window) - 1
             new_col = f"{safe_col}_rolling_nunique_w{window}_by_{'_'.join(safe_groups)}"
+            src_star = await self._source_star(working_table, schema, [new_col])
+            src_bstar = await self._source_star(working_table, schema, [new_col], prefix="b", extra=("__rn",))
             qualified = self._qualified_table(working_table, schema)
 
             new_table_name = await self._resolve_output_table_name(
@@ -644,7 +679,7 @@ class GroupbyWindowOps(WindowOps):
                 """
                 sql = f"""
                 CREATE TABLE {self.db.quote_identifier(schema)}.{self.db.quote_identifier(new_table_name)} AS
-                SELECT *, {nunique_expr} AS {self.db.quote_identifier(new_col)}
+                SELECT {src_star}, {nunique_expr} AS {self.db.quote_identifier(new_col)}
                 FROM {qualified}
                 """
                 map_sig = self._map_sig(
@@ -675,7 +710,7 @@ class GroupbyWindowOps(WindowOps):
                         ROW_NUMBER() OVER (PARTITION BY {partition_sql} ORDER BY {order_sql}) AS __rn
                     FROM {qualified}
                 )
-                SELECT b.*,
+                SELECT {src_bstar},
                     (
                         SELECT COUNT(DISTINCT r.{self.db.quote_identifier(safe_col)})
                         FROM __base r
@@ -754,6 +789,7 @@ class GroupbyWindowOps(WindowOps):
             partition_sql = ", ".join(self.db.quote_identifier(c) for c in safe_groups)
             w = int(window) - 1
             new_col = f"{safe_col}_rolling_rank_w{window}_by_{'_'.join(safe_groups)}"
+            src_bstar = await self._source_star(working_table, schema, [new_col], prefix="b", extra=("__rn",))
             qualified = self._qualified_table(working_table, schema)
 
             new_table_name = await self._resolve_output_table_name(
@@ -767,7 +803,7 @@ class GroupbyWindowOps(WindowOps):
                     ROW_NUMBER() OVER (PARTITION BY {partition_sql} ORDER BY {order_sql}) AS __rn
                 FROM {qualified}
             )
-            SELECT b.*,
+            SELECT {src_bstar},
                 (
                     SELECT COUNT(*)
                     FROM __base r
@@ -879,6 +915,7 @@ class GroupbyWindowOps(WindowOps):
 
             stat_key = stat.lower()
             new_col = f"{safe_col}_rolling_{stat_key}_w{window}_by_{'_'.join(safe_groups)}"
+            src_bstar = await self._source_star(working_table, schema, [new_col], prefix="b", extra=("__rn",))
             qualified = self._qualified_table(working_table, schema)
 
             new_table_name = await self._resolve_output_table_name(
@@ -943,7 +980,7 @@ class GroupbyWindowOps(WindowOps):
                         ROW_NUMBER() OVER (PARTITION BY {partition_sql} ORDER BY {order_sql}) AS {q_rn}
                     FROM {qualified}
                 )
-                SELECT b.*,
+                SELECT {src_bstar},
                     ({value_sql}) AS {self.db.quote_identifier(new_col)}
                 FROM __base b
             """
@@ -1069,10 +1106,11 @@ class GroupbyWindowOps(WindowOps):
                 numeric_aggs.append(f"{agg_with_null} AS {self.db.quote_identifier(col_name)}")
 
             window_sql = ", ".join(numeric_aggs)
+            src_star = await self._source_star(working_table, schema, new_cols)
 
             create_sql = f"""
                 CREATE TABLE {self.db.quote_identifier(schema)}.{self.db.quote_identifier(new_table_name)} AS
-                SELECT *, {window_sql}
+                SELECT {src_star}, {window_sql}
                 FROM {qualified}
             """
             map_sig = self._map_sig(
@@ -1183,6 +1221,8 @@ class GroupbyWindowOps(WindowOps):
             order_sql = ", ".join(self.db.quote_identifier(c) for c in safe_orders)
             partition_sql = ", ".join(self.db.quote_identifier(c) for c in safe_groups)
             new_col = f"{safe_col}_expanding_q{q}_by_{'_'.join(safe_groups)}"
+            src_star = await self._source_star(working_table, schema, [new_col])
+            src_bstar = await self._source_star(working_table, schema, [new_col], prefix="b", extra=("__rn",))
             qualified = self._qualified_table(working_table, schema)
 
             new_table_name = await self._resolve_output_table_name(
@@ -1215,7 +1255,7 @@ class GroupbyWindowOps(WindowOps):
                         ROW_NUMBER() OVER (PARTITION BY {partition_sql} ORDER BY {order_sql}) AS {q_rn}
                     FROM {qualified}
                 )
-                SELECT b.*,
+                SELECT {src_bstar},
                     {quantile_expr} AS {q_new_col}
                 FROM __base b
                 """
@@ -1250,7 +1290,7 @@ class GroupbyWindowOps(WindowOps):
 
                 sql = f"""
                 CREATE TABLE {self.db.quote_identifier(schema)}.{self.db.quote_identifier(new_table_name)} AS
-                SELECT *, {quantile_expr} AS {self.db.quote_identifier(new_col)}
+                SELECT {src_star}, {quantile_expr} AS {self.db.quote_identifier(new_col)}
                 FROM {qualified}
                 """
                 map_sig = self._map_sig(
@@ -1323,6 +1363,7 @@ class GroupbyWindowOps(WindowOps):
             order_sql = ", ".join(self.db.quote_identifier(c) for c in safe_orders)
             partition_sql = ", ".join(self.db.quote_identifier(c) for c in safe_groups)
             new_col = f"{safe_col}_expanding_sem_by_{'_'.join(safe_groups)}"
+            src_star = await self._source_star(working_table, schema, [new_col])
             qualified = self._qualified_table(working_table, schema)
 
             new_table_name = await self._resolve_output_table_name(
@@ -1347,7 +1388,7 @@ class GroupbyWindowOps(WindowOps):
 
             sql = f"""
             CREATE TABLE {self.db.quote_identifier(schema)}.{self.db.quote_identifier(new_table_name)} AS
-            SELECT *, {sem_expr} AS {self.db.quote_identifier(new_col)}
+            SELECT {src_star}, {sem_expr} AS {self.db.quote_identifier(new_col)}
             FROM {qualified}
             """
             map_sig = self._map_sig(
@@ -1417,6 +1458,7 @@ class GroupbyWindowOps(WindowOps):
             order_sql = ", ".join(self.db.quote_identifier(c) for c in safe_orders)
             partition_sql = ", ".join(self.db.quote_identifier(c) for c in safe_groups)
             new_col = f"{safe_col}_expanding_rank_by_{'_'.join(safe_groups)}"
+            src_bstar = await self._source_star(working_table, schema, [new_col], prefix="b", extra=("__rn",))
             qualified = self._qualified_table(working_table, schema)
 
             new_table_name = await self._resolve_output_table_name(
@@ -1444,7 +1486,7 @@ class GroupbyWindowOps(WindowOps):
                     ROW_NUMBER() OVER (PARTITION BY {partition_sql} ORDER BY {order_sql}) AS __rn
                 FROM {qualified}
             )
-            SELECT b.*, {rank_expr} AS {self.db.quote_identifier(new_col)}
+            SELECT {src_bstar}, {rank_expr} AS {self.db.quote_identifier(new_col)}
             FROM __base b
             """
             map_sig = self._map_sig(
@@ -1515,6 +1557,8 @@ class GroupbyWindowOps(WindowOps):
             order_sql = ", ".join(self.db.quote_identifier(c) for c in safe_orders)
             partition_sql = ", ".join(self.db.quote_identifier(c) for c in safe_groups)
             new_col = f"{safe_col}_expanding_nunique_by_{'_'.join(safe_groups)}"
+            src_star = await self._source_star(working_table, schema, [new_col])
+            src_bstar = await self._source_star(working_table, schema, [new_col], prefix="b", extra=("__rn",))
             qualified = self._qualified_table(working_table, schema)
 
             new_table_name = await self._resolve_output_table_name(
@@ -1532,7 +1576,7 @@ class GroupbyWindowOps(WindowOps):
                     nunique_expr = count_distinct
                 sql = f"""
                 CREATE TABLE {self.db.quote_identifier(schema)}.{self.db.quote_identifier(new_table_name)} AS
-                SELECT *, {nunique_expr} AS {self.db.quote_identifier(new_col)}
+                SELECT {src_star}, {nunique_expr} AS {self.db.quote_identifier(new_col)}
                 FROM {qualified}
                 """
                 map_sig = self._map_sig(
@@ -1563,7 +1607,7 @@ class GroupbyWindowOps(WindowOps):
                         ROW_NUMBER() OVER (PARTITION BY {partition_sql} ORDER BY {order_sql}) AS __rn
                     FROM {qualified}
                 )
-                SELECT b.*,
+                SELECT {src_bstar},
                     (
                         SELECT COUNT(DISTINCT r.{safe_col_quoted})
                         FROM __base r
@@ -1673,6 +1717,7 @@ class GroupbyWindowOps(WindowOps):
             order_sql = ", ".join(self.db.quote_identifier(c) for c in safe_orders)
             partition_sql = ", ".join(self.db.quote_identifier(c) for c in safe_groups)
             new_col = f"{safe_col}_expanding_{stat}_by_{'_'.join(safe_groups)}"
+            src_bstar = await self._source_star(working_table, schema, [new_col], prefix="b", extra=("__rn",))
             qualified = self._qualified_table(working_table, schema)
 
             new_table_name = await self._resolve_output_table_name(
@@ -1737,7 +1782,7 @@ class GroupbyWindowOps(WindowOps):
                     ROW_NUMBER() OVER (PARTITION BY {partition_sql} ORDER BY {order_sql}) AS __rn
                 FROM {qualified}
             )
-            SELECT b.*, {value_sql} AS {self.db.quote_identifier(new_col)}
+            SELECT {src_bstar}, {value_sql} AS {self.db.quote_identifier(new_col)}
             FROM __base b
             """
             map_sig = self._map_sig(
@@ -1930,6 +1975,7 @@ class GroupbyWindowOps(WindowOps):
         except Exception as e:
             return self._error_response(f"ewm group-by error: {str(e)}\n{traceback.format_exc()}")
     
+    @staticmethod
     def _compute_ewm_array(arr, alpha, adjust, ignore_na, min_periods, aggs):
         """Reusable Python EWM computation; identical logic to DataWindowOps.ewm but returns dict of arrays."""
         n = len(arr)
