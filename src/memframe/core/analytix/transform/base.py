@@ -1012,7 +1012,7 @@ class TransformOps:
                 col_q = self.db.quote_identifier(safe_col)
                 new_q = self.db.quote_identifier(safe_new)
                 create_sql = self._ch_create_table_as(safe_schema, new_table, f"""
-                    SELECT *, CASE WHEN {col_q} IS NULL THEN NULL ELSE (rank() OVER (ORDER BY {col_q}) - 1) / nullIf(count() OVER (), 1) END AS {new_q}
+                    SELECT *, CASE WHEN {col_q} IS NULL THEN NULL ELSE (rank() OVER (ORDER BY {col_q}) - 1) / nullIf(count() OVER () - 1, 0) END AS {new_q}
                     FROM {qualified_source}
                 """)
                 await self._exec(create_sql)
