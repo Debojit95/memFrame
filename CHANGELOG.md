@@ -4,6 +4,21 @@ All notable changes to memFrame are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and the project adheres
 to [Semantic Versioning](https://semver.org/).
 
+## [0.13.1] - 2026-09-25
+
+### Added
+- **GroupBy window `map_feature`**: opt-in `map_feature=True` LEFT JOINs window feature columns back onto the original table on full row identity (same swaps and rerun/collision rules as the other groupby ops); threaded through the rolling/expanding engines, specials, datetime engines, orchestrator dispatch, and direct/builder wrapper methods.
+- **GroupBy window integration**: `test_map_feature_single/multi_groupby` + `test_map_feature_expanding` (values vs pandas merge, no key duplication).
+
+### Changed
+- **GroupBy window core split**: `core/analytix/groupby_window.py` is now a `groupby_window/` package (`base.py` + `duckdb`/`postgres`/`clickhouse` + `factory.make_groupby_window_ops`); the orchestrator builds via the factory. Split verified by a normalizing body-equivalence check plus the unchanged SQL fingerprint.
+
+### Fixed
+- **Orphaned `@staticmethod`** from the split silenced every ClickHouse map call (`missing 'sig'`); moved home to `_compute_ewm_array`.
+- **ClickHouse async-mutation race**: rerun drops finished after the rebuild started (`Cannot add column ... already exists`); new `_after_drop_columns` hook polls `system.mutations` on ClickHouse (all three groupby ops).
+- **Duplicate-column guard**: after any map, follow-up ops exclude stale feature columns from the source projection (`_source_star`; byte-identical `*` otherwise) — fixes post-map reruns on Postgres/ClickHouse.
+- **ClickHouse `quantile_transform` denominator**: `(rank-1)/n` → `(rank-1)/nullIf(n-1, 0)`, matching PG/DuckDB and the documented `[0,1]` range.
+
 ## [0.13.0] - 2026-09-25
 
 ### Added
