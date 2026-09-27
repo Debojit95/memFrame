@@ -846,6 +846,56 @@ class TestGroupByWindowOperations:
             sample_df, mapped, exp_ordered, backend_config["connection_type"],
         )
 
+    def test_map_feature_false_leaves_original_untouched(
+        self, uploaded_ctx, sample_df, backend_config
+    ):
+        before = get_result_df(uploaded_ctx.head(n=len(sample_df)))
+        result = uploaded_ctx.groupby("group").rolling(2, order_by="id").agg(
+            "value", ["mean"], map_feature=False
+        )
+
+        assert result["is_error"] is False
+        assert result["mapped_table"] is None
+        assert result["mapped_columns"] == []
+
+        after = get_result_df(uploaded_ctx.head(n=len(sample_df)))
+        pd.testing.assert_frame_equal(
+            normalize_frame(after),
+            normalize_frame(before),
+            check_dtype=False,
+        )
+        self._record_result(
+            "map_feature_false_leaves_original_untouched",
+            'groupby("group").rolling(2).agg("value", ["mean"], map_feature=False)',
+            sample_df, after, before, backend_config["connection_type"],
+        )
+
+    def test_map_feature_true_then_false(
+        self, uploaded_ctx, sample_df, backend_config
+    ):
+        first = uploaded_ctx.groupby("group").rolling(2, order_by="id").agg(
+            "value", ["mean"], map_feature=True
+        )
+        assert first["is_error"] is False
+
+        second = uploaded_ctx.groupby("group").rolling(2, order_by="id").agg(
+            "value", ["mean"], map_feature=False
+        )
+        assert second["is_error"] is False
+
+        mapped = get_result_df(uploaded_ctx.head(n=len(sample_df)))
+        assert "value_rolling_mean_w2_by_group" in list(mapped.columns)
+
+        check = mapped.sort_values(["group", "id"]).reset_index(drop=True)
+        exp_ordered = sample_df.sort_values(["group", "id"]).reset_index(drop=True)
+        exp_vals = self._pandas_rolling(exp_ordered, ["group"], "value", 2, "mean")
+        assert_allclose_numeric(check["value_rolling_mean_w2_by_group"], exp_vals)
+        self._record_result(
+            "map_feature_true_then_false",
+            'rolling agg map_feature=True then map_feature=False',
+            sample_df, mapped, exp_ordered, backend_config["connection_type"],
+        )
+
     # --- Mutation safety ---
     def test_mutation_safety(self, uploaded_ctx, sample_df, backend_config):
         original_uploaded = get_result_df(uploaded_ctx.head(n=len(sample_df)))

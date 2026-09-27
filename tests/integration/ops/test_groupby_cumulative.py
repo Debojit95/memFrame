@@ -799,6 +799,93 @@ class TestGroupByCumulativeOperations:
     # ----------------------------------------------------------------
     # Mutation safety
     # ----------------------------------------------------------------
+    # ----------------------------------------------------------------
+    # map_feature True / False
+    # ----------------------------------------------------------------
+    def test_map_feature_true(self, uploaded_ctx, sample_df, backend_config):
+        result = uploaded_ctx.groupby("group").cumsum(
+            "value", order_col="order_col", target_col="cumsum_val",
+            map_feature=True,
+        )
+        assert result["mapped_columns"] == ["cumsum_val"]
+
+        mapped = get_result_df(uploaded_ctx.head(n=len(sample_df)))
+        assert "cumsum_val" in list(mapped.columns)
+
+        expected = sample_df.sort_values(["group", "order_col"]).copy()
+        expected["cumsum_val"] = expected.groupby("group")["value"].cumsum()
+        check = mapped.sort_values(["group", "order_col"]).reset_index(drop=True)
+        expected = expected.sort_values(["group", "order_col"]).reset_index(drop=True)
+        assert_series_equal_loose(check["cumsum_val"], expected["cumsum_val"])
+        self._record_result(
+            test_name="map_feature_true",
+            method_call='uploaded_ctx.groupby("group").cumsum("value", order_col="order_col", map_feature=True)',
+            original_df=sample_df,
+            memframe_df=mapped,
+            pandas_df=expected,
+            backend=backend_config["connection_type"],
+        )
+
+    def test_map_feature_false_leaves_original_untouched(
+        self, uploaded_ctx, sample_df, backend_config
+    ):
+        before = get_result_df(uploaded_ctx.head(n=len(sample_df)))
+        result = uploaded_ctx.groupby("group").cumsum(
+            "value", order_col="order_col", target_col="cumsum_val",
+            map_feature=False,
+        )
+
+        assert result["is_error"] is False
+        assert result["mapped_table"] is None
+        assert result["mapped_columns"] == []
+
+        after = get_result_df(uploaded_ctx.head(n=len(sample_df)))
+        pd.testing.assert_frame_equal(
+            normalize_frame(after),
+            normalize_frame(before),
+            check_dtype=False,
+        )
+        self._record_result(
+            test_name="map_feature_false_leaves_original_untouched",
+            method_call='uploaded_ctx.groupby("group").cumsum("value", order_col="order_col", map_feature=False)',
+            original_df=sample_df,
+            memframe_df=after,
+            pandas_df=before,
+            backend=backend_config["connection_type"],
+        )
+
+    def test_map_feature_true_then_false(
+        self, uploaded_ctx, sample_df, backend_config
+    ):
+        first = uploaded_ctx.groupby("group").cumsum(
+            "value", order_col="order_col", target_col="cumsum_val",
+            map_feature=True,
+        )
+        assert first["is_error"] is False
+
+        second = uploaded_ctx.groupby("group").cumsum(
+            "value", order_col="order_col", target_col="cumsum_val",
+            map_feature=False,
+        )
+        assert second["is_error"] is False
+
+        mapped = get_result_df(uploaded_ctx.head(n=len(sample_df)))
+        assert "cumsum_val" in list(mapped.columns)  # True's column persists
+
+        expected = sample_df.sort_values(["group", "order_col"]).copy()
+        expected["cumsum_val"] = expected.groupby("group")["value"].cumsum()
+        check = mapped.sort_values(["group", "order_col"]).reset_index(drop=True)
+        expected = expected.sort_values(["group", "order_col"]).reset_index(drop=True)
+        assert_series_equal_loose(check["cumsum_val"], expected["cumsum_val"])
+        self._record_result(
+            test_name="map_feature_true_then_false",
+            method_call='cumsum(..., map_feature=True) then cumsum(..., map_feature=False)',
+            original_df=sample_df,
+            memframe_df=mapped,
+            pandas_df=expected,
+            backend=backend_config["connection_type"],
+        )
+
     def test_mutation_safety(self, uploaded_ctx, sample_df, backend_config):
         original_uploaded = get_result_df(uploaded_ctx.head(n=len(sample_df)))
         uploaded_ctx.groupby("group").cumsum(

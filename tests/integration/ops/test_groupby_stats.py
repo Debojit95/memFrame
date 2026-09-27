@@ -1038,6 +1038,68 @@ class TestGroupByStatsOperations:
             backend=backend_config["connection_type"],
         )
 
+    def test_map_feature_false_leaves_original_untouched(
+        self, uploaded_ctx, sample_df, backend_config
+    ):
+        before = get_result_df(uploaded_ctx.head(n=len(sample_df)))
+        result = uploaded_ctx.groupby("group").agg(
+            {"value": ["sum"]}, map_feature=False
+        )
+
+        assert result["is_error"] is False
+        assert result["new_table"]  # group table still produced
+        assert result["mapped_table"] is None
+        assert result["mapped_columns"] == []
+
+        after = get_result_df(uploaded_ctx.head(n=len(sample_df)))
+        pd.testing.assert_frame_equal(
+            normalize_frame(after),
+            normalize_frame(before),
+            check_dtype=False,
+        )
+        self._record_result(
+            test_name="map_feature_false_leaves_original_untouched",
+            method_call='uploaded_ctx.groupby("group").agg({"value": ["sum"]}, map_feature=False)',
+            original_df=sample_df,
+            memframe_df=after,
+            pandas_df=before,
+            backend=backend_config["connection_type"],
+        )
+
+    def test_map_feature_true_then_false(
+        self, uploaded_ctx, sample_df, backend_config
+    ):
+        first = uploaded_ctx.groupby("group").agg(
+            {"value": ["sum"]}, map_feature=True
+        )
+        assert first["is_error"] is False
+
+        second = uploaded_ctx.groupby("group").agg(
+            {"value": ["sum"]}, map_feature=False
+        )
+        assert second["is_error"] is False
+        assert second["new_table"]  # fresh group table either way
+
+        mapped = get_result_df(uploaded_ctx.head(n=len(sample_df)))
+        assert "value_sum" in list(mapped.columns)  # True's column persists
+
+        expected_groups = sample_df.groupby("group", as_index=False).agg(
+            value_sum=("value", "sum")
+        )
+        expected = sample_df.merge(expected_groups, on="group")
+        for frame in (mapped, expected):
+            frame.sort_values(["group", "value"], inplace=True)
+            frame.reset_index(drop=True, inplace=True)
+        assert_allclose_numeric(mapped["value_sum"], expected["value_sum"])
+        self._record_result(
+            test_name="map_feature_true_then_false",
+            method_call='agg(..., map_feature=True) then agg(..., map_feature=False)',
+            original_df=sample_df,
+            memframe_df=mapped,
+            pandas_df=expected,
+            backend=backend_config["connection_type"],
+        )
+
     # ------------------------------------------------------------------
     # Mutation safety
     # ------------------------------------------------------------------
