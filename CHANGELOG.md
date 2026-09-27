@@ -4,6 +4,20 @@ All notable changes to memFrame are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and the project adheres
 to [Semantic Versioning](https://semver.org/).
 
+## [0.13.0] - 2026-09-25
+
+### Added
+- **GroupBy window integration**: `tests/integration/ops/test_groupby_window.py` (16: rolling/expanding values vs pandas, multicolumn, multi-agg, no-order fallback, `map_feature`, mutation safety, real pandas mirrors in PDF reports).
+- **GroupBy window `map_feature`**: opt-in `map_feature=True` LEFT JOINs window feature columns back onto the original table on full row identity (same swaps and rerun/collision rules as the other groupby ops); threaded through the rolling/expanding engines, specials, datetime engines, orchestrator dispatch, and direct/builder wrapper methods.
+- **T/F contract tests**: explicit `map_feature=False` (original untouched, group table still produced) and `True`-then-`False` (columns persist, fresh table) across all three groupby integration suites.
+- **GroupBy window docs**: `docs/api/groupby/groupby_window.md` (dual entry points, multicol/multi-agg, per-family notes, honest EWM-unavailable note).
+
+### Changed
+- **Unified `GroupBy` facade carries the real window builder**: `ctx.groupby(*cols).rolling(...)` / `.expanding(...)` are live; flat `rolling`/`expanding` behavior unchanged.
+
+### Fixed
+- **`_error_response` extras compat**: `GroupbyWindowOps` override accepts extras (e.g. `group_cols`) like the pre-split engine, instead of raising `TypeError` inside the split base signature.
+
 ## [0.12.0] - 2026-09-25
 
 ### Added
