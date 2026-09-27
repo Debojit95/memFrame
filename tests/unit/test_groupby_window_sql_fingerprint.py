@@ -16,7 +16,12 @@ import os
 
 import pytest
 
-from memframe.core.analytix.groupby_window import GroupbyWindowOps
+from memframe.core.analytix.groupby_window import (
+    ClickHouseGroupbyWindowOps,
+    DuckDBGroupbyWindowOps,
+    GroupbyWindowOps,
+    PostgresGroupbyWindowOps,
+)
 from memframe.db_manager.adapters.clickhouse import ClickHouseAdapter
 from memframe.db_manager.adapters.duckdb import DuckDBAdapter
 from memframe.db_manager.adapters.postgresql import PostgresAdapter
@@ -124,9 +129,9 @@ def _scenarios():
 SCENARIOS = _scenarios()
 
 BACKENDS = {
-    "duckdb": _DuckDBPersona,
-    "postgres": _PostgresPersona,
-    "clickhouse": _ClickHousePersona,
+    "duckdb": (DuckDBGroupbyWindowOps, _DuckDBPersona),
+    "postgres": (PostgresGroupbyWindowOps, _PostgresPersona),
+    "clickhouse": (ClickHouseGroupbyWindowOps, _ClickHousePersona),
 }
 
 
@@ -134,9 +139,9 @@ def _capture():
     snapshot = {}
     for name, scenario in SCENARIOS.items():
         snapshot[name] = {}
-        for backend_name, persona_cls in BACKENDS.items():
+        for backend_name, (ops_cls, persona_cls) in BACKENDS.items():
             persona = persona_cls()
-            ops = GroupbyWindowOps(persona)
+            ops = ops_cls(persona)
             asyncio.run(scenario(ops, _FakeBackend(persona)))
             snapshot[name][backend_name] = persona.calls
     return snapshot
@@ -167,3 +172,8 @@ def test_groupby_window_personas_match_real_backends():
     assert isinstance(_DuckDBPersona(), DuckDBAdapter)
     assert isinstance(_PostgresPersona(), PostgresAdapter)
     assert isinstance(_ClickHousePersona(), ClickHouseAdapter)
+
+
+def test_all_backends_are_groupby_window_ops():
+    for ops_cls, _ in BACKENDS.values():
+        assert issubclass(ops_cls, GroupbyWindowOps)

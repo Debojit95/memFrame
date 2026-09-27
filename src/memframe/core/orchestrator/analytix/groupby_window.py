@@ -12,7 +12,10 @@ The builder pattern (groupby().rolling().mean()) is also retained.
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
-from memframe.core.analytix.groupby_window import GroupbyWindowOps
+from memframe.core.analytix.groupby_window import (
+    GroupbyWindowOps,
+    make_groupby_window_ops,
+)
 from memframe.core.ingestion.datatype_detector import DatatypeDetector
 from memframe.cache import record_call
 
@@ -280,7 +283,7 @@ class GroupByWindowOrchestrator:
     async def _ensure_ops(self) -> GroupbyWindowOps:
         if self._core_ops is None:
             await self._ensure_adapter()
-            self._core_ops = GroupbyWindowOps(self._adapter)
+            self._core_ops = make_groupby_window_ops(self._adapter)
         return self._core_ops
 
     async def _detect_dtype(self, ops, table, schema, column):
