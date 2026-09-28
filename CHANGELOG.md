@@ -4,6 +4,19 @@ All notable changes to memFrame are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and the project adheres
 to [Semantic Versioning](https://semver.org/).
 
+## [0.14.0] - 2026-09-28
+
+### Added
+- **Comparison (new domain)**: element-wise comparison of two columns via `ContextManager` — predicate form (`compare("salary >= bonus")`) and query form (`compare("salary", "bonus", ">=")`, sync + `a`-prefixed async) across `==`, `!=`, `>`, `<`, `>=`, `<=`. Numeric/categorical/datetime routing with automatic timestamp casts, `cmp_<col>_<op>_<col>` result columns on fresh transient tables; the source table is never mutated.
+- **Comparison tests**: `tests/unit/test_comparison_response.py` (9: both call forms, all three type families, error paths, naming helpers) + `tests/integration/ops/test_compare.py` (20: per-operator values vs pandas, NULL semantics, expression forms, mutation safety, DuckDB/PostgreSQL/ClickHouse backend config).
+- **Comparison docs**: `docs/api/comparison.md` (predicate vs query forms, type routing, result-column table, errors, caching) + sidebar nav + README link.
+
+### Changed
+- **Comparison core split**: `core/analytix/comparison.py` is now a `comparison/` package (`base.py` + `duckdb`/`postgres`/`clickhouse` + `factory.make_comparison_ops`); the orchestrator builds via the factory. Base holds the shared flow on DuckDB/PostgreSQL-flavoured defaults plus dialect hooks (`_engine_clause`, `_datetime_cast`) and ClickHouse keeps the single-CTAS structural override. Generated SQL is proven byte-identical by the unchanged unit + integration suites.
+
+### Fixed
+- **ClickHouse placeholder rendering**: `?` inside already-rendered quoted literals (e.g. cache signatures carrying `"?"` args) was eaten as a positional placeholder, shifting the rest and failing with `Not enough parameters for ClickHouse query`; the renderer now skips quoted regions in a single pass, keeping both arity guards.
+
 ## [0.13.1] - 2026-09-25
 
 ### Added
