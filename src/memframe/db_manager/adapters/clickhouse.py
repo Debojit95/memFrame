@@ -19,19 +19,35 @@ def _render_clickhouse_query(query: str, parameters: Optional[Sequence[Any]] = N
     """Render `?`-style positional placeholders into a literal ClickHouse query."""
     if not parameters:
         return query
-    rendered = query
-    for value in parameters:
-        placeholder_index = rendered.find("?")
-        if placeholder_index == -1:
-            raise ConfigurationError("Too many parameters for ClickHouse query")
-        rendered = (
-            rendered[:placeholder_index]
-            + _to_clickhouse_literal(value)
-            + rendered[placeholder_index + 1 :]
-        )
-    if "?" in rendered:
-        raise ConfigurationError("Not enough parameters for ClickHouse query")
-    return rendered
+    # ponytail: single pass, skip `?` inside 'quoted' literals (a rendered
+    # param like '["a", "?"]' must not shift later placeholders).
+    out: List[str] = []
+    idx = 0
+    in_str = False
+    escaped = False
+    for ch in query:
+        if in_str:
+            out.append(ch)
+            if escaped:
+                escaped = False
+            elif ch == "\\":
+                escaped = True
+            elif ch == "'":
+                in_str = False
+            continue
+        if ch == "'":
+            in_str = True
+            out.append(ch)
+        elif ch == "?":
+            if idx >= len(parameters):
+                raise ConfigurationError("Not enough parameters for ClickHouse query")
+            out.append(_to_clickhouse_literal(parameters[idx]))
+            idx += 1
+        else:
+            out.append(ch)
+    if idx < len(parameters):
+        raise ConfigurationError("Too many parameters for ClickHouse query")
+    return "".join(out)
 
 
 def _to_clickhouse_literal(value: Any) -> str:
