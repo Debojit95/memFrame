@@ -2,7 +2,7 @@ import numpy as np
 
 from memframe.core.ingestion.datatype_detector import DatatypeDetector
 
-from memframe.core.analytix.comparison import ComparisonOps
+from memframe.core.analytix.comparison import ComparisonOps, make_comparison_ops
 from memframe.cache import record_call
 
 
@@ -31,7 +31,7 @@ class ComparisonOrchestrator:
     async def _ensure_ops(self) -> ComparisonOps:
         if self._compare_ops is None:
             await self._ops_parent._ensure_adapter()
-            self._compare_ops = ComparisonOps(self._ops_parent._adapter)
+            self._compare_ops = make_comparison_ops(self._ops_parent._adapter)
         return self._compare_ops
 
     async def _get_context(self):
