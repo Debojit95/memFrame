@@ -73,6 +73,7 @@ nav:
           - Inspect: api/inspect.md
           - Clean: api/cleaning.md
           - Arithmetic: api/arithmetic.md
+          - Comparison: api/comparison.md
           - Cumulative: api/cumulative.md
           - Window: api/window.md
           - GroupBy:
