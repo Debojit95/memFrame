@@ -40,11 +40,17 @@ class LogicalPredicate(Predicate):
         if self.op == "NOT":
             return f"(NOT {self.children[0].compile(ctx)})"
 
-        compiled = [c.compile(ctx) for c in self.children]
-
         if self.op == "XOR":
-            a, b = compiled
-            return f"(({a} AND NOT {b}) OR (NOT {a} AND {b}))"
+            # ponytail: compile per occurrence — reusing one compiled string
+            # repeats $n/? markers without adding params, which breaks
+            # positional (?-style: DuckDB/ClickHouse) backends.
+            a1 = self.children[0].compile(ctx)
+            b1 = self.children[1].compile(ctx)
+            a2 = self.children[0].compile(ctx)
+            b2 = self.children[1].compile(ctx)
+            return f"(({a1} AND NOT {b1}) OR (NOT {a2} AND {b2}))"
+
+        compiled = [c.compile(ctx) for c in self.children]
 
         joined = f" {self.op} ".join(compiled)
         return f"({joined})"
