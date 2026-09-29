@@ -75,6 +75,7 @@ class ContextManager:
         from memframe.wrappers.analytix.transform import TransformWrapper
         from memframe.wrappers.analytix.cumulative import CumulativeWrapper
         from memframe.wrappers.analytix.comparison import ComparisonWrapper
+        from memframe.wrappers.analytix.filter import FilteringWrapper
         from memframe.wrappers.analytix.window import WindowWrapper
         from memframe.wrappers.analytix.groupby_stats import GroupByStatsWrapper
         from memframe.wrappers.analytix.groupby_cumulative import GroupByCumulativeWrapper
@@ -98,6 +99,7 @@ class ContextManager:
             TransformWrapper(self),
             CumulativeWrapper(self),
             ComparisonWrapper(self),
+            FilteringWrapper(self),
             WindowWrapper(self),
             GroupByStatsWrapper(self),
             GroupByCumulativeWrapper(self),

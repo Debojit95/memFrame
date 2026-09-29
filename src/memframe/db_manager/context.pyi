@@ -6,6 +6,7 @@ from memframe.db_manager.adapters.base import DatabaseAdapter
 from memframe.wrappers.analytix.arithmetic import ArithmeticWrapper
 from memframe.wrappers.analytix.cleaning import CleaningWrapper
 from memframe.wrappers.analytix.comparison import ComparisonWrapper
+from memframe.wrappers.analytix.filter import FilteringWrapper
 from memframe.wrappers.analytix.datetime import DateTimeWrapper
 from memframe.wrappers.analytix.inspection import TableOpsWrapper
 from memframe.wrappers.analytix.merging import MergeWrapper
@@ -28,6 +29,7 @@ class ContextManager(
     StatsWrapper,
     ArithmeticWrapper,
     ComparisonWrapper,
+    FilteringWrapper,
     SortingWrapper,
     ReshapingWrapper,
     MergeWrapper,
