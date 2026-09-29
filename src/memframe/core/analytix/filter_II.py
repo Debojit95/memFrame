@@ -243,9 +243,21 @@ class DataFilteringOps:
                         params=ctx.params,
                     )
                 else:
+                    # ponytail: deep_cache relocates the table to the transient
+                    # schema after this call returns; resolve the live location
+                    # on first pull so the lazy iterator reads the right place.
+                    transient_schema = (
+                        backend.transient_schema if backend is not None else None
+                    )
+
                     async def iterator():
+                        read_schema = schema
+                        if transient_schema and not await self.db.table_exists(
+                            new_table_safe, read_schema
+                        ):
+                            read_schema = transient_schema
                         async for chunk in self._fetch_in_chunks(
-                            new_table_safe, schema, chunk_size,
+                            new_table_safe, read_schema, chunk_size,
                             columns=output_cols,
                         ):
                             yield chunk
