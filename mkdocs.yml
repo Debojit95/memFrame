@@ -81,6 +81,7 @@ nav:
               - Cumulative: api/groupby/groupby_cumulative.md
               - Window: api/groupby/groupby_window.md
           - Selection: api/selection.md
+          - Filter: api/filter.md
           - Stats: api/stats.md
           - Datetime: api/datetime.md
           - Sorting: api/sorting.md
