@@ -50,6 +50,34 @@ def _render_clickhouse_query(query: str, parameters: Optional[Sequence[Any]] = N
     return "".join(out)
 
 
+def _unwrap_ch_type(type_name: str) -> str:
+    base = (type_name or "").strip()
+    while True:
+        if base.startswith("Nullable(") and base.endswith(")"):
+            base = base[len("Nullable("):-1]
+        elif base.startswith("LowCardinality(") and base.endswith(")"):
+            base = base[len("LowCardinality("):-1]
+        else:
+            return base
+
+
+def _parse_ch_json_value(type_name: str, value: Any) -> Any:
+    # ponytail: JSONCompact delivers datetimes as strings; parse them here so
+    # every ClickHouse read (not just filters) returns real datetimes.
+    # Unparseable values pass through untouched — never fail a read.
+    if value is None or not isinstance(value, str):
+        return value
+    base = _unwrap_ch_type(type_name)
+    try:
+        if base in ("Date", "Date32"):
+            return date.fromisoformat(value[:10])
+        if base == "DateTime" or base.startswith(("DateTime(", "DateTime64(")):
+            return datetime.fromisoformat(value)
+    except ValueError:
+        pass
+    return value
+
+
 def _to_clickhouse_literal(value: Any) -> str:
     if value is None:
         return "NULL"
@@ -130,10 +158,15 @@ class HttpxClickHouseClient:
         payload = response.json()
         meta = payload.get("meta", [])
         column_names = [m["name"] for m in meta]
-        rows = [
-            self._normalize_result_row(row, column_names)
-            for row in payload.get("data", [])
-        ]
+        parsers = [m.get("type", "") for m in meta]
+        rows = []
+        for row in payload.get("data", []):
+            norm = self._normalize_result_row(row, column_names)
+            if parsers and len(parsers) == len(norm):
+                norm = tuple(
+                    _parse_ch_json_value(t, v) for t, v in zip(parsers, norm)
+                )
+            rows.append(norm)
         return ClickHouseQueryResult(rows, column_names)
 
     async def insert(
