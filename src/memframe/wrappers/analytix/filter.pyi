@@ -12,6 +12,7 @@ class FilteringWrapper(FilteringOrchestrator):
         predicate: Predicate | str,
         columns: str | list[str] = "*",
         chunk_size: int | None = None,
+        create_flag: bool = False,
     ) -> dict[str, Any]: ...
 
     async def afilter(
@@ -19,6 +20,7 @@ class FilteringWrapper(FilteringOrchestrator):
         predicate: Predicate | str,
         columns: str | list[str] = "*",
         chunk_size: int | None = None,
+        create_flag: bool = False,
     ) -> dict[str, Any]: ...
 
     def filter(
@@ -26,4 +28,5 @@ class FilteringWrapper(FilteringOrchestrator):
         predicate: Predicate | str,
         columns: str | list[str] = "*",
         chunk_size: int | None = None,
+        create_flag: bool = False,
     ) -> dict[str, Any]: ...

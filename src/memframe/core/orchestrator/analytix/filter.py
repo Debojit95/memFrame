@@ -45,6 +45,7 @@ class FilteringOrchestrator:
         predicate: Union["Predicate", str],
         columns: Union[str, list] = "*",
         chunk_size: Optional[int] = None,
+        create_flag: bool = False,
     ):
         """
         Apply a filter and create a new transient table.
@@ -58,12 +59,16 @@ class FilteringOrchestrator:
             Columns to select (default ``*``).
         chunk_size : int, optional
             If given, returns an async iterator yielding DataFrames of that size.
+        create_flag : bool
+            If True and the match is a proper subset, write a boolean
+            ``filter_flag`` column in place onto the source table (True for
+            matching rows). Empty/full matches skip the flag.
 
         Returns
         -------
         dict
             Standard operation response with ``is_error``, ``result``/``iterator``,
-            and ``new_table``.
+            ``new_table``, and ``flag_column`` (name or None).
         """
         # Convert string to Predicate if needed
         if isinstance(predicate, str):
@@ -83,6 +88,7 @@ class FilteringOrchestrator:
             backend=backend,
             data_id=data_id,
             chunk_size=chunk_size,
+            create_flag=create_flag,
         )
 
         return result

@@ -129,6 +129,70 @@ class DataFilteringOps:
         """Extra table-engine SQL for CTAS; ClickHouse overrides."""
         return ""
 
+    # Fixed flag column name for create_flag (auto-suffixed on collision).
+    FLAG_COLUMN = "filter_flag"
+
+    def _flag_column_type(self) -> str:
+        """Boolean column type for the in-place flag; ClickHouse overrides."""
+        return "BOOLEAN"
+
+    def _resolve_flag_column(self, column_lookup: Dict[str, str]) -> str:
+        existing = {c.lower() for c in column_lookup.values()}
+        name, suffix = self.FLAG_COLUMN, 1
+        while name.lower() in existing:
+            name = f"{self.FLAG_COLUMN}_{suffix}"
+            suffix += 1
+        return name
+
+    async def _fill_flag_column(
+        self, qualified: str, flag_col: str, where_clause: str, params: list
+    ) -> None:
+        # ponytail: COALESCE maps non-matching AND null-predicate rows to
+        # FALSE — only selected rows read True. ClickHouse overrides with an
+        # ALTER UPDATE + mutation wait (UPDATE is async there).
+        await self._exec(
+            f"UPDATE {qualified} "
+            f"SET {self.db.quote_identifier(flag_col)} = "
+            f"COALESCE(({where_clause}), FALSE)",
+            *params,
+        )
+
+    async def _after_source_mutation(self, table: str, schema: str) -> None:
+        # ponytail: hook — synchronous backends no-op; ClickHouse waits out
+        # the async UPDATE mutation before the caller reads the flag.
+        return None
+
+    async def _maybe_write_flag(
+        self,
+        table: str,
+        schema: str,
+        qualified: str,
+        where_clause: str,
+        params: list,
+        column_lookup: Dict[str, str],
+        create_flag: bool,
+    ) -> Optional[str]:
+        """Write the boolean flag column in place; None when skipped."""
+        if not create_flag:
+            return None
+        total = await self.db.fetchval(f"SELECT COUNT(*) FROM {qualified}")
+        matched = await self.db.fetchval(
+            f"SELECT COUNT(*) FROM {qualified} WHERE {where_clause}",
+            *params,
+        )
+        if not matched or matched >= (total or 0):
+            return None
+        flag_col = self._resolve_flag_column(column_lookup)
+        safe_flag = SQLIdentifierSanitizer.sanitize(flag_col)
+        if flag_col.lower() not in {c.lower() for c in column_lookup.values()}:
+            await self._exec(
+                f"ALTER TABLE {qualified} ADD COLUMN "
+                f"{self.db.quote_identifier(safe_flag)} {self._flag_column_type()}"
+            )
+        await self._fill_flag_column(qualified, safe_flag, where_clause, params)
+        await self._after_source_mutation(table, schema)
+        return flag_col
+
     # ------------------------------------------------------------------
     #  MAIN FILTER METHOD
     # ------------------------------------------------------------------
@@ -142,10 +206,15 @@ class DataFilteringOps:
         backend=None,
         data_id: str = None,
         chunk_size: Optional[int] = None,
+        create_flag: bool = False,
     ) -> Dict[str, Any]:
         """
         Create a new transient table containing only rows that satisfy
         the given predicate. Returns a sample or an async iterator.
+
+        With create_flag=True and a proper row subset, a boolean flag
+        column is also written in place onto the source table (True for
+        matching rows, False otherwise). Empty/full matches skip the flag.
         """
         try:
             supported = (PostgresAdapter, DuckDBAdapter, ClickHouseAdapter)
@@ -201,6 +270,14 @@ class DataFilteringOps:
                 await self._exec(create_sql, *ctx.params)
 
                 # ──────────────────────────────────────────────────
+                # Optional in-place flag on the source table
+                # ──────────────────────────────────────────────────
+                flag_column = await self._maybe_write_flag(
+                    table, schema, qualified, where_clause, ctx.params,
+                    column_lookup, create_flag,
+                )
+
+                # ──────────────────────────────────────────────────
                 # Return sample or streaming iterator
                 # ──────────────────────────────────────────────────
                 if chunk_size is None:
@@ -213,6 +290,7 @@ class DataFilteringOps:
                         new_table=new_table_safe,
                         where_clause=where_clause,
                         params=ctx.params,
+                        flag_column=flag_column,
                     )
                 else:
                     # ponytail: deep_cache relocates the table to the transient
@@ -241,6 +319,7 @@ class DataFilteringOps:
                         "iterator": iterator(),
                         "chunk_size": chunk_size,
                         "new_table": new_table_safe,
+                        "flag_column": flag_column,
                     }
             else:
                 raise self._unsupported_backend_error()
