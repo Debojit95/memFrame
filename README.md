@@ -45,7 +45,8 @@ Local development from this repository:
 ```bash
 git clone https://github.com/Debojit95/memFrame.git
 cd memFrame
-pip install -e ".[dev,ai]"
+uv sync --extra dev --extra ai
+uv build
 ```
 
 ## Quick Start
