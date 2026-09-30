@@ -4,6 +4,22 @@ All notable changes to memFrame are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and the project adheres
 to [Semantic Versioning](https://semver.org/).
 
+## [0.15.0] - 2026-09-30
+
+### Added
+- **Filter (new domain)**: row filtering via `ContextManager` — predicate objects (`F.num`/`F.cat`/`F.time` composed with `&`, `|`, `~`, `^`) and string expressions (`"salary >= 50000 && status == 'active'"`, `and`/`or` keywords, quoted literals, date literals, `col.dt.<field>` extractions). Cross-dtype mixing with no same-type restriction, `columns` subsets, and `chunk_size` async streaming (requires `deep_cache=True`); source tables are never mutated.
+- **Filter tests**: `tests/unit/test_filtering_response.py` (11: predicates, parser, chunk iterator, SQL-compile asserts) + `tests/integration/ops/test_filter.py` (29: per-family values vs pandas, cross-dtype both forms, `~`/`^`, ilike/regex, NULLs, relative time, tz-aware, streaming, parse errors, DuckDB/PostgreSQL/ClickHouse backend config).
+- **Filter docs**: `docs/api/filter.md` (predicate vs query forms, cross-dtype examples with executed outputs, streaming caveat) + sidebar nav + README link.
+
+### Changed
+- **Filter core split**: `core/analytix/filter_II.py` is now a `filter_II/` package (`base.py` + `duckdb`/`postgres`/`clickhouse` + `factory.make_filtering_ops`); the orchestrator builds via the factory. Base holds the shared flow with one dialect hook (`_engine_clause` for the ClickHouse MergeTree clause).
+- **Filter packaging**: `filter_I.py` and `filter_II/` now live under a `core/analytix/filter/` package with full re-exports; predicates stay unified (backend-agnostic by context flags, no per-backend copies).
+
+### Fixed
+- **XOR param duplication**: reusing one compiled predicate string repeated `?` markers without adding params on DuckDB/ClickHouse; each occurrence is now compiled separately.
+- **Chunk iterator relocation**: the lazy iterator captured the source schema while deep-cache moves the table to the transient schema; it now resolves the live location on first pull.
+- **ClickHouse datetime reads**: the httpx fallback returned `Date`/`DateTime` columns as raw strings; values are now parsed via the response `meta` types (unparseable values pass through).
+
 ## [0.14.1] - 2026-09-29
 
 ### Fixed
