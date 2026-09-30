@@ -1,4 +1,3 @@
-from datetime import datetime
 from typing import Any, Dict, List, Optional, Union, TYPE_CHECKING
 import traceback
 import pandas as pd
@@ -18,6 +17,10 @@ class DataFilteringOps:
     """
     Core filtering operations – translates a Predicate tree into a SQL WHERE
     clause and creates a new transient table with the filtered result.
+
+    Shared infrastructure lives here on DuckDB/PostgreSQL-flavoured
+    defaults; clickhouse.py overrides one small dialect hook
+    (_engine_clause) for the MergeTree table engine.
     """
 
     def __init__(self, db_adapter: DatabaseAdapter, backend: "Backend"):
@@ -122,28 +125,9 @@ class DataFilteringOps:
         safe_base = SQLIdentifierSanitizer.sanitize(base_table)
         return f"{safe_base}__op_{next_op}"
 
-    def _inline_params_for_ddl(self, sql: str, params: list) -> str:
-        """
-        Replace ? placeholders with safely quoted inline values.
-        Use ONLY when the adapter cannot parameterize DDL statements.
-        """
-        for p in params:
-            if p is None:
-                replacement = "NULL"
-            elif isinstance(p, bool):
-                replacement = "1" if p else "0"
-            elif isinstance(p, (int, float)):
-                replacement = str(p)
-            elif isinstance(p, datetime):
-                replacement = f"'{p.strftime('%Y-%m-%d %H:%M:%S')}'"
-            elif isinstance(p, str):
-                escaped = p.replace("\\", "\\\\").replace("'", "\\'")
-                replacement = f"'{escaped}'"
-            else:
-                escaped = str(p).replace("\\", "\\\\").replace("'", "\\'")
-                replacement = f"'{escaped}'"
-            sql = sql.replace("?", replacement, 1)
-        return sql
+    def _engine_clause(self) -> str:
+        """Extra table-engine SQL for CTAS; ClickHouse overrides."""
+        return ""
 
     # ------------------------------------------------------------------
     #  MAIN FILTER METHOD
@@ -207,24 +191,12 @@ class DataFilteringOps:
                     f".{self.db.quote_identifier(new_table_safe)}"
                 )
 
-                if isinstance(self.db, ClickHouseAdapter):
-                    # ClickHouse requires ENGINE + ORDER BY for MergeTree
-                    create_sql = f"""
-                        CREATE TABLE {qualified_new}
-                        ENGINE = MergeTree()
-                        ORDER BY tuple()
-                        AS SELECT {select_clause}
-                        FROM {qualified}
-                        WHERE {where_clause}
-                    """
-                else:
-                    # PostgreSQL / DuckDB – no ENGINE clause needed
-                    create_sql = f"""
-                        CREATE TABLE {qualified_new} AS
-                        SELECT {select_clause}
-                        FROM {qualified}
-                        WHERE {where_clause}
-                    """
+                create_sql = f"""
+                    CREATE TABLE {qualified_new} {self._engine_clause()}
+                    AS SELECT {select_clause}
+                    FROM {qualified}
+                    WHERE {where_clause}
+                """
 
                 await self._exec(create_sql, *ctx.params)
 
@@ -279,7 +251,7 @@ class DataFilteringOps:
             )
 
 # ============================================================================
-#  Backend‑aware SQL context 
+#  Backend‑aware SQL context
 # ============================================================================
 class BackendAwareSQLContext(SQLContext):
     """
@@ -322,8 +294,3 @@ class BackendAwareSQLContext(SQLContext):
     def is_clickhouse(self) -> bool:
         from memframe.core.ingestion.datatype_detector import Backend
         return self.backend == Backend.CLICKHOUSE
-    
-    
-    
-    
-    

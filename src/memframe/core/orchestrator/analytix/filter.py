@@ -1,5 +1,5 @@
 from typing import Optional, Union
-from memframe.core.analytix.filter_II import DataFilteringOps
+from memframe.core.analytix.filter_II import DataFilteringOps, make_filtering_ops
 from memframe.core.analytix.filter_I import Predicate
 from memframe.utils.str_filter_parser import parse_filter_string
 from memframe.cache import record_call
@@ -31,7 +31,7 @@ class FilteringOrchestrator:
         if self._filtering_ops is None:
             await self._ops_parent._ensure_adapter()
             backend = self._memframe._backend.backend
-            self._filtering_ops = DataFilteringOps(
+            self._filtering_ops = make_filtering_ops(
                 self._ops_parent._adapter, backend
             )
         return self._filtering_ops
