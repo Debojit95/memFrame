@@ -15,6 +15,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 from memframe.core.analytix.filter.filter_I import F
 from memframe.main import MemFrame
 from memframe.utils.str_filter_parser import ParseError
+from memframe.wrappers.analytix.filter import FilteringWrapper
 
 # ----------------------------------------------------------------------
 # Backend configuration – set environment variables for PostgreSQL
@@ -1044,3 +1045,71 @@ class TestFilteringOperations:
     def test_parse_error(self, uploaded_ctx, sample_df, backend_config):
         with pytest.raises(ParseError):
             uploaded_ctx.filter("B ??? 15")
+
+    # ------------------------------------------------------------------
+    # create_flag — in-place boolean mask on the source table
+    # ------------------------------------------------------------------
+    def _source_frame(self, ctx, n):
+        return get_result_df(ctx.head(n=n))
+
+    def test_flag_subset(self, uploaded_ctx, sample_df, backend_config):
+        result = FilteringWrapper(uploaded_ctx).filter("B > 15", create_flag=True)
+        assert not result.get("is_error"), result.get("error_message")
+        assert result["flag_column"] == "filter_flag"
+
+        src = self._source_frame(uploaded_ctx, len(sample_df))
+        assert "filter_flag" in src.columns
+        assert src["filter_flag"].astype(bool).tolist() == [False, True, False, True, False]
+        # Filtered result itself is unchanged
+        assert sorted(get_result_df(result)["B"].tolist()) == [20, 25]
+        self._record_result(
+            test_name="flag_subset",
+            method_call='filter("B > 15", create_flag=True)',
+            original_df=sample_df,
+            memframe_df=src,
+            pandas_df=sample_df,
+            backend=backend_config["connection_type"],
+        )
+
+    def test_flag_predicate_form(self, uploaded_ctx, sample_df, backend_config):
+        result = FilteringWrapper(uploaded_ctx).filter(
+            F.cat.eq("D", "zoom"), create_flag=True
+        )
+        assert result["flag_column"] == "filter_flag"
+        src = self._source_frame(uploaded_ctx, len(sample_df))
+        assert src["filter_flag"].astype(bool).tolist() == [False, False, False, True, True]
+
+    def test_flag_empty_match_skipped(self, uploaded_ctx, sample_df, backend_config):
+        result = FilteringWrapper(uploaded_ctx).filter("B > 1000", create_flag=True)
+        assert not result.get("is_error"), result.get("error_message")
+        assert result["flag_column"] is None
+        src = self._source_frame(uploaded_ctx, len(sample_df))
+        assert "filter_flag" not in src.columns
+
+    def test_flag_full_match_skipped(self, uploaded_ctx, sample_df, backend_config):
+        result = FilteringWrapper(uploaded_ctx).filter("B > 0", create_flag=True)
+        assert result["flag_column"] is None
+        src = self._source_frame(uploaded_ctx, len(sample_df))
+        assert "filter_flag" not in src.columns
+
+    def test_flag_off_by_default(self, uploaded_ctx, sample_df, backend_config):
+        uploaded_ctx.filter("B > 15")
+        src = self._source_frame(uploaded_ctx, len(sample_df))
+        assert "filter_flag" not in src.columns
+
+    def test_flag_null_reads_false(self, connected_memframe, backend_config):
+        df = pd.DataFrame({"g": ["x", None, "y"], "v": [1, 2, 3]})
+        ctx = connected_memframe.upload_df(df, filename="filtering_flag_null")
+        result = FilteringWrapper(ctx).filter(F.cat.eq("g", "x"), create_flag=True)
+        assert result["flag_column"] == "filter_flag"
+        src = self._source_frame(ctx, len(df))
+        assert src["filter_flag"].astype(bool).tolist() == [True, False, False]
+
+    def test_flag_rededupe_on_refilter(self, uploaded_ctx, sample_df, backend_config):
+        FilteringWrapper(uploaded_ctx).filter("B > 15", create_flag=True)
+        result = FilteringWrapper(uploaded_ctx).filter("B > 20", create_flag=True)
+        assert result["flag_column"] == "filter_flag_1"
+        src = self._source_frame(uploaded_ctx, len(sample_df))
+        assert "filter_flag" in src.columns
+        assert "filter_flag_1" in src.columns
+        assert src["filter_flag_1"].astype(bool).tolist() == [False, False, False, True, False]
