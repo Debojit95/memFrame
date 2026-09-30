@@ -12,7 +12,7 @@ predicate.
 Predicate factories are imported directly from the core module:
 
 ```python
-from memframe.core.analytix.filter_I import F
+from memframe.core.analytix.filter import F
 
 dataset = mf.upload_df(frame)
 result = dataset.filter(F.num.gte("salary", 50000))
@@ -20,10 +20,10 @@ result = dataset.filter(F.num.gte("salary", 50000))
 
 The lower-level files are implementation details:
 
-- `src/memframe/core/analytix/filter_I.py` defines the predicate tree
+- `src/memframe/core/analytix/filter/filter_I.py` defines the predicate tree
   (`Predicate`, `Num`/`Cat`/`Time` factories, `F` accessor) and compiles it to
   parameterized SQL per backend.
-- `src/memframe/core/analytix/filter_II.py` executes the filter as
+- `src/memframe/core/analytix/filter/filter_II/` executes the filter as
   `CREATE TABLE ... AS SELECT ... WHERE ...` (with a `MergeTree` engine clause
   on ClickHouse) and returns a sample or a chunked iterator.
 - `src/memframe/core/orchestrator/analytix/filter.py` resolves the active dataset
@@ -47,7 +47,7 @@ Build predicates with the `F` accessor and combine them with `&` (AND),
 `|` (OR), `~` (NOT), and `^` (XOR):
 
 ```python
-from memframe.core.analytix.filter_I import F
+from memframe.core.analytix.filter import F
 
 selected = dataset.filter(
     F.num.gte("salary", 50000) & F.cat.eq("status", "active")

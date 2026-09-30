@@ -3,7 +3,7 @@
 from typing import List, Optional
 import re
 
-from memframe.core.analytix.filter_I import (
+from memframe.core.analytix.filter.filter_I import (
     CategoricalPredicate,
     Predicate,
     NumericPredicate,

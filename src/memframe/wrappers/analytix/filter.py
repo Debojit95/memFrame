@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional, Union
 
 from memframe.core.orchestrator.analytix.filter import FilteringOrchestrator
-from memframe.core.analytix.filter_I import Predicate
+from memframe.core.analytix.filter.filter_I import Predicate
 from memframe.utils.async_sync import async_to_sync
 
 

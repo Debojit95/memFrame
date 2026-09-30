@@ -1,6 +1,6 @@
 from typing import Optional, Union
-from memframe.core.analytix.filter_II import DataFilteringOps, make_filtering_ops
-from memframe.core.analytix.filter_I import Predicate
+from memframe.core.analytix.filter.filter_II import DataFilteringOps, make_filtering_ops
+from memframe.core.analytix.filter.filter_I import Predicate
 from memframe.utils.str_filter_parser import parse_filter_string
 from memframe.cache import record_call
 

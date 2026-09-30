@@ -4,10 +4,10 @@ from memframe.db_manager.adapters.duckdb import DuckDBAdapter
 from memframe.db_manager.adapters.postgresql import PostgresAdapter
 from memframe.db_manager.adapters.clickhouse import ClickHouseAdapter
 
-from memframe.core.analytix.filter_II.duckdb import DuckDBFilteringOps
-from memframe.core.analytix.filter_II.postgres import PostgresFilteringOps
-from memframe.core.analytix.filter_II.clickhouse import ClickHouseFilteringOps
-from memframe.core.analytix.filter_II.base import DataFilteringOps
+from memframe.core.analytix.filter.filter_II.duckdb import DuckDBFilteringOps
+from memframe.core.analytix.filter.filter_II.postgres import PostgresFilteringOps
+from memframe.core.analytix.filter.filter_II.clickhouse import ClickHouseFilteringOps
+from memframe.core.analytix.filter.filter_II.base import DataFilteringOps
 
 
 def make_filtering_ops(db_adapter, backend) -> DataFilteringOps:

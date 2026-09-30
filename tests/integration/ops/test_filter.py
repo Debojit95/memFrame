@@ -12,7 +12,7 @@ import pytest
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 
-from memframe.core.analytix.filter_I import F
+from memframe.core.analytix.filter.filter_I import F
 from memframe.main import MemFrame
 from memframe.utils.str_filter_parser import ParseError
 

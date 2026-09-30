@@ -1,4 +1,4 @@
-from memframe.core.analytix.filter_II.base import DataFilteringOps
+from memframe.core.analytix.filter.filter_II.base import DataFilteringOps
 
 
 class PostgresFilteringOps(DataFilteringOps):

@@ -2,7 +2,7 @@ from typing import Any, Dict, List, Optional, Union, TYPE_CHECKING
 import traceback
 import pandas as pd
 
-from memframe.core.analytix.filter_I import Predicate, SQLContext
+from memframe.core.analytix.filter.filter_I import Predicate, SQLContext
 from memframe.db_manager.adapters.base import DatabaseAdapter
 from memframe.db_manager.adapters.duckdb import DuckDBAdapter
 from memframe.db_manager.adapters.postgresql import PostgresAdapter
