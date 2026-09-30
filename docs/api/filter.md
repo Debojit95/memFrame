@@ -35,7 +35,7 @@ The lower-level files are implementation details:
 
 | Synchronous | Asynchronous | Purpose |
 | --- | --- | --- |
-| `filter(predicate, columns="*", chunk_size=None)` | `await afilter(...)` | Keep rows satisfying a predicate object or string expression |
+| `filter(predicate, columns="*", chunk_size=None, create_flag=False)` | `await afilter(...)` | Keep rows satisfying a predicate object or string expression |
 
 Public methods return the resulting DataFrame directly — or, when `chunk_size`
 is given, a dict carrying an async `iterator` of DataFrames (see
@@ -179,6 +179,39 @@ async for chunk in response["iterator"]:
 The iterator reads the transient table lazily, so streaming requires
 `deep_cache=True` on the `MemFrame` — in default signature-only mode the table
 is dropped when the call returns and the first pull fails.
+
+## Flag Column
+
+Pass `create_flag=True` to write a boolean mask in place onto the **source
+table**: matching rows read `True`, everything else `False` (null-predicate
+rows read `False`, not `NULL`). The filtered result itself is unchanged.
+
+```python
+from memframe.wrappers.analytix.filter import FilteringWrapper
+
+response = FilteringWrapper(dataset).filter(
+    F.num.gte("salary", 50000), create_flag=True
+)
+print(response["flag_column"])  # filter_flag
+print(dataset.head(n=10))
+#    salary  status  filter_flag
+# 0   40000  active        False
+# 1   60000  active         True
+# 2   80000    left         True
+# 3   55000  active         True
+```
+
+Rules:
+
+- The flag is only written for a **proper subset**. Empty and full-table
+  matches skip it (`flag_column` is `None`) — a constant column is useless.
+- The column name is fixed (`filter_flag`, auto-suffixed to `filter_flag_1`,
+  … on collision). Re-filtering the same dataset therefore adds a new column
+  next to the stale one rather than overwriting it.
+- The source table is mutated: later ops on the dataset see the flag column.
+  The raw response dict carries the name under `flag_column`; the public
+  `dataset.filter(...)` unwraps to a bare DataFrame, so read it via
+  `FilteringWrapper` when you need the name programmatically.
 
 ## Errors
 
