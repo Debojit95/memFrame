@@ -4,6 +4,13 @@ All notable changes to memFrame are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and the project adheres
 to [Semantic Versioning](https://semver.org/).
 
+## [0.15.1] - 2026-10-01
+
+### Added
+- **Filter `create_flag`**: `filter`/`afilter` accept `create_flag=True` — proper-subset matches write a boolean `filter_flag` column in place onto the source table (`True` for matching rows, `False` for the rest, null-predicate rows read `False`). Empty and full-table matches skip the flag; fixed name with `filter_flag_1`, … auto-suffix on collision; the raw response carries `flag_column` (name or `None`). ClickHouse uses `Bool` + `ALTER UPDATE` with a `system.mutations` wait.
+- **Flag tests**: 7 integration cases (subset in string and predicate forms, empty/full/off skips, null reads `False`, refilter dedupe).
+- **Docs**: filter page Flag Column section and string-only rewrite; README local dev via `uv sync` + `uv build`.
+
 ## [0.15.0] - 2026-09-30
 
 ### Added
