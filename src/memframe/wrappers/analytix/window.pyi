@@ -427,20 +427,6 @@ class WindowWrapper:
 
     def __init__(self, memframe_ops_instance) -> None: ...
 
-    @classmethod
-    def replay_create(
-        cls,
-        memframe,
-        data_id: str,
-    ) -> "WindowWrapper": ...
-
-    @classmethod
-    def from_context(
-        cls,
-        memframe,
-        data_id,
-    ) -> "WindowWrapper": ...
-
     async def arolling(
         self,
         column: str,

@@ -136,20 +136,6 @@ class GroupByCumulativeBuilderWrapper:
 class GroupByCumulativeWrapper:
     def __init__(self, memframe_ops_instance) -> None: ...
 
-    @classmethod
-    def replay_create(
-        cls,
-        memframe,
-        data_id: str,
-    ) -> "GroupByCumulativeWrapper": ...
-
-    @classmethod
-    def from_context(
-        cls,
-        memframe,
-        data_id,
-    ) -> "GroupByCumulativeWrapper": ...
-
     def groupby(
         self,
         *columns: str,

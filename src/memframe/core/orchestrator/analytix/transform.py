@@ -12,16 +12,6 @@ class TransformOrchestrator:
         self._data_id = memframe_ops_instance._data_id
         self._Transform_ops = None
 
-    @classmethod
-    def replay_create(cls, memframe, data_id: str):
-        from memframe.db_manager.context import ContextManager
-        ctx = ContextManager(memframe, data_id=data_id)
-        return cls(ctx)
-
-    @classmethod
-    def from_context(cls, memframe, data_id):
-        return cls.replay_create(memframe, data_id)
-
     async def _ensure_ops(self) -> TransformOps:
         if self._Transform_ops is None:
             await self._ops_parent._ensure_adapter()

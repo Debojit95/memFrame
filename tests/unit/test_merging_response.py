@@ -320,9 +320,9 @@ def test_merge_core_unsupported_backend():
         make_merge_ops(object())
 
 
-def test_orchestrator_from_context(merge_contexts):
+def test_orchestrator_direct_construction(merge_contexts):
     left, _, mf = merge_contexts
-    orchestrator = MergeOrchestrator.from_context(mf, left._data_id)
+    orchestrator = MergeOrchestrator(left)
     assert isinstance(orchestrator, MergeOrchestrator)
     assert orchestrator._data_id == left._data_id
 

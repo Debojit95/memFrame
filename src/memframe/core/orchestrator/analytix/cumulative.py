@@ -17,15 +17,6 @@ class CumulativeOrchestrator:
         self._cumulative_ops = None
 
        
-    @classmethod
-    def replay_create(cls, memframe, data_id: str):
-        from memframe.db_manager.context import ContextManager
-        ctx = ContextManager(memframe, data_id=data_id)
-        return cls(ctx)
-
-    @classmethod
-    def from_context(cls, memframe, data_id):
-        return cls.replay_create(memframe, data_id)
     
     
     async def _ensure_ops(self) -> CumulativeOps:

@@ -6,20 +6,6 @@ from typing import List, Optional, Union
 class ReshapingWrapper:
     def __init__(self, memframe_ops_instance) -> None: ...
 
-    @classmethod
-    def replay_create(
-        cls,
-        memframe,
-        data_id: str,
-    ) -> "ReshapingWrapper": ...
-
-    @classmethod
-    def from_context(
-        cls,
-        memframe,
-        data_id,
-    ) -> "ReshapingWrapper": ...
-
     # ------------------------------------------------------------------
     # explode
     # ------------------------------------------------------------------
