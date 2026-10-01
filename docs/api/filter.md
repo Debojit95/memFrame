@@ -104,12 +104,7 @@ table**: matching rows read `True`, everything else `False` (null-predicate
 rows read `False`, not `NULL`). The filtered result itself is unchanged.
 
 ```python
-from memframe.wrappers.analytix.filter import FilteringWrapper
-
-response = FilteringWrapper(dataset).filter(
-    "salary >= 50000", create_flag=True
-)
-print(response["flag_column"])  # filter_flag
+dataset.filter("salary >= 50000", create_flag=True)
 print(dataset.head(n=10))
 #    salary  status  filter_flag
 # 0   40000  active        False

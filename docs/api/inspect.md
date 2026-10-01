@@ -50,9 +50,9 @@ Every inspect operation has synchronous and asynchronous forms:
 | `set_index(columns)` | `await aset_index(...)` | Add a primary-key index |
 | `update(on, other_table, other_schema="upload", overwrite=True, errors="ignore")` | `await aupdate(...)` | Update from another table |
 | `dt.resample(column, freq, ...)` | `await dt.aresample(...)` | Time-series aggregation — see [Datetime](datetime.md#resampling) |
-| `columns()` | `await acolumns()` | Column labels |
-| `dtypes()` | `await adtypes()` | Column database types |
-| `shape()` | `await ashape()` | Row and column count |
+| `columns` | `await acolumns()` | Column labels |
+| `dtypes` | `await adtypes()` | Column database types |
+| `shape` | `await ashape()` | Row and column count |
 | `values()` | `await avalues()` | Table values as nested lists |
 | `items()` | `await aitems()` | Column/value iterator result |
 | `iterrows()` | `await aiterrows()` | Row iterator result |
@@ -485,18 +485,20 @@ See [Datetime → Resampling](datetime.md#resampling) for the full reference.
 
 ## Property Methods
 
-These methods return compact dictionary or list payloads directly:
+These attribute-style accessors return compact payloads directly (no call
+parentheses — the sync `columns()` / `dtypes()` / `shape()` forms are removed):
 
-| Method | Async | Public result |
+| Property | Async | Public result |
 | --- | --- | --- |
-| `columns()` | `acolumns()` | `[...]` |
-| `dtypes()` | `adtypes()` | `{column: db_type}` |
-| `shape()` | `ashape()` | `{"shape": (rows, columns)}` |
+| `columns` | `acolumns()` | `[...]` |
+| `dtypes` | `adtypes()` | `{column: db_type}` |
+| `shape` | `ashape()` | `(rows, columns)` |
 | `values()` | `avalues()` | `{"values": [[...], ...]}` |
 
 ```python
-print(dataset.shape()["shape"])
-print(dataset.columns())
+print(dataset.shape)
+# (4, 3)
+print(dataset.columns)
 ```
 
 ```python
@@ -504,7 +506,7 @@ shape = await dataset.ashape()
 dtypes = await dataset.adtypes()
 ```
 
-Parameters: none for these property methods.
+Parameters: none for these property methods. (`values()` stays a method call.)
 
 ## Iterator Methods
 
