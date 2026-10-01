@@ -429,7 +429,7 @@ class CleaningOrchestrator:
             **persist,
         )
          
-    @record_call(deep_cache=False)       
+    @record_call(deep_cache=True)       
     async def dropna(self, axis: int = 0, how: str = "any", thresh: Optional[int] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
@@ -443,7 +443,7 @@ class CleaningOrchestrator:
             **self._persistence_context(),
         )
     
-    @record_call(deep_cache=False)
+    @record_call(deep_cache=True)
     async def drop(self, axis: int = 0, index: Optional[List[int]] = None, columns: Optional[List[str]] = None,) -> Dict[str, Any]:
         """
         Drop rows or columns from the active dataset.
@@ -484,13 +484,13 @@ class CleaningOrchestrator:
             **self._persistence_context(),
         )
     
-    @record_call(deep_cache=False)
+    @record_call(deep_cache=True)
     async def isna(self) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
         return await ops.dataframe_isna(table, schema, **self._persistence_context())
     
-    @record_call(deep_cache=False)    
+    @record_call(deep_cache=True)    
     async def notna(self) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()

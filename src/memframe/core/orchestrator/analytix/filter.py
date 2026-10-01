@@ -29,7 +29,7 @@ class FilteringOrchestrator:
     async def _get_context(self):
         return await self._ops_parent._get_active_context()
 
-    @record_call
+    @record_call(deep_cache=True)
     async def filter(
         self,
         predicate: Union["Predicate", str],

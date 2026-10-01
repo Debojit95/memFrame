@@ -24,7 +24,7 @@ class ReshapingOrchestrator:
     async def _get_context(self):
         return await self._ops_parent._get_active_context()
 
-    @record_call
+    @record_call(deep_cache=True)
     async def explode(self, column: Union[str, List[str]], chunk_size=None):
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
@@ -35,7 +35,7 @@ class ReshapingOrchestrator:
         res = await ops.explode(table, schema, column, backend, data_id, chunk_size)
         return res
 
-    @record_call
+    @record_call(deep_cache=True)
     async def melt(
         self,
         id_vars,
@@ -59,7 +59,7 @@ class ReshapingOrchestrator:
         )
         return res
 
-    @record_call
+    @record_call(deep_cache=True)
     async def pivot(
         self,
         index,
@@ -81,7 +81,7 @@ class ReshapingOrchestrator:
         )
         return res
 
-    @record_call
+    @record_call(deep_cache=True)
     async def pivot_table(
         self,
         index=None,
@@ -106,7 +106,7 @@ class ReshapingOrchestrator:
         )
         return res
 
-    @record_call
+    @record_call(deep_cache=True)
     async def crosstab(
         self,
         index,
@@ -135,7 +135,7 @@ class ReshapingOrchestrator:
         )
         return res
 
-    @record_call
+    @record_call(deep_cache=True)
     async def transpose(self, chunk_size=None):
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
@@ -150,7 +150,7 @@ class ReshapingOrchestrator:
         )
         return res
 
-    @record_call
+    @record_call(deep_cache=True)
     async def rank(
         self,
         columns,
@@ -175,7 +175,7 @@ class ReshapingOrchestrator:
         )
         return res
 
-    @record_call
+    @record_call(deep_cache=True)
     async def groupby_rank(
         self,
         groupby,

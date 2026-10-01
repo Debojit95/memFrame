@@ -72,7 +72,7 @@ class ComparisonOrchestrator:
         return "categorical"
 
     
-    @record_call
+    @record_call(deep_cache=True)
     async def compare(self, *args, **kwargs):
         """
         Compare two columns element-wise.

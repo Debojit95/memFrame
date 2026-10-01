@@ -57,6 +57,15 @@ class CacheManager:
                 "name": str(o.name),
                 "hash": CacheManager._content_hash(o),
             }
+        # ponytail: structural key for arg objects (e.g. filter Predicates
+        # compile to their SQL+params) — the "<ClassName>" fallback below
+        # collides distinct values and causes false cache hits under deep.
+        cache_key = getattr(o, "cache_key", None)
+        if callable(cache_key):
+            try:
+                return {"__cache_key__": o.cache_key(), "__type__": type(o).__name__}
+            except Exception:
+                pass
         return f"<{type(o).__name__}>"
 
     def _signature(self, value: Any) -> str:

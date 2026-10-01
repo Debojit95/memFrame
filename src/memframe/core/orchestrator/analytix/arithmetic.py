@@ -120,25 +120,25 @@ class ArithmeticOrchestrator:
     # ------------------------------------------------------------------
     #  Exp / Log / Root
     # ------------------------------------------------------------------
-    @record_call
+    @record_call(deep_cache=True)
     async def exp(self, column: str, target_col: Optional[str] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
         return await ops.exp(table, schema, column, target_col)
 
-    @record_call
+    @record_call(deep_cache=True)
     async def log(self, column: str, target_col: Optional[str] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
         return await ops.log(table, schema, column, target_col)
 
-    @record_call
+    @record_call(deep_cache=True)
     async def log10(self, column: str, target_col: Optional[str] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
         return await ops.log10(table, schema, column, target_col)
 
-    @record_call
+    @record_call(deep_cache=True)
     async def sqrt(self, column: str, target_col: Optional[str] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
@@ -147,43 +147,43 @@ class ArithmeticOrchestrator:
     # ------------------------------------------------------------------
     #  Trigonometric
     # ------------------------------------------------------------------
-    @record_call
+    @record_call(deep_cache=True)
     async def sin(self, column: str, target_col: Optional[str] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
         return await ops.sin(table, schema, column, target_col)
 
-    @record_call
+    @record_call(deep_cache=True)
     async def cos(self, column: str, target_col: Optional[str] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
         return await ops.cos(table, schema, column, target_col)
 
-    @record_call
+    @record_call(deep_cache=True)
     async def tan(self, column: str, target_col: Optional[str] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
         return await ops.tan(table, schema, column, target_col)
 
-    @record_call
+    @record_call(deep_cache=True)
     async def asin(self, column: str, target_col: Optional[str] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
         return await ops.asin(table, schema, column, target_col)
 
-    @record_call
+    @record_call(deep_cache=True)
     async def acos(self, column: str, target_col: Optional[str] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
         return await ops.acos(table, schema, column, target_col)
 
-    @record_call
+    @record_call(deep_cache=True)
     async def atan(self, column: str, target_col: Optional[str] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
         return await ops.atan(table, schema, column, target_col)
 
-    @record_call
+    @record_call(deep_cache=True)
     async def atan2(self, col1: Union[str, float, int], col2: Union[str, float, int],
                     target_col: Optional[str] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
@@ -193,20 +193,20 @@ class ArithmeticOrchestrator:
     # ------------------------------------------------------------------
     #  Complex operations
     # ------------------------------------------------------------------
-    @record_call
+    @record_call(deep_cache=True)
     async def weighted_sum(self, col1: Union[str, float, int], col2: Union[str, float, int],
                                weight1: float = 1, weight2: float = 1, target_col: Optional[str] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
         return await ops.weighted_average(table, schema, col1, col2, weight1, weight2, target_col)
 
-    @record_call
+    @record_call(deep_cache=True)
     async def percentage_change(self, old_col: str, new_col: str, target_col: Optional[str] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
         return await ops.percentage_change(table, schema, old_col, new_col, target_col)
 
-    @record_call
+    @record_call(deep_cache=True)
     async def normalize_range(self, column: str, target_col: Optional[str] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()

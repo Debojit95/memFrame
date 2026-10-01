@@ -48,7 +48,7 @@ class GroupByStatsOrchestrator:
     # ------------------------------------------------------------------
     #  UNIFIED DIRECT AGGREGATION
     # ------------------------------------------------------------------
-    @record_call
+    @record_call(deep_cache=True)
     async def agg(
         self,
         group_cols: Union[str, List[str]],
@@ -77,7 +77,7 @@ class GroupByStatsOrchestrator:
             map_feature=map_feature,
         )
 
-    @record_call
+    @record_call(deep_cache=True)
     async def event_rate(
         self,
         group_cols: Union[str, List[str]],
@@ -104,7 +104,7 @@ class GroupByStatsOrchestrator:
     # ------------------------------------------------------------------
     #  BUILDER PATTERN (returns a GroupBy helper)
     # ------------------------------------------------------------------
-    @record_call
+    @record_call(deep_cache=True)
     def groupby(self, *columns: str) -> "GroupBy":
         """
         Create a GroupBy object for the given column(s).
@@ -154,7 +154,7 @@ class GroupBy:
         )
 
     # public async agg – can be overridden by wrappers
-    @record_call
+    @record_call(deep_cache=True)
     async def agg(
         self,
         agg_dict: Dict[str, List[str]],
@@ -166,59 +166,59 @@ class GroupBy:
     # ------------------------------------------------------------------
     # convenience methods – always use the safe _agg
     # ------------------------------------------------------------------
-    @record_call
+    @record_call(deep_cache=True)
     async def sum(self, column: str) -> Dict[str, Any]:
         return await self._agg({column: ["sum"]})
 
-    @record_call
+    @record_call(deep_cache=True)
     async def mean(self, column: str) -> Dict[str, Any]:
         return await self._agg({column: ["mean"]})
 
-    @record_call
+    @record_call(deep_cache=True)
     async def min(self, column: str) -> Dict[str, Any]:
         return await self._agg({column: ["min"]})
 
-    @record_call
+    @record_call(deep_cache=True)
     async def max(self, column: str) -> Dict[str, Any]:
         return await self._agg({column: ["max"]})
 
-    @record_call
+    @record_call(deep_cache=True)
     async def count(self, column: str) -> Dict[str, Any]:
         return await self._agg({column: ["count"]})
 
-    @record_call
+    @record_call(deep_cache=True)
     async def median(self, column: str) -> Dict[str, Any]:
         return await self._agg({column: ["median"]})
 
-    @record_call
+    @record_call(deep_cache=True)
     async def mode(self, column: str) -> Dict[str, Any]:
         return await self._agg({column: ["mode"]})
 
-    @record_call
+    @record_call(deep_cache=True)
     async def std(self, column: str) -> Dict[str, Any]:
         return await self._agg({column: ["std"]})
 
-    @record_call
+    @record_call(deep_cache=True)
     async def var(self, column: str) -> Dict[str, Any]:
         return await self._agg({column: ["var"]})
 
-    @record_call
+    @record_call(deep_cache=True)
     async def sem(self, column: str) -> Dict[str, Any]:
         return await self._agg({column: ["sem"]})
 
-    @record_call
+    @record_call(deep_cache=True)
     async def nunique(self, column: str) -> Dict[str, Any]:
         return await self._agg({column: ["nunique"]})
 
-    @record_call
+    @record_call(deep_cache=True)
     async def range(self, column: str) -> Dict[str, Any]:
         return await self._agg({column: ["range"]})
 
-    @record_call
+    @record_call(deep_cache=True)
     async def product(self, column: str) -> Dict[str, Any]:
         return await self._agg({column: ["product"]})
 
-    @record_call
+    @record_call(deep_cache=True)
     async def event_rate(
         self,
         datetime_col: str,

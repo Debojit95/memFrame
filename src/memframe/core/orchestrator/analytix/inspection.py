@@ -49,13 +49,13 @@ class TableOpsOrchestrator:
         table, schema = await self._get_context()
         return await ops.dataframe_info(table, schema)
 
-    @record_call(deep_cache=False)
+    @record_call(deep_cache=True)
     async def describe(self, columns: Optional[List[str]] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
         return await ops.dataframe_describe(table, schema, columns=columns)
 
-    @record_call(deep_cache=False)
+    @record_call(deep_cache=True)
     async def null_analysis(self, columns: Optional[List[str]] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
@@ -69,26 +69,26 @@ class TableOpsOrchestrator:
     
 
     # ── data quality ─────────────────────────────────
-    @record_call(deep_cache=False)
+    @record_call(deep_cache=True)
     async def data_quality_missing_values(self, columns: List[str]) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
         return await ops.data_quality_missing_values(table, schema, columns)
 
-    @record_call(deep_cache=False)
+    @record_call(deep_cache=True)
     async def data_quality_completeness_score(self, columns: List[str]) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
         return await ops.data_quality_completeness_score(table, schema, columns)
 
     # ── comprehensive ────────────────────────────────
-    @record_call(deep_cache=False)
+    @record_call(deep_cache=True)
     async def comprehensive_numeric_summary(self, columns: List[str]) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
         return await ops.comprehensive_numeric_summary(table, schema, columns)
 
-    @record_call(deep_cache=False)
+    @record_call(deep_cache=True)
     async def statistical_profile_report(self, columns: List[str]) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()

@@ -119,7 +119,7 @@ class WindowOrchestrator:
     # --------------------------------------------------
     # ROLLING API (FIXED CHAINING)
     # --------------------------------------------------
-    @record_call
+    @record_call(deep_cache=True)
     async def rolling(
         self,
         column: str,
@@ -280,7 +280,7 @@ class WindowOrchestrator:
     # --------------------------------------------------
     # EXPANDING API (FIXED CHAINING)
     # --------------------------------------------------
-    @record_call
+    @record_call(deep_cache=True)
     async def expanding(
         self,
         column: str,
@@ -463,7 +463,7 @@ class WindowOrchestrator:
     # --------------------------------------------------
     # EWM API (already returns a single table; unchanged)
     # --------------------------------------------------
-    @record_call
+    @record_call(deep_cache=True)
     async def ewm(
         self,
         column: str,

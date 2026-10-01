@@ -22,6 +22,15 @@ class Predicate:
     def compile(self, ctx: "SQLContext") -> str:
         raise NotImplementedError
 
+    def cache_key(self) -> str:
+        # ponytail: structural signature so distinct predicates don't collide
+        # in @record_call arg signatures (which JSON-encode op arguments).
+        import json
+
+        ctx = SQLContext()
+        sql = self.compile(ctx)
+        return f"{sql}|{json.dumps(ctx.params, default=str)}"
+
     def __repr__(self) -> str:
         ctx = SQLContext()
         sql = self.compile(ctx)

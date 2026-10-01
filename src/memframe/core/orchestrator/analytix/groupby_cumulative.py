@@ -49,7 +49,7 @@ class GroupByCumulativeOrchestrator:
     # ------------------------------------------------------------------
     #  UNIFIED DIRECT METHODS
     # ------------------------------------------------------------------
-    @record_call
+    @record_call(deep_cache=True)
     async def cumsum(
         self,
         column: str,
@@ -70,7 +70,7 @@ class GroupByCumulativeOrchestrator:
             backend=backend, data_id=data_id, map_feature=map_feature,
         )
 
-    @record_call
+    @record_call(deep_cache=True)
     async def cumprod(
         self,
         column: str,
@@ -91,7 +91,7 @@ class GroupByCumulativeOrchestrator:
             backend=backend, data_id=data_id, map_feature=map_feature,
         )
 
-    @record_call
+    @record_call(deep_cache=True)
     async def cummax(
         self,
         column: str,
@@ -112,7 +112,7 @@ class GroupByCumulativeOrchestrator:
             backend=backend, data_id=data_id, map_feature=map_feature,
         )
 
-    @record_call
+    @record_call(deep_cache=True)
     async def cummin(
         self,
         column: str,
@@ -133,7 +133,7 @@ class GroupByCumulativeOrchestrator:
             backend=backend, data_id=data_id, map_feature=map_feature,
         )
 
-    @record_call
+    @record_call(deep_cache=True)
     async def cummean(
         self,
         column: str,
@@ -154,7 +154,7 @@ class GroupByCumulativeOrchestrator:
             backend=backend, data_id=data_id, map_feature=map_feature,
         )
 
-    @record_call
+    @record_call(deep_cache=True)
     async def cumcount(
         self,
         column: str,
@@ -175,7 +175,7 @@ class GroupByCumulativeOrchestrator:
             backend=backend, data_id=data_id, map_feature=map_feature,
         )
 
-    @record_call
+    @record_call(deep_cache=True)
     async def cumstd(
         self,
         column: str,
@@ -196,7 +196,7 @@ class GroupByCumulativeOrchestrator:
             backend=backend, data_id=data_id, map_feature=map_feature,
         )
 
-    @record_call
+    @record_call(deep_cache=True)
     async def cumvar(
         self,
         column: str,
