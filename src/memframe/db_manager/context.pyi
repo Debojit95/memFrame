@@ -44,6 +44,9 @@ class ContextManager(
     _data_id: Optional[str]
     _adapter: Optional[DatabaseAdapter]
     dt: DateTimeWrapper
+    columns: Any
+    dtypes: Any
+    shape: Any
 
     def __init__(self, memframe_instance: Any, data_id: Optional[str] = None) -> None: ...
 

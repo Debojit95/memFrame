@@ -137,6 +137,34 @@ class ContextManager:
             self._dt_wrapper = _DTProxy(raw)
         return self._dt_wrapper
 
+    def _public_attr(self, name: str) -> Any:
+        # ponytail: pandas-style attribute access (columns/dtypes/shape) over
+        # the same sync bridge as the wrapper methods — one DB round-trip per
+        # access, no caching. Properties below shadow the same-named methods.
+        self._lazy_init_wrappers()
+        for w in self._wrappers:
+            if hasattr(w, name):
+                attribute = getattr(w, name)
+                return _public_result(attribute)() if callable(attribute) else attribute
+        raise AttributeError(f"{self.__class__.__name__!r} object has no attribute {name!r}")
+
+    @property
+    def columns(self) -> Any:
+        return self._public_attr("columns")
+
+    @property
+    def dtypes(self) -> Any:
+        return self._public_attr("dtypes")
+
+    @property
+    def shape(self) -> Any:
+        value = self._public_attr("shape")
+        # ponytail: today's method returns {"shape": (rows, cols)}; the
+        # property returns the pandas-like bare tuple.
+        if isinstance(value, dict) and "shape" in value:
+            return value["shape"]
+        return value
+
     def groupby(self, *columns: str):
         # ponytail: unified GroupBy facade (stats + cumulative + window
         # builders) so the flat `groupby` name doesn't collide between

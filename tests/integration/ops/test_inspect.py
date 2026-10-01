@@ -953,13 +953,13 @@ class TestInspectionOperations:
     # Property-like methods (non-DataFrame returns)
     # ----------------------------------------------------
     def test_columns(self, uploaded_ctx, sample_df):
-        result = get_plain_result(uploaded_ctx.columns())
+        result = get_plain_result(uploaded_ctx.columns)
         # May be list or dict with 'columns'
         cols = result if isinstance(result, list) else result.get("columns", [])
         assert set(cols) == set(sample_df.columns) or set(cols) == set(sample_df.columns) | {"__index_level_0__"}
 
     def test_dtypes(self, uploaded_ctx):
-        result = get_plain_result(uploaded_ctx.dtypes())
+        result = get_plain_result(uploaded_ctx.dtypes)
         # Should be dict
         assert isinstance(result, dict)
         assert "id" in result
