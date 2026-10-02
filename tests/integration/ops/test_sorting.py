@@ -375,6 +375,7 @@ def render_df_to_pdf_page(
     backend,
     status="PASSED",
     error_message="",
+    pandas_call="",
 ):
     sections = [
         ("Original", original_df.head(10)),
@@ -385,8 +386,10 @@ def render_df_to_pdf_page(
     fig, axes = plt.subplots(3, 1, figsize=(16, fig_height))
     fig.suptitle(f"{title}  [{backend}]  {status}", fontsize=12, fontweight="bold")
     fig.text(0.01, 0.965, f"Call: {method_call}", fontsize=10, family="monospace")
+    if pandas_call:
+        fig.text(0.01, 0.94, f"Pandas: {pandas_call}", fontsize=10, family="monospace")
     if error_message:
-        fig.text(0.01, 0.94, f"Failure: {error_message}", fontsize=9, color="crimson")
+        fig.text(0.01, 0.915, f"Failure: {error_message}", fontsize=9, color="crimson")
     for ax, (label, df) in zip(axes, sections):
         ax.axis("off")
         ax.set_title(label, fontsize=10, loc="left")
@@ -397,7 +400,7 @@ def render_df_to_pdf_page(
         table.auto_set_font_size(False)
         table.set_fontsize(8)
         table.scale(1.1, 1.2)
-    plt.tight_layout(rect=[0, 0, 1, 0.95])
+    plt.tight_layout(rect=[0, 0, 1, 0.93])
     pdf.savefig(fig)
     plt.close(fig)
 
@@ -432,6 +435,7 @@ class TestSortingOperations:
                         result["backend"],
                         result.get("status", "PASSED"),
                         result.get("error_message", ""),
+                        result.get("pandas_call", ""),
                     )
             print(f"\n\nTest report saved to: {pdf_path}\n")
 
@@ -512,6 +516,7 @@ class TestSortingOperations:
         backend,
         status="PENDING",
         error_message="",
+        pandas_call="",
     ):
         if self._save_to_file:
             result = {
@@ -523,6 +528,7 @@ class TestSortingOperations:
                 "backend": backend,
                 "status": status,
                 "error_message": error_message,
+                "pandas_call": pandas_call,
             }
             self._saved_results.append(result)
             current_records = getattr(self, "_current_pdf_records", None)
@@ -548,6 +554,7 @@ class TestSortingOperations:
         self._record_result(
             test_name="sort_single_ascending",
             method_call='uploaded_ctx.sort_values(by="id", ascending=True)',
+            pandas_call='df.sort_values("id").reset_index(drop=True)',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -572,6 +579,7 @@ class TestSortingOperations:
         self._record_result(
             test_name="sort_single_descending",
             method_call='uploaded_ctx.sort_values(by="score", ascending=False)',
+            pandas_call='df.sort_values("score", ascending=False, na_position="last")',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -598,6 +606,7 @@ class TestSortingOperations:
         self._record_result(
             test_name="sort_multi",
             method_call='uploaded_ctx.sort_values(by=["group", "id"], ascending=[True, False])',
+            pandas_call='df.sort_values(["group", "id"], ascending=[True, False])',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -624,6 +633,7 @@ class TestSortingOperations:
         self._record_result(
             test_name="sort_na_first",
             method_call='uploaded_ctx.sort_values(by="name", ascending=True, na_position="first")',
+            pandas_call='df.sort_values("name", ascending=True, na_position="first")',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -651,6 +661,7 @@ class TestSortingOperations:
         self._record_result(
             test_name="sort_columns_subset",
             method_call='uploaded_ctx.sort_values(by="id", ascending=True, columns=["name", "score"])',
+            pandas_call='df.sort_values("id")[["name", "score", "id"]]',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -676,6 +687,7 @@ class TestSortingOperations:
         self._record_result(
             test_name="mutation_safety",
             method_call="sort_values then check original unchanged",
+            pandas_call='sample_df  # unchanged by sort_values',
             original_df=sample_df,
             memframe_df=original,
             pandas_df=sample_df,
