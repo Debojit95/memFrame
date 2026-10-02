@@ -428,6 +428,7 @@ def render_df_to_pdf_page(
     backend,
     status="PASSED",
     error_message="",
+    pandas_call="",
 ):
     """Create a single PDF page with method call + Original/MemFrame/Pandas snapshots."""
     sections = [
@@ -440,8 +441,10 @@ def render_df_to_pdf_page(
     fig, axes = plt.subplots(3, 1, figsize=(16, fig_height))
     fig.suptitle(f"{title}  [{backend}]  {status}", fontsize=12, fontweight="bold")
     fig.text(0.01, 0.965, f"Call: {method_call}", fontsize=10, family="monospace")
+    if pandas_call:
+        fig.text(0.01, 0.94, f"Pandas: {pandas_call}", fontsize=10, family="monospace")
     if error_message:
-        fig.text(0.01, 0.94, f"Failure: {error_message}", fontsize=9, color="crimson")
+        fig.text(0.01, 0.915, f"Failure: {error_message}", fontsize=9, color="crimson")
 
     for ax, (label, df) in zip(axes, sections):
         ax.axis("off")
@@ -459,7 +462,7 @@ def render_df_to_pdf_page(
         table.set_fontsize(8)
         table.scale(1.1, 1.2)
 
-    plt.tight_layout(rect=[0, 0, 1, 0.95])
+    plt.tight_layout(rect=[0, 0, 1, 0.93])
     pdf.savefig(fig)
     plt.close(fig)
 
@@ -495,6 +498,7 @@ class TestCumulativeOperations:
                         result["backend"],
                         result.get("status", "PASSED"),
                         result.get("error_message", ""),
+                        result.get("pandas_call", ""),
                     )
             print(f"\n\nTest report saved to: {pdf_path}\n")
 
@@ -569,6 +573,7 @@ class TestCumulativeOperations:
         backend: str,
         status: str = "PENDING",
         error_message: str = "",
+        pandas_call: str = "",
     ):
         """Store test result for PDF generation."""
         if self._save_to_file:
@@ -587,6 +592,7 @@ class TestCumulativeOperations:
                 "backend": backend,
                 "status": status,
                 "error_message": error_message,
+                "pandas_call": pandas_call,
             }
             self._saved_results.append(result)
             current_records = getattr(self, "_current_pdf_records", None)
@@ -607,6 +613,7 @@ class TestCumulativeOperations:
         self._record_result(
             test_name="cumsum",
             method_call='uploaded_ctx.cumsum("value", order_col="id", target_col="cumsum_val")',
+            pandas_call='df["value"].cumsum()',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -625,6 +632,7 @@ class TestCumulativeOperations:
         self._record_result(
             test_name="cumsum_no_order",
             method_call='uploaded_ctx.cumsum("value", target_col="cumsum_no_order")',
+            pandas_call='df["value"].cumsum()',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -650,6 +658,7 @@ class TestCumulativeOperations:
         self._record_result(
             test_name="cumprod",
             method_call='uploaded_ctx.cumprod("value", order_col="id", target_col="cumprod_val")',
+            pandas_call='df["value"].cumprod()',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -670,6 +679,7 @@ class TestCumulativeOperations:
         self._record_result(
             test_name="cummax",
             method_call='uploaded_ctx.cummax("value", order_col="id", target_col="cummax_val")',
+            pandas_call='df["value"].cummax()',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -690,6 +700,7 @@ class TestCumulativeOperations:
         self._record_result(
             test_name="cummin",
             method_call='uploaded_ctx.cummin("value", order_col="id", target_col="cummin_val")',
+            pandas_call='df["value"].cummin()',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -710,6 +721,7 @@ class TestCumulativeOperations:
         self._record_result(
             test_name="cummean",
             method_call='uploaded_ctx.cummean("value", order_col="id", target_col="cummean_val")',
+            pandas_call='df["value"].expanding().mean()',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -733,6 +745,7 @@ class TestCumulativeOperations:
         self._record_result(
             test_name="cumcount",
             method_call='uploaded_ctx.cumcount("value", order_col="id", target_col="cumcount_val")',
+            pandas_call='df["value"].expanding().count()',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -758,6 +771,7 @@ class TestCumulativeOperations:
         self._record_result(
             test_name="cumstd",
             method_call='uploaded_ctx.cumstd("value", order_col="id", target_col="cumstd_val")',
+            pandas_call='df["value"].expanding().std(ddof=0).fillna(0)',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -783,6 +797,7 @@ class TestCumulativeOperations:
         self._record_result(
             test_name="cumvar",
             method_call='uploaded_ctx.cumvar("value", order_col="id", target_col="cumvar_val")',
+            pandas_call='df["value"].expanding().var(ddof=0).fillna(0)',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -806,6 +821,7 @@ class TestCumulativeOperations:
         self._record_result(
             test_name="mutation_safety",
             method_call='uploaded_ctx.cumsum("value", order_col="id", target_col="cumsum_val") → original checked',
+            pandas_call='sample_df  # unchanged by cumsum',
             original_df=sample_df,
             memframe_df=original_df,
             pandas_df=sample_df,
