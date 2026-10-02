@@ -413,6 +413,7 @@ def render_df_to_pdf_page(
     backend,
     status="PASSED",
     error_message="",
+    pandas_call="",
 ):
     """Create a single PDF page with method call + Original/MemFrame/Pandas snapshots."""
     sections = [
@@ -425,8 +426,10 @@ def render_df_to_pdf_page(
     fig, axes = plt.subplots(3, 1, figsize=(16, fig_height))
     fig.suptitle(f"{title}  [{backend}]  {status}", fontsize=12, fontweight="bold")
     fig.text(0.01, 0.965, f"Call: {method_call}", fontsize=10, family="monospace")
+    if pandas_call:
+        fig.text(0.01, 0.94, f"Pandas: {pandas_call}", fontsize=10, family="monospace")
     if error_message:
-        fig.text(0.01, 0.94, f"Failure: {error_message}", fontsize=9, color="crimson")
+        fig.text(0.01, 0.915, f"Failure: {error_message}", fontsize=9, color="crimson")
 
     for ax, (label, df) in zip(axes, sections):
         ax.axis("off")
@@ -444,7 +447,7 @@ def render_df_to_pdf_page(
         table.set_fontsize(8)
         table.scale(1.1, 1.2)
 
-    plt.tight_layout(rect=[0, 0, 1, 0.95])
+    plt.tight_layout(rect=[0, 0, 1, 0.93])
     pdf.savefig(fig)
     plt.close(fig)
 
@@ -480,6 +483,7 @@ class TestArithmeticOperations:
                         result["backend"],
                         result.get("status", "PASSED"),
                         result.get("error_message", ""),
+                        result.get("pandas_call", ""),
                     )
             print(f"\n\nTest report saved to: {pdf_path}\n")
 
@@ -554,6 +558,7 @@ class TestArithmeticOperations:
         backend: str,
         status: str = "PENDING",
         error_message: str = "",
+        pandas_call: str = "",
     ):
         """Store test result for PDF generation."""
         if self._save_to_file:
@@ -566,6 +571,7 @@ class TestArithmeticOperations:
                 "backend": backend,
                 "status": status,
                 "error_message": error_message,
+                "pandas_call": pandas_call,
             }
             self._saved_results.append(result)
             current_records = getattr(self, "_current_pdf_records", None)
@@ -586,6 +592,7 @@ class TestArithmeticOperations:
         self._record_result(
             test_name="add",
             method_call='uploaded_ctx.add("salary", "bonus", "total_income")',
+            pandas_call='df["salary"] + df["bonus"]',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -603,6 +610,7 @@ class TestArithmeticOperations:
         self._record_result(
             test_name="subtract",
             method_call='uploaded_ctx.subtract("salary", "tax", "salary_after_tax")',
+            pandas_call='df["salary"] - df["tax"]',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -620,6 +628,7 @@ class TestArithmeticOperations:
         self._record_result(
             test_name="multiply",
             method_call='uploaded_ctx.mul("salary", 2, "double_salary")',
+            pandas_call='df["salary"] * 2',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -643,6 +652,7 @@ class TestArithmeticOperations:
         self._record_result(
             test_name="multiply_numeric_text_column",
             method_call='uploaded_ctx.mul("A", "B", "product")',
+            pandas_call='df["A"] * pd.to_numeric(df["B"])',
             original_df=df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -660,6 +670,7 @@ class TestArithmeticOperations:
         self._record_result(
             test_name="divide",
             method_call='uploaded_ctx.div("salary", 2, "half_salary")',
+            pandas_call='df["salary"] / 2',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -677,6 +688,7 @@ class TestArithmeticOperations:
         self._record_result(
             test_name="modulo",
             method_call='uploaded_ctx.mod("salary", 300, "salary_mod")',
+            pandas_call='df["salary"] % 300',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -694,6 +706,7 @@ class TestArithmeticOperations:
         self._record_result(
             test_name="power",
             method_call='uploaded_ctx.pow("tax", 2, "tax_squared")',
+            pandas_call='df["tax"] ** 2',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -711,6 +724,7 @@ class TestArithmeticOperations:
         self._record_result(
             test_name="add_scalar",
             method_call='uploaded_ctx.add("salary", 100, "salary_plus_100")',
+            pandas_call='df["salary"] + 100',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -728,6 +742,7 @@ class TestArithmeticOperations:
         self._record_result(
             test_name="add_scalar_first",
             method_call='uploaded_ctx.add(100, "salary", "100_plus_salary")',
+            pandas_call='100 + df["salary"]',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -745,6 +760,7 @@ class TestArithmeticOperations:
         self._record_result(
             test_name="subtract_scalar",
             method_call='uploaded_ctx.subtract("salary", 100, "salary_minus_100")',
+            pandas_call='df["salary"] - 100',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -762,6 +778,7 @@ class TestArithmeticOperations:
         self._record_result(
             test_name="add_scalar_negative",
             method_call='uploaded_ctx.add("negative_vals", -5, "neg_plus_minus5")',
+            pandas_call='df["negative_vals"] + (-5)',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -779,6 +796,7 @@ class TestArithmeticOperations:
         self._record_result(
             test_name="add_float_scalar",
             method_call='uploaded_ctx.add("score", 1.5, "score_plus_1_5")',
+            pandas_call='df["score"] + 1.5',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -806,6 +824,7 @@ class TestArithmeticOperations:
         self._record_result(
             test_name="absolute",
             method_call='uploaded_ctx.abs("negative_vals", "absolute_vals")',
+            pandas_call='df["negative_vals"].abs()',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -823,6 +842,7 @@ class TestArithmeticOperations:
         self._record_result(
             test_name="negate",
             method_call='uploaded_ctx.negate("salary", "negative_salary")',
+            pandas_call='-df["salary"]',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -840,6 +860,7 @@ class TestArithmeticOperations:
         self._record_result(
             test_name="round",
             method_call='uploaded_ctx.round("float_vals", 2, "rounded_vals")',
+            pandas_call='df["float_vals"].round(2)',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -857,6 +878,7 @@ class TestArithmeticOperations:
         self._record_result(
             test_name="ceil",
             method_call='uploaded_ctx.ceil("score", "ceil_score")',
+            pandas_call='np.ceil(df["score"])',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -874,6 +896,7 @@ class TestArithmeticOperations:
         self._record_result(
             test_name="floor",
             method_call='uploaded_ctx.floor("score", "floor_score")',
+            pandas_call='np.floor(df["score"])',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -893,6 +916,7 @@ class TestArithmeticOperations:
         self._record_result(
             test_name="truncate",
             method_call='uploaded_ctx.truncate("float_vals", 2, "truncated_vals")',
+            pandas_call='df["float_vals"].apply(lambda x: math.trunc(x * 100) / 100)',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -914,6 +938,7 @@ class TestArithmeticOperations:
         self._record_result(
             test_name="exp",
             method_call='uploaded_ctx.exp("tax", "exp_tax")',
+            pandas_call='np.exp(df["tax"])',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -931,6 +956,7 @@ class TestArithmeticOperations:
         self._record_result(
             test_name="log",
             method_call='uploaded_ctx.log("salary", "log_salary")',
+            pandas_call='np.log(df["salary"])',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -948,6 +974,7 @@ class TestArithmeticOperations:
         self._record_result(
             test_name="log10",
             method_call='uploaded_ctx.log10("salary", "log10_salary")',
+            pandas_call='np.log10(df["salary"])',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -965,6 +992,7 @@ class TestArithmeticOperations:
         self._record_result(
             test_name="sqrt",
             method_call='uploaded_ctx.sqrt("salary", "sqrt_salary")',
+            pandas_call='np.sqrt(df["salary"])',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -985,6 +1013,7 @@ class TestArithmeticOperations:
         self._record_result(
             test_name="sin",
             method_call='uploaded_ctx.sin("angle", "sin_angle")',
+            pandas_call='np.sin(df["angle"])',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -1002,6 +1031,7 @@ class TestArithmeticOperations:
         self._record_result(
             test_name="cos",
             method_call='uploaded_ctx.cos("angle", "cos_angle")',
+            pandas_call='np.cos(df["angle"])',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -1019,6 +1049,7 @@ class TestArithmeticOperations:
         self._record_result(
             test_name="tan",
             method_call='uploaded_ctx.tan("angle", "tan_angle")',
+            pandas_call='np.tan(df["angle"])',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -1036,6 +1067,7 @@ class TestArithmeticOperations:
         self._record_result(
             test_name="asin",
             method_call='uploaded_ctx.asin("angle", "asin_angle")',
+            pandas_call='np.arcsin(df["angle"])',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -1053,6 +1085,7 @@ class TestArithmeticOperations:
         self._record_result(
             test_name="acos",
             method_call='uploaded_ctx.acos("angle", "acos_angle")',
+            pandas_call='np.arccos(df["angle"])',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -1070,6 +1103,7 @@ class TestArithmeticOperations:
         self._record_result(
             test_name="atan",
             method_call='uploaded_ctx.atan("angle", "atan_angle")',
+            pandas_call='np.arctan(df["angle"])',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -1087,6 +1121,7 @@ class TestArithmeticOperations:
         self._record_result(
             test_name="atan2",
             method_call='uploaded_ctx.atan2("salary", "bonus", "atan2_result")',
+            pandas_call='np.arctan2(df["salary"], df["bonus"])',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -1108,6 +1143,7 @@ class TestArithmeticOperations:
         self._record_result(
             test_name="weighted_average",
             method_call='uploaded_ctx.weighted_sum("math", "science", 0.7, 0.3, "final_score")',
+            pandas_call='(df["math"] * 0.7) + (df["science"] * 0.3)',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -1127,6 +1163,7 @@ class TestArithmeticOperations:
         self._record_result(
             test_name="percentage_change",
             method_call='uploaded_ctx.percentage_change("old_price", "new_price", "pct_change")',
+            pandas_call='(df["new_price"] - df["old_price"]) / df["old_price"] * 100',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -1145,6 +1182,7 @@ class TestArithmeticOperations:
         self._record_result(
             test_name="normalize_range",
             method_call='uploaded_ctx.normalize_range("salary", "normalized_salary")',
+            pandas_call='(s - s.min()) / (s.max() - s.min())  # s = df["salary"]',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
