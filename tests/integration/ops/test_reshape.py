@@ -452,6 +452,7 @@ def render_df_to_pdf_page(
     backend,
     status="PASSED",
     error_message="",
+    pandas_call="",
 ):
     sections = [
         ("Original", original_df.head(10)),
@@ -462,8 +463,10 @@ def render_df_to_pdf_page(
     fig, axes = plt.subplots(3, 1, figsize=(16, fig_height))
     fig.suptitle(f"{title}  [{backend}]  {status}", fontsize=12, fontweight="bold")
     fig.text(0.01, 0.965, f"Call: {method_call}", fontsize=10, family="monospace")
+    if pandas_call:
+        fig.text(0.01, 0.94, f"Pandas: {pandas_call}", fontsize=10, family="monospace")
     if error_message:
-        fig.text(0.01, 0.94, f"Failure: {error_message}", fontsize=9, color="crimson")
+        fig.text(0.01, 0.915, f"Failure: {error_message}", fontsize=9, color="crimson")
     for ax, (label, df) in zip(axes, sections):
         ax.axis("off")
         ax.set_title(label, fontsize=10, loc="left")
@@ -474,7 +477,7 @@ def render_df_to_pdf_page(
         table.auto_set_font_size(False)
         table.set_fontsize(8)
         table.scale(1.1, 1.2)
-    plt.tight_layout(rect=[0, 0, 1, 0.95])
+    plt.tight_layout(rect=[0, 0, 1, 0.93])
     pdf.savefig(fig)
     plt.close(fig)
 
@@ -507,6 +510,7 @@ class TestReshapingOperations:
                         result["backend"],
                         result.get("status", "PASSED"),
                         result.get("error_message", ""),
+                        result.get("pandas_call", ""),
                     )
             print(f"\n\nTest report saved to: {pdf_path}\n")
 
@@ -591,6 +595,7 @@ class TestReshapingOperations:
         backend,
         status="PENDING",
         error_message="",
+        pandas_call="",
     ):
         if self._save_to_file:
             result = {
@@ -602,6 +607,7 @@ class TestReshapingOperations:
                 "backend": backend,
                 "status": status,
                 "error_message": error_message,
+                "pandas_call": pandas_call,
             }
             self._saved_results.append(result)
             current_records = getattr(self, "_current_pdf_records", None)
@@ -634,6 +640,7 @@ class TestReshapingOperations:
         self._record_result(
             test_name="explode",
             method_call='explode_ctx.explode("tags")',
+            pandas_call='df.assign(values=df["values"].apply(parse)).explode("values")',
             original_df=explode_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -658,6 +665,7 @@ class TestReshapingOperations:
         self._record_result(
             test_name="melt",
             method_call='melt_ctx.melt(...)',
+            pandas_call='df.melt(id_vars="student", value_vars=["math", "science", "english"])',
             original_df=melt_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -687,6 +695,7 @@ class TestReshapingOperations:
         self._record_result(
             test_name="pivot",
             method_call='pivot_ctx.pivot(index="date", columns="product", values="sales")',
+            pandas_call='df.pivot(index="date", columns="product", values="sales")',
             original_df=pivot_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -712,6 +721,7 @@ class TestReshapingOperations:
         self._record_result(
             test_name="pivot_table",
             method_call='pivot_ctx.pivot_table(index="city", columns="product", values="sales", aggfunc="sum")',
+            pandas_call='df.pivot_table(index="city", columns="product", values="sales", aggfunc="sum")',
             original_df=pivot_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -735,6 +745,7 @@ class TestReshapingOperations:
         self._record_result(
             test_name="crosstab",
             method_call='pivot_ctx.crosstab(index="city", columns="product", values="sales", aggfunc="sum")',
+            pandas_call='pd.crosstab(index=df["city"], columns=df["product"], values=df["sales"], aggfunc="sum")',
             original_df=pivot_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -767,6 +778,7 @@ class TestReshapingOperations:
         self._record_result(
             test_name="transpose",
             method_call="transpose_ctx.transpose()",
+            pandas_call='df.T  # library layout differs; see test',
             original_df=transpose_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -791,6 +803,7 @@ class TestReshapingOperations:
         self._record_result(
             test_name="rank",
             method_call='rank_ctx.rank(columns=["score"], method="average", ascending=False)',
+            pandas_call='df["score"].rank(ascending=False, method="average")',
             original_df=rank_df,
             memframe_df=res_df,
             pandas_df=expected[["department","employee","score","salary","score_rank"]],
@@ -817,6 +830,7 @@ class TestReshapingOperations:
         self._record_result(
             test_name="groupby_rank",
             method_call='rank_ctx.groupby_rank(groupby="department", columns=["score"], method="dense", ascending=False)',
+            pandas_call='df.groupby("department")["score"].rank(ascending=False, method="dense")',
             original_df=rank_df,
             memframe_df=res_df,
             pandas_df=expected[["department","employee","score","salary","score_rank"]],
