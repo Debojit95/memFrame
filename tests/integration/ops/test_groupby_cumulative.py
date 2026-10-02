@@ -390,6 +390,7 @@ def render_df_to_pdf_page(
     backend,
     status="PASSED",
     error_message="",
+    pandas_call="",
 ):
     sections = [
         ("Original", original_df.head(10)),
@@ -400,8 +401,10 @@ def render_df_to_pdf_page(
     fig, axes = plt.subplots(3, 1, figsize=(16, fig_height))
     fig.suptitle(f"{title}  [{backend}]  {status}", fontsize=12, fontweight="bold")
     fig.text(0.01, 0.965, f"Call: {method_call}", fontsize=10, family="monospace")
+    if pandas_call:
+        fig.text(0.01, 0.94, f"Pandas: {pandas_call}", fontsize=10, family="monospace")
     if error_message:
-        fig.text(0.01, 0.94, f"Failure: {error_message}", fontsize=9, color="crimson")
+        fig.text(0.01, 0.915, f"Failure: {error_message}", fontsize=9, color="crimson")
 
     for ax, (label, df) in zip(axes, sections):
         ax.axis("off")
@@ -419,7 +422,7 @@ def render_df_to_pdf_page(
         table.set_fontsize(8)
         table.scale(1.1, 1.2)
 
-    plt.tight_layout(rect=[0, 0, 1, 0.95])
+    plt.tight_layout(rect=[0, 0, 1, 0.93])
     pdf.savefig(fig)
     plt.close(fig)
 
@@ -452,6 +455,7 @@ class TestGroupByCumulativeOperations:
                         result["backend"],
                         result.get("status", "PASSED"),
                         result.get("error_message", ""),
+                        result.get("pandas_call", ""),
                     )
             print(f"\n\nTest report saved to: {pdf_path}\n")
 
@@ -526,6 +530,7 @@ class TestGroupByCumulativeOperations:
         backend: str,
         status: str = "PENDING",
         error_message: str = "",
+        pandas_call: str = "",
     ):
         if self._save_to_file:
             result = {
@@ -537,6 +542,7 @@ class TestGroupByCumulativeOperations:
                 "backend": backend,
                 "status": status,
                 "error_message": error_message,
+                "pandas_call": pandas_call,
             }
             self._saved_results.append(result)
             current_records = getattr(self, "_current_pdf_records", None)
@@ -561,6 +567,7 @@ class TestGroupByCumulativeOperations:
         self._record_result(
             test_name="groupby_cumsum",
             method_call='uploaded_ctx.groupby("group").cumsum("value", order_col="order_col", target_col="cumsum_val")',
+            pandas_call='df.groupby("group")["value"].cumsum()',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -589,6 +596,7 @@ class TestGroupByCumulativeOperations:
         self._record_result(
             test_name="groupby_cumprod",
             method_call='uploaded_ctx.groupby("group").cumprod("value", order_col="order_col", target_col="cumprod_val")',
+            pandas_call='df.groupby("group")["value"].cumprod()',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -612,6 +620,7 @@ class TestGroupByCumulativeOperations:
         self._record_result(
             test_name="groupby_cummax",
             method_call='uploaded_ctx.groupby("group").cummax("value", order_col="order_col", target_col="cummax_val")',
+            pandas_call='df.groupby("group")["value"].cummax()',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -635,6 +644,7 @@ class TestGroupByCumulativeOperations:
         self._record_result(
             test_name="groupby_cummin",
             method_call='uploaded_ctx.groupby("group").cummin("value", order_col="order_col", target_col="cummin_val")',
+            pandas_call='df.groupby("group")["value"].cummin()',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -660,6 +670,7 @@ class TestGroupByCumulativeOperations:
         self._record_result(
             test_name="groupby_cummean",
             method_call='uploaded_ctx.groupby("group").cummean("value", order_col="order_col", target_col="cummean_val")',
+            pandas_call='df.groupby("group")["value"].expanding().mean()',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -685,6 +696,7 @@ class TestGroupByCumulativeOperations:
         self._record_result(
             test_name="groupby_cumcount",
             method_call='uploaded_ctx.groupby("group").cumcount("value", order_col="order_col", target_col="cumcount_val")',
+            pandas_call='df.groupby("group")["value"].expanding().count()',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -714,6 +726,7 @@ class TestGroupByCumulativeOperations:
         self._record_result(
             test_name="groupby_cumstd",
             method_call='uploaded_ctx.groupby("group").cumstd("value", order_col="order_col", target_col="cumstd_val")',
+            pandas_call='df.groupby("group")["value"].expanding().std(ddof=0).fillna(0)',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -743,6 +756,7 @@ class TestGroupByCumulativeOperations:
         self._record_result(
             test_name="groupby_cumvar",
             method_call='uploaded_ctx.groupby("group").cumvar("value", order_col="order_col", target_col="cumvar_val")',
+            pandas_call='df.groupby("group")["value"].expanding().var(ddof=0).fillna(0)',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -767,6 +781,7 @@ class TestGroupByCumulativeOperations:
         self._record_result(
             test_name="groupby_multicolumn_cumsum",
             method_call='uploaded_ctx.groupby("group", "sub").cumsum("value", order_col="order_col", target_col="mcsum_val")',
+            pandas_call='df.groupby(["group", "sub"])["value"].cumsum()',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -790,6 +805,7 @@ class TestGroupByCumulativeOperations:
         self._record_result(
             test_name="groupby_multicolumn_cummean",
             method_call='uploaded_ctx.groupby("group", "sub").cummean("value", order_col="order_col", target_col="mcmean_val")',
+            pandas_call='df.groupby(["group", "sub"])["value"].expanding().mean()',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -820,6 +836,7 @@ class TestGroupByCumulativeOperations:
         self._record_result(
             test_name="map_feature_true",
             method_call='uploaded_ctx.groupby("group").cumsum("value", order_col="order_col", map_feature=True)',
+            pandas_call='df.groupby("group")["value"].cumsum()  # mapped back onto rows',
             original_df=sample_df,
             memframe_df=mapped,
             pandas_df=expected,
@@ -848,6 +865,7 @@ class TestGroupByCumulativeOperations:
         self._record_result(
             test_name="map_feature_false_leaves_original_untouched",
             method_call='uploaded_ctx.groupby("group").cumsum("value", order_col="order_col", map_feature=False)',
+            pandas_call='df.groupby("group")["value"].cumsum()',
             original_df=sample_df,
             memframe_df=after,
             pandas_df=before,
@@ -880,6 +898,7 @@ class TestGroupByCumulativeOperations:
         self._record_result(
             test_name="map_feature_true_then_false",
             method_call='cumsum(..., map_feature=True) then cumsum(..., map_feature=False)',
+            pandas_call='df.groupby("group")["value"].cumsum()  # rerun drops and re-adds',
             original_df=sample_df,
             memframe_df=mapped,
             pandas_df=expected,
@@ -900,6 +919,7 @@ class TestGroupByCumulativeOperations:
         self._record_result(
             test_name="mutation_safety",
             method_call='groupby("group").cumsum(...) → original checked',
+            pandas_call='sample_df  # unchanged by cumsum',
             original_df=sample_df,
             memframe_df=after_op,
             pandas_df=original_uploaded,
