@@ -394,6 +394,7 @@ def render_df_to_pdf_page(
     backend,
     status="PASSED",
     error_message="",
+    pandas_call="",
 ):
     sections = [
         ("Original", original_df.head(10)),
@@ -404,8 +405,10 @@ def render_df_to_pdf_page(
     fig, axes = plt.subplots(3, 1, figsize=(16, fig_height))
     fig.suptitle(f"{title}  [{backend}]  {status}", fontsize=12, fontweight="bold")
     fig.text(0.01, 0.965, f"Call: {method_call}", fontsize=10, family="monospace")
+    if pandas_call:
+        fig.text(0.01, 0.94, f"Pandas: {pandas_call}", fontsize=10, family="monospace")
     if error_message:
-        fig.text(0.01, 0.94, f"Failure: {error_message}", fontsize=9, color="crimson")
+        fig.text(0.01, 0.915, f"Failure: {error_message}", fontsize=9, color="crimson")
 
     for ax, (label, df) in zip(axes, sections):
         ax.axis("off")
@@ -423,7 +426,7 @@ def render_df_to_pdf_page(
         table.set_fontsize(8)
         table.scale(1.1, 1.2)
 
-    plt.tight_layout(rect=[0, 0, 1, 0.95])
+    plt.tight_layout(rect=[0, 0, 1, 0.93])
     pdf.savefig(fig)
     plt.close(fig)
 
@@ -455,6 +458,7 @@ class TestFilteringOperations:
                         result["backend"],
                         result.get("status", "PASSED"),
                         result.get("error_message", ""),
+                        result.get("pandas_call", ""),
                     )
             print(f"\n\nTest report saved to: {pdf_path}\n")
 
@@ -529,6 +533,7 @@ class TestFilteringOperations:
         backend: str,
         status: str = "PENDING",
         error_message: str = "",
+        pandas_call: str = "",
     ):
         if self._save_to_file:
             result = {
@@ -540,6 +545,7 @@ class TestFilteringOperations:
                 "backend": backend,
                 "status": status,
                 "error_message": error_message,
+                "pandas_call": pandas_call,
             }
             self._saved_results.append(result)
             current_records = getattr(self, "_current_pdf_records", None)
@@ -557,6 +563,7 @@ class TestFilteringOperations:
         self._record_result(
             test_name="numeric_gt",
             method_call='uploaded_ctx.filter("B > 15")',
+            pandas_call='sample_df.query("B > 15")',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -571,6 +578,7 @@ class TestFilteringOperations:
         self._record_result(
             test_name="numeric_lte",
             method_call='uploaded_ctx.filter("C <= 2.0")',
+            pandas_call='sample_df.query("C <= 2.0")',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -585,6 +593,7 @@ class TestFilteringOperations:
         self._record_result(
             test_name="numeric_eq",
             method_call='uploaded_ctx.filter("E == 2.0")',
+            pandas_call='sample_df.query("E == 2.0")',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -599,6 +608,7 @@ class TestFilteringOperations:
         self._record_result(
             test_name="numeric_neq",
             method_call='uploaded_ctx.filter("B != 15")',
+            pandas_call='sample_df.query("B != 15")',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -616,6 +626,7 @@ class TestFilteringOperations:
         self._record_result(
             test_name="string_eq",
             method_call="uploaded_ctx.filter(\"D == 'zoom'\")",
+            pandas_call="sample_df.query(\"D == 'zoom'\")",
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -630,6 +641,7 @@ class TestFilteringOperations:
         self._record_result(
             test_name="string_neq",
             method_call="uploaded_ctx.filter(\"D != 'beta'\")",
+            pandas_call="sample_df.query(\"D != 'beta'\")",
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -647,6 +659,7 @@ class TestFilteringOperations:
         self._record_result(
             test_name="datetime_gt",
             method_call="uploaded_ctx.filter(\"A > '2023-01-01'\")",
+            pandas_call="sample_df.query(\"A > '2023-01-01'\")",
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -662,6 +675,7 @@ class TestFilteringOperations:
         self._record_result(
             test_name="datetime_between",
             method_call="uploaded_ctx.filter(\"A >= '2023-04-01' && A <= '2024-09-01'\")",
+            pandas_call="sample_df.query(\"A >= '2023-04-01' and A <= '2024-09-01'\")",
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -679,6 +693,7 @@ class TestFilteringOperations:
         self._record_result(
             test_name="dt_minute",
             method_call='uploaded_ctx.filter("A.dt.minute >= 50")',
+            pandas_call='sample_df.query("A.dt.minute >= 50")',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -693,6 +708,7 @@ class TestFilteringOperations:
         self._record_result(
             test_name="dt_year",
             method_call='uploaded_ctx.filter("H.dt.year == 2024")',
+            pandas_call='sample_df.query("H.dt.year == 2024")',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -711,6 +727,7 @@ class TestFilteringOperations:
         self._record_result(
             test_name="complex_and_or",
             method_call=f'uploaded_ctx.filter("{expr}")',
+            pandas_call='sample_df.query("(B > 10 or C < 2) and D != \'beta\'")',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -729,6 +746,7 @@ class TestFilteringOperations:
         self._record_result(
             test_name="complex_mixed_types",
             method_call=f'uploaded_ctx.filter("{expr}")',
+            pandas_call='sample_df.query("(E > 2.571 or A > \'2024-09-01 20:23:43\') and (D == \'zoom\' or H < \'2024-12-04\')")',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -746,6 +764,7 @@ class TestFilteringOperations:
         self._record_result(
             test_name="column_selection",
             method_call='uploaded_ctx.filter("B > 10", columns=["A", "B", "D"])',
+            pandas_call='sample_df.query("B > 10")[["A", "B", "D"]]',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -767,6 +786,7 @@ class TestFilteringOperations:
         self._record_result(
             test_name="mutation_safety",
             method_call='uploaded_ctx.filter("B > 10") → original checked',
+            pandas_call='sample_df  # unchanged by filter',
             original_df=sample_df,
             memframe_df=after_op,
             pandas_df=original_uploaded,
@@ -789,6 +809,7 @@ class TestFilteringOperations:
         self._record_result(
             test_name="chaining",
             method_call="filter('B > 10') → add('B', 5, 'B_plus_5') chain",
+            pandas_call='sample_df.query("B > 10").assign(B_plus_5=lambda d: d["B"] + 5)',
             original_df=sample_df,
             memframe_df=final_df,
             pandas_df=expected,
@@ -806,6 +827,7 @@ class TestFilteringOperations:
         self._record_result(
             test_name="predicate_numeric",
             method_call='filter(F.num.gte("B", 15) & F.num.lt("B", 25))',
+            pandas_call='sample_df.query("B >= 15 and B < 25")',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -825,6 +847,7 @@ class TestFilteringOperations:
         self._record_result(
             test_name="predicate_numeric_between_outside",
             method_call='filter(F.num.between("B", 10, 20)) / outside',
+            pandas_call='sample_df.query("B >= 10 and B <= 20")',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -844,6 +867,7 @@ class TestFilteringOperations:
         self._record_result(
             test_name="predicate_categorical",
             method_call='filter(F.cat.eq("D", "zoom")) / in_',
+            pandas_call='sample_df.query("D == \'zoom\'")',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -858,6 +882,7 @@ class TestFilteringOperations:
         self._record_result(
             test_name="predicate_categorical_ilike",
             method_call='filter(F.cat.contains("D", "OOM", case_sensitive=False))',
+            pandas_call='sample_df[sample_df["D"].str.lower().str.contains("oom")]',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -874,6 +899,7 @@ class TestFilteringOperations:
         self._record_result(
             test_name="predicate_categorical_regex",
             method_call='filter(F.cat.regex("D", "^z"))',
+            pandas_call='sample_df[sample_df["D"].str.match("^z")]',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -893,6 +919,7 @@ class TestFilteringOperations:
         self._record_result(
             test_name="predicate_null_checks",
             method_call='filter(F.cat.is_null("g")) / not_null',
+            pandas_call='df[df["g"].notna()]  # and df[df["g"].isna()]',
             original_df=df,
             memframe_df=res_df,
             pandas_df=df.query("g == g"),
@@ -914,6 +941,7 @@ class TestFilteringOperations:
         self._record_result(
             test_name="predicate_datetime",
             method_call='filter(F.time.after("A", "2024-01-01")) / between',
+            pandas_call='sample_df.query("A > \'2024-01-01\'")',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -935,6 +963,7 @@ class TestFilteringOperations:
         self._record_result(
             test_name="predicate_relative_time",
             method_call='filter(F.time.last_days("ts", 30))',
+            pandas_call='df[df["ts"] >= pd.Timestamp.today().normalize() - pd.Timedelta(days=30)]',
             original_df=df,
             memframe_df=res_df,
             pandas_df=df.head(1),
@@ -949,6 +978,7 @@ class TestFilteringOperations:
         self._record_result(
             test_name="predicate_timezone_aware",
             method_call='filter(F.time.before_tz("A", "2024-01-01 00:00:00", "UTC"))',
+            pandas_call='sample_df.query("A < \'2024-01-01\'")',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -973,6 +1003,7 @@ class TestFilteringOperations:
         self._record_result(
             test_name="predicate_cross_dtype",
             method_call='filter(num & cat & time composed)',
+            pandas_call='sample_df.query("B >= 15 and D == \'zoom\' and A >= \'2024-01-01\'")',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -988,6 +1019,7 @@ class TestFilteringOperations:
         self._record_result(
             test_name="string_cross_dtype",
             method_call=f'uploaded_ctx.filter("{expr}")',
+            pandas_call='sample_df.query("B >= 15 and D == \'zoom\' and A >= \'2024-01-01\'")',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -1010,6 +1042,7 @@ class TestFilteringOperations:
         self._record_result(
             test_name="predicate_not_xor",
             method_call='filter(~eq) / filter(gt ^ eq)',
+            pandas_call='sample_df.query("D != \'zoom\'")',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -1033,6 +1066,7 @@ class TestFilteringOperations:
         self._record_result(
             test_name="chunk_streaming",
             method_call='filter("B > 10", chunk_size=2)',
+            pandas_call='sample_df.query("B > 10")  # streamed in chunks',
             original_df=pd.DataFrame({"B": [10, 20, 15, 25, 5]}),
             memframe_df=combined,
             pandas_df=pd.DataFrame({"B": [15, 20, 25]}),
@@ -1065,6 +1099,7 @@ class TestFilteringOperations:
         self._record_result(
             test_name="flag_subset",
             method_call='filter("B > 15", create_flag=True)',
+            pandas_call='sample_df.query("B > 15")  # + filter_flag mask column',
             original_df=sample_df,
             memframe_df=src,
             pandas_df=sample_df,

@@ -368,6 +368,7 @@ def render_df_to_pdf_page(
     backend,
     status="PASSED",
     error_message="",
+    pandas_call="",
 ):
     sections = [
         ("Original", original_df.head(10)),
@@ -378,8 +379,10 @@ def render_df_to_pdf_page(
     fig, axes = plt.subplots(3, 1, figsize=(16, fig_height))
     fig.suptitle(f"{title}  [{backend}]  {status}", fontsize=12, fontweight="bold")
     fig.text(0.01, 0.965, f"Call: {method_call}", fontsize=10, family="monospace")
+    if pandas_call:
+        fig.text(0.01, 0.94, f"Pandas: {pandas_call}", fontsize=10, family="monospace")
     if error_message:
-        fig.text(0.01, 0.94, f"Failure: {error_message}", fontsize=9, color="crimson")
+        fig.text(0.01, 0.915, f"Failure: {error_message}", fontsize=9, color="crimson")
     for ax, (label, df) in zip(axes, sections):
         ax.axis("off")
         ax.set_title(label, fontsize=10, loc="left")
@@ -390,7 +393,7 @@ def render_df_to_pdf_page(
         table.auto_set_font_size(False)
         table.set_fontsize(8)
         table.scale(1.1, 1.2)
-    plt.tight_layout(rect=[0, 0, 1, 0.95])
+    plt.tight_layout(rect=[0, 0, 1, 0.93])
     pdf.savefig(fig)
     plt.close(fig)
 
@@ -423,6 +426,7 @@ class TestCompareOperations:
                         rec["backend"],
                         rec.get("status", "PASSED"),
                         rec.get("error_message", ""),
+                        rec.get("pandas_call", ""),
                     )
             print(f"\n\nTest report saved to: {pdf_path}\n")
 
@@ -502,6 +506,7 @@ class TestCompareOperations:
         backend,
         status="PENDING",
         error_message="",
+        pandas_call="",
     ):
         if self._save_to_file:
             rec = {
@@ -513,6 +518,7 @@ class TestCompareOperations:
                 "backend": backend,
                 "status": status,
                 "error_message": error_message,
+                "pandas_call": pandas_call,
             }
             self._saved_results.append(rec)
             current_records = getattr(self, "_current_pdf_records", None)
@@ -557,6 +563,7 @@ class TestCompareOperations:
             res_df,
             expected,
             backend_config["connection_type"],
+            pandas_call=f'(sample_df["val_a"] {op} sample_df["val_b"])',
         )
 
     # ------------------------------------------------------------------
@@ -583,7 +590,8 @@ class TestCompareOperations:
         expected = sample_df.copy()
         expected[new_col] = expected_series
         self._record_result("categorical_eq", 'compare("cat_a", "cat_b", "==")',
-                            sample_df, res_df, expected, backend_config["connection_type"])
+                            sample_df, res_df, expected, backend_config["connection_type"],
+                            pandas_call='(sample_df["cat_a"] == sample_df["cat_b"])')
 
     def test_categorical_ne(self, uploaded_ctx, sample_df, backend_config):
         result = uploaded_ctx.compare("cat_a", "cat_b", "!=")
@@ -601,7 +609,8 @@ class TestCompareOperations:
         expected = sample_df.copy()
         expected[new_col] = (sample_df["cat_a"] != sample_df["cat_b"])
         self._record_result("categorical_ne", 'compare("cat_a", "cat_b", "!=")',
-                            sample_df, res_df, expected, backend_config["connection_type"])
+                            sample_df, res_df, expected, backend_config["connection_type"],
+                            pandas_call='(sample_df["cat_a"] != sample_df["cat_b"])')
 
     # ------------------------------------------------------------------
     # Datetime comparisons
@@ -637,7 +646,8 @@ class TestCompareOperations:
         expected = sample_df.copy()
         expected[new_col] = pd_compare
         self._record_result(f"datetime_{op}", f'compare("date_a", "date_b", "{op}")',
-                            sample_df, res_df, expected, backend_config["connection_type"])
+                            sample_df, res_df, expected, backend_config["connection_type"],
+                            pandas_call=f'(sample_df["date_a"] {op} sample_df["date_b"])')
 
     # ------------------------------------------------------------------
     # Expression parsing
