@@ -595,6 +595,16 @@ class TestStatsOperations:
         assert counts == expected
         self._record_result("value_counts", 'value_counts("category")', sample_df, counts, expected, backend_config["connection_type"])
 
+    def test_value_counts_no_column(self, uploaded_ctx, sample_df, backend_config):
+        result = uploaded_ctx.value_counts()
+        value = get_result_value(result)
+        assert isinstance(value, dict)
+        for col in ("category", "category2", "score"):
+            assert col in value
+            expected = sample_df[col].value_counts().to_dict()
+            assert value[col] == expected
+        self._record_result("value_counts_no_column", 'value_counts()', sample_df, value, "per-column dicts", backend_config["connection_type"])
+
     # ------------------------------------------------------------------
     # Mean, median
     # ------------------------------------------------------------------
