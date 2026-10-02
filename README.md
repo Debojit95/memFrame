@@ -24,7 +24,6 @@
 - Async-first surface with sync equivalents for every operation.
 - Upload from CSV, Parquet, or pandas DataFrame.
 - Sync pre-existing DuckDB, PostgreSQL, or ClickHouse tables as datasets — no re-upload.
-- Inspection, selection, cleaning, statistics, arithmetic, sorting, reshape, merging, Plotly charts.
 - Two-level cache: lineage audit + replayable result tables.
 - Optional AI agent layer (`memframe_ai`) for chatting with your CSV.
 - Optional **Logfire observability** for the AI agent layer — traces every agent run, LLM call, and tool call, plus host metrics. Opt-in via `logfire_enabled` (local console needs no token; bring-your-own-key for the cloud).

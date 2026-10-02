@@ -38,7 +38,7 @@ Every stats operation has synchronous and asynchronous forms:
 | `mode(column, top_n=1)` | `await amode(...)` | Most frequent value or values |
 | `unique(column)` | `await aunique(...)` | Distinct non-null values |
 | `nunique(column)` | `await anunique(...)` | Number of distinct non-null values |
-| `value_counts(column, top_n=10)` | `await avalue_counts(...)` | Top value frequencies |
+| `value_counts(column=None, top_n=10)` | `await avalue_counts(...)` | Top value frequencies (all columns when omitted) |
 | `mean(column)` | `await amean(...)` | Numeric mean or mean datetime |
 | `median(column)` | `await amedian(...)` | Numeric median or median datetime |
 | `sum(column)` | `await asum(...)` | Numeric sum |
@@ -239,7 +239,8 @@ Parameters:
 ### `value_counts`
 
 `value_counts` returns a dictionary of the most common non-null values and
-their counts.
+their counts. Omit `column` to count every column at once — the result maps
+each column name to its own value-counts dictionary (each capped at `top_n`).
 
 ```python
 result = dataset.value_counts(column="department", top_n=10)
@@ -249,12 +250,17 @@ result = dataset.value_counts(column="department", top_n=10)
 result = await dataset.avalue_counts(column="department", top_n=5)
 ```
 
+```python
+all_counts = dataset.value_counts()
+# {"department": {"HR": 12, "IT": 9}, "salary": {...}, ...}
+```
+
 Parameters:
 
 | Parameter | Type | Description |
 | --- | --- | --- |
-| `column` | `str` | Column whose values should be counted. |
-| `top_n` | `int` | Maximum number of value-count pairs to return. Defaults to `10`. |
+| `column` | `str` or `None` | Column whose values should be counted. Omit for all columns. |
+| `top_n` | `int` | Maximum number of value-count pairs to return per column. Defaults to `10`. |
 
 ## Numeric Statistics
 
