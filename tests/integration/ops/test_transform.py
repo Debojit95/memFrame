@@ -342,14 +342,16 @@ def _prepare_pdf_df(df: pd.DataFrame) -> pd.DataFrame:
     return pdf_df
 
 
-def render_df_to_pdf_page(pdf, title, method_call, original_df, memframe_df, pandas_df, backend, status="PASSED", error_message=""):
+def render_df_to_pdf_page(pdf, title, method_call, original_df, memframe_df, pandas_df, backend, status="PASSED", error_message="", pandas_call=""):
     sections = [("Original", original_df.head(10)), ("MemFrame Result", memframe_df.head(10)), ("Pandas Result", pandas_df.head(10))]
     fig_height = max(8, 2 + sum(max(2, len(df) + 2) for _, df in sections) * 0.4)
     fig, axes = plt.subplots(3, 1, figsize=(16, fig_height))
     fig.suptitle(f"{title}  [{backend}]  {status}", fontsize=12, fontweight="bold")
     fig.text(0.01, 0.965, f"Call: {method_call}", fontsize=10, family="monospace")
+    if pandas_call:
+        fig.text(0.01, 0.94, f"Pandas: {pandas_call}", fontsize=10, family="monospace")
     if error_message:
-        fig.text(0.01, 0.94, f"Failure: {error_message}", fontsize=9, color="crimson")
+        fig.text(0.01, 0.915, f"Failure: {error_message}", fontsize=9, color="crimson")
     for ax, (label, df) in zip(axes, sections):
         ax.axis("off")
         ax.set_title(label, fontsize=10, loc="left")
@@ -360,7 +362,7 @@ def render_df_to_pdf_page(pdf, title, method_call, original_df, memframe_df, pan
         table.auto_set_font_size(False)
         table.set_fontsize(8)
         table.scale(1.1, 1.2)
-    plt.tight_layout(rect=[0, 0, 1, 0.95])
+    plt.tight_layout(rect=[0, 0, 1, 0.93])
     pdf.savefig(fig)
     plt.close(fig)
 
@@ -383,7 +385,7 @@ class TestTransformOperations:
             pdf_path = RESULT_DIR / f"test_transform_report_{request.node.name}.pdf"
             with PdfPages(pdf_path) as pdf:
                 for result in cls._saved_results:
-                    render_df_to_pdf_page(pdf, result["test_name"], result["method_call"], result["original_df"], result["memframe_df"], result["pandas_df"], result["backend"], result.get("status", "PASSED"), result.get("error_message", ""))
+                    render_df_to_pdf_page(pdf, result["test_name"], result["method_call"], result["original_df"], result["memframe_df"], result["pandas_df"], result["backend"], result.get("status", "PASSED"), result.get("error_message", ""), result.get("pandas_call", ""))
             print(f"\n\nTest report saved to: {pdf_path}\n")
 
     @pytest.fixture(autouse=True)
@@ -431,9 +433,9 @@ class TestTransformOperations:
         backend_config = frame_locals.get("backend_config") or {}
         self._record_result(test_name=request.node.name, method_call=request.node.name, original_df=original_df, memframe_df=memframe_df, pandas_df=pandas_df, backend=backend_config.get("connection_type", "unknown"), status="FAILED", error_message=error_message)
 
-    def _record_result(self, test_name, method_call, original_df, memframe_df, pandas_df, backend, status="PENDING", error_message=""):
+    def _record_result(self, test_name, method_call, original_df, memframe_df, pandas_df, backend, status="PENDING", error_message="", pandas_call=""):
         if self._save_to_file:
-            result = {"test_name": test_name, "method_call": method_call, "original_df": _prepare_pdf_df(_coerce_pdf_df(original_df, "No original data")), "memframe_df": _prepare_pdf_df(_coerce_pdf_df(memframe_df, "No MemFrame result")), "pandas_df": _prepare_pdf_df(_coerce_pdf_df(pandas_df, "No pandas result")), "backend": backend, "status": status, "error_message": error_message}
+            result = {"test_name": test_name, "method_call": method_call, "original_df": _prepare_pdf_df(_coerce_pdf_df(original_df, "No original data")), "memframe_df": _prepare_pdf_df(_coerce_pdf_df(memframe_df, "No MemFrame result")), "pandas_df": _prepare_pdf_df(_coerce_pdf_df(pandas_df, "No pandas result")), "backend": backend, "status": status, "error_message": error_message, "pandas_call": pandas_call}
             self._saved_results.append(result)
             current_records = getattr(self, "_current_pdf_records", None)
             if status == "PENDING" and current_records is not None:
@@ -455,7 +457,7 @@ class TestTransformOperations:
         actual_vals = res_df[new_col] if new_col else res_df["numeric1"]
         expected_vals = (sample_df["numeric1"] - sample_df["numeric1"].mean()) / sample_df["numeric1"].std(ddof=0)
         assert_series_equal_loose(actual_vals.astype(float), expected_vals.astype(float))
-        self._record_result(test_name="scale", method_call='uploaded_ctx.scale("numeric1")', original_df=sample_df, memframe_df=res_df, pandas_df=sample_df.assign(scaled=expected_vals), backend=backend_config["connection_type"])
+        self._record_result(test_name="scale", method_call='uploaded_ctx.scale("numeric1")', original_df=sample_df, memframe_df=res_df, pandas_df=sample_df.assign(scaled=expected_vals), backend=backend_config["connection_type"], pandas_call='(df["numeric1"] - df["numeric1"].mean()) / df["numeric1"].std(ddof=0)')
 
     def test_minmax(self, uploaded_ctx, sample_df, backend_config):
         result = uploaded_ctx.minmax("numeric1")
@@ -464,7 +466,7 @@ class TestTransformOperations:
         actual_vals = res_df[new_col] if new_col else res_df["numeric1"]
         expected_vals = (sample_df["numeric1"] - sample_df["numeric1"].min()) / (sample_df["numeric1"].max() - sample_df["numeric1"].min())
         assert_series_equal_loose(actual_vals.astype(float), expected_vals.astype(float))
-        self._record_result(test_name="minmax", method_call='uploaded_ctx.minmax("numeric1")', original_df=sample_df, memframe_df=res_df, pandas_df=sample_df.assign(minmax=expected_vals), backend=backend_config["connection_type"])
+        self._record_result(test_name="minmax", method_call='uploaded_ctx.minmax("numeric1")', original_df=sample_df, memframe_df=res_df, pandas_df=sample_df.assign(minmax=expected_vals), backend=backend_config["connection_type"], pandas_call='(df["numeric1"] - df["numeric1"].min()) / (df["numeric1"].max() - df["numeric1"].min())')
 
     def test_bin(self, uploaded_ctx, sample_df, backend_config):
         result = uploaded_ctx.bin("numeric1", bins=3, strategy="uniform")
@@ -473,14 +475,14 @@ class TestTransformOperations:
         actual_vals = res_df[new_col] if new_col else res_df["numeric1"]
         expected_vals = pd.cut(sample_df["numeric1"], bins=3, labels=False) + 1
         assert_series_equal_loose(_extract_bin_index(actual_vals), expected_vals.astype(float))
-        self._record_result(test_name="bin", method_call='uploaded_ctx.bin("numeric1", bins=3, strategy="uniform")', original_df=sample_df, memframe_df=res_df, pandas_df=sample_df.assign(binned=expected_vals), backend=backend_config["connection_type"])
+        self._record_result(test_name="bin", method_call='uploaded_ctx.bin("numeric1", bins=3, strategy="uniform")', original_df=sample_df, memframe_df=res_df, pandas_df=sample_df.assign(binned=expected_vals), backend=backend_config["connection_type"], pandas_call='pd.cut(df["numeric1"], bins=3, labels=False) + 1')
 
     def test_poly(self, uploaded_ctx, sample_df, backend_config):
         result = uploaded_ctx.poly("numeric1", degree=2)
         res_df = get_result_df(result)
         new_cols = [c for c in res_df.columns if c not in sample_df.columns]
         assert len(new_cols) > 0
-        self._record_result(test_name="poly", method_call='uploaded_ctx.poly("numeric1", degree=2)', original_df=sample_df, memframe_df=res_df, pandas_df=res_df, backend=backend_config["connection_type"])
+        self._record_result(test_name="poly", method_call='uploaded_ctx.poly("numeric1", degree=2)', original_df=sample_df, memframe_df=res_df, pandas_df=res_df, backend=backend_config["connection_type"], pandas_call='df["numeric1"] ** 2  # plus lower-degree terms')
 
     def test_interact(self, uploaded_ctx, sample_df, backend_config):
         result = uploaded_ctx.interact("numeric1", "numeric2")
@@ -490,7 +492,7 @@ class TestTransformOperations:
         expected_product = sample_df["numeric1"] * sample_df["numeric2"]
         found = any(np.allclose(res_df[col].astype(float), expected_product.astype(float)) for col in new_cols)
         assert found, "Interaction term not found"
-        self._record_result(test_name="interact", method_call='uploaded_ctx.interact("numeric1", "numeric2")', original_df=sample_df, memframe_df=res_df, pandas_df=res_df, backend=backend_config["connection_type"])
+        self._record_result(test_name="interact", method_call='uploaded_ctx.interact("numeric1", "numeric2")', original_df=sample_df, memframe_df=res_df, pandas_df=res_df, backend=backend_config["connection_type"], pandas_call='df["numeric1"] * df["numeric2"]')
 
     # ----------------------------------------------------------------
     # Categorical encoding
@@ -500,7 +502,7 @@ class TestTransformOperations:
         res_df = get_result_df(result)
         for cat in sample_df["category_col"].unique():
             assert f"transformed_category_col_{cat}" in res_df.columns
-        self._record_result(test_name="onehot", method_call='uploaded_ctx.onehot("category_col")', original_df=sample_df, memframe_df=res_df, pandas_df=pd.get_dummies(sample_df, columns=["category_col"]), backend=backend_config["connection_type"])
+        self._record_result(test_name="onehot", method_call='uploaded_ctx.onehot("category_col")', original_df=sample_df, memframe_df=res_df, pandas_df=pd.get_dummies(sample_df, columns=["category_col"]), backend=backend_config["connection_type"], pandas_call='pd.get_dummies(df, columns=["category_col"])')
 
     def test_label(self, uploaded_ctx, sample_df, backend_config):
         result = uploaded_ctx.label_encode("category_col")
@@ -520,7 +522,7 @@ class TestTransformOperations:
         assert set(mapping.values()) == set(range(len(mapping))), f"labels not 0..n-1: {mapping}"
         assert len(mapping) == sample_df["category_col"].nunique()
         expected_labels, _ = pd.factorize(sample_df["category_col"])
-        self._record_result(test_name="label", method_call='uploaded_ctx.label_encode("category_col")', original_df=sample_df, memframe_df=res_df, pandas_df=sample_df.assign(label=expected_labels), backend=backend_config["connection_type"])
+        self._record_result(test_name="label", method_call='uploaded_ctx.label_encode("category_col")', original_df=sample_df, memframe_df=res_df, pandas_df=sample_df.assign(label=expected_labels), backend=backend_config["connection_type"], pandas_call='df["category_col"].map({cat: i for i, cat in enumerate(cats)})')
 
     def test_frequency(self, uploaded_ctx, sample_df, backend_config):
         result = uploaded_ctx.frequency_encode("category_col")
@@ -530,7 +532,7 @@ class TestTransformOperations:
         freq_map = sample_df["category_col"].value_counts(normalize=True)
         expected_freq = sample_df["category_col"].map(freq_map)
         assert_series_equal_loose(actual_vals.astype(float), expected_freq.astype(float))
-        self._record_result(test_name="frequency", method_call='uploaded_ctx.frequency_encode("category_col")', original_df=sample_df, memframe_df=res_df, pandas_df=sample_df.assign(freq=expected_freq), backend=backend_config["connection_type"])
+        self._record_result(test_name="frequency", method_call='uploaded_ctx.frequency_encode("category_col")', original_df=sample_df, memframe_df=res_df, pandas_df=sample_df.assign(freq=expected_freq), backend=backend_config["connection_type"], pandas_call='df["category_col"].map(df["category_col"].value_counts(normalize=True))')
 
     def test_target_encoding(self, uploaded_ctx, sample_df, backend_config):
         result = uploaded_ctx.target_encode("category_col", target_column="target_col")
@@ -542,7 +544,7 @@ class TestTransformOperations:
         smooth = (grp["mean"] * grp["count"] + global_mean * 10) / (grp["count"] + 10)
         expected = sample_df["category_col"].map(smooth)
         assert_series_equal_loose(actual_vals.astype(float), expected.astype(float))
-        self._record_result(test_name="target_encoding", method_call='uploaded_ctx.target_encode("category_col", target_column="target_col")', original_df=sample_df, memframe_df=res_df, pandas_df=sample_df.assign(encoded=expected), backend=backend_config["connection_type"])
+        self._record_result(test_name="target_encoding", method_call='uploaded_ctx.target_encode("category_col", target_column="target_col")', original_df=sample_df, memframe_df=res_df, pandas_df=sample_df.assign(encoded=expected), backend=backend_config["connection_type"], pandas_call='df["category_col"].map(smooth_target_means)')
 
     def test_binarize_value(self, uploaded_ctx, sample_df, backend_config):
         result = uploaded_ctx.binarize("category_col", value="A")
@@ -551,7 +553,7 @@ class TestTransformOperations:
         actual_vals = res_df[new_col] if new_col else res_df["category_col"]
         expected = (sample_df["category_col"] == "A").astype(int)
         assert_series_equal_loose(actual_vals.astype(int), expected)
-        self._record_result(test_name="binarize_value", method_call='uploaded_ctx.binarize("category_col", value="A")', original_df=sample_df, memframe_df=res_df, pandas_df=sample_df.assign(binarized=expected), backend=backend_config["connection_type"])
+        self._record_result(test_name="binarize_value", method_call='uploaded_ctx.binarize("category_col", value="A")', original_df=sample_df, memframe_df=res_df, pandas_df=sample_df.assign(binarized=expected), backend=backend_config["connection_type"], pandas_call='(df["category_col"] == "A").astype(int)')
 
     def test_binarize_condition(self, uploaded_ctx, sample_df, backend_config):
         result = uploaded_ctx.binarize("numeric1", condition="> 30")
@@ -560,7 +562,7 @@ class TestTransformOperations:
         actual_vals = res_df[new_col] if new_col else res_df["numeric1"]
         expected = (sample_df["numeric1"] > 30).astype(int)
         assert_series_equal_loose(actual_vals.astype(int), expected)
-        self._record_result(test_name="binarize_condition", method_call='uploaded_ctx.binarize("numeric1", condition="> 30")', original_df=sample_df, memframe_df=res_df, pandas_df=sample_df.assign(cond=expected), backend=backend_config["connection_type"])
+        self._record_result(test_name="binarize_condition", method_call='uploaded_ctx.binarize("numeric1", condition="> 30")', original_df=sample_df, memframe_df=res_df, pandas_df=sample_df.assign(cond=expected), backend=backend_config["connection_type"], pandas_call='(df["numeric1"] > 30).astype(int)')
 
     # ----------------------------------------------------------------
     # Datetime cyclical encoding
@@ -571,7 +573,7 @@ class TestTransformOperations:
         res_df = get_result_df(result)
         expected_cols = [c for c in res_df.columns if "date_col" in c and ("sin" in c or "cos" in c)]
         assert len(expected_cols) >= 2
-        self._record_result(test_name="cyclical", method_call='uploaded_ctx.cyclical_encode("date_col", features=["month", "dow"])', original_df=sample_df, memframe_df=res_df, pandas_df=res_df, backend=backend_config["connection_type"])
+        self._record_result(test_name="cyclical", method_call='uploaded_ctx.cyclical_encode("date_col", features=["month", "dow"])', original_df=sample_df, memframe_df=res_df, pandas_df=res_df, backend=backend_config["connection_type"], pandas_call='np.sin(2 * np.pi * df["date_col"].dt.month / 12)  # + cos/dow terms')
 
     # ----------------------------------------------------------------
     # Aliases
@@ -580,7 +582,7 @@ class TestTransformOperations:
         result = uploaded_ctx.get_dummies("category_col")
         res_df = get_result_df(result)
         assert any("category_col" in col for col in res_df.columns if col != "category_col")
-        self._record_result(test_name="get_dummies", method_call='uploaded_ctx.get_dummies("category_col")', original_df=sample_df, memframe_df=res_df, pandas_df=pd.get_dummies(sample_df, columns=["category_col"]), backend=backend_config["connection_type"])
+        self._record_result(test_name="get_dummies", method_call='uploaded_ctx.get_dummies("category_col")', original_df=sample_df, memframe_df=res_df, pandas_df=pd.get_dummies(sample_df, columns=["category_col"]), backend=backend_config["connection_type"], pandas_call='pd.get_dummies(df, columns=["category_col"])')
 
     def test_cut(self, uploaded_ctx, sample_df, backend_config):
         result = uploaded_ctx.cut("numeric1", bins=3)
@@ -589,7 +591,7 @@ class TestTransformOperations:
         actual_vals = res_df[new_col] if new_col else res_df["numeric1"]
         expected = pd.cut(sample_df["numeric1"], bins=3, labels=False) + 1
         assert_series_equal_loose(_extract_bin_index(actual_vals), expected.astype(float))
-        self._record_result(test_name="cut", method_call='uploaded_ctx.cut("numeric1", bins=3)', original_df=sample_df, memframe_df=res_df, pandas_df=sample_df.assign(binned=expected), backend=backend_config["connection_type"])
+        self._record_result(test_name="cut", method_call='uploaded_ctx.cut("numeric1", bins=3)', original_df=sample_df, memframe_df=res_df, pandas_df=sample_df.assign(binned=expected), backend=backend_config["connection_type"], pandas_call='pd.cut(df["numeric1"], bins=3, labels=False) + 1')
 
     def test_qcut(self, uploaded_ctx, sample_df, backend_config):
         result = uploaded_ctx.qcut("numeric1", bins=2)
@@ -600,7 +602,7 @@ class TestTransformOperations:
         # so check structure not exact bin assignment
         assert set(actual_vals.dropna().unique()) == {1.0, 2.0}
         assert len(actual_vals) == len(sample_df)
-        self._record_result(test_name="qcut", method_call='uploaded_ctx.qcut("numeric1", bins=2)', original_df=sample_df, memframe_df=res_df, pandas_df=res_df, backend=backend_config["connection_type"])
+        self._record_result(test_name="qcut", method_call='uploaded_ctx.qcut("numeric1", bins=2)', original_df=sample_df, memframe_df=res_df, pandas_df=res_df, backend=backend_config["connection_type"], pandas_call='pd.qcut(df["numeric1"], q=2, labels=False)')
 
     def test_robust_scale(self, uploaded_ctx, sample_df, backend_config):
         result = uploaded_ctx.robust_scale("numeric1")
@@ -613,7 +615,7 @@ class TestTransformOperations:
         iqr = q75 - q25
         expected_vals = (sample_df["numeric1"] - median) / iqr if iqr != 0 else sample_df["numeric1"] * 0
         assert_series_equal_loose(actual_vals.astype(float), expected_vals.astype(float))
-        self._record_result(test_name="robust_scale", method_call='uploaded_ctx.robust_scale("numeric1")', original_df=sample_df, memframe_df=res_df, pandas_df=sample_df.assign(robust=expected_vals), backend=backend_config["connection_type"])
+        self._record_result(test_name="robust_scale", method_call='uploaded_ctx.robust_scale("numeric1")', original_df=sample_df, memframe_df=res_df, pandas_df=sample_df.assign(robust=expected_vals), backend=backend_config["connection_type"], pandas_call='(df["numeric1"] - median) / iqr')
 
     def test_maxabs_scale(self, uploaded_ctx, sample_df, backend_config):
         result = uploaded_ctx.maxabs_scale("numeric1")
@@ -623,7 +625,7 @@ class TestTransformOperations:
         max_abs = sample_df["numeric1"].abs().max()
         expected_vals = sample_df["numeric1"] / max_abs if max_abs != 0 else sample_df["numeric1"] * 0
         assert_series_equal_loose(actual_vals.astype(float), expected_vals.astype(float))
-        self._record_result(test_name="maxabs_scale", method_call='uploaded_ctx.maxabs_scale("numeric1")', original_df=sample_df, memframe_df=res_df, pandas_df=sample_df.assign(maxabs=expected_vals), backend=backend_config["connection_type"])
+        self._record_result(test_name="maxabs_scale", method_call='uploaded_ctx.maxabs_scale("numeric1")', original_df=sample_df, memframe_df=res_df, pandas_df=sample_df.assign(maxabs=expected_vals), backend=backend_config["connection_type"], pandas_call='df["numeric1"] / max_abs')
 
     def test_normalize(self, uploaded_ctx, sample_df, backend_config):
         result = uploaded_ctx.normalize("numeric1")
@@ -633,7 +635,7 @@ class TestTransformOperations:
         # ponytail: single-col L2 → sign
         expected_vals = sample_df["numeric1"].apply(lambda x: 0 if x == 0 else (1 if x > 0 else -1) if pd.notna(x) else np.nan)
         assert_series_equal_loose(actual_vals.astype(float), expected_vals.astype(float))
-        self._record_result(test_name="normalize", method_call='uploaded_ctx.normalize("numeric1")', original_df=sample_df, memframe_df=res_df, pandas_df=sample_df.assign(norm=expected_vals), backend=backend_config["connection_type"])
+        self._record_result(test_name="normalize", method_call='uploaded_ctx.normalize("numeric1")', original_df=sample_df, memframe_df=res_df, pandas_df=sample_df.assign(norm=expected_vals), backend=backend_config["connection_type"], pandas_call='(s - s.min()) / (s.max() - s.min())  # s = df["numeric1"]')
 
     def test_log_transform(self, uploaded_ctx, sample_df, backend_config):
         result = uploaded_ctx.log_transform("numeric1", base="e", epsilon=0)
@@ -642,7 +644,7 @@ class TestTransformOperations:
         actual_vals = res_df[new_col] if new_col else res_df["numeric1"]
         expected_vals = np.log(sample_df["numeric1"].astype(float))
         assert_series_equal_loose(actual_vals.astype(float), expected_vals.astype(float))
-        self._record_result(test_name="log_transform", method_call='uploaded_ctx.log_transform("numeric1")', original_df=sample_df, memframe_df=res_df, pandas_df=sample_df.assign(log=expected_vals), backend=backend_config["connection_type"])
+        self._record_result(test_name="log_transform", method_call='uploaded_ctx.log_transform("numeric1")', original_df=sample_df, memframe_df=res_df, pandas_df=sample_df.assign(log=expected_vals), backend=backend_config["connection_type"], pandas_call='np.log(df["numeric1"].astype(float))')
 
     def test_quantile_transform(self, uploaded_ctx, sample_df, backend_config):
         result = uploaded_ctx.quantile_transform("numeric1")
@@ -653,7 +655,7 @@ class TestTransformOperations:
         ranked = sample_df["numeric1"].rank(method="min").astype(float) - 1
         expected_vals = ranked / (len(sample_df) - 1)
         assert_series_equal_loose(actual_vals.astype(float), expected_vals.astype(float))
-        self._record_result(test_name="quantile_transform", method_call='uploaded_ctx.quantile_transform("numeric1")', original_df=sample_df, memframe_df=res_df, pandas_df=sample_df.assign(quantile=expected_vals), backend=backend_config["connection_type"])
+        self._record_result(test_name="quantile_transform", method_call='uploaded_ctx.quantile_transform("numeric1")', original_df=sample_df, memframe_df=res_df, pandas_df=sample_df.assign(quantile=expected_vals), backend=backend_config["connection_type"], pandas_call='ranked / (len(df) - 1)  # ranked = df["numeric1"].rank()')
 
     def test_power_transform(self, uploaded_ctx, sample_df, backend_config):
         result = uploaded_ctx.power_transform("numeric1", method="yeo-johnson")
@@ -662,7 +664,7 @@ class TestTransformOperations:
         actual_vals = res_df[new_col] if new_col else res_df["numeric1"]
         expected_vals = np.sign(sample_df["numeric1"].astype(float)) * np.power(np.abs(sample_df["numeric1"].astype(float)), 0.5)
         assert_series_equal_loose(actual_vals.astype(float), expected_vals.astype(float))
-        self._record_result(test_name="power_transform", method_call='uploaded_ctx.power_transform("numeric1")', original_df=sample_df, memframe_df=res_df, pandas_df=sample_df.assign(power=expected_vals), backend=backend_config["connection_type"])
+        self._record_result(test_name="power_transform", method_call='uploaded_ctx.power_transform("numeric1")', original_df=sample_df, memframe_df=res_df, pandas_df=sample_df.assign(power=expected_vals), backend=backend_config["connection_type"], pandas_call='np.sign(df["numeric1"]) * np.power(np.abs(df["numeric1"]), 0.5)')
 
     def test_ordinal_encode(self, uploaded_ctx, sample_df, backend_config):
         result = uploaded_ctx.ordinal_encode("category_col")
@@ -674,7 +676,7 @@ class TestTransformOperations:
         mapping = {cat: i for i, cat in enumerate(cats)}
         expected_vals = sample_df["category_col"].map(mapping)
         assert_series_equal_loose(actual_vals.astype(int), expected_vals.astype(int))
-        self._record_result(test_name="ordinal_encode", method_call='uploaded_ctx.ordinal_encode("category_col")', original_df=sample_df, memframe_df=res_df, pandas_df=sample_df.assign(ordinal=expected_vals), backend=backend_config["connection_type"])
+        self._record_result(test_name="ordinal_encode", method_call='uploaded_ctx.ordinal_encode("category_col")', original_df=sample_df, memframe_df=res_df, pandas_df=sample_df.assign(ordinal=expected_vals), backend=backend_config["connection_type"], pandas_call='df["category_col"].map({cat: i for i, cat in enumerate(cats)})')
 
     # ----------------------------------------------------------------
     # Mutation safety
@@ -690,4 +692,4 @@ class TestTransformOperations:
                     left = pd.to_datetime(left, errors="coerce").dt.strftime("%Y-%m-%d %H:%M:%S")
                     right = pd.to_datetime(right, errors="coerce").dt.strftime("%Y-%m-%d %H:%M:%S")
                 assert_series_equal_loose(left, right)
-        self._record_result(test_name="mutation_safety", method_call="scale then check original unchanged", original_df=sample_df, memframe_df=original, pandas_df=sample_df, backend=backend_config["connection_type"])
+        self._record_result(test_name="mutation_safety", method_call="scale then check original unchanged", original_df=sample_df, memframe_df=original, pandas_df=sample_df, backend=backend_config["connection_type"], pandas_call='sample_df  # unchanged by scale')
