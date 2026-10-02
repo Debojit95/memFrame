@@ -404,6 +404,7 @@ def render_df_to_pdf_page(
     backend,
     status="PASSED",
     error_message="",
+    pandas_call="",
 ):
     sections = [
         ("Original", original_df.head(10)),
@@ -414,8 +415,10 @@ def render_df_to_pdf_page(
     fig, axes = plt.subplots(3, 1, figsize=(16, fig_height))
     fig.suptitle(f"{title}  [{backend}]  {status}", fontsize=12, fontweight="bold")
     fig.text(0.01, 0.965, f"Call: {method_call}", fontsize=10, family="monospace")
+    if pandas_call:
+        fig.text(0.01, 0.94, f"Pandas: {pandas_call}", fontsize=10, family="monospace")
     if error_message:
-        fig.text(0.01, 0.94, f"Failure: {error_message}", fontsize=9, color="crimson")
+        fig.text(0.01, 0.915, f"Failure: {error_message}", fontsize=9, color="crimson")
 
     for ax, (label, df) in zip(axes, sections):
         ax.axis("off")
@@ -433,7 +436,7 @@ def render_df_to_pdf_page(
         table.set_fontsize(8)
         table.scale(1.1, 1.2)
 
-    plt.tight_layout(rect=[0, 0, 1, 0.95])
+    plt.tight_layout(rect=[0, 0, 1, 0.93])
     pdf.savefig(fig)
     plt.close(fig)
 
@@ -465,6 +468,7 @@ class TestDateTimeOperations:
                         result["backend"],
                         result.get("status", "PASSED"),
                         result.get("error_message", ""),
+                        result.get("pandas_call", ""),
                     )
             print(f"\n\nTest report saved to: {pdf_path}\n")
 
@@ -549,6 +553,7 @@ class TestDateTimeOperations:
         backend: str,
         status: str = "PENDING",
         error_message: str = "",
+        pandas_call: str = "",
     ):
         if self._save_to_file:
             result = {
@@ -560,6 +565,7 @@ class TestDateTimeOperations:
                 "backend": backend,
                 "status": status,
                 "error_message": error_message,
+                "pandas_call": pandas_call,
             }
             self._saved_results.append(result)
             current_records = getattr(self, "_current_pdf_records", None)
@@ -579,6 +585,7 @@ class TestDateTimeOperations:
         self._record_result(
             test_name="year",
             method_call='uploaded_ctx.dt.year("ts")',
+            pandas_call='df["ts"].dt.year',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -595,6 +602,7 @@ class TestDateTimeOperations:
         self._record_result(
             test_name="month",
             method_call='uploaded_ctx.dt.month("ts")',
+            pandas_call='df["ts"].dt.month',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -611,6 +619,7 @@ class TestDateTimeOperations:
         self._record_result(
             test_name="day",
             method_call='uploaded_ctx.dt.day("ts")',
+            pandas_call='df["ts"].dt.day',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -627,6 +636,7 @@ class TestDateTimeOperations:
         self._record_result(
             test_name="hour",
             method_call='uploaded_ctx.dt.hour("ts")',
+            pandas_call='df["ts"].dt.hour',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -643,6 +653,7 @@ class TestDateTimeOperations:
         self._record_result(
             test_name="minute",
             method_call='uploaded_ctx.dt.minute("ts")',
+            pandas_call='df["ts"].dt.minute',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -659,6 +670,7 @@ class TestDateTimeOperations:
         self._record_result(
             test_name="second",
             method_call='uploaded_ctx.dt.second("ts")',
+            pandas_call='df["ts"].dt.second',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -677,6 +689,7 @@ class TestDateTimeOperations:
         self._record_result(
             test_name="dayofweek",
             method_call='uploaded_ctx.dt.dayofweek("ts")',
+            pandas_call='(df["ts"].dt.dayofweek + 1) % 7',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -693,6 +706,7 @@ class TestDateTimeOperations:
         self._record_result(
             test_name="dayofyear",
             method_call='uploaded_ctx.dt.dayofyear("ts")',
+            pandas_call='df["ts"].dt.dayofyear',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -709,6 +723,7 @@ class TestDateTimeOperations:
         self._record_result(
             test_name="week",
             method_call='uploaded_ctx.dt.week("ts")',
+            pandas_call='df["ts"].dt.isocalendar().week.astype(int)',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -725,6 +740,7 @@ class TestDateTimeOperations:
         self._record_result(
             test_name="quarter",
             method_call='uploaded_ctx.dt.quarter("ts")',
+            pandas_call='df["ts"].dt.quarter',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -744,6 +760,7 @@ class TestDateTimeOperations:
         self._record_result(
             test_name="floor_day",
             method_call='uploaded_ctx.dt.floor("ts", "day")',
+            pandas_call='df["ts"].dt.floor("D")',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -760,6 +777,7 @@ class TestDateTimeOperations:
         self._record_result(
             test_name="ceil_hour",
             method_call='uploaded_ctx.dt.ceil("ts", "hour")',
+            pandas_call='df["ts"].dt.ceil("h")',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -784,6 +802,7 @@ class TestDateTimeOperations:
         self._record_result(
             test_name="round_month",
             method_call='uploaded_ctx.dt.round("ts", "month")',
+            pandas_call='df["ts"].apply(round_to_month)',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -804,6 +823,7 @@ class TestDateTimeOperations:
         self._record_result(
             test_name="tz_localize",
             method_call='uploaded_ctx.dt.tz_localize("ts", "UTC")',
+            pandas_call='df["ts"].dt.tz_localize("UTC")',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -822,6 +842,7 @@ class TestDateTimeOperations:
         self._record_result(
             test_name="tz_convert",
             method_call='uploaded_ctx.dt.tz_convert("ts_tz", "America/New_York")',
+            pandas_call='df["ts_tz"].dt.tz_convert("America/New_York")',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -841,6 +862,7 @@ class TestDateTimeOperations:
         self._record_result(
             test_name="is_month_start",
             method_call='uploaded_ctx.dt.is_month_start("ts")',
+            pandas_call='df["ts"].dt.is_month_start.astype(int)',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -857,6 +879,7 @@ class TestDateTimeOperations:
         self._record_result(
             test_name="is_month_end",
             method_call='uploaded_ctx.dt.is_month_end("ts")',
+            pandas_call='df["ts"].dt.is_month_end.astype(int)',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -873,6 +896,7 @@ class TestDateTimeOperations:
         self._record_result(
             test_name="is_year_start",
             method_call='uploaded_ctx.dt.is_year_start("ts")',
+            pandas_call='df["ts"].dt.is_year_start.astype(int)',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -889,6 +913,7 @@ class TestDateTimeOperations:
         self._record_result(
             test_name="is_year_end",
             method_call='uploaded_ctx.dt.is_year_end("ts")',
+            pandas_call='df["ts"].dt.is_year_end.astype(int)',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -905,6 +930,7 @@ class TestDateTimeOperations:
         self._record_result(
             test_name="is_quarter_start",
             method_call='uploaded_ctx.dt.is_quarter_start("ts")',
+            pandas_call='df["ts"].dt.is_quarter_start.astype(int)',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -921,6 +947,7 @@ class TestDateTimeOperations:
         self._record_result(
             test_name="is_quarter_end",
             method_call='uploaded_ctx.dt.is_quarter_end("ts")',
+            pandas_call='df["ts"].dt.is_quarter_end.astype(int)',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -937,6 +964,7 @@ class TestDateTimeOperations:
         self._record_result(
             test_name="is_weekend",
             method_call='uploaded_ctx.dt.is_weekend("ts")',
+            pandas_call='(df["ts"].dt.dayofweek >= 5).astype(int)',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -953,6 +981,7 @@ class TestDateTimeOperations:
         self._record_result(
             test_name="is_weekday",
             method_call='uploaded_ctx.dt.is_weekday("ts")',
+            pandas_call='(df["ts"].dt.dayofweek < 5).astype(int)',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -970,6 +999,7 @@ class TestDateTimeOperations:
         self._record_result(
             test_name="is_business_day",
             method_call='uploaded_ctx.dt.is_business_day("ts")',
+            pandas_call='(df["ts"].dt.dayofweek < 5).astype(int)',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -987,6 +1017,7 @@ class TestDateTimeOperations:
         self._record_result(
             test_name="days_in_month",
             method_call='uploaded_ctx.dt.days_in_month("ts")',
+            pandas_call='df["ts"].dt.days_in_month',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -1013,6 +1044,7 @@ class TestDateTimeOperations:
         self._record_result(
             test_name="week_of_month",
             method_call='uploaded_ctx.dt.week_of_month("ts")',
+            pandas_call='df["ts"]  # week number 1-5, numbering is library-specific',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -1034,6 +1066,7 @@ class TestDateTimeOperations:
         self._record_result(
             test_name="timestamp",
             method_call='uploaded_ctx.dt.timestamp("ts")',
+            pandas_call='df["ts"].astype("int64") // 10**9',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -1055,6 +1088,7 @@ class TestDateTimeOperations:
         self._record_result(
             test_name="from_timestamp",
             method_call='uploaded_ctx.dt.from_timestamp(column="unix_ts")',
+            pandas_call='pd.to_datetime(df["unix_ts"], unit="s")',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -1074,6 +1108,7 @@ class TestDateTimeOperations:
         self._record_result(
             test_name="strftime",
             method_call='uploaded_ctx.dt.strftime("ts", "%Y-%m-%d")',
+            pandas_call='df["ts"].dt.strftime("%Y-%m-%d")',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -1091,6 +1126,7 @@ class TestDateTimeOperations:
         self._record_result(
             test_name="strptime",
             method_call='uploaded_ctx.dt.strptime("str_date", "%Y-%m-%d")',
+            pandas_call='pd.to_datetime(df["str_date"], format="%Y-%m-%d")',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -1110,6 +1146,7 @@ class TestDateTimeOperations:
         self._record_result(
             test_name="add_timedelta",
             method_call='uploaded_ctx.dt.add("ts", "2 days")',
+            pandas_call='df["ts"] + pd.Timedelta("2 days")',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -1126,6 +1163,7 @@ class TestDateTimeOperations:
         self._record_result(
             test_name="sub_timedelta",
             method_call='uploaded_ctx.dt.sub("ts", "3 hours")',
+            pandas_call='df["ts"] - pd.Timedelta("3 hours")',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -1147,6 +1185,7 @@ class TestDateTimeOperations:
         self._record_result(
             test_name="replace",
             method_call='uploaded_ctx.dt.replace("ts", year=2025, month=1, day=1)',
+            pandas_call='df["ts"].apply(lambda x: x.replace(year=2025, month=1, day=1))',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -1163,6 +1202,7 @@ class TestDateTimeOperations:
         self._record_result(
             test_name="normalize",
             method_call='uploaded_ctx.dt.normalize("ts")',
+            pandas_call='df["ts"].dt.normalize()',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -1182,6 +1222,7 @@ class TestDateTimeOperations:
         self._record_result(
             test_name="day_name",
             method_call='uploaded_ctx.dt.day_name("ts")',
+            pandas_call='df["ts"].dt.day_name()',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -1198,6 +1239,7 @@ class TestDateTimeOperations:
         self._record_result(
             test_name="month_name",
             method_call='uploaded_ctx.dt.month_name("ts")',
+            pandas_call='df["ts"].dt.month_name()',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -1217,6 +1259,7 @@ class TestDateTimeOperations:
         self._record_result(
             test_name="diff_days",
             method_call='uploaded_ctx.dt.diff("ts", "ts2")',
+            pandas_call='(df["ts2"] - df["ts"]).dt.total_seconds() / 86400',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -1233,6 +1276,7 @@ class TestDateTimeOperations:
         self._record_result(
             test_name="diff_hours_target_col",
             method_call='uploaded_ctx.dt.diff("ts", "ts2", unit="hour", target_col="gap_h")',
+            pandas_call='(df["ts2"] - df["ts"]).dt.total_seconds() / 3600',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -1252,6 +1296,7 @@ class TestDateTimeOperations:
         self._record_result(
             test_name="to_datetime",
             method_call='uploaded_ctx.dt.to_datetime("str_dt")',
+            pandas_call='pd.to_datetime(df["str_dt"])',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -1268,6 +1313,7 @@ class TestDateTimeOperations:
         self._record_result(
             test_name="to_datetime_unit",
             method_call='uploaded_ctx.dt.to_datetime("unix_ts", unit="s")',
+            pandas_call='pd.to_datetime(df["unix_ts"], unit="s")',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -1291,6 +1337,7 @@ class TestDateTimeOperations:
         self._record_result(
             test_name="to_datetime_coerce",
             method_call='to_datetime("s", errors="coerce")',
+            pandas_call='pd.to_datetime(df["s"], errors="coerce")',
             original_df=bad,
             memframe_df=res_df,
             pandas_df=expected,
@@ -1315,6 +1362,7 @@ class TestDateTimeOperations:
         self._record_result(
             test_name="between",
             method_call='uploaded_ctx.dt.between("ts", "2021-01-01", "2023-12-31")',
+            pandas_call='df[(df["ts"] >= "2021-01-01") & (df["ts"] <= "2023-12-31")]',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -1333,6 +1381,7 @@ class TestDateTimeOperations:
         self._record_result(
             test_name="before",
             method_call='uploaded_ctx.dt.before("ts", "2021-01-01")',
+            pandas_call='df[df["ts"] < "2021-01-01"]',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=sample_df.iloc[[0]],
@@ -1351,6 +1400,7 @@ class TestDateTimeOperations:
         self._record_result(
             test_name="after",
             method_call='uploaded_ctx.dt.after("ts", "2023-12-31")',
+            pandas_call='df[df["ts"] > "2023-12-31"]',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=sample_df.iloc[[4]],
@@ -1365,6 +1415,7 @@ class TestDateTimeOperations:
         self._record_result(
             test_name="select_year",
             method_call='uploaded_ctx.dt.select_year("ts", [2020, 2024])',
+            pandas_call='df[df["ts"].dt.year.isin([2020, 2024])]',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=sample_df.iloc[[0, 4]],
@@ -1383,6 +1434,7 @@ class TestDateTimeOperations:
         self._record_result(
             test_name="select_month",
             method_call='uploaded_ctx.dt.select_month("ts", [3])',
+            pandas_call='df[df["ts"].dt.month.isin([3])]',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=sample_df.iloc[[2]],
@@ -1424,6 +1476,7 @@ class TestDateTimeOperations:
         self._record_result(
             test_name="resample",
             method_call='uploaded_ctx.dt.resample(column="ts", freq="ME", agg="sum", value_columns="unix_ts")',
+            pandas_call='df.set_index("ts").resample("ME")["unix_ts"].sum()  # memframe buckets month starts',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -1441,6 +1494,7 @@ class TestDateTimeOperations:
         self._record_result(
             test_name="resample_count",
             method_call='uploaded_ctx.dt.resample(column="ts", freq="ME")',
+            pandas_call='df.assign(value=1).set_index("ts").resample("ME")["value"].count()',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -1466,6 +1520,7 @@ class TestDateTimeOperations:
         self._record_result(
             test_name="resample_multi_agg",
             method_call='uploaded_ctx.dt.resample(column="ts", freq="YE", agg={"unix_ts": ["sum", "mean"]})',
+            pandas_call='df.set_index("ts").resample("YE")["unix_ts"].agg(["sum", "mean"])',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -1498,6 +1553,7 @@ class TestDateTimeOperations:
         self._record_result(
             test_name="asfreq",
             method_call='uploaded_ctx.dt.asfreq(column="ts", freq="ME")',
+            pandas_call='pd.date_range("2020-01-01", "2024-05-01", freq="MS")',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -1516,6 +1572,7 @@ class TestDateTimeOperations:
         self._record_result(
             test_name="asfreq_ffill",
             method_call='uploaded_ctx.dt.asfreq(column="ts", freq="ME", method="ffill")',
+            pandas_call='df.set_index("ts").asfreq("ME", method="ffill")',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -1539,6 +1596,7 @@ class TestDateTimeOperations:
         self._record_result(
             test_name="add_offset_months",
             method_call='uploaded_ctx.dt.add_offset("ts", months=1)',
+            pandas_call='df["ts"] + pd.DateOffset(months=1)',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -1555,6 +1613,7 @@ class TestDateTimeOperations:
         self._record_result(
             test_name="add_offset_business_day",
             method_call='uploaded_ctx.dt.add_offset("ts", days=5, business_day=True)',
+            pandas_call='df["ts"] + pd.offsets.BusinessDay(5)',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -1573,6 +1632,7 @@ class TestDateTimeOperations:
         self._record_result(
             test_name="add_offset_combo_target_col",
             method_call='uploaded_ctx.dt.add_offset("ts", years=1, quarters=1, target_col="future")',
+            pandas_call='df["ts"] + pd.DateOffset(years=1, months=3)',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -1607,6 +1667,7 @@ class TestDateTimeOperations:
         self._record_result(
             test_name="mutation_safety",
             method_call='uploaded_ctx.dt.year("ts") → original checked',
+            pandas_call='sample_df  # unchanged by dt.year',
             original_df=sample_df,
             memframe_df=after_op,
             pandas_df=original_uploaded,
@@ -1649,6 +1710,7 @@ class TestDateTimeOperations:
         self._record_result(
             test_name="chaining",
             method_call="year → floor(month) → add(1 month) chain",
+            pandas_call='df["ts"].dt.year; df["ts"].dt.floor("D"); + pd.DateOffset(months=1)',
             original_df=sample_df,
             memframe_df=final_df,
             pandas_df=expected,
