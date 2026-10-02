@@ -438,6 +438,7 @@ def render_df_to_pdf_page(
     backend,
     status="PASSED",
     error_message="",
+    pandas_call="",
 ):
     """Create a single PDF page with method call + inputs + MemFrame/Pandas snapshots.
 
@@ -458,8 +459,10 @@ def render_df_to_pdf_page(
     fig, axes = plt.subplots(len(sections), 1, figsize=(16, fig_height))
     fig.suptitle(f"{title}  [{backend}]  {status}", fontsize=12, fontweight="bold")
     fig.text(0.01, 0.965, f"Call: {method_call}", fontsize=10, family="monospace")
+    if pandas_call:
+        fig.text(0.01, 0.94, f"Pandas: {pandas_call}", fontsize=10, family="monospace")
     if error_message:
-        fig.text(0.01, 0.94, f"Failure: {error_message}", fontsize=9, color="crimson")
+        fig.text(0.01, 0.915, f"Failure: {error_message}", fontsize=9, color="crimson")
 
     for ax, (label, df) in zip(axes, sections):
         ax.axis("off")
@@ -477,7 +480,7 @@ def render_df_to_pdf_page(
         table.set_fontsize(8)
         table.scale(1.1, 1.2)
 
-    plt.tight_layout(rect=[0, 0, 1, 0.95])
+    plt.tight_layout(rect=[0, 0, 1, 0.93])
     pdf.savefig(fig)
     plt.close(fig)
 
@@ -513,6 +516,7 @@ class TestMergingOperations:
                         result["backend"],
                         result.get("status", "PASSED"),
                         result.get("error_message", ""),
+                        result.get("pandas_call", ""),
                     )
             print(f"\n\nTest report saved to: {pdf_path}\n")
 
@@ -598,6 +602,7 @@ class TestMergingOperations:
         original_df2: pd.DataFrame = None,
         status: str = "PENDING",
         error_message: str = "",
+        pandas_call: str = "",
     ):
         """Store test result for PDF generation."""
         if self._save_to_file:
@@ -619,6 +624,7 @@ class TestMergingOperations:
                 "backend": backend,
                 "status": status,
                 "error_message": error_message,
+                "pandas_call": pandas_call,
             }
             self._saved_results.append(result)
             current_records = getattr(self, "_current_pdf_records", None)
@@ -644,6 +650,7 @@ class TestMergingOperations:
         self._record_result(
             test_name="merge_inner",
             method_call='left_ctx.merge(right_ctx, on="id", how="inner")',
+            pandas_call='pd.merge(left_df, right_df, on="id", how="inner")',
             original_df=left_df,
             original_df2=right_df,
             memframe_df=res_df,
@@ -672,6 +679,7 @@ class TestMergingOperations:
         self._record_result(
             test_name="merge_left",
             method_call='left_ctx.merge(right_ctx, on="id", how="left")',
+            pandas_call='pd.merge(left_df, right_df, on="id", how="left")',
             original_df=left_df,
             original_df2=right_df,
             memframe_df=res_df,
@@ -700,6 +708,7 @@ class TestMergingOperations:
         self._record_result(
             test_name="merge_right",
             method_call='left_ctx.merge(right_ctx, on="id", how="right")',
+            pandas_call='pd.merge(left_df, right_df, on="id", how="right")',
             original_df=left_df,
             original_df2=right_df,
             memframe_df=res_df,
@@ -727,6 +736,7 @@ class TestMergingOperations:
         self._record_result(
             test_name="merge_outer",
             method_call='left_ctx.merge(right_ctx, on="id", how="outer")',
+            pandas_call='pd.merge(left_df, right_df, on="id", how="outer")',
             original_df=left_df,
             original_df2=right_df,
             memframe_df=res_df,
@@ -762,6 +772,7 @@ class TestMergingOperations:
         self._record_result(
             test_name="join",
             method_call='left_ctx.join(right_ctx, on="id", how="left", lsuffix="_L", rsuffix="_R")',
+            pandas_call='pd.merge(left_df, right_df, on="id", how="left", suffixes=("_L", "_R"))',
             original_df=left_df,
             original_df2=right_df,
             memframe_df=res_df,
@@ -786,6 +797,7 @@ class TestMergingOperations:
         self._record_result(
             test_name="concat_axis0",
             method_call="concat_ctx1.concat([concat_ctx2], axis=0)",
+            pandas_call="pd.concat([concat_df1, concat_df2], axis=0, ignore_index=True)",
             original_df=concat_df1,
             original_df2=concat_df2,
             memframe_df=res_df,
@@ -814,6 +826,7 @@ class TestMergingOperations:
         self._record_result(
             test_name="mutation_safety",
             method_call="merge → check original left unchanged",
+            pandas_call='left_df  # unchanged by merge',
             original_df=left_df,
             original_df2=right_df,
             memframe_df=left_orig,
@@ -846,6 +859,7 @@ class TestMergingOperations:
         self._record_result(
             test_name="chain_merge_and_op",
             method_call="merge → upload → add",
+            pandas_call='pd.merge(left_df, right_df, on="id", how="inner"); df["salary"] + df["bonus"]',
             original_df=left_df,
             original_df2=right_df,
             memframe_df=add_df,
