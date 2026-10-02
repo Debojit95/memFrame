@@ -55,3 +55,28 @@ def test_stats_failure_has_result_key():
     assert response["result"] is None
     assert response["involved_cols"] == ["value"]
     assert response["generated_cols"] == []
+
+
+def test_value_counts_single_column(stats_context):
+    response = StatsWrapper(stats_context).value_counts("category")
+
+    assert response["is_error"] is False
+    assert response["result"] == {"a": 2, "b": 1}
+
+
+def test_value_counts_no_column_counts_all(stats_context):
+    response = StatsWrapper(stats_context).value_counts()
+
+    assert response["is_error"] is False
+    assert response["error_message"] is None
+    assert set(response["result"]) == {"value", "category"}
+    assert response["result"]["category"] == {"a": 2, "b": 1}
+    assert set(response["involved_cols"]) == {"value", "category"}
+
+
+def test_value_counts_no_column_top_n_caps_each(stats_context):
+    response = StatsWrapper(stats_context).value_counts(top_n=1)
+
+    assert response["is_error"] is False
+    assert response["result"]["category"] == {"a": 2}
+    assert len(response["result"]["value"]) == 1
