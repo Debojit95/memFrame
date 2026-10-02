@@ -433,6 +433,7 @@ def render_df_to_pdf_page(
     backend,
     status="PASSED",
     error_message="",
+    pandas_call="",
 ):
     """Create a single PDF page with method call + Original/MemFrame/Pandas snapshots."""
     sections = [
@@ -445,8 +446,10 @@ def render_df_to_pdf_page(
     fig, axes = plt.subplots(3, 1, figsize=(16, fig_height))
     fig.suptitle(f"{title}  [{backend}]  {status}", fontsize=12, fontweight="bold")
     fig.text(0.01, 0.965, f"Call: {method_call}", fontsize=10, family="monospace")
+    if pandas_call:
+        fig.text(0.01, 0.94, f"Pandas: {pandas_call}", fontsize=10, family="monospace")
     if error_message:
-        fig.text(0.01, 0.94, f"Failure: {error_message}", fontsize=9, color="crimson")
+        fig.text(0.01, 0.915, f"Failure: {error_message}", fontsize=9, color="crimson")
 
     for ax, (label, df) in zip(axes, sections):
         ax.axis("off")
@@ -464,7 +467,7 @@ def render_df_to_pdf_page(
         table.set_fontsize(8)
         table.scale(1.1, 1.2)
 
-    plt.tight_layout(rect=[0, 0, 1, 0.95])
+    plt.tight_layout(rect=[0, 0, 1, 0.93])
     pdf.savefig(fig)
     plt.close(fig)
 
@@ -525,6 +528,7 @@ class TestInspectionOperations:
                         result["backend"],
                         result.get("status", "PASSED"),
                         result.get("error_message", ""),
+                        result.get("pandas_call", ""),
                     )
             print(f"\n\nTest report saved to: {pdf_path}\n")
 
@@ -634,6 +638,7 @@ class TestInspectionOperations:
         backend: str,
         status: str = "PENDING",
         error_message: str = "",
+        pandas_call: str = "",
     ):
         """Store test result for PDF generation."""
         if self._save_to_file:
@@ -646,6 +651,7 @@ class TestInspectionOperations:
                 "backend": backend,
                 "status": status,
                 "error_message": error_message,
+                "pandas_call": pandas_call,
             }
             self._saved_results.append(result)
             current_records = getattr(self, "_current_pdf_records", None)
@@ -774,6 +780,7 @@ class TestInspectionOperations:
         self._record_result(
             test_name="null_analysis",
             method_call="uploaded_ctx.null_analysis()",
+            pandas_call='pd.DataFrame({"column": df.columns, "null_count": df.isnull().sum().values})',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -798,6 +805,7 @@ class TestInspectionOperations:
         self._record_result(
             test_name="corr",
             method_call="uploaded_ctx.corr()",
+            pandas_call='df.select_dtypes(include=np.number).corr()',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -835,6 +843,7 @@ class TestInspectionOperations:
         self._record_result(
             test_name="astype",
             method_call='uploaded_ctx.astype(columns=["salary"], dtypes=["str"])',
+            pandas_call='df.assign(salary_str=df["salary"].astype(str))',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=sample_df.assign(salary_str=sample_df["salary"].astype(str)),
@@ -870,6 +879,7 @@ class TestInspectionOperations:
         self._record_result(
             test_name="map",
             method_call='uploaded_ctx.map(func="salary + 1000", columns=["salary"])',
+            pandas_call='df["salary"] + 1000',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected.to_frame("mapped"),
@@ -894,6 +904,7 @@ class TestInspectionOperations:
         self._record_result(
             test_name="rename",
             method_call=f"uploaded_ctx.rename(columns={rename_map})",
+            pandas_call='df.rename(columns={"salary": "income", "bonus": "extra"})',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -941,6 +952,7 @@ class TestInspectionOperations:
         self._record_result(
             test_name="update",
             method_call=f'uploaded_ctx.update(on="id", other_table="{other_table}")',
+            pandas_call='df.loc[df["id"].isin([1, 3, 5]), "salary"] = [99999.0, 88888.0, 77777.0]',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
