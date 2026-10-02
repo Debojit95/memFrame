@@ -378,6 +378,7 @@ def render_df_to_pdf_page(
     backend,
     status="PASSED",
     error_message="",
+    pandas_call="",
 ):
     sections = [
         ("Original", original_df.head(10)),
@@ -388,8 +389,10 @@ def render_df_to_pdf_page(
     fig, axes = plt.subplots(3, 1, figsize=(16, fig_height))
     fig.suptitle(f"{title}  [{backend}]  {status}", fontsize=12, fontweight="bold")
     fig.text(0.01, 0.965, f"Call: {method_call}", fontsize=10, family="monospace")
+    if pandas_call:
+        fig.text(0.01, 0.94, f"Pandas: {pandas_call}", fontsize=10, family="monospace")
     if error_message:
-        fig.text(0.01, 0.94, f"Failure: {error_message}", fontsize=9, color="crimson")
+        fig.text(0.01, 0.915, f"Failure: {error_message}", fontsize=9, color="crimson")
     for ax, (label, df) in zip(axes, sections):
         ax.axis("off")
         ax.set_title(label, fontsize=10, loc="left")
@@ -400,7 +403,7 @@ def render_df_to_pdf_page(
         table.auto_set_font_size(False)
         table.set_fontsize(8)
         table.scale(1.1, 1.2)
-    plt.tight_layout(rect=[0, 0, 1, 0.95])
+    plt.tight_layout(rect=[0, 0, 1, 0.93])
     pdf.savefig(fig)
     plt.close(fig)
 
@@ -433,6 +436,7 @@ class TestGroupByWindowOperations:
                         result["backend"],
                         result.get("status", "PASSED"),
                         result.get("error_message", ""),
+                        result.get("pandas_call", ""),
                     )
             print(f"\n\nTest report saved to: {pdf_path}\n")
 
@@ -507,6 +511,7 @@ class TestGroupByWindowOperations:
         backend: str,
         status: str = "PENDING",
         error_message: str = "",
+        pandas_call: str = "",
     ):
         if self._save_to_file:
             result = {
@@ -518,6 +523,7 @@ class TestGroupByWindowOperations:
                 "backend": backend,
                 "status": status,
                 "error_message": error_message,
+                "pandas_call": pandas_call,
             }
             self._saved_results.append(result)
             current_records = getattr(self, "_current_pdf_records", None)
@@ -561,6 +567,7 @@ class TestGroupByWindowOperations:
             "direct_rolling_mean",
             'arolling("value",2,"mean",group_cols="group",order_by="id")',
             sample_df, res_df, pandas_df, backend_config["connection_type"],
+            pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].rolling(2, min_periods=1).mean()',
         )
 
     def test_direct_rolling_sum(self, uploaded_ctx, sample_df, backend_config):
@@ -587,6 +594,7 @@ class TestGroupByWindowOperations:
             "direct_rolling_sum",
             'arolling("value",3,"sum",group_cols="group",order_by="id")',
             sample_df, res_df, pandas_df, backend_config["connection_type"],
+            pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].rolling(3, min_periods=1).sum()',
         )
 
     # --- GroupBy builder: rolling ---
@@ -605,6 +613,7 @@ class TestGroupByWindowOperations:
             "groupby_rolling_mean",
             '.groupby("group").rolling(2).mean("value")',
             sample_df, res_df, pandas_df, backend_config["connection_type"],
+            pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].rolling(2, min_periods=1).mean()',
         )
 
     def test_groupby_rolling_sum(self, uploaded_ctx, sample_df, backend_config):
@@ -622,6 +631,7 @@ class TestGroupByWindowOperations:
             "groupby_rolling_sum",
             '.groupby("group").rolling(3).sum("value")',
             sample_df, res_df, pandas_df, backend_config["connection_type"],
+            pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].rolling(3, min_periods=1).sum()',
         )
 
     def test_groupby_rolling_max(self, uploaded_ctx, sample_df, backend_config):
@@ -639,6 +649,7 @@ class TestGroupByWindowOperations:
             "groupby_rolling_max",
             '.groupby("group").rolling(2).max("value")',
             sample_df, res_df, pandas_df, backend_config["connection_type"],
+            pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].rolling(2, min_periods=1).max()',
         )
 
     def test_groupby_rolling_no_order(self, uploaded_ctx, sample_df, backend_config):
@@ -654,6 +665,7 @@ class TestGroupByWindowOperations:
             "groupby_rolling_no_order",
             '.groupby("group").rolling(2).mean("value")',
             sample_df, res_df, pandas_df, backend_config["connection_type"],
+            pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].rolling(2, min_periods=1).mean()',
         )
 
     # --- Expanding ---
@@ -674,6 +686,7 @@ class TestGroupByWindowOperations:
             "groupby_expanding_mean",
             '.groupby("group").expanding(min_periods=1).mean("value")',
             sample_df, res_df, pandas_df, backend_config["connection_type"],
+            pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].expanding().mean()',
         )
 
     def test_groupby_expanding_sum(self, uploaded_ctx, sample_df, backend_config):
@@ -693,6 +706,7 @@ class TestGroupByWindowOperations:
             "groupby_expanding_sum",
             '.groupby("group").expanding(min_periods=1).sum("value")',
             sample_df, res_df, pandas_df, backend_config["connection_type"],
+            pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].expanding().sum()',
         )
 
     # --- EWM (engine port pending — see docs) ---
@@ -722,6 +736,7 @@ class TestGroupByWindowOperations:
             "groupby_rolling_agg",
             '.groupby("group").rolling(2).agg("value",["mean","sum"])',
             sample_df, res_df, pandas_df, backend_config["connection_type"],
+            pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].rolling(2, min_periods=1).agg(["mean", "sum"])',
         )
 
     # --- Multicolumn group-by ---
@@ -740,6 +755,7 @@ class TestGroupByWindowOperations:
             "groupby_multicolumn_rolling",
             '.groupby("group", "sub").rolling(2).sum("value")',
             sample_df, res_df, pandas_df, backend_config["connection_type"],
+            pandas_call='df.sort_values(["group", "sub", "id"]).groupby(["group", "sub"])["value"].rolling(2, min_periods=1).sum()',
         )
 
     def test_groupby_multicolumn_expanding(self, uploaded_ctx, sample_df, backend_config):
@@ -759,6 +775,7 @@ class TestGroupByWindowOperations:
             "groupby_multicolumn_expanding",
             '.groupby("group", "sub").expanding().mean("value")',
             sample_df, res_df, pandas_df, backend_config["connection_type"],
+            pandas_call='df.sort_values(["group", "sub", "id"]).groupby(["group", "sub"])["value"].expanding().mean()',
         )
 
     def test_direct_multicolumn_rolling(self, uploaded_ctx, sample_df, backend_config):
@@ -785,6 +802,7 @@ class TestGroupByWindowOperations:
             "direct_multicolumn_rolling",
             'arolling("value",2,"max",group_cols=["group","sub"],order_by="id")',
             sample_df, res_df, pandas_df, backend_config["connection_type"],
+            pandas_call='df.sort_values(["group", "sub", "id"]).groupby(["group", "sub"])["value"].rolling(2, min_periods=1).max()',
         )
 
     # --- map_feature=True: single and multi-column group-by ---
@@ -806,6 +824,7 @@ class TestGroupByWindowOperations:
             "map_feature_single_groupby",
             'groupby("group").rolling(2).agg("value", ["mean"], map_feature=True)',
             sample_df, mapped, exp_ordered, backend_config["connection_type"],
+            pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].rolling(2, min_periods=1).mean()  # mapped back',
         )
 
     def test_map_feature_multi_groupby(self, uploaded_ctx, sample_df, backend_config):
@@ -825,6 +844,7 @@ class TestGroupByWindowOperations:
             "map_feature_multi_groupby",
             'groupby("group", "sub").rolling(2).agg("value", ["sum"], map_feature=True)',
             sample_df, mapped, exp_ordered, backend_config["connection_type"],
+            pandas_call='df.sort_values(["group", "sub", "id"]).groupby(["group", "sub"])["value"].rolling(2, min_periods=1).sum()  # mapped back',
         )
 
     def test_map_feature_expanding(self, uploaded_ctx, sample_df, backend_config):
@@ -844,6 +864,7 @@ class TestGroupByWindowOperations:
             "map_feature_expanding",
             'groupby("group").expanding().agg("value", ["sum"], map_feature=True)',
             sample_df, mapped, exp_ordered, backend_config["connection_type"],
+            pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].expanding().sum()  # mapped back',
         )
 
     def test_map_feature_false_leaves_original_untouched(
@@ -868,6 +889,7 @@ class TestGroupByWindowOperations:
             "map_feature_false_leaves_original_untouched",
             'groupby("group").rolling(2).agg("value", ["mean"], map_feature=False)',
             sample_df, after, before, backend_config["connection_type"],
+            pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].rolling(2, min_periods=1).mean()',
         )
 
     def test_map_feature_true_then_false(
@@ -894,6 +916,7 @@ class TestGroupByWindowOperations:
             "map_feature_true_then_false",
             'rolling agg map_feature=True then map_feature=False',
             sample_df, mapped, exp_ordered, backend_config["connection_type"],
+            pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].rolling(2, min_periods=1).mean()  # rerun drops and re-adds',
         )
 
     # --- Mutation safety ---
@@ -910,4 +933,5 @@ class TestGroupByWindowOperations:
             "mutation_safety",
             '.groupby("group").rolling(2).mean("value") → original checked',
             sample_df, after_op, original_uploaded, backend_config["connection_type"],
+            pandas_call='sample_df  # unchanged by rolling mean',
         )
