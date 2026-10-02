@@ -415,6 +415,7 @@ def render_df_to_pdf_page(
     backend,
     status="PASSED",
     error_message="",
+    pandas_call="",
 ):
     sections = [
         ("Original", original_df.head(10)),
@@ -425,8 +426,10 @@ def render_df_to_pdf_page(
     fig, axes = plt.subplots(3, 1, figsize=(16, fig_height))
     fig.suptitle(f"{title}  [{backend}]  {status}", fontsize=12, fontweight="bold")
     fig.text(0.01, 0.965, f"Call: {method_call}", fontsize=10, family="monospace")
+    if pandas_call:
+        fig.text(0.01, 0.94, f"Pandas: {pandas_call}", fontsize=10, family="monospace")
     if error_message:
-        fig.text(0.01, 0.94, f"Failure: {error_message}", fontsize=9, color="crimson")
+        fig.text(0.01, 0.915, f"Failure: {error_message}", fontsize=9, color="crimson")
 
     for ax, (label, df) in zip(axes, sections):
         ax.axis("off")
@@ -444,7 +447,7 @@ def render_df_to_pdf_page(
         table.set_fontsize(8)
         table.scale(1.1, 1.2)
 
-    plt.tight_layout(rect=[0, 0, 1, 0.95])
+    plt.tight_layout(rect=[0, 0, 1, 0.93])
     pdf.savefig(fig)
     plt.close(fig)
 
@@ -477,6 +480,7 @@ class TestGroupByStatsOperations:
                         result["backend"],
                         result.get("status", "PASSED"),
                         result.get("error_message", ""),
+                        result.get("pandas_call", ""),
                     )
             print(f"\n\nTest report saved to: {pdf_path}\n")
 
@@ -556,6 +560,7 @@ class TestGroupByStatsOperations:
         backend: str,
         status: str = "PENDING",
         error_message: str = "",
+        pandas_call: str = "",
     ):
         if self._save_to_file:
             result = {
@@ -567,6 +572,7 @@ class TestGroupByStatsOperations:
                 "backend": backend,
                 "status": status,
                 "error_message": error_message,
+                "pandas_call": pandas_call,
             }
             self._saved_results.append(result)
             current_records = getattr(self, "_current_pdf_records", None)
@@ -592,6 +598,7 @@ class TestGroupByStatsOperations:
         self._record_result(
             test_name="sum",
             method_call='uploaded_ctx.groupby("group").sum("value")',
+            pandas_call='df.groupby("group", as_index=False)["value"].sum()',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -608,6 +615,7 @@ class TestGroupByStatsOperations:
         self._record_result(
             test_name="mean",
             method_call='uploaded_ctx.groupby("group").mean("value")',
+            pandas_call='df.groupby("group", as_index=False)["value"].mean()',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -624,6 +632,7 @@ class TestGroupByStatsOperations:
         self._record_result(
             test_name="min",
             method_call='uploaded_ctx.groupby("group").min("value")',
+            pandas_call='df.groupby("group", as_index=False)["value"].min()',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -640,6 +649,7 @@ class TestGroupByStatsOperations:
         self._record_result(
             test_name="max",
             method_call='uploaded_ctx.groupby("group").max("value")',
+            pandas_call='df.groupby("group", as_index=False)["value"].max()',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -663,6 +673,7 @@ class TestGroupByStatsOperations:
         self._record_result(
             test_name="count",
             method_call='uploaded_ctx.groupby("group").count("value")',
+            pandas_call='df.groupby("group", as_index=False)["value"].count()',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -679,6 +690,7 @@ class TestGroupByStatsOperations:
         self._record_result(
             test_name="median",
             method_call='uploaded_ctx.groupby("group").median("value")',
+            pandas_call='df.groupby("group", as_index=False)["value"].median()',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -703,6 +715,7 @@ class TestGroupByStatsOperations:
         self._record_result(
             test_name="std",
             method_call='uploaded_ctx.groupby("group").std("value")',
+            pandas_call='df.groupby("group", as_index=False)["value"].std(ddof=1)',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -724,6 +737,7 @@ class TestGroupByStatsOperations:
         self._record_result(
             test_name="var",
             method_call='uploaded_ctx.groupby("group").var("value")',
+            pandas_call='df.groupby("group", as_index=False)["value"].var(ddof=1)',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -745,6 +759,7 @@ class TestGroupByStatsOperations:
         self._record_result(
             test_name="sem",
             method_call='uploaded_ctx.groupby("group").sem("value")',
+            pandas_call='df.groupby("group", as_index=False)["value"].sem(ddof=1)',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -766,6 +781,7 @@ class TestGroupByStatsOperations:
         self._record_result(
             test_name="nunique",
             method_call='uploaded_ctx.groupby("group").nunique("category")',
+            pandas_call='df.groupby("group", as_index=False)["category"].nunique()',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -783,6 +799,7 @@ class TestGroupByStatsOperations:
         self._record_result(
             test_name="range",
             method_call='uploaded_ctx.groupby("group").range("value")',
+            pandas_call='df.groupby("group")["value"].agg(lambda x: x.max() - x.min())',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected_df,
@@ -799,6 +816,7 @@ class TestGroupByStatsOperations:
         self._record_result(
             test_name="product",
             method_call='uploaded_ctx.groupby("group").product("value")',
+            pandas_call='df.groupby("group", as_index=False)["value"].prod()',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -837,6 +855,7 @@ class TestGroupByStatsOperations:
         self._record_result(
             test_name="agg_dict",
             method_call='uploaded_ctx.groupby("group").agg({...})',
+            pandas_call='df.groupby("group", as_index=False).agg({...})',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -865,6 +884,7 @@ class TestGroupByStatsOperations:
         self._record_result(
             test_name="agg_dict_multi_column_builder",
             method_call='uploaded_ctx.groupby("group").agg({"value": ["sum"], "score": ["max"]})',
+            pandas_call='df.groupby("group", as_index=False).agg({"value": ["sum"], "score": ["max"]})',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -892,6 +912,7 @@ class TestGroupByStatsOperations:
         self._record_result(
             test_name="agg_dict_multi_column_direct",
             method_call='uploaded_ctx.agg(group_cols=["group"], agg_dict={"value": ["sum"], "score": ["max"]})',
+            pandas_call='df.groupby("group", as_index=False).agg({"value": ["sum"], "score": ["max"]})',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -918,6 +939,7 @@ class TestGroupByStatsOperations:
         self._record_result(
             test_name="multicolumn_groupby_builder",
             method_call='uploaded_ctx.groupby("group", "category").agg({"value": ["sum", "mean"]})',
+            pandas_call='df.groupby(["group", "category"], as_index=False).agg({"value": ["sum", "mean"]})',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -945,6 +967,7 @@ class TestGroupByStatsOperations:
         self._record_result(
             test_name="multicolumn_groupby_direct",
             method_call='uploaded_ctx.agg(group_cols=["group", "category"], agg_dict={"value": ["count"], "score": ["min", "max"]})',
+            pandas_call='df.groupby(["group", "category"], as_index=False).agg({"value": ["count"], "score": ["min", "max"]})',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -968,6 +991,7 @@ class TestGroupByStatsOperations:
         self._record_result(
             test_name="event_rate",
             method_call='uploaded_ctx.groupby("group").event_rate("dt", unit="day")',
+            pandas_call='df.groupby("group").apply(lambda g: g["dt"].count() / days)',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -999,6 +1023,7 @@ class TestGroupByStatsOperations:
         self._record_result(
             test_name="map_feature_single_groupby",
             method_call='uploaded_ctx.groupby("group").agg({"value": ["sum"]}, map_feature=True)',
+            pandas_call='df.groupby("group")["value"].sum()  # mapped back onto rows',
             original_df=sample_df,
             memframe_df=mapped,
             pandas_df=expected,
@@ -1032,6 +1057,7 @@ class TestGroupByStatsOperations:
         self._record_result(
             test_name="map_feature_multi_groupby",
             method_call='uploaded_ctx.groupby("group", "category").agg({"value": ["sum"], "score": ["max"]}, map_feature=True)',
+            pandas_call='df.groupby(["group", "category"])[["value", "score"]].transform("sum"/"max")  # mapped back',
             original_df=sample_df,
             memframe_df=mapped,
             pandas_df=expected,
@@ -1060,6 +1086,7 @@ class TestGroupByStatsOperations:
         self._record_result(
             test_name="map_feature_false_leaves_original_untouched",
             method_call='uploaded_ctx.groupby("group").agg({"value": ["sum"]}, map_feature=False)',
+            pandas_call='df.groupby("group", as_index=False)[["value"]].sum()',
             original_df=sample_df,
             memframe_df=after,
             pandas_df=before,
@@ -1094,6 +1121,7 @@ class TestGroupByStatsOperations:
         self._record_result(
             test_name="map_feature_true_then_false",
             method_call='agg(..., map_feature=True) then agg(..., map_feature=False)',
+            pandas_call='df.groupby("group")["value"].sum()  # rerun drops and re-adds',
             original_df=sample_df,
             memframe_df=mapped,
             pandas_df=expected,
@@ -1115,6 +1143,7 @@ class TestGroupByStatsOperations:
         self._record_result(
             test_name="mutation_safety",
             method_call='groupby("group").sum("value") → original checked',
+            pandas_call='sample_df  # unchanged by agg',
             original_df=sample_df,
             memframe_df=after_op,
             pandas_df=original_uploaded,
