@@ -376,6 +376,7 @@ def render_df_to_pdf_page(
     backend,
     status="PASSED",
     error_message="",
+    pandas_call="",
 ):
     sections = [
         ("Original", original_df.head(10)),
@@ -386,8 +387,10 @@ def render_df_to_pdf_page(
     fig, axes = plt.subplots(3, 1, figsize=(16, fig_height))
     fig.suptitle(f"{title}  [{backend}]  {status}", fontsize=12, fontweight="bold")
     fig.text(0.01, 0.965, f"Call: {method_call}", fontsize=10, family="monospace")
+    if pandas_call:
+        fig.text(0.01, 0.94, f"Pandas: {pandas_call}", fontsize=10, family="monospace")
     if error_message:
-        fig.text(0.01, 0.94, f"Failure: {error_message}", fontsize=9, color="crimson")
+        fig.text(0.01, 0.915, f"Failure: {error_message}", fontsize=9, color="crimson")
     for ax, (label, df) in zip(axes, sections):
         ax.axis("off")
         ax.set_title(label, fontsize=10, loc="left")
@@ -398,7 +401,7 @@ def render_df_to_pdf_page(
         table.auto_set_font_size(False)
         table.set_fontsize(8)
         table.scale(1.1, 1.2)
-    plt.tight_layout(rect=[0, 0, 1, 0.95])
+    plt.tight_layout(rect=[0, 0, 1, 0.93])
     pdf.savefig(fig)
     plt.close(fig)
 
@@ -430,6 +433,7 @@ class TestStatsOperations:
                         result["backend"],
                         result.get("status", "PASSED"),
                         result.get("error_message", ""),
+                        result.get("pandas_call", ""),
                     )
             print(f"\n\nTest report saved to: {pdf_path}\n")
 
@@ -519,6 +523,7 @@ class TestStatsOperations:
         backend,
         status="PENDING",
         error_message="",
+        pandas_call="",
     ):
         if self._save_to_file:
             result = {
@@ -530,6 +535,7 @@ class TestStatsOperations:
                 "backend": backend,
                 "status": status,
                 "error_message": error_message,
+                "pandas_call": pandas_call,
             }
             self._saved_results.append(result)
             current_records = getattr(self, "_current_pdf_records", None)
@@ -544,21 +550,21 @@ class TestStatsOperations:
         value = get_result_value(result)
         expected = sample_df["score"].count()
         assert value == expected
-        self._record_result("count", 'count("score")', sample_df, value, expected, backend_config["connection_type"])
+        self._record_result("count", 'count("score")', sample_df, value, expected, backend_config["connection_type"], pandas_call='df["score"].count()')
 
     def test_min(self, uploaded_ctx, sample_df, backend_config):
         result = uploaded_ctx.min("score")
         value = get_result_value(result)
         expected = sample_df["score"].min()
         assert value == pytest.approx(expected)
-        self._record_result("min", 'min("score")', sample_df, value, expected, backend_config["connection_type"])
+        self._record_result("min", 'min("score")', sample_df, value, expected, backend_config["connection_type"], pandas_call='df["score"].min()')
 
     def test_max(self, uploaded_ctx, sample_df, backend_config):
         result = uploaded_ctx.max("score")
         value = get_result_value(result)
         expected = sample_df["score"].max()
         assert value == pytest.approx(expected)
-        self._record_result("max", 'max("score")', sample_df, value, expected, backend_config["connection_type"])
+        self._record_result("max", 'max("score")', sample_df, value, expected, backend_config["connection_type"], pandas_call='df["score"].max()')
 
     def test_mode(self, uploaded_ctx, sample_df, backend_config):
         result = uploaded_ctx.mode("category", top_n=2)
@@ -566,21 +572,21 @@ class TestStatsOperations:
         expected = sample_df["category"].mode().head(2).tolist()
         actual = value if isinstance(value, list) else [item[0] if isinstance(item, tuple) else item for item in value]
         assert sorted(actual) == sorted(expected)
-        self._record_result("mode", 'mode("category", top_n=2)', sample_df, actual, expected, backend_config["connection_type"])
+        self._record_result("mode", 'mode("category", top_n=2)', sample_df, actual, expected, backend_config["connection_type"], pandas_call='df["category"].mode().head(2).tolist()')
 
     def test_unique(self, uploaded_ctx, sample_df, backend_config):
         result = uploaded_ctx.unique("category")
         value = get_result_value(result)
         expected = sample_df["category"].unique().tolist()
         assert sorted(value) == sorted(expected)
-        self._record_result("unique", 'unique("category")', sample_df, value, expected, backend_config["connection_type"])
+        self._record_result("unique", 'unique("category")', sample_df, value, expected, backend_config["connection_type"], pandas_call='df["category"].unique().tolist()')
 
     def test_nunique(self, uploaded_ctx, sample_df, backend_config):
         result = uploaded_ctx.nunique("category")
         value = get_result_value(result)
         expected = sample_df["category"].nunique()
         assert value == expected
-        self._record_result("nunique", 'nunique("category")', sample_df, value, expected, backend_config["connection_type"])
+        self._record_result("nunique", 'nunique("category")', sample_df, value, expected, backend_config["connection_type"], pandas_call='df["category"].nunique()')
 
     def test_value_counts(self, uploaded_ctx, sample_df, backend_config):
         result = uploaded_ctx.value_counts("category", top_n=10)
@@ -593,7 +599,7 @@ class TestStatsOperations:
             raise ValueError("Unexpected format")
         expected = sample_df["category"].value_counts().to_dict()
         assert counts == expected
-        self._record_result("value_counts", 'value_counts("category")', sample_df, counts, expected, backend_config["connection_type"])
+        self._record_result("value_counts", 'value_counts("category")', sample_df, counts, expected, backend_config["connection_type"], pandas_call='df["category"].value_counts().to_dict()')
 
     def test_value_counts_no_column(self, uploaded_ctx, sample_df, backend_config):
         result = uploaded_ctx.value_counts()
@@ -603,7 +609,7 @@ class TestStatsOperations:
             assert col in value
             expected = sample_df[col].value_counts().to_dict()
             assert value[col] == expected
-        self._record_result("value_counts_no_column", 'value_counts()', sample_df, value, "per-column dicts", backend_config["connection_type"])
+        self._record_result("value_counts_no_column", 'value_counts()', sample_df, value, "per-column dicts", backend_config["connection_type"], pandas_call='{c: df[c].value_counts().to_dict() for c in df.columns}')
 
     # ------------------------------------------------------------------
     # Mean, median
@@ -613,14 +619,14 @@ class TestStatsOperations:
         value = get_result_value(result)
         expected = sample_df["score"].mean()
         assert value == pytest.approx(expected, rel=1e-5)
-        self._record_result("mean", 'mean("score")', sample_df, value, expected, backend_config["connection_type"])
+        self._record_result("mean", 'mean("score")', sample_df, value, expected, backend_config["connection_type"], pandas_call='df["score"].mean()')
 
     def test_median(self, uploaded_ctx, sample_df, backend_config):
         result = uploaded_ctx.median("score")
         value = get_result_value(result)
         expected = sample_df["score"].median()
         assert value == pytest.approx(expected)
-        self._record_result("median", 'median("score")', sample_df, value, expected, backend_config["connection_type"])
+        self._record_result("median", 'median("score")', sample_df, value, expected, backend_config["connection_type"], pandas_call='df["score"].median()')
 
     # ------------------------------------------------------------------
     # Sum, std, var, sem, mad, iqr, range
@@ -630,7 +636,7 @@ class TestStatsOperations:
         value = get_result_value(result)
         expected = sample_df["score"].sum()
         assert value == pytest.approx(expected)
-        self._record_result("sum", 'sum("score")', sample_df, value, expected, backend_config["connection_type"])
+        self._record_result("sum", 'sum("score")', sample_df, value, expected, backend_config["connection_type"], pandas_call='df["score"].sum()')
 
     def test_std(self, uploaded_ctx, sample_df, backend_config):
         result = uploaded_ctx.std("score")
@@ -641,7 +647,7 @@ class TestStatsOperations:
             assert value == pytest.approx(expected_pop, rel=1e-3)
         else:
             assert value == pytest.approx(expected_samp, rel=1e-3)
-        self._record_result("std", 'std("score")', sample_df, value, expected_samp, backend_config["connection_type"])
+        self._record_result("std", 'std("score")', sample_df, value, expected_samp, backend_config["connection_type"], pandas_call='df["score"].std(ddof=1)')
 
     def test_var(self, uploaded_ctx, sample_df, backend_config):
         result = uploaded_ctx.var("score")
@@ -652,35 +658,35 @@ class TestStatsOperations:
             assert value == pytest.approx(expected_pop, rel=1e-3)
         else:
             assert value == pytest.approx(expected_samp, rel=1e-3)
-        self._record_result("var", 'var("score")', sample_df, value, expected_samp, backend_config["connection_type"])
+        self._record_result("var", 'var("score")', sample_df, value, expected_samp, backend_config["connection_type"], pandas_call='df["score"].var(ddof=1)')
 
     def test_sem(self, uploaded_ctx, sample_df, backend_config):
         result = uploaded_ctx.sem("score")
         value = get_result_value(result)
         expected = sample_df["score"].sem()
         assert value == pytest.approx(expected, rel=1e-3)
-        self._record_result("sem", 'sem("score")', sample_df, value, expected, backend_config["connection_type"])
+        self._record_result("sem", 'sem("score")', sample_df, value, expected, backend_config["connection_type"], pandas_call='df["score"].sem()')
 
     def test_mad(self, uploaded_ctx, sample_df, backend_config):
         result = uploaded_ctx.mad("score")
         value = get_result_value(result)
         expected = (sample_df["score"] - sample_df["score"].mean()).abs().mean()
         assert value == pytest.approx(expected, rel=1e-3)
-        self._record_result("mad", 'mad("score")', sample_df, value, expected, backend_config["connection_type"])
+        self._record_result("mad", 'mad("score")', sample_df, value, expected, backend_config["connection_type"], pandas_call='(df["score"] - df["score"].mean()).abs().mean()')
 
     def test_iqr(self, uploaded_ctx, sample_df, backend_config):
         result = uploaded_ctx.iqr("score")
         value = get_result_value(result)
         expected = sample_df["score"].quantile(0.75) - sample_df["score"].quantile(0.25)
         assert value == pytest.approx(expected, rel=1e-3)
-        self._record_result("iqr", 'iqr("score")', sample_df, value, expected, backend_config["connection_type"])
+        self._record_result("iqr", 'iqr("score")', sample_df, value, expected, backend_config["connection_type"], pandas_call='df["score"].quantile(0.75) - df["score"].quantile(0.25)')
 
     def test_range(self, uploaded_ctx, sample_df, backend_config):
         result = uploaded_ctx.range("score")
         value = get_result_value(result)
         expected = sample_df["score"].max() - sample_df["score"].min()
         assert value == pytest.approx(expected)
-        self._record_result("range", 'range("score")', sample_df, value, expected, backend_config["connection_type"])
+        self._record_result("range", 'range("score")', sample_df, value, expected, backend_config["connection_type"], pandas_call='df["score"].max() - df["score"].min()')
 
     # ------------------------------------------------------------------
     # Skew, kurtosis, entropy, quantile, autocorr, coefficient_of_variation
@@ -690,14 +696,14 @@ class TestStatsOperations:
         value = get_result_value(result)
         expected = sample_df["score"].skew()
         assert value == pytest.approx(expected, rel=0.1)
-        self._record_result("skew", 'skew("score")', sample_df, value, expected, backend_config["connection_type"])
+        self._record_result("skew", 'skew("score")', sample_df, value, expected, backend_config["connection_type"], pandas_call='df["score"].skew()')
 
     def test_kurtosis(self, uploaded_ctx, sample_df, backend_config):
         result = uploaded_ctx.kurtosis("score")
         value = get_result_value(result)
         expected = sample_df["score"].kurtosis()
         assert value == pytest.approx(expected, rel=0.1)
-        self._record_result("kurtosis", 'kurtosis("score")', sample_df, value, expected, backend_config["connection_type"])
+        self._record_result("kurtosis", 'kurtosis("score")', sample_df, value, expected, backend_config["connection_type"], pandas_call='df["score"].kurtosis()')
 
     def test_entropy(self, uploaded_ctx, sample_df, backend_config):
         result = uploaded_ctx.entropy("category")
@@ -705,7 +711,7 @@ class TestStatsOperations:
         counts = sample_df["category"].value_counts(normalize=True)
         expected = -(counts * np.log(counts)).sum()
         assert value == pytest.approx(expected, rel=1e-3)
-        self._record_result("entropy", 'entropy("category")', sample_df, value, expected, backend_config["connection_type"])
+        self._record_result("entropy", 'entropy("category")', sample_df, value, expected, backend_config["connection_type"], pandas_call='-(counts * np.log(counts)).sum()  # counts = df["category"].value_counts(normalize=True)')
 
     def test_quantile(self, uploaded_ctx, sample_df, backend_config):
         result = uploaded_ctx.quantile("score", q=[0.25, 0.5, 0.75])
@@ -714,7 +720,7 @@ class TestStatsOperations:
         if isinstance(value, dict):
             value = list(value.values())
         assert np.allclose(value, expected, rtol=0.01)
-        self._record_result("quantile", 'quantile("score", q=[0.25,0.5,0.75])', sample_df, value, expected, backend_config["connection_type"])
+        self._record_result("quantile", 'quantile("score", q=[0.25,0.5,0.75])', sample_df, value, expected, backend_config["connection_type"], pandas_call='df["score"].quantile([0.25, 0.5, 0.75]).tolist()')
 
     def test_autocorr(self, uploaded_ctx, sample_df, backend_config):
         result = uploaded_ctx.autocorr("score", lag=1)
@@ -724,14 +730,14 @@ class TestStatsOperations:
             assert pd.isna(value)
         else:
             assert value == pytest.approx(expected, rel=0.1)
-        self._record_result("autocorr", 'autocorr("score", lag=1)', sample_df, value, expected, backend_config["connection_type"])
+        self._record_result("autocorr", 'autocorr("score", lag=1)', sample_df, value, expected, backend_config["connection_type"], pandas_call='df["score"].autocorr(lag=1)')
 
     def test_coefficient_of_variation(self, uploaded_ctx, sample_df, backend_config):
         result = uploaded_ctx.coefficient_of_variation("score")
         value = get_result_value(result)
         expected = sample_df["score"].std(ddof=0) / sample_df["score"].mean()
         assert value == pytest.approx(expected, rel=1e-3)
-        self._record_result("cv", 'cv("score")', sample_df, value, expected, backend_config["connection_type"])
+        self._record_result("cv", 'cv("score")', sample_df, value, expected, backend_config["connection_type"], pandas_call='df["score"].std(ddof=0) / df["score"].mean()')
 
     # ------------------------------------------------------------------
     # Outliers
@@ -750,7 +756,7 @@ class TestStatsOperations:
         assert stats["iqr"] == pytest.approx(IQR)
         assert stats["lower_bound"] == pytest.approx(lower)
         assert stats["upper_bound"] == pytest.approx(upper)
-        self._record_result("outliers_iqr", 'outliers_iqr("score")', sample_df, stats, None, backend_config["connection_type"])
+        self._record_result("outliers_iqr", 'outliers_iqr("score")', sample_df, stats, None, backend_config["connection_type"], pandas_call='q1, q3 = df["score"].quantile(0.25), df["score"].quantile(0.75)')
 
     def test_outliers_zscore(self, uploaded_ctx, sample_df, backend_config):
         result = uploaded_ctx.outliers_zscore("score", threshold=2.0)
@@ -765,7 +771,7 @@ class TestStatsOperations:
         assert stats["threshold"] == 2.0
         assert stats["lower_bound"] == pytest.approx(lower)
         assert stats["upper_bound"] == pytest.approx(upper)
-        self._record_result("outliers_zscore", 'outliers_zscore("score", threshold=2.0)', sample_df, stats, None, backend_config["connection_type"])
+        self._record_result("outliers_zscore", 'outliers_zscore("score", threshold=2.0)', sample_df, stats, None, backend_config["connection_type"], pandas_call='np.abs((df["score"] - mean) / std) > 2.0')
 
     # ------------------------------------------------------------------
     # Multi-column correlations / covariance
@@ -780,7 +786,7 @@ class TestStatsOperations:
             check_dtype=False,
             check_names=False,
         )
-        self._record_result("corr", 'corr(columns=["score","salary"])', sample_df, res_df, expected, backend_config["connection_type"])
+        self._record_result("corr", 'corr(columns=["score","salary"])', sample_df, res_df, expected, backend_config["connection_type"], pandas_call='df[["score", "salary"]].corr()')
 
     def test_cov(self, uploaded_ctx, sample_df, backend_config):
         result = uploaded_ctx.cov(columns=["score", "salary"])
@@ -792,7 +798,7 @@ class TestStatsOperations:
             check_dtype=False,
             check_names=False,
         )
-        self._record_result("cov", 'cov(columns=["score","salary"])', sample_df, res_df, expected, backend_config["connection_type"])
+        self._record_result("cov", 'cov(columns=["score","salary"])', sample_df, res_df, expected, backend_config["connection_type"], pandas_call='df[["score", "salary"]].cov()')
 
     # ------------------------------------------------------------------
     # Categorical statistics
@@ -802,7 +808,7 @@ class TestStatsOperations:
         value = get_result_value(result)
         expected = sample_df["category"].value_counts(normalize=True).to_dict()
         assert value == pytest.approx(expected, rel=1e-3)
-        self._record_result("proportions", 'proportions("category")', sample_df, value, expected, backend_config["connection_type"])
+        self._record_result("proportions", 'proportions("category")', sample_df, value, expected, backend_config["connection_type"], pandas_call='df["category"].value_counts(normalize=True).to_dict()')
 
     # ------------------------------------------------------------------
     # Datetime statistics
@@ -815,35 +821,35 @@ class TestStatsOperations:
         got = res_df[out_col].astype(float).reset_index(drop=True)
         mask = expected.notna()
         assert np.allclose(got[mask].values, expected[mask].values, rtol=0.01)
-        self._record_result("datetime_diff", 'datetime_diff("date")', sample_df, res_df, expected, backend_config["connection_type"])
+        self._record_result("datetime_diff", 'datetime_diff("date")', sample_df, res_df, expected, backend_config["connection_type"], pandas_call='df["date"].diff().dt.total_seconds()')
 
     def test_time_delta_stats(self, uploaded_ctx, sample_df, backend_config):
         result = uploaded_ctx.time_delta_stats("date")
         value = get_result_value(result)
         assert isinstance(value, dict) or value is not None
-        self._record_result("delta_stats", 'time_delta_stats("date")', sample_df, value, "stats", backend_config["connection_type"])
+        self._record_result("delta_stats", 'time_delta_stats("date")', sample_df, value, "stats", backend_config["connection_type"], pandas_call='df["date"].diff().describe()')
 
     def test_event_rate(self, uploaded_ctx, sample_df, backend_config):
         result = uploaded_ctx.event_rate("date", unit="day")
         value = get_result_value(result)
         assert isinstance(value, (float, int))
-        self._record_result("event_rate", 'event_rate("date")', sample_df, value, "rate", backend_config["connection_type"])
+        self._record_result("event_rate", 'event_rate("date")', sample_df, value, "rate", backend_config["connection_type"], pandas_call='len(df) / ((df["date"].max() - df["date"].min()).days or 1)')
 
     def test_time_unit_counts(self, uploaded_ctx, sample_df, backend_config):
         result = uploaded_ctx.time_unit_counts("date", unit="day")
         value = get_result_value(result)
         assert isinstance(value, (dict, pd.DataFrame))
-        self._record_result("time_unit_counts", 'time_unit_counts("date")', sample_df, value, "counts", backend_config["connection_type"])
+        self._record_result("time_unit_counts", 'time_unit_counts("date")', sample_df, value, "counts", backend_config["connection_type"], pandas_call='df["date"].dt.date.value_counts()')
 
     def test_weekday_weekend_counts(self, uploaded_ctx, sample_df, backend_config):
         result = uploaded_ctx.weekday_weekend_counts("date")
         value = get_result_value(result)
         assert isinstance(value, dict) or hasattr(value, "weekday")
-        self._record_result("weekday_weekend", 'weekday_weekend_counts("date")', sample_df, value, "counts", backend_config["connection_type"])
+        self._record_result("weekday_weekend", 'weekday_weekend_counts("date")', sample_df, value, "counts", backend_config["connection_type"], pandas_call='df["date"].dt.dayofweek.lt(5).value_counts()')
 
     def test_holiday_counts(self, uploaded_ctx, sample_df, backend_config):
         result = uploaded_ctx.holiday_counts("date")
         value = get_result_value(result)
         assert isinstance(value, (int, dict))
-        self._record_result("holiday_counts", 'holiday_counts("date")', sample_df, value, "counts", backend_config["connection_type"])
+        self._record_result("holiday_counts", 'holiday_counts("date")', sample_df, value, "counts", backend_config["connection_type"], pandas_call='df["date"].dt.date.isin(holidays).value_counts()')
 
