@@ -440,6 +440,7 @@ def render_df_to_pdf_page(
     backend,
     status="PASSED",
     error_message="",
+    pandas_call="",
 ):
     sections = [
         ("Original", original_df.head(10)),
@@ -450,8 +451,10 @@ def render_df_to_pdf_page(
     fig, axes = plt.subplots(3, 1, figsize=(16, fig_height))
     fig.suptitle(f"{title}  [{backend}]  {status}", fontsize=12, fontweight="bold")
     fig.text(0.01, 0.965, f"Call: {method_call}", fontsize=10, family="monospace")
+    if pandas_call:
+        fig.text(0.01, 0.94, f"Pandas: {pandas_call}", fontsize=10, family="monospace")
     if error_message:
-        fig.text(0.01, 0.94, f"Failure: {error_message}", fontsize=9, color="crimson")
+        fig.text(0.01, 0.915, f"Failure: {error_message}", fontsize=9, color="crimson")
     for ax, (label, df) in zip(axes, sections):
         ax.axis("off")
         ax.set_title(label, fontsize=10, loc="left")
@@ -462,7 +465,7 @@ def render_df_to_pdf_page(
         table.auto_set_font_size(False)
         table.set_fontsize(8)
         table.scale(1.1, 1.2)
-    plt.tight_layout(rect=[0, 0, 1, 0.95])
+    plt.tight_layout(rect=[0, 0, 1, 0.93])
     pdf.savefig(fig)
     plt.close(fig)
 
@@ -494,6 +497,7 @@ class TestWindowOperations:
                         result["backend"],
                         result.get("status", "PASSED"),
                         result.get("error_message", ""),
+                        result.get("pandas_call", ""),
                     )
             print(f"\n\nTest report saved to: {pdf_path}\n")
 
@@ -574,6 +578,7 @@ class TestWindowOperations:
         backend,
         status="PENDING",
         error_message="",
+        pandas_call="",
     ):
         if self._save_to_file:
             result = {
@@ -585,6 +590,7 @@ class TestWindowOperations:
                 "backend": backend,
                 "status": status,
                 "error_message": error_message,
+                "pandas_call": pandas_call,
             }
             self._saved_results.append(result)
             current_records = getattr(self, "_current_pdf_records", None)
@@ -602,6 +608,7 @@ class TestWindowOperations:
         self._record_result(
             test_name="rolling_mean_direct",
             method_call='rolling(column="sales", window=3, func="mean", order_by="date")',
+            pandas_call='_ordered(df)["sales"].rolling(3, min_periods=1).mean()',
             original_df=time_series_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -616,6 +623,7 @@ class TestWindowOperations:
         self._record_result(
             test_name="rolling_sum_direct",
             method_call='rolling(column="sales", window=2, func="sum", order_by="date")',
+            pandas_call='_ordered(df)["sales"].rolling(2, min_periods=1).sum()',
             original_df=time_series_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -633,6 +641,7 @@ class TestWindowOperations:
         self._record_result(
             test_name="rolling_mean_no_order",
             method_call='rolling(column="sales", window=3, func="mean")  # no order_by',
+            pandas_call='df["sales"].rolling(3, min_periods=1).mean()',
             original_df=time_series_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -647,6 +656,7 @@ class TestWindowOperations:
         self._record_result(
             test_name="expanding_sum_no_order",
             method_call='expanding(column="sales", func="sum", min_periods=1)  # no order_by',
+            pandas_call='df["sales"].expanding(1).sum()',
             original_df=time_series_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -667,6 +677,7 @@ class TestWindowOperations:
         self._record_result(
             test_name="ewm_mean_no_order",
             method_call='ewm(column="sales", span=2, func="mean", adjust=False)  # no order_by',
+            pandas_call='df["sales"].ewm(span=2, adjust=False, ignore_na=False).mean()',
             original_df=time_series_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -684,6 +695,7 @@ class TestWindowOperations:
         self._record_result(
             test_name="fluent_rolling_mean",
             method_call='on("sales").rolling(3).mean(order_by="date")',
+            pandas_call='_ordered(df)["sales"].rolling(3, min_periods=1).mean()',
             original_df=time_series_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -698,6 +710,7 @@ class TestWindowOperations:
         self._record_result(
             test_name="fluent_rolling_std",
             method_call='on("sales").rolling(3).std(order_by="date")',
+            pandas_call='_ordered(df)["sales"].rolling(3, min_periods=1).std(ddof=0)',
             original_df=time_series_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -712,6 +725,7 @@ class TestWindowOperations:
         self._record_result(
             test_name="fluent_rolling_quantile",
             method_call='on("sales").rolling(3).quantile(q=0.5, order_by="date")',
+            pandas_call='_ordered(df)["sales"].rolling(3).quantile(0.5)',
             original_df=time_series_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -734,6 +748,7 @@ class TestWindowOperations:
         self._record_result(
             test_name="rolling_multi_func",
             method_call='rolling(column="sales", window=3, func=["sum", "mean"], order_by="date")',
+            pandas_call='_ordered(df)["sales"].rolling(3, min_periods=1).agg(["sum", "mean"])',
             original_df=time_series_df,
             memframe_df=res_df,
             pandas_df=ordered,
@@ -748,6 +763,7 @@ class TestWindowOperations:
         self._record_result(
             test_name="rolling_mean_with_nulls",
             method_call='rolling(column="score", window=3, func="mean", order_by="date")',
+            pandas_call='_ordered(df)["score"].rolling(3, min_periods=1).mean()',
             original_df=time_series_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -768,6 +784,7 @@ class TestWindowOperations:
         self._record_result(
             test_name=f"rolling_func_sweep_{func}",
             method_call=f'rolling(column="sales", window=3, func="{func}", order_by="date")',
+            pandas_call='_ordered(df)["sales"].rolling(3, min_periods=1).agg(func)',
             original_df=time_series_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -793,6 +810,7 @@ class TestWindowOperations:
         self._record_result(
             test_name="rolling_median_datetime",
             method_call='rolling(column="date", window=3, func="median", order_by="sales")',
+            pandas_call='epoch.rolling(3, min_periods=1).median()  # epoch = date as int',
             original_df=time_series_df,
             memframe_df=res_df,
             pandas_df=by_sales,
@@ -815,6 +833,7 @@ class TestWindowOperations:
         self._record_result(
             test_name="rolling_min_datetime",
             method_call='rolling(column="date", window=3, func="min", order_by="sales")',
+            pandas_call='epoch.rolling(3, min_periods=1).min()  # epoch = date as int',
             original_df=time_series_df,
             memframe_df=res_df,
             pandas_df=by_sales,
@@ -829,6 +848,7 @@ class TestWindowOperations:
         self._record_result(
             test_name="rolling_window_one",
             method_call='rolling(column="sales", window=1, func="sum", order_by="date")',
+            pandas_call='_ordered(df)["sales"].rolling(1, min_periods=1).sum()',
             original_df=time_series_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -853,6 +873,7 @@ class TestWindowOperations:
         self._record_result(
             test_name="rolling_window_larger_than_frame",
             method_call='rolling(column="sales", window=10, ...) on a 6-row frame',
+            pandas_call='_ordered(df)["sales"].rolling(10, min_periods=1).mean()',
             original_df=time_series_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -870,6 +891,7 @@ class TestWindowOperations:
         self._record_result(
             test_name="expanding_sum_direct",
             method_call='expanding(column="sales", func="sum", order_by="date", min_periods=1)',
+            pandas_call='_ordered(df)["sales"].expanding(1).sum()',
             original_df=time_series_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -884,6 +906,7 @@ class TestWindowOperations:
         self._record_result(
             test_name="fluent_expanding_mean",
             method_call='on("sales").expanding(min_periods=2).mean(order_by="date")',
+            pandas_call='_ordered(df)["sales"].expanding(2).mean()',
             original_df=time_series_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -902,6 +925,7 @@ class TestWindowOperations:
         self._record_result(
             test_name="expanding_mean_min_periods_nulls",
             method_call='expanding(column="score", func="mean", order_by="date", min_periods=2)',
+            pandas_call='_ordered(df)["score"].expanding(2).mean()',
             original_df=time_series_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -923,6 +947,7 @@ class TestWindowOperations:
         self._record_result(
             test_name="ewm_mean_direct",
             method_call='ewm(column="sales", span=2, func="mean", order_by="date", adjust=False)',
+            pandas_call='_ordered(df)["sales"].ewm(span=2, adjust=False, ignore_na=False).mean()',
             original_df=time_series_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -941,6 +966,7 @@ class TestWindowOperations:
         self._record_result(
             test_name="fluent_ewm_std",
             method_call='on("sales").ewm(halflife=2, adjust=False).std(order_by="date")',
+            pandas_call='_ordered(df)["sales"].ewm(halflife=2, adjust=False).std()',
             original_df=time_series_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -962,6 +988,7 @@ class TestWindowOperations:
         self._record_result(
             test_name="mutation_safety",
             method_call="rolling then check original unchanged",
+            pandas_call='time_series_df  # unchanged by rolling',
             original_df=time_series_df,
             memframe_df=original,
             pandas_df=time_series_df,
