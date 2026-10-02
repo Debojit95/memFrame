@@ -1,6 +1,6 @@
 # stats_wrapper.py
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from memframe.core.orchestrator.analytix.stats import StatsOrchestrator
 from memframe.utils.async_sync import async_to_sync
@@ -79,19 +79,19 @@ class StatsWrapper(StatsOrchestrator):
 
     async def avalue_counts(
         self,
-        column: str,
+        column: Optional[str] = None,
         top_n: int = 10,
     ) -> Dict[str, Any]:
-        """Asynchronously compute value counts for a column."""
+        """Asynchronously compute value counts for a column, or all columns."""
         return await super().value_counts(column, top_n)
 
     @async_to_sync
     async def value_counts(
         self,
-        column: str,
+        column: Optional[str] = None,
         top_n: int = 10,
     ) -> Dict[str, Any]:
-        """Synchronously compute value counts for a column."""
+        """Synchronously compute value counts for a column, or all columns."""
         return await self.avalue_counts(column, top_n)
 
     async def amean(self, column: str) -> Dict[str, Any]:

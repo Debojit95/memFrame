@@ -1,8 +1,8 @@
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 import numpy as np
 from memframe.core.ingestion.datatype_detector import DatatypeDetector
 from memframe.core.analytix.stats import DataStatsOps, make_stats_ops
-from memframe.core.analytix._response import fail
+from memframe.core.analytix._response import fail, ok
 from memframe.cache import record_call
 
 
@@ -141,19 +141,40 @@ class StatsOrchestrator:
             return await ops.categorical_nunique(table, schema, column)
         return await ops.numeric_nunique(table, schema, column)
 
-    async def value_counts(self, column: str, top_n: int = 10) -> Dict[str, Any]:
+    async def value_counts(self, column: Optional[str] = None, top_n: int = 10) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
-        detected_dtype = await self._detect_stats_dtype(ops, table, schema, column)
 
         try:
             top_n = _coerce_int(top_n)
         except ValueError as exc:
             return fail(f"top_n must be an integer: {exc}")
 
-        if detected_dtype == "categorical":
-            return await ops.categorical_value_counts(table, schema, column, top_n)
-        return await ops.numeric_value_counts(table, schema, column, top_n)
+        if column is not None:
+            detected_dtype = await self._detect_stats_dtype(ops, table, schema, column)
+
+            if detected_dtype == "categorical":
+                return await ops.categorical_value_counts(table, schema, column, top_n)
+            return await ops.numeric_value_counts(table, schema, column, top_n)
+
+        # ponytail: no column → per-column counts for the whole table, reusing
+        # the single-column routing above; first column error short-circuits.
+        columns = list((await ops.db.get_column_types(table, schema)).keys())
+        combined: Dict[str, Any] = {}
+        for col in columns:
+            detected_dtype = await self._detect_stats_dtype(ops, table, schema, col)
+            if detected_dtype == "categorical":
+                resp = await ops.categorical_value_counts(table, schema, col, top_n)
+            else:
+                resp = await ops.numeric_value_counts(table, schema, col, top_n)
+            if resp.get("is_error"):
+                return resp
+            combined[col] = resp.get("result")
+        return ok(
+            f"Top {top_n} value counts for all {len(columns)} columns",
+            columns,
+            result=combined,
+        )
 
     async def mean(self, column: str) -> Dict[str, Any]:
         ops = await self._ensure_ops()

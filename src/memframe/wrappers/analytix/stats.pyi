@@ -1,6 +1,6 @@
 # stats_wrapper.pyi
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, overload
 
 
 class StatsWrapper:
@@ -32,11 +32,25 @@ class StatsWrapper:
     async def anunique(self, column: str) -> Dict[str, Any]: ...
     def nunique(self, column: str) -> Dict[str, Any]: ...
 
+    @overload
+    async def avalue_counts(
+        self,
+        column: None = ...,
+        top_n: int = ...,
+    ) -> Dict[str, Any]: ...
+    @overload
     async def avalue_counts(
         self,
         column: str,
         top_n: int = ...,
     ) -> Dict[str, Any]: ...
+    @overload
+    def value_counts(
+        self,
+        column: None = ...,
+        top_n: int = ...,
+    ) -> Dict[str, Any]: ...
+    @overload
     def value_counts(
         self,
         column: str,
