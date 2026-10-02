@@ -365,6 +365,7 @@ def render_df_to_pdf_page(
     backend,
     status="PASSED",
     error_message="",
+    pandas_call="",
 ):
     sections = [
         ("Original", original_df.head(10)),
@@ -375,8 +376,10 @@ def render_df_to_pdf_page(
     fig, axes = plt.subplots(3, 1, figsize=(16, fig_height))
     fig.suptitle(f"{title}  [{backend}]  {status}", fontsize=12, fontweight="bold")
     fig.text(0.01, 0.965, f"Call: {method_call}", fontsize=10, family="monospace")
+    if pandas_call:
+        fig.text(0.01, 0.94, f"Pandas: {pandas_call}", fontsize=10, family="monospace")
     if error_message:
-        fig.text(0.01, 0.94, f"Failure: {error_message}", fontsize=9, color="crimson")
+        fig.text(0.01, 0.915, f"Failure: {error_message}", fontsize=9, color="crimson")
     for ax, (label, df) in zip(axes, sections):
         ax.axis("off")
         ax.set_title(label, fontsize=10, loc="left")
@@ -387,7 +390,7 @@ def render_df_to_pdf_page(
         table.auto_set_font_size(False)
         table.set_fontsize(8)
         table.scale(1.1, 1.2)
-    plt.tight_layout(rect=[0, 0, 1, 0.95])
+    plt.tight_layout(rect=[0, 0, 1, 0.93])
     pdf.savefig(fig)
     plt.close(fig)
 
@@ -420,6 +423,7 @@ class TestSelectionOperations:
                         rec["backend"],
                         rec.get("status", "PASSED"),
                         rec.get("error_message", ""),
+                        rec.get("pandas_call", ""),
                     )
             print(f"\n\nTest report saved to: {pdf_path}\n")
 
@@ -491,6 +495,7 @@ class TestSelectionOperations:
         backend,
         status="PENDING",
         error_message="",
+        pandas_call="",
     ):
         if self._save_to_file:
             rec = {
@@ -502,6 +507,7 @@ class TestSelectionOperations:
                 "backend": backend,
                 "status": status,
                 "error_message": error_message,
+                "pandas_call": pandas_call,
             }
             self._saved_results.append(rec)
             if status == "PENDING":
@@ -523,6 +529,8 @@ class TestSelectionOperations:
             sel,
             sample_df.iloc[[1]].reset_index(drop=True),
             backend_config["connection_type"],
+        
+            pandas_call='df.iloc[[1]]  # asof match for 2023-03-15',
         )
         assert sel["id"] == 102
 
@@ -539,6 +547,8 @@ class TestSelectionOperations:
             sel_df,
             sample_df.iloc[[1, 1]].reset_index(drop=True),
             backend_config["connection_type"],
+        
+            pandas_call='df.iloc[[1, 1]]  # one row per where value',
         )
         assert len(sel_df) == 2
         # Both rows are 102 in the current implementation; we verify that.
@@ -559,6 +569,8 @@ class TestSelectionOperations:
             sel,
             sample_df.iloc[[1]].reset_index(drop=True),
             backend_config["connection_type"],
+        
+            pandas_call='df.iloc[[1]][["score"]]  # asof match, subset columns',
         )
         assert sel["id"] == 102
 
@@ -578,6 +590,8 @@ class TestSelectionOperations:
             result,
             _value_pdf_df("Charlie"),
             backend_config["connection_type"],
+        
+            pandas_call='df.loc[df["id"] == 103, "name"].iloc[0]  # Charlie',
         )
         assert result == "Charlie"
 
@@ -590,6 +604,8 @@ class TestSelectionOperations:
             result,
             _value_pdf_df("Charlie"),
             backend_config["connection_type"],
+        
+            pandas_call='df.set_index("id").at[103, "name"]  # Charlie',
         )
         assert result == "Charlie"
 
@@ -609,6 +625,8 @@ class TestSelectionOperations:
             result,
             _value_pdf_df(np.nan),
             backend_config["connection_type"],
+        
+            pandas_call='df.sort_values("id").iloc[2]["score"]  # NaN',
         )
         # row 2 after sorting by id: 101(0), 102(1), 103(2) -> score NaN
         assert pd.isna(result)
@@ -632,7 +650,10 @@ class TestSelectionOperations:
         self._record_result("loc_list_labels",
                             'iloc(row_indexer=[0,2], col_indexer=[0,1,2])',
                             sample_df, loc_df, expected,
-                            backend_config["connection_type"])
+                            backend_config["connection_type"],
+        
+            pandas_call='df.iloc[[0, 2], [0, 1, 2]]',
+        )
         assert loc_df.shape == (2, 3)
         assert loc_df.iloc[0]["name"] == "Alice"
         assert loc_df.iloc[1]["name"] == "Charlie"
@@ -650,6 +671,8 @@ class TestSelectionOperations:
             loc_df,
             expected,
             backend_config["connection_type"],
+        
+            pandas_call='df[df["id"] == 102]',
         )
         assert len(loc_df) == 1 and loc_df.iloc[0]["id"] == 102
 
@@ -661,7 +684,10 @@ class TestSelectionOperations:
         self._record_result("loc_slice",
                             'iloc(row_indexer=slice(1,4))',
                             sample_df, loc_df, expected,
-                            backend_config["connection_type"])
+                            backend_config["connection_type"],
+        
+            pandas_call='df.iloc[1:4]',
+        )
         assert loc_df["id"].tolist() == [102, 103, 104]
    
    
@@ -676,7 +702,10 @@ class TestSelectionOperations:
         self._record_result("loc_condition_string",
                             'iloc(row_indexer=[0,2], col_indexer=[0,2])',
                             sample_df, loc_df, expected,
-                            backend_config["connection_type"])
+                            backend_config["connection_type"],
+        
+            pandas_call='df.iloc[[0, 2], [0, 2]]',
+        )
         # columns are id and score
         assert loc_df["id"].tolist() == [101, 103]
         assert loc_df["score"].iloc[0] == 95.5
@@ -698,6 +727,8 @@ class TestSelectionOperations:
             loc_df,
             expected,
             backend_config["connection_type"],
+        
+            pandas_call='df.loc[mask, ["name"]]',
         )
         assert len(loc_df) == 3
         assert set(loc_df["name"]) == {"Alice", "Charlie", "Eve"}
@@ -714,6 +745,8 @@ class TestSelectionOperations:
             result,
             sample_df[["name", "score"]].reset_index(drop=True),
             backend_config["connection_type"],
+        
+            pandas_call='df[["name", "score"]]',
         )
         assert set(result.columns) == {"name", "score"}
 
@@ -725,6 +758,8 @@ class TestSelectionOperations:
             result,
             pd.DataFrame({"non_existent": ["MISSING"] * len(sample_df)}),
             backend_config["connection_type"],
+        
+            pandas_call='pd.DataFrame({"non_existent": ["MISSING"] * len(df)})',
         )
         assert (result["non_existent"] == "MISSING").all()
 
@@ -740,6 +775,8 @@ class TestSelectionOperations:
             result,
             sample_df.select_dtypes(include="number").reset_index(drop=True),
             backend_config["connection_type"],
+        
+            pandas_call='df.select_dtypes(include="number")',
         )
         cols = result.columns.tolist()
         assert "id" in cols and "score" in cols
@@ -752,6 +789,8 @@ class TestSelectionOperations:
             result,
             sample_df.drop(columns=["name", "note"]).reset_index(drop=True),
             backend_config["connection_type"],
+        
+            pandas_call='df.drop(columns=["name", "note"])',
         )
         cols = result.columns.tolist()
         assert "name" not in cols and "note" not in cols
@@ -764,6 +803,8 @@ class TestSelectionOperations:
             result,
             sample_df[["join_date", "last_login"]].reset_index(drop=True),
             backend_config["connection_type"],
+        
+            pandas_call='df[["join_date", "last_login"]]',
         )
         cols = result.columns.tolist()
         assert "join_date" in cols and "last_login" in cols
@@ -782,6 +823,8 @@ class TestSelectionOperations:
             row_df,
             sample_df.iloc[[2]].reset_index(drop=True),
             backend_config["connection_type"],
+        
+            pandas_call='df.iloc[[2]]',
         )
         assert row_df.iloc[0]["id"] == 103
         assert row_df.iloc[0]["name"] == "Charlie"
@@ -795,6 +838,8 @@ class TestSelectionOperations:
             result,
             _value_pdf_df("Alice"),
             backend_config["connection_type"],
+        
+            pandas_call='df.iloc[0, 1]',
         )
         assert result == "Alice"
 
@@ -802,9 +847,12 @@ class TestSelectionOperations:
         result = uploaded_ctx.iloc(row_indexer=[0, 3], col_indexer=[1, 2])
         df_res = result
         expected = sample_df.iloc[[0, 3], [1, 2]].reset_index(drop=True)
-        self._record_result("iloc_list", 'iloc(row_indexer=[0,3], col_indexer=[1,2])',
+        self._record_result(            "iloc_list",
+            'iloc(row_indexer=[0,3], col_indexer=[1,2])',
                             sample_df, df_res, expected,
-                            backend_config["connection_type"])
+                            backend_config["connection_type"],
+            pandas_call='df.iloc[[0, 3], [1, 2]]',
+        )
         assert df_res.shape == (2, 2)
         assert df_res.iloc[0, 0] == "Alice"
         # Diana's score is 76.4, but DuckDB may return 76.4000015258789
@@ -821,6 +869,8 @@ class TestSelectionOperations:
             df_res,
             sample_df.iloc[1:4].reset_index(drop=True),
             backend_config["connection_type"],
+        
+            pandas_call='df.iloc[1:4]',
         )
         assert len(df_res) == 3
         assert df_res.iloc[0]["id"] == 102
@@ -837,6 +887,8 @@ class TestSelectionOperations:
             df_res,
             sample_df.loc[mask].reset_index(drop=True),
             backend_config["connection_type"],
+        
+            pandas_call='df.loc[mask]',
         )
         assert len(df_res) == 3
         assert set(df_res["id"]) == {101, 103, 105}
@@ -855,6 +907,8 @@ class TestSelectionOperations:
             df_res,
             sample_df.iloc[0:3, 1:3].reset_index(drop=True),
             backend_config["connection_type"],
+        
+            pandas_call='df.iloc[0:3, 1:3]',
         )
         assert df_res.shape == (3, 2)               # rows 0,1,2 ; cols 1,2
         assert df_res.iloc[0, 0] == "Alice"         # name
@@ -872,6 +926,8 @@ class TestSelectionOperations:
             second,
             first,
             backend_config["connection_type"],
+        
+            pandas_call='df.iloc[0:3, 1:3]  # identical repeat',
         )
 
         pd.testing.assert_frame_equal(first, second)
@@ -886,6 +942,8 @@ class TestSelectionOperations:
             df_res,
             sample_df.iloc[1:4, 0:2].reset_index(drop=True),
             backend_config["connection_type"],
+        
+            pandas_call='df.iloc[1:4, 0:2]',
         )
         assert df_res.shape == (3, 2)                # rows 1-3, cols 0-1
         assert df_res.iloc[0, 0] == 102              # id
@@ -904,6 +962,8 @@ class TestSelectionOperations:
             df_res,
             sample_df.iloc[3:5, [1, 3]].reset_index(drop=True),
             backend_config["connection_type"],
+        
+            pandas_call='df.iloc[3:5, [1, 3]]  # columns name, active',
         )
         assert df_res.columns.tolist() == ["name", "active"]
         assert df_res.iloc[0]["name"] == "Diana"
