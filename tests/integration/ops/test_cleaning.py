@@ -427,6 +427,7 @@ def render_df_to_pdf_page(
     backend,
     status="PASSED",
     error_message="",
+    pandas_call="",
 ):
     """Create a single PDF page with method call + Original/MemFrame/Pandas snapshots."""
     sections = [
@@ -439,8 +440,10 @@ def render_df_to_pdf_page(
     fig, axes = plt.subplots(3, 1, figsize=(16, fig_height))
     fig.suptitle(f"{title}  [{backend}]  {status}", fontsize=12, fontweight="bold")
     fig.text(0.01, 0.965, f"Call: {method_call}", fontsize=10, family="monospace")
+    if pandas_call:
+        fig.text(0.01, 0.94, f"Pandas: {pandas_call}", fontsize=10, family="monospace")
     if error_message:
-        fig.text(0.01, 0.94, f"Failure: {error_message}", fontsize=9, color="crimson")
+        fig.text(0.01, 0.915, f"Failure: {error_message}", fontsize=9, color="crimson")
 
     for ax, (label, df) in zip(axes, sections):
         ax.axis("off")
@@ -458,7 +461,7 @@ def render_df_to_pdf_page(
         table.set_fontsize(8)
         table.scale(1.1, 1.2)
 
-    plt.tight_layout(rect=[0, 0, 1, 0.95])
+    plt.tight_layout(rect=[0, 0, 1, 0.93])
     pdf.savefig(fig)
     plt.close(fig)
 
@@ -495,6 +498,7 @@ class TestCleaningOperations:
                         result["backend"],
                         result.get("status", "PASSED"),
                         result.get("error_message", ""),
+                        result.get("pandas_call", ""),
                     )
             print(f"\n\nTest report saved to: {pdf_path}\n")
 
@@ -590,6 +594,7 @@ class TestCleaningOperations:
         backend: str,
         status: str = "PENDING",
         error_message: str = "",
+        pandas_call: str = "",
     ):
         """Store test result for PDF generation."""
         if self._save_to_file:
@@ -602,6 +607,7 @@ class TestCleaningOperations:
                 "backend": backend,
                 "status": status,
                 "error_message": error_message,
+                "pandas_call": pandas_call,
             }
             self._saved_results.append(result)
             current_records = getattr(self, "_current_pdf_records", None)
@@ -624,6 +630,7 @@ class TestCleaningOperations:
         self._record_result(
             test_name="fillna_numeric_constant",
             method_call='uploaded_ctx.fillna(column="salary", method="constant", value=9999)',
+            pandas_call='df["salary"].fillna(9999)',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -646,6 +653,7 @@ class TestCleaningOperations:
         self._record_result(
             test_name="fillna_numeric_mean",
             method_call='uploaded_ctx.fillna(column="salary", method="mean")',
+            pandas_call='df["salary"].fillna(df["salary"].mean())',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -685,6 +693,7 @@ class TestCleaningOperations:
         self._record_result(
             test_name="fillna_categorical_constant",
             method_call='ctx.fillna(column="department", method="constant", value="Unknown")',
+            pandas_call='df["department"].fillna("")',
             original_df=df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -714,6 +723,7 @@ class TestCleaningOperations:
         self._record_result(
             test_name="fillna_categorical_mode",
             method_call='ctx.fillna(column="category", method="mode")',
+            pandas_call='df["category"].fillna(df["category"].mode()[0])',
             original_df=df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -740,6 +750,7 @@ class TestCleaningOperations:
         self._record_result(
             test_name="fillna_datetime_constant",
             method_call='ctx.fillna(column="date_col", method="constant", value="2024-12-31")',
+            pandas_call='pd.to_datetime(df["date_col"]).fillna(pd.Timestamp("2024-12-31"))',
             original_df=df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -759,6 +770,7 @@ class TestCleaningOperations:
         self._record_result(
             test_name="clip_basic",
             method_call='uploaded_ctx.clip(column="salary", lower=1000, upper=5000)',
+            pandas_call='df["salary"].where(df["salary"].between(1000, 5000))',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -775,6 +787,7 @@ class TestCleaningOperations:
         self._record_result(
             test_name="clip_lower_only",
             method_call='uploaded_ctx.clip(column="salary", lower=2000, upper=None)',
+            pandas_call='df["salary"].where(df["salary"] >= 2000)',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -791,6 +804,7 @@ class TestCleaningOperations:
         self._record_result(
             test_name="clip_upper_only",
             method_call='uploaded_ctx.clip(column="salary", lower=None, upper=8000)',
+            pandas_call='df["salary"].where(df["salary"] <= 8000)',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -829,6 +843,7 @@ class TestCleaningOperations:
         self._record_result(
             test_name="drop_outliers",
             method_call='uploaded_ctx.drop_outliers(column="salary", z_thresh=2.0)',
+            pandas_call='df["salary"].where(z_scores < 2.0)',
             original_df=sample_df,
             memframe_df=res_filtered,
             pandas_df=expected_filtered,
@@ -849,6 +864,7 @@ class TestCleaningOperations:
         self._record_result(
             test_name="to_numeric",
             method_call='uploaded_ctx.to_numeric(column="numeric_str")',
+            pandas_call='pd.to_numeric(df["numeric_str"], errors="coerce")',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -870,6 +886,7 @@ class TestCleaningOperations:
         self._record_result(
             test_name="map_values",
             method_call='uploaded_ctx.map_values(column="department", mapping={"HR": "Human Resources", "IT": "Technology"})',
+            pandas_call='df["department"].replace({"HR": "Human Resources", "IT": "Technology"})',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -894,6 +911,7 @@ class TestCleaningOperations:
         self._record_result(
             test_name="filter_valid",
             method_call='uploaded_ctx.filter_valid(column="department", valid_values=["HR", "IT"])',
+            pandas_call='df["department"].where(df["department"].isin(["HR", "IT"]))',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -919,6 +937,7 @@ class TestCleaningOperations:
         self._record_result(
             test_name="compress_rare",
             method_call='uploaded_ctx.compress_rare(column="category", min_count=2, other_label="other")',
+            pandas_call='df["category"].where(~df["category"].isin(rare), "other")',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -940,6 +959,7 @@ class TestCleaningOperations:
         self._record_result(
             test_name="fix_dates",
             method_call='uploaded_ctx.fix_dates(column="date_col")',
+            pandas_call='pd.to_datetime(df["date_col"], errors="coerce")',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -963,6 +983,7 @@ class TestCleaningOperations:
         self._record_result(
             test_name="clip_dates",
             method_call='uploaded_ctx.clip_dates(column="date_col", min_dt="2024-02-01", max_dt="2024-04-01")',
+            pandas_call='dt.where((dt >= pd.Timestamp("2024-02-01")) & (dt <= pd.Timestamp("2024-04-01")))',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -988,6 +1009,7 @@ class TestCleaningOperations:
         self._record_result(
             test_name="groupby_fillna_numeric_mean",
             method_call='uploaded_ctx.groupby_fillna(column="salary", group_cols=["department"], method="mean")',
+            pandas_call='df.groupby("department")["salary"].transform(lambda x: x.fillna(x.mean()))',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -1012,6 +1034,7 @@ class TestCleaningOperations:
         self._record_result(
             test_name="groupby_fillna_numeric_constant",
             method_call='uploaded_ctx.groupby_fillna(column="salary", group_cols=["department"], method="constant", value=-1)',
+            pandas_call='df["salary"].fillna(-1)',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -1053,6 +1076,7 @@ class TestCleaningOperations:
         self._record_result(
             test_name="groupby_fillna_categorical",
             method_call='ctx.groupby_fillna(column="category", group_cols=["department"], method="mode")',
+            pandas_call='df.groupby("department")["category"].transform(lambda x: x.fillna(x.mode()))',
             original_df=df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -1080,6 +1104,7 @@ class TestCleaningOperations:
         self._record_result(
             test_name="groupby_fillna_datetime",
             method_call='ctx.groupby_fillna(column="date_col", group_cols=["department"], method="ffill")',
+            pandas_call='df.groupby("department")["date_col"].transform(lambda x: x.ffill())',
             original_df=df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -1099,6 +1124,7 @@ class TestCleaningOperations:
         self._record_result(
             test_name="dropna",
             method_call="uploaded_ctx.dropna()",
+            pandas_call="df.dropna()",
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -1119,6 +1145,7 @@ class TestCleaningOperations:
         self._record_result(
             test_name="drop_columns",
             method_call='uploaded_ctx.drop(axis=1, columns=["bonus"])',
+            pandas_call='df.drop(columns=["bonus"])',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -1136,6 +1163,7 @@ class TestCleaningOperations:
         self._record_result(
             test_name="drop_rows",
             method_call="uploaded_ctx.drop(index=[0, 1])",
+            pandas_call="df.drop(index=[0, 1])",
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -1154,6 +1182,7 @@ class TestCleaningOperations:
         self._record_result(
             test_name="isna",
             method_call="uploaded_ctx.isna()",
+            pandas_call="df.isna()",
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -1169,6 +1198,7 @@ class TestCleaningOperations:
         self._record_result(
             test_name="notna",
             method_call="uploaded_ctx.notna()",
+            pandas_call="df.notna()",
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -1189,6 +1219,7 @@ class TestCleaningOperations:
         self._record_result(
             test_name="drop_duplicates_all",
             method_call="uploaded_ctx.drop_duplicates()",
+            pandas_call="df.drop_duplicates()",
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
@@ -1205,6 +1236,7 @@ class TestCleaningOperations:
         self._record_result(
             test_name="drop_duplicates_subset",
             method_call='uploaded_ctx.drop_duplicates(subset=["id"])',
+            pandas_call='df.drop_duplicates(subset=["id"])',
             original_df=sample_df,
             memframe_df=res_df,
             pandas_df=expected,
