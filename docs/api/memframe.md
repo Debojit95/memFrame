@@ -29,6 +29,36 @@ totals = await dataset.agroupby("region").sum("revenue")
 rolling = await dataset.arolling(column="sales", window=7, func="mean", order_by="date")
 ```
 
+## Creating Datasets
+
+`mf.DataFrame` mirrors the `pd.DataFrame` constructor: pass a dict, a list
+of rows (with `columns`), a `pd.Series`, or a `pd.DataFrame`, and it creates a
+new table and returns its dataset context with the full operation surface.
+`dtype` applies one dtype to every column, exactly like pandas; per-column
+control lives on `upload_df(..., dtypes={...})`.
+
+```python
+dataset = mf.DataFrame({"name": ["Alice", "Bob"], "score": [95.5, 82.0]})
+print(dataset.head(n=2))
+#     name  score
+# 0  Alice   95.5
+# 1    Bob   82.0
+```
+
+```python
+dataset = mf.DataFrame([[1, "x"], [2, "y"]], columns=["id", "tag"])
+dataset = mf.DataFrame(pd.Series([1, 2, 3], name="s"))
+dataset = mf.DataFrame(frame, dtype="float64")
+```
+
+Supported dtypes: integers (`int8`–`int64`, unsigned variants) → integer
+columns (`uint64` values past 9.2e18 overflow at insert); `float32`/`float64`,
+`bool`, `datetime64` (tz-aware becomes tz-stamped); `str`/`object`/`string`/
+`category` → text; `decimal`, `date`, `bytes` map natively. Anything else falls
+back to text (lossy). Empty input raises — a table needs typed columns.
+`df.columns` selects/orders columns at construction, pandas semantics verbatim;
+the pandas index is dropped (tables are unordered).
+
 ## Domains
 
 | Domain | What it covers |
