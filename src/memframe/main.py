@@ -194,6 +194,37 @@ class MemFrame(ContextManager, OpsMixin):
     def memFrame(self, data_id: Optional[str] = None, data: Any = None, columns: Optional[List[str]] = None):
         return self._ops(data_id, data, columns)
 
+    def DataFrame(
+        self,
+        data: Any = None,
+        columns: Optional[List[str]] = None,
+        dtype: Any = None,
+    ):
+        """Pandas-style constructor: build a dataset from in-memory data.
+
+        Mirrors ``pd.DataFrame(data, columns=columns, dtype=dtype)`` and
+        uploads the result as a new table, returning its dataset context
+        with the full operation surface. See :meth:`memFrame` for the
+        data_id-registry form and :meth:`upload_df` for per-column dtypes.
+        """
+        if data is None:
+            raise ConfigurationError("DataFrame() needs `data` to create a table.")
+        try:
+            import pandas as pd
+        except ImportError as exc:
+            raise ImportError(
+                "DataFrame() requires pandas for DataFrame conversion."
+            ) from exc
+        kwargs: Dict[str, Any] = {}
+        if columns is not None:
+            kwargs["columns"] = columns
+        if dtype is not None:
+            kwargs["dtype"] = dtype
+        df = data if isinstance(data, pd.DataFrame) and not kwargs else pd.DataFrame(data, **kwargs)
+        if df.empty or len(df.columns) == 0:
+            raise ConfigurationError("DataFrame() needs non-empty `data` to create a table.")
+        return self._ops(data=df)
+
     async def __aenter__(self):
         await self.aconnect()
         return self
