@@ -1,26 +1,32 @@
 # Index
 
-Source: `src/memframe/core/analytix/index/` and
-`src/memframe/core/orchestrator/analytix/index.py`
+Source: `src/memframe/wrappers/analytix/index.py`
 
-`IndexOrchestrator` is the index interface: pandas-like `set_index`,
-`reset_index`, `index`, `reindex`, and `reindex_like` over database tables.
-SQL tables have no row labels, so the index is **metadata-only** — a JSON
-list of key columns in `memframe_csv_registry.index_cols`, never DDL.
-`set_index`/`reset_index` only read/write that metadata; `reindex`/
-`reindex_like` are read-time `LEFT JOIN`s against the key.
+`IndexWrapper` is the public index interface exposed through a
+`ContextManager`. It provides pandas-like `set_index`, `reset_index`, `index`,
+`reindex`, and `reindex_like` backed by backend-native SQL across DuckDB,
+PostgreSQL, and ClickHouse. SQL tables have no row labels, so the index is
+**metadata-only** — a JSON list of key columns in
+`memframe_csv_registry.index_cols`, never DDL. `set_index`/`reset_index`
+only read/write that metadata; `reindex`/`reindex_like` are read-time
+`LEFT JOIN`s against the key.
 
-> A `ContextManager` wrapper (`dataset.set_index(...)` with sync/async twins)
-> is pending — until then, call the orchestrator directly on a dataset
-> context (orchestrator methods are `async`):
->
-> ```python
-> from memframe.core.orchestrator.analytix.index import IndexOrchestrator
->
-> dataset = mf.upload_df(frame)
-> orch = IndexOrchestrator(dataset)
-> await orch.set_index("month")
-> ```
+Users normally call index methods directly on a dataset context returned by
+an upload operation:
+
+```python
+dataset = mf.upload_df(frame)
+dataset.set_index("month")
+labels = dataset.index
+```
+
+The same methods are available asynchronously:
+
+```python
+dataset = await mf.aupload_df(frame)
+await dataset.aset_index("month")
+aligned = await dataset.areindex([1, 2, 4])
+```
 
 The lower-level files are implementation details:
 
@@ -30,28 +36,44 @@ The lower-level files are implementation details:
 - `src/memframe/core/orchestrator/analytix/index.py` resolves the active dataset
   context and passes persistence metadata (metadata writes are signature-only
   in the cache; `reindex` reads persist under `deep_cache`).
+- `src/memframe/wrappers/analytix/index.py` exposes synchronous and asynchronous
+  public methods.
 
 ## Public API
 
-| Method | Purpose |
-| --- | --- |
-| `set_index(keys, append=False, drop=True, verify_integrity=False)` | Track key column(s) as the logical index |
-| `reset_index(level=None, drop=False, names=None)` | Clear the tracked index, or a subset of levels |
-| `get_index(limit=None)` | Read back index columns and labels |
-| `reindex(labels, index=None, columns=None, axis=None, method=None, fill_value=None, limit=None)` | Conform rows/columns to new labels |
-| `reindex_like(other, method=None, fill_value=None, limit=None)` | Conform to another dataset's index and columns |
+Every index operation has synchronous and asynchronous forms (`ctx.index` is
+the property form of `get_index`, returning bare label values):
+
+| Synchronous | Asynchronous | Purpose |
+| --- | --- | --- |
+| `set_index(keys, append=False, drop=True, verify_integrity=False)` | `await aset_index(...)` | Track key column(s) as the logical index |
+| `reset_index(level=None, drop=False, names=None)` | `await areset_index(...)` | Clear the tracked index, or a subset of levels |
+| `get_index(limit=None)` / `index` | `await aget_index(...)` | Read back index columns and labels |
+| `reindex(labels, ...)` | `await areindex(...)` | Conform rows/columns to new labels |
+| `reindex_like(other, ...)` | `await areindex_like(...)` | Conform to another dataset's index and columns |
+
+Public methods return the operation value directly (a `DataFrame`, label
+list, or dict). Invalid operations raise `OperationError`.
 
 ## Usage Overview
 
 ```python
-orch = IndexOrchestrator(mf.upload_df(frame))
-await orch.set_index("month")
+dataset = mf.upload_df(frame)
+dataset.set_index("month")
 
-labels = await orch.get_index()          # {"index_cols": [...], "values": [...]}
-aligned = await orch.reindex([1, 2, 4])  # gap months -> NaN
-filled = await orch.reindex([1, 2, 4], fill_value=0)
-filled = await orch.reindex([1, 2, 4], fill_value=0)
-await orch.reset_index()                 # back to synthetic RangeIndex
+labels = dataset.index                    # [1, 4, 7, 10]
+aligned = dataset.reindex([1, 2, 4])      # gap months -> NaN
+filled = dataset.reindex([1, 2, 4], fill_value=0)
+dataset.reset_index()                     # back to synthetic RangeIndex
+```
+
+```python
+dataset = await mf.aupload_df(frame)
+await dataset.aset_index(["year", "month"])
+aligned = await dataset.areindex([(2012, 1), (2014, 5)], fill_value=0)
+filled = await dataset.areindex([1, 2, 3, 4], method="ffill", limit=1)
+nearest = await dataset.areindex([2, 9], method="nearest")
+remaining = await dataset.areset_index(level="year")  # keep ["month"]
 ```
 
 Multi-key index and fill methods:
@@ -126,8 +148,18 @@ Failures return `is_error True` with an `error_message` (raised as
 
 ## API Reference
 
-Autodoc references arrive with the `ContextManager` wrapper (griffe only
-resolves the `wrappers` tree today — `core.*` are namespace packages).
-Until then, the signatures live in
-`src/memframe/core/analytix/index/base.py:DataIndexOps` and
-`src/memframe/core/orchestrator/analytix/index.py:IndexOrchestrator`.
+::: memframe.wrappers.analytix.index.IndexWrapper
+    options:
+      show_root_heading: true
+      show_root_full_path: true
+      members:
+        - aset_index
+        - set_index
+        - areset_index
+        - reset_index
+        - aget_index
+        - get_index
+        - areindex
+        - reindex
+        - areindex_like
+        - reindex_like

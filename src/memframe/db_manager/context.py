@@ -65,6 +65,7 @@ class ContextManager:
         if self._wrappers is not None:
             return
         from memframe.wrappers.analytix.selection import SelectionWrapper
+        from memframe.wrappers.analytix.index import IndexWrapper
         from memframe.wrappers.analytix.inspection import TableOpsWrapper
         from memframe.wrappers.analytix.cleaning import CleaningWrapper
         from memframe.wrappers.analytix.stats import StatsWrapper
@@ -89,6 +90,10 @@ class ContextManager:
 
         self._wrappers = [
             SelectionWrapper(self),
+            # ponytail: IndexWrapper precedes TableOpsWrapper so ctx.set_index
+            # resolves to the metadata-only engine; TableOpsWrapper.set_index
+            # (ADD PRIMARY KEY) stays for the AI SessionWrappers path only.
+            IndexWrapper(self),
             TableOpsWrapper(self),
             CleaningWrapper(self),
             StatsWrapper(self),
@@ -165,6 +170,16 @@ class ContextManager:
             return value["shape"]
         return value
 
+    @property
+    def index(self) -> Any:
+        # ponytail: pandas-like bare label values (list, or list of tuples
+        # for MultiIndex); the full {"index_cols", "values"} dict stays
+        # available via get_index()/aget_index().
+        value = self._public_attr("get_index")
+        if isinstance(value, dict) and "values" in value:
+            return value["values"]
+        return value
+
     def groupby(self, *columns: str):
         # ponytail: unified GroupBy facade (stats + cumulative + window
         # builders) so the flat `groupby` name doesn't collide between
@@ -200,6 +215,7 @@ class ContextManager:
         self._lazy_init_wrappers()
         names = set(super().__dir__())
         names.add("dt")
+        names.add("index")
         for w in self._wrappers:
             names.update(w.__dir__())
         return sorted(names)

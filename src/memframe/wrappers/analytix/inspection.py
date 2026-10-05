@@ -351,7 +351,7 @@ class TableOpsWrapper(TableOpsOrchestrator):
         return await self.arename(columns=columns)
 
     # ==========================================================
-    # SET INDEX
+    # SET INDEX (legacy DDL path — ctx.set_index dispatches to IndexWrapper)
     # ==========================================================
 
     async def aset_index(
