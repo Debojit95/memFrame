@@ -1,0 +1,1286 @@
+{
+ "get_set": {
+  "clickhouse": {
+   "adapter": [
+    [
+     "fetch",
+     "SELECTDISTINCT`month`FROM`s`.`t`ORDERBY`month`",
+     []
+    ]
+   ],
+   "backend": [
+    [
+     "fetchval",
+     "SELECTindex_colsFROMmemframe_csv_registry.memframe_csv_registryWHEREdata_id=?",
+     [
+      "abc123"
+     ]
+    ]
+   ]
+  },
+  "duckdb": {
+   "adapter": [
+    [
+     "fetch",
+     "SELECTDISTINCT\"month\"FROM\"s\".\"t\"ORDERBY\"month\"",
+     []
+    ]
+   ],
+   "backend": [
+    [
+     "fetchval",
+     "SELECTindex_colsFROMmemframe_csv_registry.memframe_csv_registryWHEREdata_id=?",
+     [
+      "abc123"
+     ]
+    ]
+   ]
+  },
+  "postgres": {
+   "adapter": [
+    [
+     "fetch",
+     "SELECTDISTINCT\"month\"FROM\"s\".\"t\"ORDERBY\"month\"",
+     []
+    ]
+   ],
+   "backend": [
+    [
+     "fetchval",
+     "SELECTindex_colsFROMmemframe_csv_registry.memframe_csv_registryWHEREdata_id=$1",
+     [
+      "abc123"
+     ]
+    ]
+   ]
+  }
+ },
+ "get_synthetic": {
+  "clickhouse": {
+   "adapter": [
+    [
+     "fetchval",
+     "SELECTCOUNT(*)FROM`s`.`t`",
+     []
+    ]
+   ],
+   "backend": [
+    [
+     "fetchval",
+     "SELECTindex_colsFROMmemframe_csv_registry.memframe_csv_registryWHEREdata_id=?",
+     [
+      "abc123"
+     ]
+    ]
+   ]
+  },
+  "duckdb": {
+   "adapter": [
+    [
+     "fetchval",
+     "SELECTCOUNT(*)FROM\"s\".\"t\"",
+     []
+    ]
+   ],
+   "backend": [
+    [
+     "fetchval",
+     "SELECTindex_colsFROMmemframe_csv_registry.memframe_csv_registryWHEREdata_id=?",
+     [
+      "abc123"
+     ]
+    ]
+   ]
+  },
+  "postgres": {
+   "adapter": [
+    [
+     "fetchval",
+     "SELECTCOUNT(*)FROM\"s\".\"t\"",
+     []
+    ]
+   ],
+   "backend": [
+    [
+     "fetchval",
+     "SELECTindex_colsFROMmemframe_csv_registry.memframe_csv_registryWHEREdata_id=$1",
+     [
+      "abc123"
+     ]
+    ]
+   ]
+  }
+ },
+ "reindex_bad_method": {
+  "clickhouse": {
+   "adapter": [],
+   "backend": []
+  },
+  "duckdb": {
+   "adapter": [],
+   "backend": []
+  },
+  "postgres": {
+   "adapter": [],
+   "backend": []
+  }
+ },
+ "reindex_bfill": {
+  "clickhouse": {
+   "adapter": [
+    [
+     "fetch",
+     "WITHwantAS(SELECT?AS`month`,?AS`__ord`UNIONALLSELECT?AS`month`,?AS`__ord`UNIONALLSELECT?AS`month`,?AS`__ord`),joinedAS(SELECTw.`month`AS`month`,t.`year`AS`year`,t.`sale`AS`sale`,w.`__ord`AS`__ord`FROMwantwLEFTJOIN`s`.`t`tON(w.`month`=t.`month`OR(w.`month`ISNULLANDt.`month`ISNULL))),islAS(SELECTj.*,COUNT(j.`year`)OVER(ORDERBYj.`__ord`DESCROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS`__mf_isl_0`,COUNT(j.`sale`)OVER(ORDERBYj.`__ord`DESCROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS`__mf_isl_1`FROMjoinedj),posAS(SELECTs.*,ROW_NUMBER()OVER(PARTITIONBYs.`__mf_isl_0`ORDERBYs.`__ord`DESC)AS`__mf_pos_0`,ROW_NUMBER()OVER(PARTITIONBYs.`__mf_isl_1`ORDERBYs.`__ord`DESC)AS`__mf_pos_1`FROMisls),filledAS(SELECTp.*,MAX(p.`year`)OVER(PARTITIONBYp.`__mf_isl_0`)AS`__mf_fill_0`,MAX(p.`sale`)OVER(PARTITIONBYp.`__mf_isl_1`)AS`__mf_fill_1`FROMposp)SELECTf.`month`AS`month`,f.`__mf_fill_0`AS`year`,f.`__mf_fill_1`AS`sale`FROMfilledfORDERBYf.`__ord`ASC",
+     [
+      "1",
+      "0",
+      "2",
+      "1",
+      "4",
+      "2"
+     ]
+    ]
+   ],
+   "backend": [
+    [
+     "fetchval",
+     "SELECTindex_colsFROMmemframe_csv_registry.memframe_csv_registryWHEREdata_id=?",
+     [
+      "abc123"
+     ]
+    ]
+   ]
+  },
+  "duckdb": {
+   "adapter": [
+    [
+     "fetch",
+     "WITHwantAS(SELECT?AS\"month\",?AS\"__ord\"UNIONALLSELECT?AS\"month\",?AS\"__ord\"UNIONALLSELECT?AS\"month\",?AS\"__ord\"),joinedAS(SELECTw.\"month\"AS\"month\",t.\"year\"AS\"year\",t.\"sale\"AS\"sale\",w.\"__ord\"AS\"__ord\"FROMwantwLEFTJOIN\"s\".\"t\"tON(w.\"month\"=t.\"month\"OR(w.\"month\"ISNULLANDt.\"month\"ISNULL))),islAS(SELECTj.*,COUNT(j.\"year\")OVER(ORDERBYj.\"__ord\"DESCROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"__mf_isl_0\",COUNT(j.\"sale\")OVER(ORDERBYj.\"__ord\"DESCROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"__mf_isl_1\"FROMjoinedj),posAS(SELECTs.*,ROW_NUMBER()OVER(PARTITIONBYs.\"__mf_isl_0\"ORDERBYs.\"__ord\"DESC)AS\"__mf_pos_0\",ROW_NUMBER()OVER(PARTITIONBYs.\"__mf_isl_1\"ORDERBYs.\"__ord\"DESC)AS\"__mf_pos_1\"FROMisls),filledAS(SELECTp.*,MAX(p.\"year\")OVER(PARTITIONBYp.\"__mf_isl_0\")AS\"__mf_fill_0\",MAX(p.\"sale\")OVER(PARTITIONBYp.\"__mf_isl_1\")AS\"__mf_fill_1\"FROMposp)SELECTf.\"month\"AS\"month\",f.\"__mf_fill_0\"AS\"year\",f.\"__mf_fill_1\"AS\"sale\"FROMfilledfORDERBYf.\"__ord\"ASC",
+     [
+      "1",
+      "0",
+      "2",
+      "1",
+      "4",
+      "2"
+     ]
+    ]
+   ],
+   "backend": [
+    [
+     "fetchval",
+     "SELECTindex_colsFROMmemframe_csv_registry.memframe_csv_registryWHEREdata_id=?",
+     [
+      "abc123"
+     ]
+    ]
+   ]
+  },
+  "postgres": {
+   "adapter": [
+    [
+     "fetch",
+     "WITHwantAS(SELECT$1AS\"month\",$2AS\"__ord\"UNIONALLSELECT$3AS\"month\",$4AS\"__ord\"UNIONALLSELECT$5AS\"month\",$6AS\"__ord\"),joinedAS(SELECTw.\"month\"AS\"month\",t.\"year\"AS\"year\",t.\"sale\"AS\"sale\",w.\"__ord\"AS\"__ord\"FROMwantwLEFTJOIN\"s\".\"t\"tON(w.\"month\"=t.\"month\"OR(w.\"month\"ISNULLANDt.\"month\"ISNULL))),islAS(SELECTj.*,COUNT(j.\"year\")OVER(ORDERBYj.\"__ord\"DESCROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"__mf_isl_0\",COUNT(j.\"sale\")OVER(ORDERBYj.\"__ord\"DESCROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"__mf_isl_1\"FROMjoinedj),posAS(SELECTs.*,ROW_NUMBER()OVER(PARTITIONBYs.\"__mf_isl_0\"ORDERBYs.\"__ord\"DESC)AS\"__mf_pos_0\",ROW_NUMBER()OVER(PARTITIONBYs.\"__mf_isl_1\"ORDERBYs.\"__ord\"DESC)AS\"__mf_pos_1\"FROMisls),filledAS(SELECTp.*,MAX(p.\"year\")OVER(PARTITIONBYp.\"__mf_isl_0\")AS\"__mf_fill_0\",MAX(p.\"sale\")OVER(PARTITIONBYp.\"__mf_isl_1\")AS\"__mf_fill_1\"FROMposp)SELECTf.\"month\"AS\"month\",f.\"__mf_fill_0\"AS\"year\",f.\"__mf_fill_1\"AS\"sale\"FROMfilledfORDERBYf.\"__ord\"ASC",
+     [
+      "1",
+      "0",
+      "2",
+      "1",
+      "4",
+      "2"
+     ]
+    ]
+   ],
+   "backend": [
+    [
+     "fetchval",
+     "SELECTindex_colsFROMmemframe_csv_registry.memframe_csv_registryWHEREdata_id=$1",
+     [
+      "abc123"
+     ]
+    ]
+   ]
+  }
+ },
+ "reindex_columns": {
+  "clickhouse": {
+   "adapter": [
+    [
+     "fetch",
+     "SELECTt.`sale`AS`sale`,?AS`nope`FROM`s`.`t`t",
+     [
+      "-1"
+     ]
+    ]
+   ],
+   "backend": []
+  },
+  "duckdb": {
+   "adapter": [
+    [
+     "fetch",
+     "SELECTt.\"sale\"AS\"sale\",?AS\"nope\"FROM\"s\".\"t\"t",
+     [
+      "-1"
+     ]
+    ]
+   ],
+   "backend": []
+  },
+  "postgres": {
+   "adapter": [
+    [
+     "fetch",
+     "SELECTt.\"sale\"AS\"sale\",$1AS\"nope\"FROM\"s\".\"t\"t",
+     [
+      "-1"
+     ]
+    ]
+   ],
+   "backend": []
+  }
+ },
+ "reindex_ffill": {
+  "clickhouse": {
+   "adapter": [
+    [
+     "fetch",
+     "WITHwantAS(SELECT?AS`month`,?AS`__ord`UNIONALLSELECT?AS`month`,?AS`__ord`UNIONALLSELECT?AS`month`,?AS`__ord`),joinedAS(SELECTw.`month`AS`month`,t.`year`AS`year`,t.`sale`AS`sale`,w.`__ord`AS`__ord`FROMwantwLEFTJOIN`s`.`t`tON(w.`month`=t.`month`OR(w.`month`ISNULLANDt.`month`ISNULL))),islAS(SELECTj.*,COUNT(j.`year`)OVER(ORDERBYj.`__ord`ASCROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS`__mf_isl_0`,COUNT(j.`sale`)OVER(ORDERBYj.`__ord`ASCROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS`__mf_isl_1`FROMjoinedj),posAS(SELECTs.*,ROW_NUMBER()OVER(PARTITIONBYs.`__mf_isl_0`ORDERBYs.`__ord`ASC)AS`__mf_pos_0`,ROW_NUMBER()OVER(PARTITIONBYs.`__mf_isl_1`ORDERBYs.`__ord`ASC)AS`__mf_pos_1`FROMisls),filledAS(SELECTp.*,MAX(p.`year`)OVER(PARTITIONBYp.`__mf_isl_0`)AS`__mf_fill_0`,MAX(p.`sale`)OVER(PARTITIONBYp.`__mf_isl_1`)AS`__mf_fill_1`FROMposp)SELECTf.`month`AS`month`,f.`__mf_fill_0`AS`year`,f.`__mf_fill_1`AS`sale`FROMfilledfORDERBYf.`__ord`ASC",
+     [
+      "1",
+      "0",
+      "2",
+      "1",
+      "4",
+      "2"
+     ]
+    ]
+   ],
+   "backend": [
+    [
+     "fetchval",
+     "SELECTindex_colsFROMmemframe_csv_registry.memframe_csv_registryWHEREdata_id=?",
+     [
+      "abc123"
+     ]
+    ]
+   ]
+  },
+  "duckdb": {
+   "adapter": [
+    [
+     "fetch",
+     "WITHwantAS(SELECT?AS\"month\",?AS\"__ord\"UNIONALLSELECT?AS\"month\",?AS\"__ord\"UNIONALLSELECT?AS\"month\",?AS\"__ord\"),joinedAS(SELECTw.\"month\"AS\"month\",t.\"year\"AS\"year\",t.\"sale\"AS\"sale\",w.\"__ord\"AS\"__ord\"FROMwantwLEFTJOIN\"s\".\"t\"tON(w.\"month\"=t.\"month\"OR(w.\"month\"ISNULLANDt.\"month\"ISNULL))),islAS(SELECTj.*,COUNT(j.\"year\")OVER(ORDERBYj.\"__ord\"ASCROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"__mf_isl_0\",COUNT(j.\"sale\")OVER(ORDERBYj.\"__ord\"ASCROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"__mf_isl_1\"FROMjoinedj),posAS(SELECTs.*,ROW_NUMBER()OVER(PARTITIONBYs.\"__mf_isl_0\"ORDERBYs.\"__ord\"ASC)AS\"__mf_pos_0\",ROW_NUMBER()OVER(PARTITIONBYs.\"__mf_isl_1\"ORDERBYs.\"__ord\"ASC)AS\"__mf_pos_1\"FROMisls),filledAS(SELECTp.*,MAX(p.\"year\")OVER(PARTITIONBYp.\"__mf_isl_0\")AS\"__mf_fill_0\",MAX(p.\"sale\")OVER(PARTITIONBYp.\"__mf_isl_1\")AS\"__mf_fill_1\"FROMposp)SELECTf.\"month\"AS\"month\",f.\"__mf_fill_0\"AS\"year\",f.\"__mf_fill_1\"AS\"sale\"FROMfilledfORDERBYf.\"__ord\"ASC",
+     [
+      "1",
+      "0",
+      "2",
+      "1",
+      "4",
+      "2"
+     ]
+    ]
+   ],
+   "backend": [
+    [
+     "fetchval",
+     "SELECTindex_colsFROMmemframe_csv_registry.memframe_csv_registryWHEREdata_id=?",
+     [
+      "abc123"
+     ]
+    ]
+   ]
+  },
+  "postgres": {
+   "adapter": [
+    [
+     "fetch",
+     "WITHwantAS(SELECT$1AS\"month\",$2AS\"__ord\"UNIONALLSELECT$3AS\"month\",$4AS\"__ord\"UNIONALLSELECT$5AS\"month\",$6AS\"__ord\"),joinedAS(SELECTw.\"month\"AS\"month\",t.\"year\"AS\"year\",t.\"sale\"AS\"sale\",w.\"__ord\"AS\"__ord\"FROMwantwLEFTJOIN\"s\".\"t\"tON(w.\"month\"=t.\"month\"OR(w.\"month\"ISNULLANDt.\"month\"ISNULL))),islAS(SELECTj.*,COUNT(j.\"year\")OVER(ORDERBYj.\"__ord\"ASCROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"__mf_isl_0\",COUNT(j.\"sale\")OVER(ORDERBYj.\"__ord\"ASCROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"__mf_isl_1\"FROMjoinedj),posAS(SELECTs.*,ROW_NUMBER()OVER(PARTITIONBYs.\"__mf_isl_0\"ORDERBYs.\"__ord\"ASC)AS\"__mf_pos_0\",ROW_NUMBER()OVER(PARTITIONBYs.\"__mf_isl_1\"ORDERBYs.\"__ord\"ASC)AS\"__mf_pos_1\"FROMisls),filledAS(SELECTp.*,MAX(p.\"year\")OVER(PARTITIONBYp.\"__mf_isl_0\")AS\"__mf_fill_0\",MAX(p.\"sale\")OVER(PARTITIONBYp.\"__mf_isl_1\")AS\"__mf_fill_1\"FROMposp)SELECTf.\"month\"AS\"month\",f.\"__mf_fill_0\"AS\"year\",f.\"__mf_fill_1\"AS\"sale\"FROMfilledfORDERBYf.\"__ord\"ASC",
+     [
+      "1",
+      "0",
+      "2",
+      "1",
+      "4",
+      "2"
+     ]
+    ]
+   ],
+   "backend": [
+    [
+     "fetchval",
+     "SELECTindex_colsFROMmemframe_csv_registry.memframe_csv_registryWHEREdata_id=$1",
+     [
+      "abc123"
+     ]
+    ]
+   ]
+  }
+ },
+ "reindex_ffill_limit": {
+  "clickhouse": {
+   "adapter": [
+    [
+     "fetch",
+     "WITHwantAS(SELECT?AS`month`,?AS`__ord`UNIONALLSELECT?AS`month`,?AS`__ord`UNIONALLSELECT?AS`month`,?AS`__ord`),joinedAS(SELECTw.`month`AS`month`,t.`year`AS`year`,t.`sale`AS`sale`,w.`__ord`AS`__ord`FROMwantwLEFTJOIN`s`.`t`tON(w.`month`=t.`month`OR(w.`month`ISNULLANDt.`month`ISNULL))),islAS(SELECTj.*,COUNT(j.`year`)OVER(ORDERBYj.`__ord`ASCROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS`__mf_isl_0`,COUNT(j.`sale`)OVER(ORDERBYj.`__ord`ASCROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS`__mf_isl_1`FROMjoinedj),posAS(SELECTs.*,ROW_NUMBER()OVER(PARTITIONBYs.`__mf_isl_0`ORDERBYs.`__ord`ASC)AS`__mf_pos_0`,ROW_NUMBER()OVER(PARTITIONBYs.`__mf_isl_1`ORDERBYs.`__ord`ASC)AS`__mf_pos_1`FROMisls),filledAS(SELECTp.*,MAX(p.`year`)OVER(PARTITIONBYp.`__mf_isl_0`)AS`__mf_fill_0`,MAX(p.`sale`)OVER(PARTITIONBYp.`__mf_isl_1`)AS`__mf_fill_1`FROMposp)SELECTf.`month`AS`month`,CASEWHENf.`__mf_pos_0`<=2THENf.`__mf_fill_0`ELSEf.`year`ENDAS`year`,CASEWHENf.`__mf_pos_1`<=2THENf.`__mf_fill_1`ELSEf.`sale`ENDAS`sale`FROMfilledfORDERBYf.`__ord`ASC",
+     [
+      "1",
+      "0",
+      "2",
+      "1",
+      "4",
+      "2"
+     ]
+    ]
+   ],
+   "backend": [
+    [
+     "fetchval",
+     "SELECTindex_colsFROMmemframe_csv_registry.memframe_csv_registryWHEREdata_id=?",
+     [
+      "abc123"
+     ]
+    ]
+   ]
+  },
+  "duckdb": {
+   "adapter": [
+    [
+     "fetch",
+     "WITHwantAS(SELECT?AS\"month\",?AS\"__ord\"UNIONALLSELECT?AS\"month\",?AS\"__ord\"UNIONALLSELECT?AS\"month\",?AS\"__ord\"),joinedAS(SELECTw.\"month\"AS\"month\",t.\"year\"AS\"year\",t.\"sale\"AS\"sale\",w.\"__ord\"AS\"__ord\"FROMwantwLEFTJOIN\"s\".\"t\"tON(w.\"month\"=t.\"month\"OR(w.\"month\"ISNULLANDt.\"month\"ISNULL))),islAS(SELECTj.*,COUNT(j.\"year\")OVER(ORDERBYj.\"__ord\"ASCROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"__mf_isl_0\",COUNT(j.\"sale\")OVER(ORDERBYj.\"__ord\"ASCROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"__mf_isl_1\"FROMjoinedj),posAS(SELECTs.*,ROW_NUMBER()OVER(PARTITIONBYs.\"__mf_isl_0\"ORDERBYs.\"__ord\"ASC)AS\"__mf_pos_0\",ROW_NUMBER()OVER(PARTITIONBYs.\"__mf_isl_1\"ORDERBYs.\"__ord\"ASC)AS\"__mf_pos_1\"FROMisls),filledAS(SELECTp.*,MAX(p.\"year\")OVER(PARTITIONBYp.\"__mf_isl_0\")AS\"__mf_fill_0\",MAX(p.\"sale\")OVER(PARTITIONBYp.\"__mf_isl_1\")AS\"__mf_fill_1\"FROMposp)SELECTf.\"month\"AS\"month\",CASEWHENf.\"__mf_pos_0\"<=2THENf.\"__mf_fill_0\"ELSEf.\"year\"ENDAS\"year\",CASEWHENf.\"__mf_pos_1\"<=2THENf.\"__mf_fill_1\"ELSEf.\"sale\"ENDAS\"sale\"FROMfilledfORDERBYf.\"__ord\"ASC",
+     [
+      "1",
+      "0",
+      "2",
+      "1",
+      "4",
+      "2"
+     ]
+    ]
+   ],
+   "backend": [
+    [
+     "fetchval",
+     "SELECTindex_colsFROMmemframe_csv_registry.memframe_csv_registryWHEREdata_id=?",
+     [
+      "abc123"
+     ]
+    ]
+   ]
+  },
+  "postgres": {
+   "adapter": [
+    [
+     "fetch",
+     "WITHwantAS(SELECT$1AS\"month\",$2AS\"__ord\"UNIONALLSELECT$3AS\"month\",$4AS\"__ord\"UNIONALLSELECT$5AS\"month\",$6AS\"__ord\"),joinedAS(SELECTw.\"month\"AS\"month\",t.\"year\"AS\"year\",t.\"sale\"AS\"sale\",w.\"__ord\"AS\"__ord\"FROMwantwLEFTJOIN\"s\".\"t\"tON(w.\"month\"=t.\"month\"OR(w.\"month\"ISNULLANDt.\"month\"ISNULL))),islAS(SELECTj.*,COUNT(j.\"year\")OVER(ORDERBYj.\"__ord\"ASCROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"__mf_isl_0\",COUNT(j.\"sale\")OVER(ORDERBYj.\"__ord\"ASCROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"__mf_isl_1\"FROMjoinedj),posAS(SELECTs.*,ROW_NUMBER()OVER(PARTITIONBYs.\"__mf_isl_0\"ORDERBYs.\"__ord\"ASC)AS\"__mf_pos_0\",ROW_NUMBER()OVER(PARTITIONBYs.\"__mf_isl_1\"ORDERBYs.\"__ord\"ASC)AS\"__mf_pos_1\"FROMisls),filledAS(SELECTp.*,MAX(p.\"year\")OVER(PARTITIONBYp.\"__mf_isl_0\")AS\"__mf_fill_0\",MAX(p.\"sale\")OVER(PARTITIONBYp.\"__mf_isl_1\")AS\"__mf_fill_1\"FROMposp)SELECTf.\"month\"AS\"month\",CASEWHENf.\"__mf_pos_0\"<=2THENf.\"__mf_fill_0\"ELSEf.\"year\"ENDAS\"year\",CASEWHENf.\"__mf_pos_1\"<=2THENf.\"__mf_fill_1\"ELSEf.\"sale\"ENDAS\"sale\"FROMfilledfORDERBYf.\"__ord\"ASC",
+     [
+      "1",
+      "0",
+      "2",
+      "1",
+      "4",
+      "2"
+     ]
+    ]
+   ],
+   "backend": [
+    [
+     "fetchval",
+     "SELECTindex_colsFROMmemframe_csv_registry.memframe_csv_registryWHEREdata_id=$1",
+     [
+      "abc123"
+     ]
+    ]
+   ]
+  }
+ },
+ "reindex_fill": {
+  "clickhouse": {
+   "adapter": [
+    [
+     "fetch",
+     "WITHwantAS(SELECT?AS`month`,?AS`__ord`UNIONALLSELECT?AS`month`,?AS`__ord`UNIONALLSELECT?AS`month`,?AS`__ord`)SELECTw.`month`AS`month`,COALESCE(t.`year`,?)AS`year`,COALESCE(t.`sale`,?)AS`sale`FROMwantwLEFTJOIN`s`.`t`tON(w.`month`=t.`month`OR(w.`month`ISNULLANDt.`month`ISNULL))ORDERBYw.`__ord`",
+     [
+      "1",
+      "0",
+      "2",
+      "1",
+      "4",
+      "2",
+      "0",
+      "0"
+     ]
+    ]
+   ],
+   "backend": [
+    [
+     "fetchval",
+     "SELECTindex_colsFROMmemframe_csv_registry.memframe_csv_registryWHEREdata_id=?",
+     [
+      "abc123"
+     ]
+    ]
+   ]
+  },
+  "duckdb": {
+   "adapter": [
+    [
+     "fetch",
+     "WITHwantAS(SELECT?AS\"month\",?AS\"__ord\"UNIONALLSELECT?AS\"month\",?AS\"__ord\"UNIONALLSELECT?AS\"month\",?AS\"__ord\")SELECTw.\"month\"AS\"month\",COALESCE(t.\"year\",?)AS\"year\",COALESCE(t.\"sale\",?)AS\"sale\"FROMwantwLEFTJOIN\"s\".\"t\"tON(w.\"month\"=t.\"month\"OR(w.\"month\"ISNULLANDt.\"month\"ISNULL))ORDERBYw.\"__ord\"",
+     [
+      "1",
+      "0",
+      "2",
+      "1",
+      "4",
+      "2",
+      "0",
+      "0"
+     ]
+    ]
+   ],
+   "backend": [
+    [
+     "fetchval",
+     "SELECTindex_colsFROMmemframe_csv_registry.memframe_csv_registryWHEREdata_id=?",
+     [
+      "abc123"
+     ]
+    ]
+   ]
+  },
+  "postgres": {
+   "adapter": [
+    [
+     "fetch",
+     "WITHwantAS(SELECT$1AS\"month\",$2AS\"__ord\"UNIONALLSELECT$3AS\"month\",$4AS\"__ord\"UNIONALLSELECT$5AS\"month\",$6AS\"__ord\")SELECTw.\"month\"AS\"month\",COALESCE(t.\"year\",$7)AS\"year\",COALESCE(t.\"sale\",$8)AS\"sale\"FROMwantwLEFTJOIN\"s\".\"t\"tON(w.\"month\"=t.\"month\"OR(w.\"month\"ISNULLANDt.\"month\"ISNULL))ORDERBYw.\"__ord\"",
+     [
+      "1",
+      "0",
+      "2",
+      "1",
+      "4",
+      "2",
+      "0",
+      "0"
+     ]
+    ]
+   ],
+   "backend": [
+    [
+     "fetchval",
+     "SELECTindex_colsFROMmemframe_csv_registry.memframe_csv_registryWHEREdata_id=$1",
+     [
+      "abc123"
+     ]
+    ]
+   ]
+  }
+ },
+ "reindex_like": {
+  "clickhouse": {
+   "adapter": [
+    [
+     "fetch",
+     "SELECTDISTINCT`month`FROM`memframe_upload`.`otbl`ORDERBY`month`",
+     []
+    ]
+   ],
+   "backend": [
+    [
+     "fetch",
+     "SELECTtable_name,schema,index_colsFROMmemframe_csv_registry.memframe_csv_registryWHEREdata_id=?",
+     [
+      "def456"
+     ]
+    ],
+    [
+     "fetchval",
+     "SELECTindex_colsFROMmemframe_csv_registry.memframe_csv_registryWHEREdata_id=?",
+     [
+      "abc123"
+     ]
+    ],
+    [
+     "fetchval",
+     "SELECTindex_colsFROMmemframe_csv_registry.memframe_csv_registryWHEREdata_id=?",
+     [
+      "abc123"
+     ]
+    ]
+   ]
+  },
+  "duckdb": {
+   "adapter": [
+    [
+     "fetch",
+     "SELECTDISTINCT\"month\"FROM\"memframe_upload\".\"otbl\"ORDERBY\"month\"",
+     []
+    ]
+   ],
+   "backend": [
+    [
+     "fetch",
+     "SELECTtable_name,schema,index_colsFROMmemframe_csv_registry.memframe_csv_registryWHEREdata_id=?",
+     [
+      "def456"
+     ]
+    ],
+    [
+     "fetchval",
+     "SELECTindex_colsFROMmemframe_csv_registry.memframe_csv_registryWHEREdata_id=?",
+     [
+      "abc123"
+     ]
+    ],
+    [
+     "fetchval",
+     "SELECTindex_colsFROMmemframe_csv_registry.memframe_csv_registryWHEREdata_id=?",
+     [
+      "abc123"
+     ]
+    ]
+   ]
+  },
+  "postgres": {
+   "adapter": [
+    [
+     "fetch",
+     "SELECTDISTINCT\"month\"FROM\"memframe_upload\".\"otbl\"ORDERBY\"month\"",
+     []
+    ]
+   ],
+   "backend": [
+    [
+     "fetch",
+     "SELECTtable_name,schema,index_colsFROMmemframe_csv_registry.memframe_csv_registryWHEREdata_id=$1",
+     [
+      "def456"
+     ]
+    ],
+    [
+     "fetchval",
+     "SELECTindex_colsFROMmemframe_csv_registry.memframe_csv_registryWHEREdata_id=$1",
+     [
+      "abc123"
+     ]
+    ],
+    [
+     "fetchval",
+     "SELECTindex_colsFROMmemframe_csv_registry.memframe_csv_registryWHEREdata_id=$1",
+     [
+      "abc123"
+     ]
+    ]
+   ]
+  }
+ },
+ "reindex_multi": {
+  "clickhouse": {
+   "adapter": [
+    [
+     "fetch",
+     "WITHwantAS(SELECT?AS`year`,?AS`month`,?AS`__ord`UNIONALLSELECT?AS`year`,?AS`month`,?AS`__ord`)SELECTw.`year`AS`year`,w.`month`AS`month`,COALESCE(t.`sale`,?)AS`sale`FROMwantwLEFTJOIN`s`.`t`tON(w.`year`=t.`year`OR(w.`year`ISNULLANDt.`year`ISNULL))AND(w.`month`=t.`month`OR(w.`month`ISNULLANDt.`month`ISNULL))ORDERBYw.`__ord`",
+     [
+      "2012",
+      "1",
+      "0",
+      "2014",
+      "5",
+      "1",
+      "0"
+     ]
+    ]
+   ],
+   "backend": [
+    [
+     "fetchval",
+     "SELECTindex_colsFROMmemframe_csv_registry.memframe_csv_registryWHEREdata_id=?",
+     [
+      "abc123"
+     ]
+    ]
+   ]
+  },
+  "duckdb": {
+   "adapter": [
+    [
+     "fetch",
+     "WITHwantAS(SELECT?AS\"year\",?AS\"month\",?AS\"__ord\"UNIONALLSELECT?AS\"year\",?AS\"month\",?AS\"__ord\")SELECTw.\"year\"AS\"year\",w.\"month\"AS\"month\",COALESCE(t.\"sale\",?)AS\"sale\"FROMwantwLEFTJOIN\"s\".\"t\"tON(w.\"year\"=t.\"year\"OR(w.\"year\"ISNULLANDt.\"year\"ISNULL))AND(w.\"month\"=t.\"month\"OR(w.\"month\"ISNULLANDt.\"month\"ISNULL))ORDERBYw.\"__ord\"",
+     [
+      "2012",
+      "1",
+      "0",
+      "2014",
+      "5",
+      "1",
+      "0"
+     ]
+    ]
+   ],
+   "backend": [
+    [
+     "fetchval",
+     "SELECTindex_colsFROMmemframe_csv_registry.memframe_csv_registryWHEREdata_id=?",
+     [
+      "abc123"
+     ]
+    ]
+   ]
+  },
+  "postgres": {
+   "adapter": [
+    [
+     "fetch",
+     "WITHwantAS(SELECT$1AS\"year\",$2AS\"month\",$3AS\"__ord\"UNIONALLSELECT$4AS\"year\",$5AS\"month\",$6AS\"__ord\")SELECTw.\"year\"AS\"year\",w.\"month\"AS\"month\",COALESCE(t.\"sale\",$7)AS\"sale\"FROMwantwLEFTJOIN\"s\".\"t\"tON(w.\"year\"=t.\"year\"OR(w.\"year\"ISNULLANDt.\"year\"ISNULL))AND(w.\"month\"=t.\"month\"OR(w.\"month\"ISNULLANDt.\"month\"ISNULL))ORDERBYw.\"__ord\"",
+     [
+      "2012",
+      "1",
+      "0",
+      "2014",
+      "5",
+      "1",
+      "0"
+     ]
+    ]
+   ],
+   "backend": [
+    [
+     "fetchval",
+     "SELECTindex_colsFROMmemframe_csv_registry.memframe_csv_registryWHEREdata_id=$1",
+     [
+      "abc123"
+     ]
+    ]
+   ]
+  }
+ },
+ "reindex_nearest": {
+  "clickhouse": {
+   "adapter": [
+    [
+     "fetch",
+     "SELECTDISTINCT`month`ASkFROM`s`.`t`WHERE`month`ISNOTNULLORDERBYk",
+     []
+    ]
+   ],
+   "backend": [
+    [
+     "fetchval",
+     "SELECTindex_colsFROMmemframe_csv_registry.memframe_csv_registryWHEREdata_id=?",
+     [
+      "abc123"
+     ]
+    ]
+   ]
+  },
+  "duckdb": {
+   "adapter": [
+    [
+     "fetch",
+     "SELECTDISTINCT\"month\"ASkFROM\"s\".\"t\"WHERE\"month\"ISNOTNULLORDERBYk",
+     []
+    ]
+   ],
+   "backend": [
+    [
+     "fetchval",
+     "SELECTindex_colsFROMmemframe_csv_registry.memframe_csv_registryWHEREdata_id=?",
+     [
+      "abc123"
+     ]
+    ]
+   ]
+  },
+  "postgres": {
+   "adapter": [
+    [
+     "fetch",
+     "SELECTDISTINCT\"month\"ASkFROM\"s\".\"t\"WHERE\"month\"ISNOTNULLORDERBYk",
+     []
+    ]
+   ],
+   "backend": [
+    [
+     "fetchval",
+     "SELECTindex_colsFROMmemframe_csv_registry.memframe_csv_registryWHEREdata_id=$1",
+     [
+      "abc123"
+     ]
+    ]
+   ]
+  }
+ },
+ "reindex_no_index": {
+  "clickhouse": {
+   "adapter": [],
+   "backend": [
+    [
+     "fetchval",
+     "SELECTindex_colsFROMmemframe_csv_registry.memframe_csv_registryWHEREdata_id=?",
+     [
+      "abc123"
+     ]
+    ]
+   ]
+  },
+  "duckdb": {
+   "adapter": [],
+   "backend": [
+    [
+     "fetchval",
+     "SELECTindex_colsFROMmemframe_csv_registry.memframe_csv_registryWHEREdata_id=?",
+     [
+      "abc123"
+     ]
+    ]
+   ]
+  },
+  "postgres": {
+   "adapter": [],
+   "backend": [
+    [
+     "fetchval",
+     "SELECTindex_colsFROMmemframe_csv_registry.memframe_csv_registryWHEREdata_id=$1",
+     [
+      "abc123"
+     ]
+    ]
+   ]
+  }
+ },
+ "reindex_plain": {
+  "clickhouse": {
+   "adapter": [
+    [
+     "fetch",
+     "WITHwantAS(SELECT?AS`month`,?AS`__ord`UNIONALLSELECT?AS`month`,?AS`__ord`UNIONALLSELECT?AS`month`,?AS`__ord`)SELECTw.`month`AS`month`,t.`year`AS`year`,t.`sale`AS`sale`FROMwantwLEFTJOIN`s`.`t`tON(w.`month`=t.`month`OR(w.`month`ISNULLANDt.`month`ISNULL))ORDERBYw.`__ord`",
+     [
+      "1",
+      "0",
+      "2",
+      "1",
+      "4",
+      "2"
+     ]
+    ]
+   ],
+   "backend": [
+    [
+     "fetchval",
+     "SELECTindex_colsFROMmemframe_csv_registry.memframe_csv_registryWHEREdata_id=?",
+     [
+      "abc123"
+     ]
+    ]
+   ]
+  },
+  "duckdb": {
+   "adapter": [
+    [
+     "fetch",
+     "WITHwantAS(SELECT?AS\"month\",?AS\"__ord\"UNIONALLSELECT?AS\"month\",?AS\"__ord\"UNIONALLSELECT?AS\"month\",?AS\"__ord\")SELECTw.\"month\"AS\"month\",t.\"year\"AS\"year\",t.\"sale\"AS\"sale\"FROMwantwLEFTJOIN\"s\".\"t\"tON(w.\"month\"=t.\"month\"OR(w.\"month\"ISNULLANDt.\"month\"ISNULL))ORDERBYw.\"__ord\"",
+     [
+      "1",
+      "0",
+      "2",
+      "1",
+      "4",
+      "2"
+     ]
+    ]
+   ],
+   "backend": [
+    [
+     "fetchval",
+     "SELECTindex_colsFROMmemframe_csv_registry.memframe_csv_registryWHEREdata_id=?",
+     [
+      "abc123"
+     ]
+    ]
+   ]
+  },
+  "postgres": {
+   "adapter": [
+    [
+     "fetch",
+     "WITHwantAS(SELECT$1AS\"month\",$2AS\"__ord\"UNIONALLSELECT$3AS\"month\",$4AS\"__ord\"UNIONALLSELECT$5AS\"month\",$6AS\"__ord\")SELECTw.\"month\"AS\"month\",t.\"year\"AS\"year\",t.\"sale\"AS\"sale\"FROMwantwLEFTJOIN\"s\".\"t\"tON(w.\"month\"=t.\"month\"OR(w.\"month\"ISNULLANDt.\"month\"ISNULL))ORDERBYw.\"__ord\"",
+     [
+      "1",
+      "0",
+      "2",
+      "1",
+      "4",
+      "2"
+     ]
+    ]
+   ],
+   "backend": [
+    [
+     "fetchval",
+     "SELECTindex_colsFROMmemframe_csv_registry.memframe_csv_registryWHEREdata_id=$1",
+     [
+      "abc123"
+     ]
+    ]
+   ]
+  }
+ },
+ "reset_all": {
+  "clickhouse": {
+   "adapter": [],
+   "backend": [
+    [
+     "fetchval",
+     "SELECTindex_colsFROMmemframe_csv_registry.memframe_csv_registryWHEREdata_id=?",
+     [
+      "abc123"
+     ]
+    ],
+    [
+     "exec",
+     "UPDATEmemframe_csv_registry.memframe_csv_registrySETindex_cols=?WHEREdata_id=?",
+     [
+      "None",
+      "abc123"
+     ]
+    ]
+   ]
+  },
+  "duckdb": {
+   "adapter": [],
+   "backend": [
+    [
+     "fetchval",
+     "SELECTindex_colsFROMmemframe_csv_registry.memframe_csv_registryWHEREdata_id=?",
+     [
+      "abc123"
+     ]
+    ],
+    [
+     "exec",
+     "UPDATEmemframe_csv_registry.memframe_csv_registrySETindex_cols=?WHEREdata_id=?",
+     [
+      "None",
+      "abc123"
+     ]
+    ]
+   ]
+  },
+  "postgres": {
+   "adapter": [],
+   "backend": [
+    [
+     "fetchval",
+     "SELECTindex_colsFROMmemframe_csv_registry.memframe_csv_registryWHEREdata_id=$1",
+     [
+      "abc123"
+     ]
+    ],
+    [
+     "exec",
+     "UPDATEmemframe_csv_registry.memframe_csv_registrySETindex_cols=$1WHEREdata_id=$2",
+     [
+      "None",
+      "abc123"
+     ]
+    ]
+   ]
+  }
+ },
+ "reset_empty": {
+  "clickhouse": {
+   "adapter": [],
+   "backend": [
+    [
+     "fetchval",
+     "SELECTindex_colsFROMmemframe_csv_registry.memframe_csv_registryWHEREdata_id=?",
+     [
+      "abc123"
+     ]
+    ]
+   ]
+  },
+  "duckdb": {
+   "adapter": [],
+   "backend": [
+    [
+     "fetchval",
+     "SELECTindex_colsFROMmemframe_csv_registry.memframe_csv_registryWHEREdata_id=?",
+     [
+      "abc123"
+     ]
+    ]
+   ]
+  },
+  "postgres": {
+   "adapter": [],
+   "backend": [
+    [
+     "fetchval",
+     "SELECTindex_colsFROMmemframe_csv_registry.memframe_csv_registryWHEREdata_id=$1",
+     [
+      "abc123"
+     ]
+    ]
+   ]
+  }
+ },
+ "reset_level": {
+  "clickhouse": {
+   "adapter": [],
+   "backend": [
+    [
+     "fetchval",
+     "SELECTindex_colsFROMmemframe_csv_registry.memframe_csv_registryWHEREdata_id=?",
+     [
+      "abc123"
+     ]
+    ],
+    [
+     "exec",
+     "UPDATEmemframe_csv_registry.memframe_csv_registrySETindex_cols=?WHEREdata_id=?",
+     [
+      "[\"month\"]",
+      "abc123"
+     ]
+    ]
+   ]
+  },
+  "duckdb": {
+   "adapter": [],
+   "backend": [
+    [
+     "fetchval",
+     "SELECTindex_colsFROMmemframe_csv_registry.memframe_csv_registryWHEREdata_id=?",
+     [
+      "abc123"
+     ]
+    ],
+    [
+     "exec",
+     "UPDATEmemframe_csv_registry.memframe_csv_registrySETindex_cols=?WHEREdata_id=?",
+     [
+      "[\"month\"]",
+      "abc123"
+     ]
+    ]
+   ]
+  },
+  "postgres": {
+   "adapter": [],
+   "backend": [
+    [
+     "fetchval",
+     "SELECTindex_colsFROMmemframe_csv_registry.memframe_csv_registryWHEREdata_id=$1",
+     [
+      "abc123"
+     ]
+    ],
+    [
+     "exec",
+     "UPDATEmemframe_csv_registry.memframe_csv_registrySETindex_cols=$1WHEREdata_id=$2",
+     [
+      "[\"month\"]",
+      "abc123"
+     ]
+    ]
+   ]
+  }
+ },
+ "set_append": {
+  "clickhouse": {
+   "adapter": [],
+   "backend": [
+    [
+     "fetchval",
+     "SELECTindex_colsFROMmemframe_csv_registry.memframe_csv_registryWHEREdata_id=?",
+     [
+      "abc123"
+     ]
+    ],
+    [
+     "exec",
+     "UPDATEmemframe_csv_registry.memframe_csv_registrySETindex_cols=?WHEREdata_id=?",
+     [
+      "[\"year\", \"month\"]",
+      "abc123"
+     ]
+    ]
+   ]
+  },
+  "duckdb": {
+   "adapter": [],
+   "backend": [
+    [
+     "fetchval",
+     "SELECTindex_colsFROMmemframe_csv_registry.memframe_csv_registryWHEREdata_id=?",
+     [
+      "abc123"
+     ]
+    ],
+    [
+     "exec",
+     "UPDATEmemframe_csv_registry.memframe_csv_registrySETindex_cols=?WHEREdata_id=?",
+     [
+      "[\"year\", \"month\"]",
+      "abc123"
+     ]
+    ]
+   ]
+  },
+  "postgres": {
+   "adapter": [],
+   "backend": [
+    [
+     "fetchval",
+     "SELECTindex_colsFROMmemframe_csv_registry.memframe_csv_registryWHEREdata_id=$1",
+     [
+      "abc123"
+     ]
+    ],
+    [
+     "exec",
+     "UPDATEmemframe_csv_registry.memframe_csv_registrySETindex_cols=$1WHEREdata_id=$2",
+     [
+      "[\"year\", \"month\"]",
+      "abc123"
+     ]
+    ]
+   ]
+  }
+ },
+ "set_multi": {
+  "clickhouse": {
+   "adapter": [],
+   "backend": [
+    [
+     "fetchval",
+     "SELECTindex_colsFROMmemframe_csv_registry.memframe_csv_registryWHEREdata_id=?",
+     [
+      "abc123"
+     ]
+    ],
+    [
+     "exec",
+     "UPDATEmemframe_csv_registry.memframe_csv_registrySETindex_cols=?WHEREdata_id=?",
+     [
+      "[\"year\", \"month\"]",
+      "abc123"
+     ]
+    ]
+   ]
+  },
+  "duckdb": {
+   "adapter": [],
+   "backend": [
+    [
+     "fetchval",
+     "SELECTindex_colsFROMmemframe_csv_registry.memframe_csv_registryWHEREdata_id=?",
+     [
+      "abc123"
+     ]
+    ],
+    [
+     "exec",
+     "UPDATEmemframe_csv_registry.memframe_csv_registrySETindex_cols=?WHEREdata_id=?",
+     [
+      "[\"year\", \"month\"]",
+      "abc123"
+     ]
+    ]
+   ]
+  },
+  "postgres": {
+   "adapter": [],
+   "backend": [
+    [
+     "fetchval",
+     "SELECTindex_colsFROMmemframe_csv_registry.memframe_csv_registryWHEREdata_id=$1",
+     [
+      "abc123"
+     ]
+    ],
+    [
+     "exec",
+     "UPDATEmemframe_csv_registry.memframe_csv_registrySETindex_cols=$1WHEREdata_id=$2",
+     [
+      "[\"year\", \"month\"]",
+      "abc123"
+     ]
+    ]
+   ]
+  }
+ },
+ "set_single": {
+  "clickhouse": {
+   "adapter": [],
+   "backend": [
+    [
+     "fetchval",
+     "SELECTindex_colsFROMmemframe_csv_registry.memframe_csv_registryWHEREdata_id=?",
+     [
+      "abc123"
+     ]
+    ],
+    [
+     "exec",
+     "UPDATEmemframe_csv_registry.memframe_csv_registrySETindex_cols=?WHEREdata_id=?",
+     [
+      "[\"month\"]",
+      "abc123"
+     ]
+    ]
+   ]
+  },
+  "duckdb": {
+   "adapter": [],
+   "backend": [
+    [
+     "fetchval",
+     "SELECTindex_colsFROMmemframe_csv_registry.memframe_csv_registryWHEREdata_id=?",
+     [
+      "abc123"
+     ]
+    ],
+    [
+     "exec",
+     "UPDATEmemframe_csv_registry.memframe_csv_registrySETindex_cols=?WHEREdata_id=?",
+     [
+      "[\"month\"]",
+      "abc123"
+     ]
+    ]
+   ]
+  },
+  "postgres": {
+   "adapter": [],
+   "backend": [
+    [
+     "fetchval",
+     "SELECTindex_colsFROMmemframe_csv_registry.memframe_csv_registryWHEREdata_id=$1",
+     [
+      "abc123"
+     ]
+    ],
+    [
+     "exec",
+     "UPDATEmemframe_csv_registry.memframe_csv_registrySETindex_cols=$1WHEREdata_id=$2",
+     [
+      "[\"month\"]",
+      "abc123"
+     ]
+    ]
+   ]
+  }
+ },
+ "set_unknown_col": {
+  "clickhouse": {
+   "adapter": [],
+   "backend": []
+  },
+  "duckdb": {
+   "adapter": [],
+   "backend": []
+  },
+  "postgres": {
+   "adapter": [],
+   "backend": []
+  }
+ },
+ "set_verify": {
+  "clickhouse": {
+   "adapter": [
+    [
+     "fetchval",
+     "SELECTCOUNT(*)FROM`s`.`t`",
+     []
+    ],
+    [
+     "fetchval",
+     "SELECTCOUNT(*)FROM(SELECTDISTINCT`month`FROM`s`.`t`)s",
+     []
+    ]
+   ],
+   "backend": [
+    [
+     "fetchval",
+     "SELECTindex_colsFROMmemframe_csv_registry.memframe_csv_registryWHEREdata_id=?",
+     [
+      "abc123"
+     ]
+    ],
+    [
+     "exec",
+     "UPDATEmemframe_csv_registry.memframe_csv_registrySETindex_cols=?WHEREdata_id=?",
+     [
+      "[\"month\"]",
+      "abc123"
+     ]
+    ]
+   ]
+  },
+  "duckdb": {
+   "adapter": [
+    [
+     "fetchval",
+     "SELECTCOUNT(*)FROM\"s\".\"t\"",
+     []
+    ],
+    [
+     "fetchval",
+     "SELECTCOUNT(*)FROM(SELECTDISTINCT\"month\"FROM\"s\".\"t\")s",
+     []
+    ]
+   ],
+   "backend": [
+    [
+     "fetchval",
+     "SELECTindex_colsFROMmemframe_csv_registry.memframe_csv_registryWHEREdata_id=?",
+     [
+      "abc123"
+     ]
+    ],
+    [
+     "exec",
+     "UPDATEmemframe_csv_registry.memframe_csv_registrySETindex_cols=?WHEREdata_id=?",
+     [
+      "[\"month\"]",
+      "abc123"
+     ]
+    ]
+   ]
+  },
+  "postgres": {
+   "adapter": [
+    [
+     "fetchval",
+     "SELECTCOUNT(*)FROM\"s\".\"t\"",
+     []
+    ],
+    [
+     "fetchval",
+     "SELECTCOUNT(*)FROM(SELECTDISTINCT\"month\"FROM\"s\".\"t\")s",
+     []
+    ]
+   ],
+   "backend": [
+    [
+     "fetchval",
+     "SELECTindex_colsFROMmemframe_csv_registry.memframe_csv_registryWHEREdata_id=$1",
+     [
+      "abc123"
+     ]
+    ],
+    [
+     "exec",
+     "UPDATEmemframe_csv_registry.memframe_csv_registrySETindex_cols=$1WHEREdata_id=$2",
+     [
+      "[\"month\"]",
+      "abc123"
+     ]
+    ]
+   ]
+  }
+ }
+}
