@@ -85,6 +85,7 @@ nav:
           - Stats: api/stats.md
           - Datetime: api/datetime.md
           - Sorting: api/sorting.md
+          - Index: api/index.md
           - Reshape: api/reshape.md
           - Merge: api/merging.md
           - Transform: api/transform.md

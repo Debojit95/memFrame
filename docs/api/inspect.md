@@ -47,7 +47,7 @@ Every inspect operation has synchronous and asynchronous forms:
 | `insert(column, value)` | `await ainsert(...)` | Add a column from a value list |
 | `map(func, na_action=None, columns=None, datetime_action="skip")` | `await amap(...)` | Apply SQL expression to values |
 | `rename(columns)` | `await arename(...)` | Rename columns |
-| `set_index(columns)` | `await aset_index(...)` | Add a primary-key index |
+| `set_index(columns)` | `await aset_index(...)` | Track key columns (see [Index](index.md)) |
 | `update(on, other_table, other_schema="upload", overwrite=True, errors="ignore")` | `await aupdate(...)` | Update from another table |
 | `dt.resample(column, freq, ...)` | `await dt.aresample(...)` | Time-series aggregation — see [Datetime](datetime.md#resampling) |
 | `columns` | `await acolumns()` | Column labels |
@@ -423,6 +423,10 @@ Parameters:
 | `columns` | `dict[str, str]` | Mapping of old column names to new names. |
 
 ### `set_index`
+
+> Superseded by the metadata-only [Index](index.md) engine (`set_index` tracks
+> key columns in the registry; no `PRIMARY KEY` DDL). This `TableOps` path is
+> kept for compatibility.
 
 `set_index` adds a primary-key constraint over selected columns.
 
