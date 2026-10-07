@@ -399,7 +399,7 @@
    "adapter": [
     [
      "fetch",
-     "WITHwantAS(SELECT?AS`month`,?AS`__ord`UNIONALLSELECT?AS`month`,?AS`__ord`UNIONALLSELECT?AS`month`,?AS`__ord`)SELECTw.`month`AS`month`,COALESCE(t.`year`,?)AS`year`,COALESCE(t.`sale`,?)AS`sale`FROMwantwLEFTJOIN`s`.`t`tON(w.`month`=t.`month`OR(w.`month`ISNULLANDt.`month`ISNULL))ORDERBYw.`__ord`",
+     "WITHwantAS(SELECT?AS`month`,?AS`__ord`UNIONALLSELECT?AS`month`,?AS`__ord`UNIONALLSELECT?AS`month`,?AS`__ord`)SELECTw.`month`AS`month`,COALESCE(t.`year`,CAST(?ASINTEGER))AS`year`,COALESCE(t.`sale`,CAST(?ASDOUBLE))AS`sale`FROMwantwLEFTJOIN`s`.`t`tON(w.`month`=t.`month`OR(w.`month`ISNULLANDt.`month`ISNULL))ORDERBYw.`__ord`",
      [
       "1",
       "0",
@@ -426,7 +426,7 @@
    "adapter": [
     [
      "fetch",
-     "WITHwantAS(SELECT?AS\"month\",?AS\"__ord\"UNIONALLSELECT?AS\"month\",?AS\"__ord\"UNIONALLSELECT?AS\"month\",?AS\"__ord\")SELECTw.\"month\"AS\"month\",COALESCE(t.\"year\",?)AS\"year\",COALESCE(t.\"sale\",?)AS\"sale\"FROMwantwLEFTJOIN\"s\".\"t\"tON(w.\"month\"=t.\"month\"OR(w.\"month\"ISNULLANDt.\"month\"ISNULL))ORDERBYw.\"__ord\"",
+     "WITHwantAS(SELECT?AS\"month\",?AS\"__ord\"UNIONALLSELECT?AS\"month\",?AS\"__ord\"UNIONALLSELECT?AS\"month\",?AS\"__ord\")SELECTw.\"month\"AS\"month\",COALESCE(t.\"year\",CAST(?ASINTEGER))AS\"year\",COALESCE(t.\"sale\",CAST(?ASDOUBLE))AS\"sale\"FROMwantwLEFTJOIN\"s\".\"t\"tON(w.\"month\"=t.\"month\"OR(w.\"month\"ISNULLANDt.\"month\"ISNULL))ORDERBYw.\"__ord\"",
      [
       "1",
       "0",
@@ -453,7 +453,7 @@
    "adapter": [
     [
      "fetch",
-     "WITHwantAS(SELECT$1AS\"month\",$2AS\"__ord\"UNIONALLSELECT$3AS\"month\",$4AS\"__ord\"UNIONALLSELECT$5AS\"month\",$6AS\"__ord\")SELECTw.\"month\"AS\"month\",COALESCE(t.\"year\",$7)AS\"year\",COALESCE(t.\"sale\",$8)AS\"sale\"FROMwantwLEFTJOIN\"s\".\"t\"tON(w.\"month\"=t.\"month\"OR(w.\"month\"ISNULLANDt.\"month\"ISNULL))ORDERBYw.\"__ord\"",
+     "WITHwantAS(SELECT$1AS\"month\",$2AS\"__ord\"UNIONALLSELECT$3AS\"month\",$4AS\"__ord\"UNIONALLSELECT$5AS\"month\",$6AS\"__ord\")SELECTw.\"month\"AS\"month\",COALESCE(t.\"year\",CAST($7ASINTEGER))AS\"year\",COALESCE(t.\"sale\",CAST($8ASDOUBLE))AS\"sale\"FROMwantwLEFTJOIN\"s\".\"t\"tON(w.\"month\"=t.\"month\"OR(w.\"month\"ISNULLANDt.\"month\"ISNULL))ORDERBYw.\"__ord\"",
      [
       "1",
       "0",
@@ -580,7 +580,7 @@
    "adapter": [
     [
      "fetch",
-     "WITHwantAS(SELECT?AS`year`,?AS`month`,?AS`__ord`UNIONALLSELECT?AS`year`,?AS`month`,?AS`__ord`)SELECTw.`year`AS`year`,w.`month`AS`month`,COALESCE(t.`sale`,?)AS`sale`FROMwantwLEFTJOIN`s`.`t`tON(w.`year`=t.`year`OR(w.`year`ISNULLANDt.`year`ISNULL))AND(w.`month`=t.`month`OR(w.`month`ISNULLANDt.`month`ISNULL))ORDERBYw.`__ord`",
+     "WITHwantAS(SELECT?AS`year`,?AS`month`,?AS`__ord`UNIONALLSELECT?AS`year`,?AS`month`,?AS`__ord`)SELECTw.`year`AS`year`,w.`month`AS`month`,COALESCE(t.`sale`,CAST(?ASDOUBLE))AS`sale`FROMwantwLEFTJOIN`s`.`t`tON(w.`year`=t.`year`OR(w.`year`ISNULLANDt.`year`ISNULL))AND(w.`month`=t.`month`OR(w.`month`ISNULLANDt.`month`ISNULL))ORDERBYw.`__ord`",
      [
       "2012",
       "1",
@@ -606,7 +606,7 @@
    "adapter": [
     [
      "fetch",
-     "WITHwantAS(SELECT?AS\"year\",?AS\"month\",?AS\"__ord\"UNIONALLSELECT?AS\"year\",?AS\"month\",?AS\"__ord\")SELECTw.\"year\"AS\"year\",w.\"month\"AS\"month\",COALESCE(t.\"sale\",?)AS\"sale\"FROMwantwLEFTJOIN\"s\".\"t\"tON(w.\"year\"=t.\"year\"OR(w.\"year\"ISNULLANDt.\"year\"ISNULL))AND(w.\"month\"=t.\"month\"OR(w.\"month\"ISNULLANDt.\"month\"ISNULL))ORDERBYw.\"__ord\"",
+     "WITHwantAS(SELECT?AS\"year\",?AS\"month\",?AS\"__ord\"UNIONALLSELECT?AS\"year\",?AS\"month\",?AS\"__ord\")SELECTw.\"year\"AS\"year\",w.\"month\"AS\"month\",COALESCE(t.\"sale\",CAST(?ASDOUBLE))AS\"sale\"FROMwantwLEFTJOIN\"s\".\"t\"tON(w.\"year\"=t.\"year\"OR(w.\"year\"ISNULLANDt.\"year\"ISNULL))AND(w.\"month\"=t.\"month\"OR(w.\"month\"ISNULLANDt.\"month\"ISNULL))ORDERBYw.\"__ord\"",
      [
       "2012",
       "1",
@@ -632,7 +632,7 @@
    "adapter": [
     [
      "fetch",
-     "WITHwantAS(SELECT$1AS\"year\",$2AS\"month\",$3AS\"__ord\"UNIONALLSELECT$4AS\"year\",$5AS\"month\",$6AS\"__ord\")SELECTw.\"year\"AS\"year\",w.\"month\"AS\"month\",COALESCE(t.\"sale\",$7)AS\"sale\"FROMwantwLEFTJOIN\"s\".\"t\"tON(w.\"year\"=t.\"year\"OR(w.\"year\"ISNULLANDt.\"year\"ISNULL))AND(w.\"month\"=t.\"month\"OR(w.\"month\"ISNULLANDt.\"month\"ISNULL))ORDERBYw.\"__ord\"",
+     "WITHwantAS(SELECT$1AS\"year\",$2AS\"month\",$3AS\"__ord\"UNIONALLSELECT$4AS\"year\",$5AS\"month\",$6AS\"__ord\")SELECTw.\"year\"AS\"year\",w.\"month\"AS\"month\",COALESCE(t.\"sale\",CAST($7ASDOUBLE))AS\"sale\"FROMwantwLEFTJOIN\"s\".\"t\"tON(w.\"year\"=t.\"year\"OR(w.\"year\"ISNULLANDt.\"year\"ISNULL))AND(w.\"month\"=t.\"month\"OR(w.\"month\"ISNULLANDt.\"month\"ISNULL))ORDERBYw.\"__ord\"",
      [
       "2012",
       "1",

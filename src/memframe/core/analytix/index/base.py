@@ -287,8 +287,14 @@ class DataIndexOps:
                 col_labels = labels
         return row_labels, col_labels, None
 
-    def _want_union_sql(self, key_cols: List[str], labels: list) -> Tuple[str, list]:
-        """UNION ALL derived table of wanted labels with ordinal; portable SQL."""
+    def _want_union_sql(
+        self, key_cols: List[str], labels: list, output_labels: Optional[list] = None,
+    ) -> Tuple[str, list]:
+        """UNION ALL derived table of wanted labels with ordinal; portable SQL.
+
+        `output_labels[i]` (nearest only) is carried as ``__out`` so the join
+        matches on the resolved key while the output keeps the requested label.
+        """
         params: list = []
         arms = []
         ph_idx = 0
@@ -304,6 +310,9 @@ class DataIndexOps:
             terms += f", {_ph()} AS {self._q('__ord')}"
             params.extend(vals)
             params.append(ord_)
+            if output_labels is not None:
+                params.append(output_labels[ord_])
+                terms += f", {_ph()} AS {self._q('__out')}"
             arms.append(f"SELECT {terms}")
         return " UNION ALL ".join(arms), params
 
@@ -399,8 +408,13 @@ class DataIndexOps:
                 return self._error_response(
                     "method='nearest' needs a numeric or datetime key column.", key_cols
                 )
+            # ponytail: join on resolved keys but output the requested labels,
+            # matching pandas (index=[2,9], values from rows [1,10]).
+            output_labels = list(labels)
             labels = await self._nearest_labels(table, schema, key_cols[0], labels)
             method = None  # gaps resolved to present keys; plain join finishes
+        else:
+            output_labels = None
 
         col_types = await self._get_column_types(table, schema)
         value_cols = [c for c in col_types if c not in key_cols]
@@ -412,20 +426,21 @@ class DataIndexOps:
             value_cols = [c for c in wanted if c not in key_cols]
 
         qualified = self._qualified_table(table, schema)
-        want_sql, params = self._want_union_sql(key_cols, labels)
+        want_sql, params = self._want_union_sql(key_cols, labels, output_labels)
         join_cond = self._join_cond(key_cols)
 
         if method in ("ffill", "bfill"):
             df = await self._filled_select(
                 want_sql, params, qualified, join_cond, key_cols, value_cols,
-                method=method, limit=limit, fill_value=fill_value,
+                col_types, method=method, limit=limit, fill_value=fill_value,
             )
         else:
             if limit is not None:
                 return self._error_response("`limit` needs a fill method (ffill/bfill).", key_cols)
             df = await self._plain_select(
                 want_sql, params, qualified, join_cond, key_cols, value_cols,
-                fill_value=fill_value,
+                col_types, fill_value=fill_value,
+                output_key=output_labels is not None,
             )
 
         if col_labels is not None:  # column projection in requested order
@@ -442,19 +457,27 @@ class DataIndexOps:
 
     async def _plain_select(
         self, want_sql, params, qualified, join_cond, key_cols, value_cols,
-        *, fill_value: Any,
+        col_types: Dict[str, str], *, fill_value: Any, output_key: bool = False,
     ) -> pd.DataFrame:
         """LEFT JOIN against want-list; gaps → fill_value (or NULL). Read-only."""
-        key_select = ", ".join(f"w.{self._q(k)} AS {self._q(k)}" for k in key_cols)
+        if output_key:
+            key_select = ", ".join(f"w.{self._q('__out')} AS {self._q(k)}" for k in key_cols)
+        else:
+            key_select = ", ".join(f"w.{self._q(k)} AS {self._q(k)}" for k in key_cols)
         if fill_value is None:
             val_select = ", ".join(f"t.{self._q(c)} AS {self._q(c)}" for c in value_cols)
         else:
-            # ponytail: one bind param per filled column; same value repeated.
+            # ponytail: CAST the fill literal to each column's native type —
+            # untyped COALESCE(varchar_col, 0) is a binder error on DuckDB/PG.
+            # A fill_value that can't cast (e.g. 'x' into INTEGER) fails
+            # loudly; pandas' anything-goes object fills are the ceiling.
             val_terms, all_params = [], list(params)
             for c in value_cols:
                 all_params.append(fill_value)
+                ctype = (col_types.get(c) or "VARCHAR").strip() or "VARCHAR"
                 val_terms.append(
-                    f"COALESCE(t.{self._q(c)}, {self.db.placeholder(len(all_params))}) AS {self._q(c)}"
+                    f"COALESCE(t.{self._q(c)}, CAST({self.db.placeholder(len(all_params))} AS {ctype})) "
+                    f"AS {self._q(c)}"
                 )
             params = all_params
             val_select = ", ".join(val_terms) if val_terms else "1 AS __dummy"
@@ -469,7 +492,7 @@ class DataIndexOps:
 
     async def _filled_select(
         self, want_sql, params, qualified, join_cond, key_cols, value_cols,
-        *, method: str, limit: Optional[int], fill_value: Any,
+        col_types: Dict[str, str], *, method: str, limit: Optional[int], fill_value: Any,
     ) -> pd.DataFrame:
         """LEFT JOIN + islands fill. Islands are computed on RAW join output so
         a fill_value never becomes an island anchor; fill_value (if any) is
@@ -508,7 +531,10 @@ class DataIndexOps:
                 )
             if fill_value is not None:
                 params.append(fill_value)
-                expr = f"COALESCE({expr}, {self.db.placeholder(len(params))})"
+                ctype = (col_types.get(c) or "VARCHAR").strip() or "VARCHAR"
+                expr = (
+                    f"COALESCE({expr}, CAST({self.db.placeholder(len(params))} AS {ctype}))"
+                )
             final_terms.append(f"{expr} AS {self._q(c)}")
         key_final = ", ".join(f"f.{self._q(k)} AS {self._q(k)}" for k in key_cols)
         val_final = (", " + ", ".join(final_terms)) if final_terms else ""
@@ -582,8 +608,10 @@ class DataIndexOps:
                 if cs in col_types:
                     terms.append(f"t.{self._q(cs)} AS {self._q(cs)}")
                 elif fill_value is None:
-                    terms.append(f"CAST(NULL AS VARCHAR) AS {self._q(cs)}")
+                    terms.append(f"NULL AS {self._q(cs)}")
                 else:
+                    # ponytail: untyped literal — the DB infers the column type
+                    # from the fill value, like pandas does.
                     params.append(fill_value)
                     terms.append(f"{self.db.placeholder(len(params))} AS {self._q(cs)}")
             rows = await self._fetch(f"SELECT {', '.join(terms)} FROM {qualified} t", *params)
