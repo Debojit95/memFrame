@@ -77,6 +77,9 @@ def test_ctx_index_errors_raise(ctx):
     ctx.set_index("month")
     with pytest.raises(OperationError, match="monotonic"):
         ctx.reindex([4, 1, 7], method="ffill")
+    # ponytail: index ops never rename tables — names= fails, use rename().
+    with pytest.raises(OperationError, match="rename"):
+        ctx.reset_index(names={"month": "m"})
 
 
 def test_ctx_dir_includes_index(ctx):

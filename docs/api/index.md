@@ -47,7 +47,7 @@ the property form of `get_index`, returning bare label values):
 | Synchronous | Asynchronous | Purpose |
 | --- | --- | --- |
 | `set_index(keys, append=False, drop=True, verify_integrity=False)` | `await aset_index(...)` | Track key column(s) as the logical index |
-| `reset_index(level=None, drop=False, names=None)` | `await areset_index(...)` | Clear the tracked index, or a subset of levels |
+| `reset_index(level=None, drop=False)` | `await areset_index(...)` | Clear the tracked index, or a subset of levels |
 | `get_index(limit=None)` / `index` | `await aget_index(...)` | Read back index columns and labels |
 | `reindex(labels, ...)` | `await areindex(...)` | Conform rows/columns to new labels |
 | `reindex_like(other, ...)` | `await areindex_like(...)` | Conform to another dataset's index and columns |
@@ -94,8 +94,7 @@ await orch.reset_index(level="year")     # keep ["month"]
 | `append` | `set_index` | `True` extends the tracked keys, `False` replaces them. Defaults to `False`. |
 | `drop` | `set_index` / `reset_index` | Recorded, not executed — key columns never leave the table; future projections may hide them. Defaults to `True` / `False`. |
 | `verify_integrity` | `set_index` | One `COUNT(*)` vs `COUNT(DISTINCT keys)` probe; fails on duplicates. Defaults to `False`. |
-| `level` | `reset_index` | `None` clears all levels; a name or list removes a subset. |
-| `names` | `reset_index` | `{old: new}` column mapping applied via `RENAME COLUMN` before clearing. |
+| `level` | `reset_index` | `None` clears all levels; a name or list removes a subset. To rename levels, call `rename()` first — index ops never alter tables. |
 | `labels` / `index` / `columns` / `axis` | `reindex` | New labels: `labels` + `axis` (`0`/`"index"`, `1`/`"columns"`), or `index=`/`columns=` keywords. Both axes at once is allowed. |
 | `method` | `reindex` | `None` (gaps stay missing), `"ffill"`/`"pad"`, `"bfill"`/`"backfill"`, `"nearest"`. Row axis only; needs monotonic labels. |
 | `fill_value` | `reindex` | Scalar for still-missing cells (applied after any method fill). Defaults to `None` (NULL). |
@@ -118,7 +117,7 @@ implementation:
 - Wanted labels are inlined as a portable `UNION ALL` derived table
   (`SELECT ? AS "k", ? AS "__ord" UNION ALL ...`) with bind params, then
   `LEFT JOIN`ed to the base table on null-safe key equality, ordered by the
-  input ordinal. Read-only — no table is created or altered (except `reset_index(names=...)`, which runs `RENAME COLUMN`).
+  input ordinal. Read-only — no table is created or altered.
 - `ffill`/`bfill` use the islands idiom — `COUNT(col)` over the ordering plus
   `MAX(col)` per island — exact on all three backends (no `IGNORE NULLS`
   needed). `limit` caps the per-island run via `ROW_NUMBER`.

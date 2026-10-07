@@ -193,6 +193,12 @@ class DataIndexOps:
         try:
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
+            if names is not None:
+                # ponytail: renaming is rename()'s job (explicitly
+                # table-mutating); index ops never touch user tables.
+                return self._error_response(
+                    "reset_index() no longer renames — call rename() first, then reset_index()."
+                )
             existing = await self._read_index_cols(backend, data_id)
             if not existing:
                 return self._success_response(
@@ -200,31 +206,6 @@ class DataIndexOps:
                     result={"index_cols": []},
                     index_cols=[],
                 )
-            if names is not None:
-                # ponytail: dict {old: new} only — str/list positional rename
-                # is a second spelling for one ALTER; ask if you need it.
-                mapping = {}
-                if isinstance(names, dict):
-                    mapping = names
-                elif isinstance(names, str) and len(existing) == 1:
-                    mapping = {existing[0]: names}
-                elif isinstance(names, list) and len(names) == len(existing):
-                    mapping = dict(zip(existing, names))
-                else:
-                    return self._error_response(
-                        "`names` must be a {old: new} mapping (or a list matching index width).",
-                        existing,
-                    )
-                qualified = self._qualified_table(table, schema)
-                for old, new in mapping.items():
-                    old_s = SQLIdentifierSanitizer.sanitize(old)
-                    new_s = SQLIdentifierSanitizer.sanitize(new)
-                    if old_s not in existing:
-                        return self._error_response(f"Index level '{old}' not in {existing}.", existing)
-                    await self._exec(
-                        f"ALTER TABLE {qualified} RENAME COLUMN {self._q(old_s)} TO {self._q(new_s)}"
-                    )
-                existing = [mapping.get(c, c) for c in existing]
             if level is None:
                 remaining: List[str] = []
             else:
