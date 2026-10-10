@@ -1113,6 +1113,33 @@ class DataCleaningOps:
         return any(k in (col_type or "").lower() for k in ("char", "text", "string"))
 
     @staticmethod
+    def _is_numeric_type(col_type: str) -> bool:
+        return any(k in (col_type or "").lower() for k in ("int", "float", "double", "decimal", "numeric", "real"))
+
+    @staticmethod
+    def _is_bool_type(col_type: str) -> bool:
+        return "bool" in (col_type or "").lower()
+
+    @classmethod
+    def _arm_applies(cls, col_type: str, old: Any, is_regex: bool) -> bool:
+        """Static type-compatibility: can `old` ever match this column?
+
+        Cross-type equality is a binder error (DuckDB/PG try casting the
+        string), so inapplicable arms must be filtered, not emitted.
+        """
+        if _is_null_key(old):
+            return True
+        if is_regex:
+            return isinstance(old, str) and cls._is_text_type(col_type)
+        if isinstance(old, bool):
+            return cls._is_bool_type(col_type) or cls._is_numeric_type(col_type)
+        if isinstance(old, (int, float)):
+            return cls._is_numeric_type(col_type)
+        if isinstance(old, str):
+            return cls._is_text_type(col_type)
+        return True
+
+    @staticmethod
     def _replace_literal(value: Any) -> str:
         if isinstance(value, bool):
             return "TRUE" if value else "FALSE"
@@ -1192,25 +1219,23 @@ class DataCleaningOps:
                 return fail("Nothing to replace — rules are empty", targets, [])
             for col in list(rules):
                 ctype = all_types[col]
-                kept = []
-                for old, new, is_regex in rules[col]:
-                    if is_regex and isinstance(old, str) and not self._is_text_type(ctype):
-                        # ponytail: pandas skips non-text columns for
-                        # frame-wide regex; explicit columns fail loudly.
-                        if explicit_columns:
-                            return fail(
-                                f"regex replace needs a text column (detected: {ctype} for '{col}')",
-                                targets, [],
-                            )
-                        continue
-                    kept.append((old, new, is_regex))
-                # ponytail: a column whose regex rules all skipped out drops
-                # out if it has no exact rules left.
+                kept = [a for a in rules[col] if self._arm_applies(ctype, a[0], a[2])]
+                if len(kept) != len(rules[col]):
+                    if explicit_columns:
+                        dropped = [a for a in rules[col] if a not in kept]
+                        return fail(
+                            f"Replacement {dropped[0][0]!r} cannot match column '{col}' "
+                            f"(detected: {ctype})",
+                            targets, [],
+                        )
+                    # ponytail: frame-wide replace applies per column like
+                    # pandas — inapplicable arms (e.g. str on numerics, regex
+                    # on non-text) are skipped, not errors.
                 rules[col] = kept
                 if not rules[col]:
                     del rules[col]
             if not rules:
-                return fail("Nothing to replace — no column matched the rules", targets, [])
+                return fail("Nothing to replace — no rule applies to any column", targets, [])
             involved = list(rules)
             table = await self._prepare_column_operation_table(
                 # ponytail: involved columns only — a full clone would carry a

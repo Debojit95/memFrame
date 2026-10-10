@@ -278,7 +278,7 @@ def test_replace_guards(replace_context):
         ({"column": "A", "regex": True}, "both None"),
         ({"column": "nope", "to_replace": 1, "value": 2}, "not found"),
         ({"column": "A", "to_replace": 1, "value": "x"}, "Conversion Error"),
-        ({"column": "A", "to_replace": "^0$", "value": "z", "regex": True}, "text column"),
+        ({"column": "A", "to_replace": "^0$", "value": "z", "regex": True}, "cannot match"),
     ]:
         response = wrapper.replace(**kwargs)
         assert response["is_error"] is True, kwargs

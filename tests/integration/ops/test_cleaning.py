@@ -1376,6 +1376,103 @@ class TestCleaningOperations:
             backend=backend_config["connection_type"],
         )
 
+    # ----------------------------------------------------
+    # 23. replace
+    # ----------------------------------------------------
+    def test_replace_scalar_and_lists(self, uploaded_ctx, sample_df, backend_config):
+        result = uploaded_ctx.replace(column="bonus", to_replace=100, value=999)
+        res_df = get_result_df(result)
+        expected = sample_df["bonus"].replace(100, 999)
+        assert_series_equal_loose(res_df["cleaned_bonus_replaced"], expected)
+
+        result = uploaded_ctx.replace(column="bonus", to_replace=[100, 200], value=[1, 2])
+        res_df = get_result_df(result)
+        expected = sample_df["bonus"].replace([100, 200], [1, 2])
+        assert_series_equal_loose(res_df["cleaned_bonus_replaced"], expected)
+        self._record_result(
+            test_name="replace_scalar_and_lists",
+            method_call='uploaded_ctx.replace(column="bonus", ...)',
+            pandas_call='df["bonus"].replace(...)',
+            original_df=sample_df,
+            memframe_df=res_df,
+            pandas_df=expected.rename("bonus").to_frame(),
+            backend=backend_config["connection_type"],
+        )
+
+    def test_replace_dict_forms(self, uploaded_ctx, sample_df, backend_config):
+        result = uploaded_ctx.replace(column="category", to_replace={"A": "a", "X": "x"})
+        res_df = get_result_df(result)
+        assert_series_equal_loose(
+            res_df["cleaned_category_replaced"],
+            sample_df["category"].replace({"A": "a", "X": "x"}))
+
+        result = uploaded_ctx.replace(to_replace={"bonus": {100: 1, 400: 4}})
+        res_df = get_result_df(result)
+        assert_series_equal_loose(
+            res_df["cleaned_bonus_replaced"],
+            sample_df["bonus"].replace({100: 1, 400: 4}))
+        self._record_result(
+            test_name="replace_dict_forms",
+            method_call="uploaded_ctx.replace(...) dict forms",
+            pandas_call='df.replace({"A": "a", ...}) / nested',
+            original_df=sample_df,
+            memframe_df=res_df,
+            pandas_df=sample_df["bonus"].replace({100: 1, 400: 4}).rename("bonus").to_frame(),
+            backend=backend_config["connection_type"],
+        )
+
+    def test_replace_regex(self, uploaded_ctx, sample_df, backend_config):
+        result = uploaded_ctx.replace(
+            column="department", to_replace=r"^F.*", value="Fin", regex=True)
+        res_df = get_result_df(result)
+        assert_series_equal_loose(
+            res_df["cleaned_department_replaced"],
+            sample_df["department"].replace(to_replace=r"^F.*", value="Fin", regex=True))
+        self._record_result(
+            test_name="replace_regex",
+            method_call='uploaded_ctx.replace(column="department", to_replace=r"^F.*", value="Fin", regex=True)',
+            pandas_call='df["department"].replace(to_replace=r"^F.*", value="Fin", regex=True)',
+            original_df=sample_df,
+            memframe_df=res_df,
+            pandas_df=sample_df["department"].replace(
+                to_replace=r"^F.*", value="Fin", regex=True).rename("department").to_frame(),
+            backend=backend_config["connection_type"],
+        )
+
+    def test_replace_all_columns(self, uploaded_ctx, sample_df, backend_config):
+        result = uploaded_ctx.replace(to_replace="IT", value="Eng")
+        res_df = get_result_df(result)
+        expected = sample_df.replace(to_replace="IT", value="Eng")
+        for col in ("department", "category"):
+            assert_series_equal_loose(res_df[f"cleaned_{col}_replaced"], expected[col])
+        self._record_result(
+            test_name="replace_all_columns",
+            method_call='uploaded_ctx.replace(to_replace="IT", value="Eng")',
+            pandas_call='df.replace(to_replace="IT", value="Eng")',
+            original_df=sample_df,
+            memframe_df=res_df,
+            pandas_df=expected,
+            backend=backend_config["connection_type"],
+        )
+
+    def test_replace_guards(self, uploaded_ctx, sample_df, backend_config):
+        for kwargs in (
+            {"column": "bonus", "to_replace": [100], "value": [1, 2]},
+            {"column": "bonus", "to_replace": 100, "value": {"x": 1}},
+            {"column": "id", "to_replace": "^1$", "value": "x", "regex": True},
+        ):
+            with pytest.raises(OperationError):
+                uploaded_ctx.replace(**kwargs)
+        self._record_result(
+            test_name="replace_guards",
+            method_call="uploaded_ctx.replace(...) guard cases",
+            pandas_call="n/a — guard tests (OperationError)",
+            original_df=sample_df,
+            memframe_df=_empty_pdf_df("expected OperationErrors"),
+            pandas_df=_empty_pdf_df("n/a"),
+            backend=backend_config["connection_type"],
+        )
+
     def test_interpolate_order_by(self, connected_memframe, sample_df, backend_config):
         # physical and month order disagree: values follow the declared
         # sequence, rows keep their positions (positional comparison).

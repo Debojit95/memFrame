@@ -3721,7 +3721,7 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"num\",\"cat\",\"ts\",\"g\"FROM\"s\".\"t\"",
+    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"num\"FROM\"s\".\"t\"",
     []
    ],
    [
@@ -3731,22 +3731,7 @@
    ],
    [
     "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_cat_replaced\"VARCHAR",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_ts_replaced\"TIMESTAMP",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_g_replaced\"VARCHAR",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"cleaned_num_replaced\"=CASEWHEN\"num\"=1THENCAST(2ASINTEGER)ELSE\"num\"END,\"cleaned_cat_replaced\"=CASEWHEN\"cat\"=1THENCAST(2ASVARCHAR)ELSE\"cat\"END,\"cleaned_ts_replaced\"=CASEWHEN\"ts\"=1THENCAST(2ASTIMESTAMP)ELSE\"ts\"END,\"cleaned_g_replaced\"=CASEWHEN\"g\"=1THENCAST(2ASVARCHAR)ELSE\"g\"ENDWHERE1",
+    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"cleaned_num_replaced\"=CASEWHEN\"num\"=1THENCAST(2ASINTEGER)ELSE\"num\"ENDWHERE1",
     []
    ],
    [
@@ -3756,34 +3741,19 @@
    ],
    [
     "exec",
-    "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_cat_replaced\"VARCHAR",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_ts_replaced\"TIMESTAMP",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_g_replaced\"VARCHAR",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t\"UPDATE\"cleaned_num_replaced\"=CASEWHEN\"num\"=1THENCAST(2ASINTEGER)ELSE\"num\"END,\"cleaned_cat_replaced\"=CASEWHEN\"cat\"=1THENCAST(2ASVARCHAR)ELSE\"cat\"END,\"cleaned_ts_replaced\"=CASEWHEN\"ts\"=1THENCAST(2ASTIMESTAMP)ELSE\"ts\"END,\"cleaned_g_replaced\"=CASEWHEN\"g\"=1THENCAST(2ASVARCHAR)ELSE\"g\"ENDWHERE1",
+    "ALTERTABLE\"s\".\"t\"UPDATE\"cleaned_num_replaced\"=CASEWHEN\"num\"=1THENCAST(2ASINTEGER)ELSE\"num\"ENDWHERE1",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"cleaned_num_replaced\",\"cat\",\"cleaned_cat_replaced\",\"ts\",\"cleaned_ts_replaced\",\"g\",\"cleaned_g_replaced\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"cleaned_num_replaced\"FROM\"s\".\"t__op_20240101000000000000\"",
     []
    ]
   ],
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"num\",\"cat\",\"ts\",\"g\"FROM\"s\".\"t\"",
+    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"num\"FROM\"s\".\"t\"",
     []
    ],
    [
@@ -3793,22 +3763,7 @@
    ],
    [
     "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_cat_replaced\"VARCHAR",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_ts_replaced\"TIMESTAMP",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_g_replaced\"VARCHAR",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"cleaned_num_replaced\"=CASEWHEN\"num\"=1THENCAST(2ASINTEGER)ELSE\"num\"END,\"cleaned_cat_replaced\"=CASEWHEN\"cat\"=1THENCAST(2ASVARCHAR)ELSE\"cat\"END,\"cleaned_ts_replaced\"=CASEWHEN\"ts\"=1THENCAST(2ASTIMESTAMP)ELSE\"ts\"END,\"cleaned_g_replaced\"=CASEWHEN\"g\"=1THENCAST(2ASVARCHAR)ELSE\"g\"END",
+    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"cleaned_num_replaced\"=CASEWHEN\"num\"=1THENCAST(2ASINTEGER)ELSE\"num\"END",
     []
    ],
    [
@@ -3818,34 +3773,19 @@
    ],
    [
     "exec",
-    "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_cat_replaced\"VARCHAR",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_ts_replaced\"TIMESTAMP",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_g_replaced\"VARCHAR",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t\"SET\"cleaned_num_replaced\"=CASEWHEN\"num\"=1THENCAST(2ASINTEGER)ELSE\"num\"END,\"cleaned_cat_replaced\"=CASEWHEN\"cat\"=1THENCAST(2ASVARCHAR)ELSE\"cat\"END,\"cleaned_ts_replaced\"=CASEWHEN\"ts\"=1THENCAST(2ASTIMESTAMP)ELSE\"ts\"END,\"cleaned_g_replaced\"=CASEWHEN\"g\"=1THENCAST(2ASVARCHAR)ELSE\"g\"END",
+    "UPDATE\"s\".\"t\"SET\"cleaned_num_replaced\"=CASEWHEN\"num\"=1THENCAST(2ASINTEGER)ELSE\"num\"END",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"cleaned_num_replaced\",\"cat\",\"cleaned_cat_replaced\",\"ts\",\"cleaned_ts_replaced\",\"g\",\"cleaned_g_replaced\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"cleaned_num_replaced\"FROM\"s\".\"t__op_20240101000000000000\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"num\",\"cat\",\"ts\",\"g\"FROM\"s\".\"t\"",
+    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"num\"FROM\"s\".\"t\"",
     []
    ],
    [
@@ -3855,22 +3795,7 @@
    ],
    [
     "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_cat_replaced\"VARCHAR",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_ts_replaced\"TIMESTAMP",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_g_replaced\"VARCHAR",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"cleaned_num_replaced\"=CASEWHEN\"num\"=1THENCAST(2ASINTEGER)ELSE\"num\"END,\"cleaned_cat_replaced\"=CASEWHEN\"cat\"=1THENCAST(2ASVARCHAR)ELSE\"cat\"END,\"cleaned_ts_replaced\"=CASEWHEN\"ts\"=1THENCAST(2ASTIMESTAMP)ELSE\"ts\"END,\"cleaned_g_replaced\"=CASEWHEN\"g\"=1THENCAST(2ASVARCHAR)ELSE\"g\"END",
+    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"cleaned_num_replaced\"=CASEWHEN\"num\"=1THENCAST(2ASINTEGER)ELSE\"num\"END",
     []
    ],
    [
@@ -3880,27 +3805,12 @@
    ],
    [
     "exec",
-    "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_cat_replaced\"VARCHAR",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_ts_replaced\"TIMESTAMP",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_g_replaced\"VARCHAR",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t\"SET\"cleaned_num_replaced\"=CASEWHEN\"num\"=1THENCAST(2ASINTEGER)ELSE\"num\"END,\"cleaned_cat_replaced\"=CASEWHEN\"cat\"=1THENCAST(2ASVARCHAR)ELSE\"cat\"END,\"cleaned_ts_replaced\"=CASEWHEN\"ts\"=1THENCAST(2ASTIMESTAMP)ELSE\"ts\"END,\"cleaned_g_replaced\"=CASEWHEN\"g\"=1THENCAST(2ASVARCHAR)ELSE\"g\"END",
+    "UPDATE\"s\".\"t\"SET\"cleaned_num_replaced\"=CASEWHEN\"num\"=1THENCAST(2ASINTEGER)ELSE\"num\"END",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"cleaned_num_replaced\",\"cat\",\"cleaned_cat_replaced\",\"ts\",\"cleaned_ts_replaced\",\"g\",\"cleaned_g_replaced\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"cleaned_num_replaced\"FROM\"s\".\"t__op_20240101000000000000\"",
     []
    ]
   ]
