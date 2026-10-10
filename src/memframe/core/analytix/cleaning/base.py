@@ -900,9 +900,8 @@ class DataCleaningOps:
     ) -> Dict[str, Any]:
         try:
             original = table
-            table = await self._prepare_column_operation_table(
-                table, schema, [column], backend=backend, data_id=data_id, new_table=new_table,
-            )
+            # ponytail: validate before preparing — bad input must not mint
+            # junk transient tables.
             col_type = await self._get_column_type(table, schema, column)
             try:
                 direction, area = self._validate_interpolate(
@@ -910,6 +909,9 @@ class DataCleaningOps:
                 )
             except ValueError as ve:
                 return fail(str(ve), [column], [])
+            table = await self._prepare_column_operation_table(
+                table, schema, [column], backend=backend, data_id=data_id, new_table=new_table,
+            )
 
             new_col = self._generate_cleaned_column_name(column, "interpolated")
             float_type = self._numeric_target_for("FLOAT")

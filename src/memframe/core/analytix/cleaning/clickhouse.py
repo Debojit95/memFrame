@@ -159,9 +159,6 @@ class ClickHouseCleaningOps(DataCleaningOps):
         # __idx is positional here — no rowid exists on ClickHouse.
         try:
             original = table
-            table = await self._prepare_column_operation_table(
-                table, schema, [column], backend=backend, data_id=data_id, new_table=new_table,
-            )
             col_type = await self._get_column_type(table, schema, column)
             try:
                 direction, area = self._validate_interpolate(
@@ -169,6 +166,9 @@ class ClickHouseCleaningOps(DataCleaningOps):
                 )
             except ValueError as ve:
                 return fail(str(ve), [column], [])
+            table = await self._prepare_column_operation_table(
+                table, schema, [column], backend=backend, data_id=data_id, new_table=new_table,
+            )
 
             new_col = self._generate_cleaned_column_name(column, "interpolated")
             safe_col = SQLIdentifierSanitizer.sanitize(column)

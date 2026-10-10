@@ -105,3 +105,100 @@ def test_fillna_mean_after_to_numeric_with_leading_null_rows():
         assert response["generated_cols"]
     finally:
         asyncio.run(memframe.aclose())
+
+
+@pytest.fixture
+def interpolate_context():
+    memframe = MemFrame(
+        connection_type="local",
+        connection_params={"db_path": ":memory:"},
+    )
+    asyncio.run(memframe.aconnect())
+    try:
+        yield memframe.upload_df(
+            pd.DataFrame(
+                {
+                    "a": [0.0, None, 2.0, None],
+                    "b": [None, 2.0, 3.0, 4.0],
+                }
+            ),
+            filename="interpolate_response",
+        )
+    finally:
+        asyncio.run(memframe.aclose())
+
+
+def _interp_values(ctx, column, **kwargs):
+    response = CleaningWrapper(ctx).interpolate(column, **kwargs)
+    assert response["is_error"] is False, response["error_message"]
+    assert response["fill_mode"] == "LINEAR"
+    assert response["generated_cols"] == [f"cleaned_{column}_interpolated"]
+    return response["result"][f"cleaned_{column}_interpolated"].tolist()
+
+
+def test_interpolate_linear_forward(interpolate_context):
+    assert _interp_values(interpolate_context, "a") == [0.0, 1.0, 2.0, 2.0]
+    result = _interp_values(interpolate_context, "b")
+    assert result[1:] == [2.0, 3.0, 4.0]
+    assert pd.isna(result[0])
+
+
+def test_interpolate_directions(interpolate_context):
+    backward = _interp_values(interpolate_context, "a", limit_direction="backward")
+    assert backward[:3] == [0.0, 1.0, 2.0]
+    assert pd.isna(backward[3])
+    assert _interp_values(interpolate_context, "a", limit_direction="both") == [0.0, 1.0, 2.0, 2.0]
+
+
+def test_interpolate_limit_area(interpolate_context):
+    inside = _interp_values(interpolate_context, "a", limit_area="inside")
+    assert inside[:3] == [0.0, 1.0, 2.0]
+    assert pd.isna(inside[3])
+    outside = _interp_values(
+        interpolate_context, "a", limit_direction="both", limit_area="outside"
+    )
+    assert outside[0] == 0.0
+    assert pd.isna(outside[1])
+    assert outside[2:] == [2.0, 2.0]
+
+
+def test_interpolate_limit():
+    # 3-long NaN run: limit=1 fills from the fill edge only (pandas vectors).
+    df = pd.DataFrame({"v": [None, None, 5.0, None, None, None, 13.0, None, None]})
+    memframe = MemFrame(connection_type="local", connection_params={"db_path": ":memory:"})
+    asyncio.run(memframe.aconnect())
+    try:
+        ctx = memframe.upload_df(df, filename="interpolate_limit")
+        wrapper = CleaningWrapper(ctx)
+
+        def _vals(**kwargs):
+            response = wrapper.interpolate("v", **kwargs)
+            assert response["is_error"] is False, response["error_message"]
+            return [
+                None if v is None or (isinstance(v, float) and pd.isna(v)) else v
+                for v in response["result"]["cleaned_v_interpolated"].tolist()
+            ]
+
+        assert _vals() == [None, None, 5.0, 7.0, 9.0, 11.0, 13.0, 13.0, 13.0]
+        assert _vals(limit=1) == [None, None, 5.0, 7.0, None, None, 13.0, 13.0, None]
+        backward = _vals(limit=1, limit_direction="backward")
+        assert backward == [None, 5.0, 5.0, None, None, 11.0, 13.0, None, None]
+        both = _vals(limit=1, limit_direction="both")
+        assert both == [None, 5.0, 5.0, 7.0, None, 11.0, 13.0, 13.0, None]
+    finally:
+        asyncio.run(memframe.aclose())
+
+
+def test_interpolate_guards(interpolate_context):
+    wrapper = CleaningWrapper(interpolate_context)
+    for kwargs, fragment in [
+        ({"method": "polynomial"}, "only 'linear'"),
+        ({"limit_direction": "sideways"}, "limit_direction"),
+        ({"limit_area": "middle"}, "limit_area"),
+        ({"limit": 0}, "positive integer"),
+        ({"limit": True}, "positive integer"),
+    ]:
+        response = wrapper.interpolate("a", **kwargs)
+        assert response["is_error"] is True
+        assert fragment in response["error_message"]
+        assert response["result"] is None

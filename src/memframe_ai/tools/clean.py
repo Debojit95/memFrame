@@ -45,6 +45,24 @@ def tools(session):
         """Drop rows where the numeric column's z-score exceeds z_thresh."""
         return await normalize(await w.adrop_outliers(column=column, z_thresh=z_thresh), session)
 
+    async def interpolate(
+        column: str, limit: int | None = None,
+        limit_direction: str = "forward", limit_area: str | None = None,
+    ) -> dict:
+        """Linearly interpolate NaNs in numeric `column` along row order.
+
+        limit: max consecutive NaNs to fill. limit_direction:
+        'forward'/'backward'/'both'. limit_area: 'inside' (gaps only) or
+        'outside' (edges only).
+        """
+        return await normalize(
+            await w.ainterpolate(
+                column=column, limit=limit,
+                limit_direction=limit_direction, limit_area=limit_area,
+            ),
+            session,
+        )
+
     # ----- transform / coerce -----
     async def clip(column: str, min_value=None, max_value=None) -> dict:
         """Clip numeric `column` to [min_value, max_value]."""
@@ -97,7 +115,7 @@ def tools(session):
     # ----- data quality / reporting -----
     return [
         # fill / drop
-        fillna, groupby_fillna, dropna, drop_duplicates, drop, drop_outliers,
+        fillna, groupby_fillna, interpolate, dropna, drop_duplicates, drop, drop_outliers,
         # transform / coerce
         clip, clip_dates, fix_dates, to_numeric, map_values, filter_valid, compress_rare,
         # null masks
