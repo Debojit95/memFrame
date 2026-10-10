@@ -154,6 +154,41 @@ class CleaningOrchestrator:
         return await ops.categorical_fillna(table, schema, column, mode=method_lower.upper(), value=value, mapping=mapping, **persist)
 
     @record_call(deep_cache=True)
+    async def interpolate(
+        self,
+        column: str,
+        method: str = "linear",
+        limit: Optional[int] = None,
+        limit_direction: str = "forward",
+        limit_area: Optional[str] = None,
+        dtype: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Fill nulls by linear interpolation along row order.
+
+        Only ``method="linear"`` is supported (scipy methods need scipy).
+        Non-numeric columns fail; pass ``dtype="numeric"`` to override
+        auto-detection. See :meth:`fillna` for the ``dtype`` hint contract.
+        """
+        ops = await self._ensure_ops()
+        table, schema = await self._get_context()
+        persist = self._persistence_context()
+
+        detected_dtype = await self._detect_fillna_dtype(ops, table, schema, column)
+        dtype_hint = (dtype or "").strip().lower()
+        if dtype_hint in ("numeric", "categorical", "datetime"):
+            detected_dtype = dtype_hint
+        if detected_dtype != "numeric":
+            return fail(
+                f"interpolate requires a numeric column (detected: {detected_dtype})",
+                [column],
+                [],
+            )
+        return await ops.numeric_interpolate(
+            table, schema, column, method=method, limit=limit,
+            limit_direction=limit_direction, limit_area=limit_area, **persist
+        )
+
+    @record_call(deep_cache=True)
     async def clip(self, column: str,  lower: Optional[Any] = None, upper: Optional[Any] = None,) -> Dict[str, Any]:
         """
         Trim values at lower and/or upper bounds. Out‑of‑bounds become NULL.

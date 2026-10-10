@@ -28,6 +28,9 @@ class PostgresCleaningOps(DataCleaningOps):
     def _rowid_expr(self) -> str:
         return "ctid"
 
+    def _double_cast(self, expr: str) -> str:
+        return f"CAST({expr} AS DOUBLE PRECISION)"
+
     def _ffill_fn(self, col: str) -> str:
         # PG has no IGNORE NULLS window functions; MAX/MIN approximate
         return f'MAX("{col}")'

@@ -62,6 +62,49 @@ class CleaningWrapper(CleaningOrchestrator):
         )
 
     # ==========================================================
+    # INTERPOLATE
+    # ==========================================================
+
+    async def ainterpolate(
+        self,
+        column: str,
+        method: str = "linear",
+        limit: Optional[int] = None,
+        limit_direction: str = "forward",
+        limit_area: Optional[str] = None,
+        dtype: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Asynchronously fill nulls by linear interpolation."""
+        return await super().interpolate(
+            column=column,
+            method=method,
+            limit=limit,
+            limit_direction=limit_direction,
+            limit_area=limit_area,
+            dtype=dtype,
+        )
+
+    @async_to_sync
+    async def interpolate(
+        self,
+        column: str,
+        method: str = "linear",
+        limit: Optional[int] = None,
+        limit_direction: str = "forward",
+        limit_area: Optional[str] = None,
+        dtype: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Synchronously fill nulls by linear interpolation."""
+        return await self.ainterpolate(
+            column=column,
+            method=method,
+            limit=limit,
+            limit_direction=limit_direction,
+            limit_area=limit_area,
+            dtype=dtype,
+        )
+
+    # ==========================================================
     # CLIP
     # ==========================================================
 

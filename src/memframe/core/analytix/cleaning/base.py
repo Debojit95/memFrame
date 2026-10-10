@@ -772,6 +772,190 @@ class DataCleaningOps:
                 f"numeric_fillna error: {str(e)}\n{traceback.format_exc()}", [column], [],
             )
 
+    # ponytail: float-cast hook — bare DOUBLE is illegal in PG/CH.
+    # ponytail: float-cast hook — bare DOUBLE is illegal in PG/CH.
+    def _double_cast(self, expr: str) -> str:
+        """CAST expression to double precision (DuckDB default)."""
+        return f"CAST({expr} AS DOUBLE)"
+
+    def _validate_interpolate(
+        self,
+        column: str,
+        method: Any,
+        limit: Any,
+        limit_direction: Any,
+        limit_area: Any,
+        col_type: str,
+    ):
+        """Validate interpolate inputs; return (direction, area) or raise ValueError."""
+        if not isinstance(method, str) or method.lower() != "linear":
+            raise ValueError(
+                f"Unsupported interpolate method: {method!r} "
+                "(only 'linear' is supported; scipy methods need scipy)"
+            )
+        direction = (limit_direction or "forward").lower()
+        if direction not in ("forward", "backward", "both"):
+            raise ValueError(
+                f"limit_direction must be 'forward', 'backward' or 'both' (got {limit_direction!r})"
+            )
+        area = limit_area.lower() if isinstance(limit_area, str) else limit_area
+        if area not in (None, "inside", "outside"):
+            raise ValueError(
+                f"limit_area must be None, 'inside' or 'outside' (got {limit_area!r})"
+            )
+        if limit is not None and (isinstance(limit, bool) or not isinstance(limit, int) or limit <= 0):
+            raise ValueError("limit must be a positive integer")
+        if not any(k in (col_type or "").lower() for k in ("int", "float", "double", "decimal", "numeric", "real")):
+            raise ValueError(
+                f"interpolate requires a numeric column (detected: {col_type})"
+            )
+        return direction, area
+
+    def _interpolate_ctes(self, tq: str, safe_col: str, row_id: str) -> str:
+        """Shared island/anchor CTEs for linear interpolation.
+
+        Exposes ``__idx`` (physical position), ``__rid`` (physical row id),
+        ``_pv``/``_pp`` (prev valid value/pos) and ``_nv``/``_np`` (next).
+        ``FIRST_VALUE`` is portable; the islands idiom avoids ``IGNORE NULLS``
+        (absent on PG). An island's first row in position order is its anchor
+        non-null row; the leading all-null island yields NULL anchors.
+        """
+        return f"""base AS (
+                SELECT *,
+                    ROW_NUMBER() OVER () AS __idx,
+                    {row_id} AS __rid
+                FROM {tq}
+            ),
+            isl AS (
+                SELECT b.*,
+                    COUNT(b."{safe_col}") OVER (
+                        ORDER BY b.__idx ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                    ) AS _isl_f,
+                    COUNT(b."{safe_col}") OVER (
+                        ORDER BY b.__idx DESC ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                    ) AS _isl_b
+                FROM base b
+            ),
+            anch AS (
+                SELECT s.*,
+                    FIRST_VALUE(s."{safe_col}") OVER (PARTITION BY s._isl_f ORDER BY s.__idx) AS _pv,
+                    FIRST_VALUE(s.__idx) OVER (PARTITION BY s._isl_f ORDER BY s.__idx) AS _pp,
+                    FIRST_VALUE(s."{safe_col}") OVER (PARTITION BY s._isl_b ORDER BY s.__idx DESC) AS _nv,
+                    FIRST_VALUE(s.__idx) OVER (PARTITION BY s._isl_b ORDER BY s.__idx DESC) AS _np
+                FROM isl s
+            )"""
+
+    def _interpolate_case(
+        self, safe_col: str, limit: Optional[int], direction: str, area: Optional[str],
+    ) -> str:
+        """CASE expression for linear interpolation over the ``anch`` CTE."""
+        d = self._double_cast
+        interp = (
+            f"{d('_pv')} + ({d('_nv')} - {d('_pv')})"
+            f" * (__idx - _pp) * 1.0 / (_np - _pp)"
+        )
+        if limit is None:
+            in_f = in_b = in_e = "TRUE"
+        else:
+            # ponytail: limit counts from the fill edge per direction — forward
+            # fills the first N NaNs after a valid value, NOT the N closest to
+            # either anchor. Only 'both' uses the either-side distance.
+            n = int(limit)
+            in_f = f"((__idx - _pp) <= {n})"
+            in_b = f"((_np - __idx) <= {n})"
+            in_e = f"({in_f} OR {in_b})"
+        in_dir = {"forward": in_f, "backward": in_b, "both": in_e}[direction]
+        allow_in = area in (None, "inside")
+        allow_out = area in (None, "outside")
+        branches = [f'WHEN "{safe_col}" IS NOT NULL THEN "{safe_col}"']
+        if allow_in and direction in ("forward", "backward", "both"):
+            branches.append(
+                f"WHEN \"{safe_col}\" IS NULL AND _pv IS NOT NULL AND _nv IS NOT NULL "
+                f"AND {in_dir} THEN {interp}"
+            )
+        if allow_out and direction in ("forward", "both"):
+            branches.append(
+                f"WHEN \"{safe_col}\" IS NULL AND _pv IS NOT NULL AND _nv IS NULL "
+                f"AND {in_f} THEN _pv"
+            )
+        if allow_out and direction in ("backward", "both"):
+            branches.append(
+                f"WHEN \"{safe_col}\" IS NULL AND _pv IS NULL AND _nv IS NOT NULL "
+                f"AND {in_b} THEN _nv"
+            )
+        return "CASE " + " ".join(branches) + " ELSE NULL END"
+
+    async def numeric_interpolate(
+        self,
+        table: str,
+        schema: str,
+        column: str,
+        method: str = "linear",
+        limit: Optional[int] = None,
+        limit_direction: str = "forward",
+        limit_area: Optional[str] = None,
+        backend=None,
+        data_id: Optional[str] = None,
+        new_table: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        try:
+            original = table
+            table = await self._prepare_column_operation_table(
+                table, schema, [column], backend=backend, data_id=data_id, new_table=new_table,
+            )
+            col_type = await self._get_column_type(table, schema, column)
+            try:
+                direction, area = self._validate_interpolate(
+                    column, method, limit, limit_direction, limit_area, col_type
+                )
+            except ValueError as ve:
+                return fail(str(ve), [column], [])
+
+            new_col = self._generate_cleaned_column_name(column, "interpolated")
+            float_type = self._numeric_target_for("FLOAT")
+            await self._add_new_column(table, schema, new_col, float_type)
+
+            qualified = self._qualified_table(table, schema)
+            safe_col = SQLIdentifierSanitizer.sanitize(column)
+            safe_new = SQLIdentifierSanitizer.sanitize(new_col)
+
+            async def _apply(tq):
+                ctes = self._interpolate_ctes(tq, safe_col, self._rowid_expr())
+                case = self._interpolate_case(safe_col, limit, direction, area)
+                await self._exec(f"""
+                    WITH {ctes},
+                    filled AS (
+                        SELECT *, {case} AS filled_val
+                        FROM anch
+                    )
+                    UPDATE {tq} t
+                    SET "{safe_new}" = f.filled_val
+                    FROM filled f
+                    WHERE t.{self._rowid_expr()} = f.__rid
+                """)
+                return "linear"
+
+            fill_value = await _apply(qualified)
+
+            await self._add_new_column_if_not_exists(original, schema, new_col, float_type)
+            await _apply(self._qualified_table(original, schema))
+
+            null_count = await self._fetchval(
+                f'SELECT COUNT(*) FROM {qualified} WHERE "{safe_col}" IS NULL'
+            ) or 0
+
+            sample = await self._fetch_data(table, schema, columns=[safe_col, safe_new])
+            msg = f"Interpolated {null_count} null values in '{column}' using linear"
+
+            return ok(
+                msg, [column], [new_col], sample, fill_mode="LINEAR", fill_value=fill_value, new_table=table,
+            )
+
+        except Exception as e:
+            return fail(
+                f"numeric_interpolate error: {str(e)}\n{traceback.format_exc()}", [column], [],
+            )
+
     async def numeric_enforce_range(
         self,
         table: str,

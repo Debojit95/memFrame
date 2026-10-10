@@ -138,6 +138,117 @@ class ClickHouseCleaningOps(DataCleaningOps):
                 f"numeric_fillna error: {str(e)}\n{traceback.format_exc()}", [column], [],
             )
 
+    def _double_cast(self, expr: str) -> str:
+        return f"CAST({expr} AS Float64)"
+
+    async def numeric_interpolate(
+        self,
+        table: str,
+        schema: str,
+        column: str,
+        method: str = "linear",
+        limit: Optional[int] = None,
+        limit_direction: str = "forward",
+        limit_area: Optional[str] = None,
+        backend=None,
+        data_id: Optional[str] = None,
+        new_table: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        # ponytail: window functions are illegal in ALTER TABLE ... UPDATE, so
+        # rebuild via temp tables (same idiom as the islands FFILL branch).
+        # __idx is positional here — no rowid exists on ClickHouse.
+        try:
+            original = table
+            table = await self._prepare_column_operation_table(
+                table, schema, [column], backend=backend, data_id=data_id, new_table=new_table,
+            )
+            col_type = await self._get_column_type(table, schema, column)
+            try:
+                direction, area = self._validate_interpolate(
+                    column, method, limit, limit_direction, limit_area, col_type
+                )
+            except ValueError as ve:
+                return fail(str(ve), [column], [])
+
+            new_col = self._generate_cleaned_column_name(column, "interpolated")
+            safe_col = SQLIdentifierSanitizer.sanitize(column)
+            safe_new = SQLIdentifierSanitizer.sanitize(new_col)
+            case = self._interpolate_case(safe_col, limit, direction, area)
+
+            qualified = self._qualified_table(table, schema)
+            temp_table = f"{table}__interp_temp"
+            qualified_temp = self._qualified_table(temp_table, schema)
+            await self._exec("DROP TABLE IF EXISTS {}".format(qualified_temp))
+            await self._exec(f"""
+                CREATE TABLE {qualified_temp} AS
+                WITH base AS (
+                    SELECT *, ROW_NUMBER() OVER () AS __idx
+                    FROM {qualified}
+                ),
+                isl AS (
+                    SELECT b.*,
+                        countIf(isNotNull("{safe_col}")) OVER (
+                            ORDER BY __idx ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                        ) AS _isl_f,
+                        countIf(isNotNull("{safe_col}")) OVER (
+                            ORDER BY __idx DESC ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                        ) AS _isl_b
+                    FROM base b
+                ),
+                anch AS (
+                    SELECT s.*,
+                        first_value("{safe_col}") OVER (PARTITION BY _isl_f ORDER BY __idx) AS _pv,
+                        first_value(__idx) OVER (PARTITION BY _isl_f ORDER BY __idx) AS _pp,
+                        first_value("{safe_col}") OVER (PARTITION BY _isl_b ORDER BY __idx DESC) AS _nv,
+                        first_value(__idx) OVER (PARTITION BY _isl_b ORDER BY __idx DESC) AS _np
+                    FROM isl s
+                )
+                SELECT "{safe_col}", {case} AS "{safe_new}"
+                FROM anch ORDER BY __idx
+            """)
+            await self._exec(f"DROP TABLE {qualified}")
+            await self._exec(f"RENAME TABLE {qualified_temp} TO {qualified}")
+
+            # apply to the original (multi-column) table via positional join
+            original_qualified = self._qualified_table(original, schema)
+            ocols = [c for c in await self.db.get_column_types(original, schema) if c != safe_new]
+            ocols_clause = ", ".join(f'r."{SQLIdentifierSanitizer.sanitize(c)}"' for c in ocols)
+            orig_temp = f"{original}__interp_temp"
+            orig_temp_qualified = self._qualified_table(orig_temp, schema)
+            await self._exec("DROP TABLE IF EXISTS {}".format(orig_temp_qualified))
+            await self._exec(f"""
+                CREATE TABLE {orig_temp_qualified} AS
+                WITH ranked AS (
+                    SELECT *, ROW_NUMBER() OVER () AS __idx
+                    FROM {original_qualified}
+                ),
+                computed AS (
+                    SELECT __idx, "{safe_new}"
+                    FROM {qualified}
+                )
+                SELECT {ocols_clause}, c."{safe_new}"
+                FROM ranked r LEFT JOIN computed c ON c.__idx = r.__idx
+                ORDER BY r.__idx
+            """)
+            await self._exec(f"DROP TABLE {original_qualified}")
+            await self._exec(f"RENAME TABLE {orig_temp_qualified} TO {original_qualified}")
+
+            null_count = await self._fetchval(
+                f'SELECT COUNT(*) FROM {qualified} WHERE "{safe_col}" IS NULL'
+            ) or 0
+
+            sample = await self._fetch_data(table, schema, columns=[safe_col, safe_new])
+            msg = f"Interpolated {null_count} null values in '{column}' using linear"
+
+            return ok(
+                msg, [column], [new_col], sample, fill_mode="LINEAR", fill_value="linear", new_table=table,
+            )
+
+        except Exception as e:
+            return fail(
+                f"numeric_interpolate error: {str(e)}\n{traceback.format_exc()}", [column], [],
+            )
+
     async def numeric_fillna_groupby(
         self,
         table: str,
