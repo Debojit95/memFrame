@@ -162,8 +162,7 @@ def test_interpolate_limit_area(interpolate_context):
     assert outside[2:] == [2.0, 2.0]
 
 
-def test_interpolate_limit():
-    # 3-long NaN run: limit=1 fills from the fill edge only (pandas vectors).
+def test_interpolate_limit():    # 3-long NaN run: limit=1 fills from the fill edge only (pandas vectors).
     df = pd.DataFrame({"v": [None, None, 5.0, None, None, None, 13.0, None, None]})
     memframe = MemFrame(connection_type="local", connection_params={"db_path": ":memory:"})
     asyncio.run(memframe.aconnect())
@@ -202,3 +201,39 @@ def test_interpolate_guards(interpolate_context):
         assert response["is_error"] is True
         assert fragment in response["error_message"]
         assert response["result"] is None
+
+
+def test_interpolate_order_by():
+    # physical order and month order disagree: values must follow the
+    # declared sequence while rows keep their positions.
+    df = pd.DataFrame({"m": [10, 1, 4, 7], "v": [None, 0.0, None, 6.0]})
+    memframe = MemFrame(connection_type="local", connection_params={"db_path": ":memory:"})
+    asyncio.run(memframe.aconnect())
+    try:
+        ctx = memframe.upload_df(df, filename="interpolate_order_by")
+        wrapper = CleaningWrapper(ctx)
+
+        physical = wrapper.interpolate("v")["result"]["cleaned_v_interpolated"].tolist()
+        assert physical[1:] == [0.0, 3.0, 6.0]
+        assert pd.isna(physical[0])
+
+        for kwargs in ({"order_by": "m"}, {"order_by": ["m"]}):
+            response = wrapper.interpolate("v", **kwargs)
+            assert response["is_error"] is False, response["error_message"]
+            assert response["order_by"] == ["m"]
+            assert response["result"]["cleaned_v_interpolated"].tolist() == [6.0, 0.0, 3.0, 6.0]
+
+        # pandas parity: sort, interpolate, map back to original positions
+        expected = df.sort_values("m")["v"].interpolate()
+        lut = dict(zip(df.sort_values("m")["m"], expected))
+        assert [lut[m] for m in df["m"]] == [6.0, 0.0, 3.0, 6.0]
+
+        response = wrapper.interpolate("v", order_by="nope")
+        assert response["is_error"] is True
+        assert "Order-by" in response["error_message"]
+        for bad in ([], [1], ""):
+            response = wrapper.interpolate("v", order_by=bad)
+            assert response["is_error"] is True
+            assert "order_by" in response["error_message"]
+    finally:
+        asyncio.run(memframe.aclose())

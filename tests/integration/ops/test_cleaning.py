@@ -1296,8 +1296,8 @@ class TestCleaningOperations:
             res_df, "cleaned_a_interpolated", df["a"].interpolate(limit_direction="both"))
         self._record_result(
             test_name="interpolate_directions",
-            method_call='ctx.interpolate(column="a", limit_direction=...)',
-            pandas_call='df["a"].interpolate(limit_direction=...)',
+            method_call='ctx.interpolate(column="a", limit_direction="backward"/"both")',
+            pandas_call='df["a"].interpolate(limit_direction="backward"/"both")',
             original_df=df,
             memframe_df=res_df,
             pandas_df=df["a"].interpolate(limit_direction="both").rename("a").to_frame(),
@@ -1318,8 +1318,8 @@ class TestCleaningOperations:
             df["v"].interpolate(limit=1, limit_direction="backward"))
         self._record_result(
             test_name="interpolate_limit",
-            method_call='ctx.interpolate(column="v", limit=1, ...)',
-            pandas_call='df["v"].interpolate(limit=1, ...)',
+            method_call='ctx.interpolate(column="v", limit=1, limit_direction="forward"/"backward")',
+            pandas_call='df["v"].interpolate(limit=1, limit_direction="forward"/"backward")',
             original_df=df,
             memframe_df=res_df,
             pandas_df=df["v"].interpolate(limit=1, limit_direction="backward").rename("v").to_frame(),
@@ -1341,8 +1341,8 @@ class TestCleaningOperations:
             df["a"].interpolate(limit_direction="both", limit_area="outside"))
         self._record_result(
             test_name="interpolate_limit_area",
-            method_call='ctx.interpolate(column="a", limit_area=...)',
-            pandas_call='df["a"].interpolate(limit_area=...)',
+            method_call='ctx.interpolate(column="a", limit_area="inside" / limit_direction="both", limit_area="outside")',
+            pandas_call='df["a"].interpolate(limit_area="inside" / limit_direction="both", limit_area="outside")',
             original_df=df,
             memframe_df=res_df,
             pandas_df=df["a"].interpolate(
@@ -1373,6 +1373,35 @@ class TestCleaningOperations:
             original_df=df,
             memframe_df=_empty_pdf_df("expected OperationErrors"),
             pandas_df=_empty_pdf_df("n/a"),
+            backend=backend_config["connection_type"],
+        )
+
+    def test_interpolate_order_by(self, connected_memframe, sample_df, backend_config):
+        # physical and month order disagree: values follow the declared
+        # sequence, rows keep their positions (positional comparison).
+        df = pd.DataFrame({"m": [10, 1, 4, 7], "v": [None, 0.0, None, 6.0]})
+        ctx = connected_memframe.upload_df(df, filename="cleaning_interp_order")
+        result = ctx.interpolate(column="v", order_by="m")
+        res_df = get_result_df(result)
+
+        ordered = df.sort_values("m")
+        expected = pd.DataFrame({
+            "v": df["v"].tolist(),
+            "cleaned_v_interpolated": [dict(zip(ordered["m"], ordered["v"].interpolate()))[m] for m in df["m"]],
+        })
+        pd.testing.assert_series_equal(
+            res_df["cleaned_v_interpolated"].reset_index(drop=True),
+            expected["cleaned_v_interpolated"].reset_index(drop=True),
+            check_dtype=False,
+            check_names=False,
+        )
+        self._record_result(
+            test_name="interpolate_order_by",
+            method_call='ctx.interpolate(column="v", order_by="m")',
+            pandas_call='df.sort_values("m")["v"].interpolate() mapped back to original positions',
+            original_df=df,
+            memframe_df=res_df,
+            pandas_df=expected,
             backend=backend_config["connection_type"],
         )
 

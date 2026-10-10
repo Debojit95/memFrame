@@ -101,6 +101,7 @@ SCENARIOS = {
     "datetime_fillna_groupby_mean": lambda ops: ops.datetime_fillna_groupby("t", "s", "ts", group_cols=["g"], mode="mean"),
     "datetime_fillna_groupby_ffill": lambda ops: ops.datetime_fillna_groupby("t", "s", "ts", group_cols=["g"], mode="ffill"),
     "numeric_interpolate_linear": lambda ops: ops.numeric_interpolate("t", "s", "num"),
+    "numeric_interpolate_order_by": lambda ops: ops.numeric_interpolate("t", "s", "num", order_by=["g", "num"]),
     "numeric_interpolate_limit": lambda ops: ops.numeric_interpolate(
         "t", "s", "num", limit=2, limit_direction="backward", limit_area="inside"),
     "numeric_interpolate_bad_method": lambda ops: ops.numeric_interpolate("t", "s", "num", method="polynomial"),

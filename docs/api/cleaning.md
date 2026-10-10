@@ -32,7 +32,7 @@ Every cleaning operation has synchronous and asynchronous forms:
 | Synchronous | Asynchronous | Purpose |
 | --- | --- | --- |
 | `fillna(column, value=None, method="mean", mapping=None, dtype=None)` | `await afillna(...)` | Fill missing values |
-| `interpolate(column, method="linear", limit=None, limit_direction="forward", limit_area=None, dtype=None)` | `await ainterpolate(...)` | Fill missing values by linear interpolation |
+| `interpolate(column, method="linear", limit=None, limit_direction="forward", limit_area=None, order_by=None, dtype=None)` | `await ainterpolate(...)` | Fill missing values by linear interpolation |
 | `clip(column, lower=None, upper=None)` | `await aclip(...)` | Null values outside numeric bounds |
 | `drop_outliers(column, z_thresh=3.0)` | `await adrop_outliers(...)` | Null z-score outliers |
 | `to_numeric(column)` | `await ato_numeric(...)` | Convert text-like values to numeric |
@@ -192,11 +192,20 @@ Parameters:
 | `limit` | `int` or `None` | Max consecutive NaNs to fill, counted from the fill edge per direction. Must be positive. |
 | `limit_direction` | `str` | `"forward"` (default), `"backward"`, or `"both"`. |
 | `limit_area` | `str` or `None` | `None` (default, no restriction), `"inside"` (gaps only), `"outside"` (edges only). |
+| `order_by` | `str`, `list[str]`, or `None` | Column(s) sequencing rows before interpolating (single or list, `ASC`, `NULLS LAST`). Omitted means physical row order. The ordering is temporary: values compute along the sequence but rows keep their original positions. |
 | `dtype` | `str` or `None` | Optional override: only `"numeric"` is accepted; anything else fails. |
 
 The result column is `cleaned_<column>_interpolated` (always floating point —
 pandas upcasts the same way). Non-numeric columns fail; pass
 `dtype="numeric"` only to override a misdetected numeric column.
+
+```python
+result = dataset.interpolate(column="temp", order_by="ts")
+```
+
+`order_by` accepts one column or a list. Duplicate order keys make ties
+nondeterministic — pass a unique key when it matters. Unknown columns fail
+before any table is created.
 
 ### `dropna`
 
