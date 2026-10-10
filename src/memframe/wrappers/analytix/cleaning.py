@@ -72,6 +72,7 @@ class CleaningWrapper(CleaningOrchestrator):
         limit: Optional[int] = None,
         limit_direction: str = "forward",
         limit_area: Optional[str] = None,
+        order_by: Any = None,
         dtype: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Asynchronously fill nulls by linear interpolation."""
@@ -81,6 +82,7 @@ class CleaningWrapper(CleaningOrchestrator):
             limit=limit,
             limit_direction=limit_direction,
             limit_area=limit_area,
+            order_by=order_by,
             dtype=dtype,
         )
 
@@ -92,6 +94,7 @@ class CleaningWrapper(CleaningOrchestrator):
         limit: Optional[int] = None,
         limit_direction: str = "forward",
         limit_area: Optional[str] = None,
+        order_by: Any = None,
         dtype: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Synchronously fill nulls by linear interpolation."""
@@ -101,6 +104,7 @@ class CleaningWrapper(CleaningOrchestrator):
             limit=limit,
             limit_direction=limit_direction,
             limit_area=limit_area,
+            order_by=order_by,
             dtype=dtype,
         )
 

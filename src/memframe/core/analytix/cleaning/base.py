@@ -786,8 +786,13 @@ class DataCleaningOps:
         limit_direction: Any,
         limit_area: Any,
         col_type: str,
+        order_by: Any = None,
     ):
-        """Validate interpolate inputs; return (direction, area) or raise ValueError."""
+        """Validate interpolate inputs; return (direction, area, order_cols).
+
+        ``order_cols`` is the normalized ``order_by`` list (``[]`` = physical
+        order). Existence is checked by the caller (needs a live lookup).
+        """
         if not isinstance(method, str) or method.lower() != "linear":
             raise ValueError(
                 f"Unsupported interpolate method: {method!r} "
@@ -809,20 +814,35 @@ class DataCleaningOps:
             raise ValueError(
                 f"interpolate requires a numeric column (detected: {col_type})"
             )
-        return direction, area
+        if order_by is None:
+            order_cols: List[str] = []
+        else:
+            raw = [order_by] if isinstance(order_by, str) else list(order_by)
+            if not raw or not all(isinstance(c, str) and c.strip() for c in raw):
+                raise ValueError("order_by must be a column name or a non-empty list of column names")
+            order_cols = list(dict.fromkeys(raw))
+        return direction, area, order_cols
 
-    def _interpolate_ctes(self, tq: str, safe_col: str, row_id: str) -> str:
+    def _interpolate_ctes(self, tq: str, safe_col: str, row_id: str, order_cols: Optional[List[str]] = None) -> str:
         """Shared island/anchor CTEs for linear interpolation.
 
-        Exposes ``__idx`` (physical position), ``__rid`` (physical row id),
-        ``_pv``/``_pp`` (prev valid value/pos) and ``_nv``/``_np`` (next).
-        ``FIRST_VALUE`` is portable; the islands idiom avoids ``IGNORE NULLS``
-        (absent on PG). An island's first row in position order is its anchor
-        non-null row; the leading all-null island yields NULL anchors.
+        Exposes ``__idx`` (interpolation position — ``order_by`` sequence when
+        given, else physical order), ``__rid`` (physical row id for the write
+        join), ``_pv``/``_pp`` (prev valid value/pos) and ``_nv``/``_np``
+        (next). ``FIRST_VALUE`` is portable; the islands idiom avoids
+        ``IGNORE NULLS`` (absent on PG). An island's first row in position
+        order is its anchor non-null row; the leading all-null island yields
+        NULL anchors. Plain ``ASC`` sorts NULLs last on all three backends;
+        duplicate order keys make ties nondeterministic (pass a unique key).
         """
+        if order_cols:
+            order_term = ", ".join(f"{self.db.quote_identifier(SQLIdentifierSanitizer.sanitize(c))} ASC" for c in order_cols)
+            idx_window = f"ROW_NUMBER() OVER (ORDER BY {order_term})"
+        else:
+            idx_window = "ROW_NUMBER() OVER ()"
         return f"""base AS (
                 SELECT *,
-                    ROW_NUMBER() OVER () AS __idx,
+                    {idx_window} AS __idx,
                     {row_id} AS __rid
                 FROM {tq}
             ),
@@ -894,6 +914,7 @@ class DataCleaningOps:
         limit: Optional[int] = None,
         limit_direction: str = "forward",
         limit_area: Optional[str] = None,
+        order_by: Any = None,
         backend=None,
         data_id: Optional[str] = None,
         new_table: Optional[str] = None,
@@ -904,13 +925,20 @@ class DataCleaningOps:
             # junk transient tables.
             col_type = await self._get_column_type(table, schema, column)
             try:
-                direction, area = self._validate_interpolate(
-                    column, method, limit, limit_direction, limit_area, col_type
+                direction, area, order_cols = self._validate_interpolate(
+                    column, method, limit, limit_direction, limit_area, col_type, order_by
                 )
             except ValueError as ve:
                 return fail(str(ve), [column], [])
+            if order_cols:
+                available = await self.db.get_column_types(table, schema)
+                missing = [c for c in order_cols if SQLIdentifierSanitizer.sanitize(c) not in available]
+                if missing:
+                    return fail(f"Order-by column(s) not found: {missing}", [column], [])
             table = await self._prepare_column_operation_table(
-                table, schema, [column], backend=backend, data_id=data_id, new_table=new_table,
+                # ponytail: the order keys must travel into the op table —
+                # it otherwise carries only the target column.
+                table, schema, [column, *order_cols], backend=backend, data_id=data_id, new_table=new_table,
             )
 
             new_col = self._generate_cleaned_column_name(column, "interpolated")
@@ -922,7 +950,7 @@ class DataCleaningOps:
             safe_new = SQLIdentifierSanitizer.sanitize(new_col)
 
             async def _apply(tq):
-                ctes = self._interpolate_ctes(tq, safe_col, self._rowid_expr())
+                ctes = self._interpolate_ctes(tq, safe_col, self._rowid_expr(), order_cols)
                 case = self._interpolate_case(safe_col, limit, direction, area)
                 await self._exec(f"""
                     WITH {ctes},
@@ -948,9 +976,12 @@ class DataCleaningOps:
 
             sample = await self._fetch_data(table, schema, columns=[safe_col, safe_new])
             msg = f"Interpolated {null_count} null values in '{column}' using linear"
+            if order_cols:
+                msg += f" ordered by {order_cols}"
 
             return ok(
-                msg, [column], [new_col], sample, fill_mode="LINEAR", fill_value=fill_value, new_table=table,
+                msg, [column, *order_cols], [new_col], sample, fill_mode="LINEAR", fill_value=fill_value,
+                new_table=table, order_by=order_cols or None,
             )
 
         except Exception as e:

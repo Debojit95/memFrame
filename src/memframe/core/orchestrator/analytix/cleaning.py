@@ -161,13 +161,17 @@ class CleaningOrchestrator:
         limit: Optional[int] = None,
         limit_direction: str = "forward",
         limit_area: Optional[str] = None,
+        order_by: Any = None,
         dtype: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Fill nulls by linear interpolation along row order.
 
         Only ``method="linear"`` is supported (scipy methods need scipy).
-        Non-numeric columns fail; pass ``dtype="numeric"`` to override
-        auto-detection. See :meth:`fillna` for the ``dtype`` hint contract.
+        ``order_by`` (a column or list) temporarily orders the sequence before
+        interpolating; omitted means physical row order. Output rows keep
+        their original positions either way. Non-numeric columns fail; pass
+        ``dtype="numeric"`` to override auto-detection. See :meth:`fillna`
+        for the ``dtype`` hint contract.
         """
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
@@ -185,7 +189,8 @@ class CleaningOrchestrator:
             )
         return await ops.numeric_interpolate(
             table, schema, column, method=method, limit=limit,
-            limit_direction=limit_direction, limit_area=limit_area, **persist
+            limit_direction=limit_direction, limit_area=limit_area,
+            order_by=order_by, **persist
         )
 
     @record_call(deep_cache=True)

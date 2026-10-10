@@ -48,17 +48,20 @@ def tools(session):
     async def interpolate(
         column: str, limit: int | None = None,
         limit_direction: str = "forward", limit_area: str | None = None,
+        order_by: str | list[str] | None = None,
     ) -> dict:
         """Linearly interpolate NaNs in numeric `column` along row order.
 
         limit: max consecutive NaNs to fill. limit_direction:
         'forward'/'backward'/'both'. limit_area: 'inside' (gaps only) or
-        'outside' (edges only).
+        'outside' (edges only). order_by: column (or list) to sequence rows
+        by before interpolating; output rows keep original positions.
         """
         return await normalize(
             await w.ainterpolate(
                 column=column, limit=limit,
                 limit_direction=limit_direction, limit_area=limit_area,
+                order_by=order_by,
             ),
             session,
         )

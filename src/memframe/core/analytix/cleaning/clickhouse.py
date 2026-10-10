@@ -150,30 +150,42 @@ class ClickHouseCleaningOps(DataCleaningOps):
         limit: Optional[int] = None,
         limit_direction: str = "forward",
         limit_area: Optional[str] = None,
+        order_by: Any = None,
         backend=None,
         data_id: Optional[str] = None,
         new_table: Optional[str] = None,
     ) -> Dict[str, Any]:
         # ponytail: window functions are illegal in ALTER TABLE ... UPDATE, so
         # rebuild via temp tables (same idiom as the islands FFILL branch).
-        # __idx is positional here — no rowid exists on ClickHouse.
+        # __idx is the interpolation sequence (order_by or physical); __pos
+        # pins the original physical order so rebuilds never reorder rows.
         try:
             original = table
             col_type = await self._get_column_type(table, schema, column)
             try:
-                direction, area = self._validate_interpolate(
-                    column, method, limit, limit_direction, limit_area, col_type
+                direction, area, order_cols = self._validate_interpolate(
+                    column, method, limit, limit_direction, limit_area, col_type, order_by
                 )
             except ValueError as ve:
                 return fail(str(ve), [column], [])
+            if order_cols:
+                available = await self.db.get_column_types(table, schema)
+                missing = [c for c in order_cols if SQLIdentifierSanitizer.sanitize(c) not in available]
+                if missing:
+                    return fail(f"Order-by column(s) not found: {missing}", [column], [])
             table = await self._prepare_column_operation_table(
-                table, schema, [column], backend=backend, data_id=data_id, new_table=new_table,
+                table, schema, [column, *order_cols], backend=backend, data_id=data_id, new_table=new_table,
             )
 
             new_col = self._generate_cleaned_column_name(column, "interpolated")
             safe_col = SQLIdentifierSanitizer.sanitize(column)
             safe_new = SQLIdentifierSanitizer.sanitize(new_col)
             case = self._interpolate_case(safe_col, limit, direction, area)
+            if order_cols:
+                order_term = ", ".join(f'"{SQLIdentifierSanitizer.sanitize(c)}" ASC' for c in order_cols)
+                idx_window = f"ROW_NUMBER() OVER (ORDER BY {order_term})"
+            else:
+                idx_window = "ROW_NUMBER() OVER ()"
 
             qualified = self._qualified_table(table, schema)
             temp_table = f"{table}__interp_temp"
@@ -182,7 +194,7 @@ class ClickHouseCleaningOps(DataCleaningOps):
             await self._exec(f"""
                 CREATE TABLE {qualified_temp} AS
                 WITH base AS (
-                    SELECT *, ROW_NUMBER() OVER () AS __idx
+                    SELECT *, {idx_window} AS __idx, ROW_NUMBER() OVER () AS __pos
                     FROM {qualified}
                 ),
                 isl AS (
@@ -204,7 +216,7 @@ class ClickHouseCleaningOps(DataCleaningOps):
                     FROM isl s
                 )
                 SELECT "{safe_col}", {case} AS "{safe_new}"
-                FROM anch ORDER BY __idx
+                FROM anch ORDER BY __pos
             """)
             await self._exec(f"DROP TABLE {qualified}")
             await self._exec(f"RENAME TABLE {qualified_temp} TO {qualified}")
@@ -239,9 +251,12 @@ class ClickHouseCleaningOps(DataCleaningOps):
 
             sample = await self._fetch_data(table, schema, columns=[safe_col, safe_new])
             msg = f"Interpolated {null_count} null values in '{column}' using linear"
+            if order_cols:
+                msg += f" ordered by {order_cols}"
 
             return ok(
-                msg, [column], [new_col], sample, fill_mode="LINEAR", fill_value="linear", new_table=table,
+                msg, [column, *order_cols], [new_col], sample, fill_mode="LINEAR", fill_value="linear",
+                new_table=table, order_by=order_cols or None,
             )
 
         except Exception as e:
