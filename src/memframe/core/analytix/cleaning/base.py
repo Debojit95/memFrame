@@ -1169,6 +1169,7 @@ class DataCleaningOps:
         try:
             original = table
             all_types = await self.db.get_column_types(table, schema)
+            explicit_columns = columns is not None
             if columns is None:
                 # ponytail: generated cleaned_ columns are outputs, never
                 # re-targeted — otherwise repeat replace-all runs collide.
@@ -1189,14 +1190,27 @@ class DataCleaningOps:
                 return fail(str(ve), targets, [])
             if not any(rules.values()):
                 return fail("Nothing to replace — rules are empty", targets, [])
-            for col, arms in rules.items():
+            for col in list(rules):
                 ctype = all_types[col]
-                for old, _new, is_regex in arms:
+                kept = []
+                for old, new, is_regex in rules[col]:
                     if is_regex and isinstance(old, str) and not self._is_text_type(ctype):
-                        return fail(
-                            f"regex replace needs a text column (detected: {ctype} for '{col}')",
-                            targets, [],
-                        )
+                        # ponytail: pandas skips non-text columns for
+                        # frame-wide regex; explicit columns fail loudly.
+                        if explicit_columns:
+                            return fail(
+                                f"regex replace needs a text column (detected: {ctype} for '{col}')",
+                                targets, [],
+                            )
+                        continue
+                    kept.append((old, new, is_regex))
+                # ponytail: a column whose regex rules all skipped out drops
+                # out if it has no exact rules left.
+                rules[col] = kept
+                if not rules[col]:
+                    del rules[col]
+            if not rules:
+                return fail("Nothing to replace — no column matched the rules", targets, [])
             involved = list(rules)
             table = await self._prepare_column_operation_table(
                 # ponytail: involved columns only — a full clone would carry a

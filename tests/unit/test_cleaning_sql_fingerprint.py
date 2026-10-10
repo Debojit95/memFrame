@@ -105,6 +105,13 @@ SCENARIOS = {
     "numeric_interpolate_limit": lambda ops: ops.numeric_interpolate(
         "t", "s", "num", limit=2, limit_direction="backward", limit_area="inside"),
     "numeric_interpolate_bad_method": lambda ops: ops.numeric_interpolate("t", "s", "num", method="polynomial"),
+    "replace_scalar": lambda ops: ops.replace_values("t", "s", ["num"], to_replace=1, value=2),
+    "replace_list": lambda ops: ops.replace_values("t", "s", ["num"], to_replace=[1, 2], value=[3, 4]),
+    "replace_dict": lambda ops: ops.replace_values("t", "s", ["cat"], to_replace={"a": "b"}),
+    "replace_nested": lambda ops: ops.replace_values("t", "s", None, to_replace={"num": {1: 2}}),
+    "replace_regex": lambda ops: ops.replace_values("t", "s", ["cat"], to_replace=r"^a$", value="z", regex=True),
+    "replace_all_columns": lambda ops: ops.replace_values("t", "s", None, to_replace=1, value=2),
+    "replace_bad_length": lambda ops: ops.replace_values("t", "s", ["num"], to_replace=[1, 2], value=[3]),
 }
 
 BACKENDS = {

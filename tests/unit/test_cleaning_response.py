@@ -203,6 +203,89 @@ def test_interpolate_guards(interpolate_context):
         assert response["result"] is None
 
 
+@pytest.fixture
+def replace_context():
+    memframe = MemFrame(
+        connection_type="local",
+        connection_params={"db_path": ":memory:"},
+    )
+    asyncio.run(memframe.aconnect())
+    try:
+        yield memframe.upload_df(
+            pd.DataFrame(
+                {
+                    "A": [0, 1, 2, 3, 4],
+                    "B": [5, 6, 7, 8, 9],
+                    "C": ["a", "b", "c", "d", "e"],
+                }
+            ),
+            filename="replace_response",
+        )
+    finally:
+        asyncio.run(memframe.aclose())
+
+
+def _replace_values(ctx, col, **kwargs):
+    response = CleaningWrapper(ctx).replace(column=col, **kwargs)
+    assert response["is_error"] is False, response["error_message"]
+    frame = response["result"]
+    cols = [col] if isinstance(col, str) else response["involved_cols"]
+    return {
+        c: [None if v is None or (isinstance(v, float) and pd.isna(v)) else v
+            for v in frame[f"cleaned_{c}_replaced"].tolist()]
+        for c in cols
+    }
+
+
+def test_replace_scalar_and_lists(replace_context):
+    assert _replace_values(replace_context, "A", to_replace=0, value=5) == {"A": [5, 1, 2, 3, 4]}
+    assert _replace_values(replace_context, "A", to_replace=[0, 1, 2, 3], value=4) == {
+        "A": [4, 4, 4, 4, 4]}
+    assert _replace_values(replace_context, "A", to_replace=[0, 1, 2, 3], value=[4, 3, 2, 1]) == {
+        "A": [4, 3, 2, 1, 4]}
+
+
+def test_replace_dict_forms(replace_context):
+    assert _replace_values(replace_context, "A", to_replace={0: 10, 1: 100}) == {
+        "A": [10, 100, 2, 3, 4]}
+    both = _replace_values(replace_context, None, to_replace={"A": 0, "B": 5}, value=100)
+    assert both == {"A": [100, 1, 2, 3, 4], "B": [100, 6, 7, 8, 9]}
+    assert _replace_values(replace_context, None, to_replace={"A": {0: 100, 4: 400}}) == {
+        "A": [100, 1, 2, 3, 400]}
+
+
+def test_replace_null_keys(replace_context):
+    assert _replace_values(replace_context, "C", to_replace={"b": None}) == {
+        "C": ["a", None, "c", "d", "e"]}
+    assert _replace_values(replace_context, "C", to_replace="b", value=None) == {
+        "C": ["a", None, "c", "d", "e"]}
+
+
+def test_replace_regex(replace_context):
+    assert _replace_values(replace_context, "C", to_replace=r"^[ab]$", value="z", regex=True) == {
+        "C": ["z", "z", "c", "d", "e"]}
+    # ponytail: frame-wide regex skips non-text columns (pandas parity).
+    assert _replace_values(replace_context, None, regex=[r"^a$", r"^b$"], value="z") == {
+        "C": ["z", "z", "c", "d", "e"]}
+
+
+def test_replace_guards(replace_context):
+    wrapper = CleaningWrapper(replace_context)
+    for kwargs, fragment in [
+        ({"column": "A", "to_replace": [0, 1], "value": [1]}, "differ in length"),
+        ({"column": "A", "to_replace": 1, "value": [2]}, "scalar"),
+        ({"to_replace": {"X": 1}, "value": 2}, "not among"),
+        ({"column": "A", "regex": True}, "both None"),
+        ({"column": "nope", "to_replace": 1, "value": 2}, "not found"),
+        ({"column": "A", "to_replace": 1, "value": "x"}, "Conversion Error"),
+        ({"column": "A", "to_replace": "^0$", "value": "z", "regex": True}, "text column"),
+    ]:
+        response = wrapper.replace(**kwargs)
+        assert response["is_error"] is True, kwargs
+        assert fragment in response["error_message"], (kwargs, response["error_message"])
+        assert response["result"] is None
+
+
 def test_interpolate_order_by():
     # physical order and month order disagree: values must follow the
     # declared sequence while rows keep their positions.
