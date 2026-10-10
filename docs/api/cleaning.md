@@ -33,6 +33,7 @@ Every cleaning operation has synchronous and asynchronous forms:
 | --- | --- | --- |
 | `fillna(column, value=None, method="mean", mapping=None, dtype=None)` | `await afillna(...)` | Fill missing values |
 | `interpolate(column, method="linear", limit=None, limit_direction="forward", limit_area=None, order_by=None, dtype=None)` | `await ainterpolate(...)` | Fill missing values by linear interpolation |
+| `replace(column=None, to_replace=None, value=None, regex=False)` | `await areplace(...)` | Replace values in one, several, or all columns |
 | `clip(column, lower=None, upper=None)` | `await aclip(...)` | Null values outside numeric bounds |
 | `drop_outliers(column, z_thresh=3.0)` | `await adrop_outliers(...)` | Null z-score outliers |
 | `to_numeric(column)` | `await ato_numeric(...)` | Convert text-like values to numeric |
@@ -206,6 +207,40 @@ result = dataset.interpolate(column="temp", order_by="ts")
 `order_by` accepts one column or a list. Duplicate order keys make ties
 nondeterministic — pass a unique key when it matters. Unknown columns fail
 before any table is created.
+
+### `replace`
+
+`replace` substitutes values in one column, a list of columns, or all columns
+(`column=None`, the pandas default). `to_replace` takes pandas' scalar, list,
+flat-dict, nested-dict, and pattern forms; `value` is the replacement (`None`
+writes `NULL`); `regex=True` matches patterns on text columns instead of exact
+equality.
+
+```python
+result = dataset.replace(column="status", to_replace={"a": "b", "y": "z"})
+```
+
+```python
+result = await dataset.areplace(to_replace=r"^ba.$", value="new", regex=True)
+result = await dataset.areplace(to_replace={"A": {0: 100, 4: 400}})
+```
+
+Parameters:
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `column` | `str`, `list[str]`, or `None` | Target column(s). `None` means all columns (generated `cleaned_` columns excluded). |
+| `to_replace` | scalar, list, dict, pattern, or `None` | Values/patterns to find. Dicts follow pandas' rule: with `value` given, keys are column names; without it, `{old: new}` (or nested `{col: {old: new}}`). |
+| `value` | scalar, list, or `None` | Replacement. Lists must match `to_replace` length; `None` writes `NULL`. |
+| `regex` | `bool`, pattern, or list/dict of patterns | `True` interprets string entries as patterns; a pattern (or list/dict) implies it with `to_replace=None`. |
+
+Each replaced column gains a `cleaned_<column>_replaced` column; numerics
+always match exactly, even under `regex=True`. Replacements are cast to the
+column's native type (a value that cannot live there fails loudly — scope
+`column=` to dodge frame-wide mismatches), except regex replacements, which
+stay raw text so backreferences pass through. Frame-wide regex skips non-text
+columns, mirroring pandas; naming a non-text column explicitly fails.
+`inplace` is not offered — operations return new columns, never rewrites.
 
 ### `dropna`
 
@@ -499,6 +534,9 @@ Cleaning methods raise `OperationError` for invalid input or backend failures.
 - `interpolate` requires `method="linear"`, a numeric column, a positive
   `limit`, `limit_direction` in `"forward"`/`"backward"`/`"both"`, and
   `limit_area` in `None`/`"inside"`/`"outside"`.
+- `replace` rejects length-mismatched lists, `value` dicts (use nested
+  `to_replace`), mixed nested/flat dicts, regex on explicitly named non-text
+  columns, and values that cannot cast to the column type.
 
 ## API Reference
 
@@ -511,6 +549,8 @@ Cleaning methods raise `OperationError` for invalid input or backend failures.
         - fillna
         - ainterpolate
         - interpolate
+        - areplace
+        - replace
         - aclip
         - clip
         - adrop_outliers
