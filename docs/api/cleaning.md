@@ -32,6 +32,7 @@ Every cleaning operation has synchronous and asynchronous forms:
 | Synchronous | Asynchronous | Purpose |
 | --- | --- | --- |
 | `fillna(column, value=None, method="mean", mapping=None, dtype=None)` | `await afillna(...)` | Fill missing values |
+| `interpolate(column, method="linear", limit=None, limit_direction="forward", limit_area=None, dtype=None)` | `await ainterpolate(...)` | Fill missing values by linear interpolation |
 | `clip(column, lower=None, upper=None)` | `await aclip(...)` | Null values outside numeric bounds |
 | `drop_outliers(column, z_thresh=3.0)` | `await adrop_outliers(...)` | Null z-score outliers |
 | `to_numeric(column)` | `await ato_numeric(...)` | Convert text-like values to numeric |
@@ -158,6 +159,44 @@ Supported group methods:
 | `datetime` | `min`, `max`, `mean`, `median`, `mode`, `ffill`, `bfill` |
 
 `group_cols` must be non-empty.
+
+### `interpolate`
+
+`interpolate` fills missing values in a numeric column by linear
+interpolation along row order (`a + (b−a)·(p−p₀)/(p₁−p₀)` between the
+surrounding valid values). Only `method="linear"` is supported — the scipy
+family would need scipy. Interior gaps interpolate; edge NaNs fill flat from
+the nearest valid value according to `limit_direction` (`forward` fills
+trailing, `backward` fills leading, `both` fills both; leading NaNs stay NaN
+under the default `forward`).
+
+```python
+result = dataset.interpolate(column="temp")
+```
+
+```python
+result = await dataset.ainterpolate(
+    column="temp",
+    limit=1,
+    limit_direction="both",
+    limit_area="inside",
+)
+```
+
+Parameters:
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `column` | `str` | Numeric column to fill. |
+| `method` | `str` | Must be `"linear"`. Anything else fails loudly. |
+| `limit` | `int` or `None` | Max consecutive NaNs to fill, counted from the fill edge per direction. Must be positive. |
+| `limit_direction` | `str` | `"forward"` (default), `"backward"`, or `"both"`. |
+| `limit_area` | `str` or `None` | `None` (default, no restriction), `"inside"` (gaps only), `"outside"` (edges only). |
+| `dtype` | `str` or `None` | Optional override: only `"numeric"` is accepted; anything else fails. |
+
+The result column is `cleaned_<column>_interpolated` (always floating point —
+pandas upcasts the same way). Non-numeric columns fail; pass
+`dtype="numeric"` only to override a misdetected numeric column.
 
 ### `dropna`
 
@@ -429,7 +468,10 @@ Cleaning supports DuckDB and PostgreSQL adapters:
 - DuckDB uses `rowid` for row-wise update joins where needed.
 - Some forward/backward fill implementations differ by backend because DuckDB
   supports `IGNORE NULLS` window expressions and PostgreSQL uses fallback
-  window expressions.
+  window expressions. `interpolate` instead uses the portable islands idiom
+  (`COUNT` + `FIRST_VALUE` windows) on all backends; only the float cast
+  differs (`DOUBLE` / `DOUBLE PRECISION` / `Float64`). ClickHouse rebuilds via
+  temp tables because window functions are illegal in `ALTER TABLE ... UPDATE`.
 - Date and percentile expressions use backend-specific SQL where necessary.
 
 ## Errors
@@ -445,6 +487,9 @@ Cleaning methods raise `OperationError` for invalid input or backend failures.
 - `drop` requires `index` for row drops and `columns` for column drops.
 - `drop_duplicates` requires `keep` to be `"first"`, `"last"`, or `False`.
 - `filter_valid` requires a non-empty `valid_values` list.
+- `interpolate` requires `method="linear"`, a numeric column, a positive
+  `limit`, `limit_direction` in `"forward"`/`"backward"`/`"both"`, and
+  `limit_area` in `None`/`"inside"`/`"outside"`.
 
 ## API Reference
 
@@ -455,6 +500,8 @@ Cleaning methods raise `OperationError` for invalid input or backend failures.
       members:
         - afillna
         - fillna
+        - ainterpolate
+        - interpolate
         - aclip
         - clip
         - adrop_outliers
