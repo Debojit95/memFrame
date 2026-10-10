@@ -1244,3 +1244,136 @@ class TestCleaningOperations:
         )
 
     # ----------------------------------------------------
+    # 22. interpolate (positional comparison on purpose:
+    # interpolate's whole contract is row order, unlike fillna)
+    # ----------------------------------------------------
+    def _assert_interpolated(self, res_df, out_col, expected_series):
+        pd.testing.assert_series_equal(
+            res_df[out_col].reset_index(drop=True),
+            expected_series.reset_index(drop=True),
+            check_dtype=False,
+            check_names=False,
+        )
+
+    def test_interpolate_linear_basic(self, uploaded_ctx, sample_df, backend_config):
+        result = uploaded_ctx.interpolate(column="mixed_nulls")
+        res_df = get_result_df(result)
+        out_col = get_generated_col(result, "mixed_nulls")
+        assert out_col == "cleaned_mixed_nulls_interpolated"
+
+        expected = sample_df["mixed_nulls"].interpolate(method="linear")
+        self._assert_interpolated(res_df, out_col, expected)
+        self._record_result(
+            test_name="interpolate_linear_basic",
+            method_call='uploaded_ctx.interpolate(column="mixed_nulls")',
+            pandas_call='df["mixed_nulls"].interpolate(method="linear")',
+            original_df=sample_df,
+            memframe_df=res_df,
+            pandas_df=expected.rename("mixed_nulls").to_frame(),
+            backend=backend_config["connection_type"],
+        )
+
+    def test_interpolate_directions(self, connected_memframe, sample_df, backend_config):
+        df = pd.DataFrame({
+            "a": [0.0, None, 2.0, None],
+            "b": [None, 2.0, 3.0, 4.0],
+        })
+        ctx = connected_memframe.upload_df(df, filename="cleaning_interp_dirs")
+
+        res_df = get_result_df(ctx.interpolate(column="a"))
+        self._assert_interpolated(res_df, "cleaned_a_interpolated", df["a"].interpolate())
+
+        res_df = get_result_df(ctx.interpolate(column="a", limit_direction="backward"))
+        self._assert_interpolated(
+            res_df, "cleaned_a_interpolated", df["a"].interpolate(limit_direction="backward"))
+
+        res_df = get_result_df(ctx.interpolate(column="b", limit_direction="backward"))
+        self._assert_interpolated(
+            res_df, "cleaned_b_interpolated", df["b"].interpolate(limit_direction="backward"))
+
+        res_df = get_result_df(ctx.interpolate(column="a", limit_direction="both"))
+        self._assert_interpolated(
+            res_df, "cleaned_a_interpolated", df["a"].interpolate(limit_direction="both"))
+        self._record_result(
+            test_name="interpolate_directions",
+            method_call='ctx.interpolate(column="a", limit_direction=...)',
+            pandas_call='df["a"].interpolate(limit_direction=...)',
+            original_df=df,
+            memframe_df=res_df,
+            pandas_df=df["a"].interpolate(limit_direction="both").rename("a").to_frame(),
+            backend=backend_config["connection_type"],
+        )
+
+    def test_interpolate_limit(self, connected_memframe, sample_df, backend_config):
+        df = pd.DataFrame({"v": [None, None, 5.0, None, None, None, 13.0, None, None]})
+        ctx = connected_memframe.upload_df(df, filename="cleaning_interp_limit")
+
+        res_df = get_result_df(ctx.interpolate(column="v", limit=1))
+        self._assert_interpolated(
+            res_df, "cleaned_v_interpolated", df["v"].interpolate(limit=1))
+
+        res_df = get_result_df(ctx.interpolate(column="v", limit=1, limit_direction="backward"))
+        self._assert_interpolated(
+            res_df, "cleaned_v_interpolated",
+            df["v"].interpolate(limit=1, limit_direction="backward"))
+        self._record_result(
+            test_name="interpolate_limit",
+            method_call='ctx.interpolate(column="v", limit=1, ...)',
+            pandas_call='df["v"].interpolate(limit=1, ...)',
+            original_df=df,
+            memframe_df=res_df,
+            pandas_df=df["v"].interpolate(limit=1, limit_direction="backward").rename("v").to_frame(),
+            backend=backend_config["connection_type"],
+        )
+
+    def test_interpolate_limit_area(self, connected_memframe, sample_df, backend_config):
+        df = pd.DataFrame({"a": [0.0, None, 2.0, None]})
+        ctx = connected_memframe.upload_df(df, filename="cleaning_interp_area")
+
+        res_df = get_result_df(ctx.interpolate(column="a", limit_area="inside"))
+        self._assert_interpolated(
+            res_df, "cleaned_a_interpolated", df["a"].interpolate(limit_area="inside"))
+
+        res_df = get_result_df(
+            ctx.interpolate(column="a", limit_direction="both", limit_area="outside"))
+        self._assert_interpolated(
+            res_df, "cleaned_a_interpolated",
+            df["a"].interpolate(limit_direction="both", limit_area="outside"))
+        self._record_result(
+            test_name="interpolate_limit_area",
+            method_call='ctx.interpolate(column="a", limit_area=...)',
+            pandas_call='df["a"].interpolate(limit_area=...)',
+            original_df=df,
+            memframe_df=res_df,
+            pandas_df=df["a"].interpolate(
+                limit_direction="both", limit_area="outside").rename("a").to_frame(),
+            backend=backend_config["connection_type"],
+        )
+
+    def test_interpolate_guards(self, connected_memframe, sample_df, backend_config):
+        df = pd.DataFrame({
+            "a": [0.0, None, 2.0],
+            "t": ["x", None, "z"],
+        })
+        ctx = connected_memframe.upload_df(df, filename="cleaning_interp_guards")
+        for kwargs in (
+            {"method": "polynomial"},
+            {"limit_direction": "sideways"},
+            {"limit_area": "middle"},
+            {"limit": 0},
+        ):
+            with pytest.raises(OperationError):
+                ctx.interpolate(column="a", **kwargs)
+        with pytest.raises(OperationError):
+            ctx.interpolate(column="t")
+        self._record_result(
+            test_name="interpolate_guards",
+            method_call="ctx.interpolate(...) guard cases",
+            pandas_call="n/a — guard tests (OperationError)",
+            original_df=df,
+            memframe_df=_empty_pdf_df("expected OperationErrors"),
+            pandas_df=_empty_pdf_df("n/a"),
+            backend=backend_config["connection_type"],
+        )
+
+    # ----------------------------------------------------
