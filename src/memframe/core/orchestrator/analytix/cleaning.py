@@ -194,6 +194,30 @@ class CleaningOrchestrator:
         )
 
     @record_call(deep_cache=True)
+    async def replace(
+        self,
+        column: Any = None,
+        to_replace: Any = None,
+        value: Any = None,
+        regex: Any = False,
+    ) -> Dict[str, Any]:
+        """Replace values in one, several, or all columns.
+
+        ``column`` is a name, a list, or None (all columns). ``to_replace``
+        takes pandas' scalar/list/dict/nested-dict/pattern forms; ``value``
+        the replacement (None writes NULL). ``regex`` enables pattern
+        matching on text columns. Result is ``cleaned_<c>_replaced`` columns
+        plus a transient table; the source table is never rewritten.
+        """
+        ops = await self._ensure_ops()
+        table, schema = await self._get_context()
+        persist = self._persistence_context()
+        return await ops.replace_values(
+            table, schema, columns=column, to_replace=to_replace,
+            value=value, regex=regex, **persist
+        )
+
+    @record_call(deep_cache=True)
     async def clip(self, column: str,  lower: Optional[Any] = None, upper: Optional[Any] = None,) -> Dict[str, Any]:
         """
         Trim values at lower and/or upper bounds. Out‑of‑bounds become NULL.

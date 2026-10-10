@@ -1,4 +1,6 @@
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
+import math
+import re
 import traceback
 from datetime import datetime, timezone
 import pandas as pd
@@ -17,6 +19,119 @@ def _sql_literal(value: Any) -> str:
     if isinstance(value, str):
         return "'" + value.replace("'", "''") + "'"
     return str(value)
+
+
+def _is_null_key(value: Any) -> bool:
+    """None/NaN match pandas' missing-value replacement keys."""
+    return value is None or (isinstance(value, float) and math.isnan(value))
+
+
+def _as_pattern(value: Any) -> Optional[str]:
+    """Return the regex source for str/compiled patterns, else None."""
+    if isinstance(value, re.Pattern):
+        return value.pattern
+    return value if isinstance(value, str) else None
+
+
+def _normalize_replace_rules(
+    columns: List[str],
+    to_replace: Any,
+    value: Any,
+    regex: Any,
+) -> Dict[str, List[Tuple[Any, Any, bool]]]:
+    """Normalize pandas-like replace args to per-column rules.
+
+    Returns ``{column: [(old, new, is_regex), ...]}``. Raises ValueError with
+    pandas-flavoured messages. Disambiguation follows pandas: with ``value``
+    given, dict keys are column names; without it, dicts are ``{old: new}``
+    (or nested ``{col: {old: new}}`` when a value is itself a dict).
+    """
+    if isinstance(regex, bool):
+        use_regex, patterns, pattern_map = regex, None, None
+    else:
+        if to_replace is not None:
+            raise ValueError("regex patterns require to_replace=None")
+        if isinstance(regex, (str, re.Pattern)):
+            use_regex, patterns, pattern_map = True, [regex], None
+        elif isinstance(regex, (list, tuple)) and all(isinstance(p, (str, re.Pattern)) for p in regex):
+            use_regex, patterns, pattern_map = True, list(regex), None
+        elif isinstance(regex, dict) and all(isinstance(p, (str, re.Pattern)) for p in regex):
+            use_regex, patterns, pattern_map = True, None, dict(regex)
+        else:
+            raise ValueError(
+                "regex must be a bool, pattern, list of patterns, or {pattern: replacement} dict"
+            )
+
+    def _scalar_entries(old: Any) -> List[Tuple[Any, Any, bool]]:
+        return [(old, value, use_regex and isinstance(old, str))]
+
+    def _pair(old: Any, new: Any) -> Tuple[Any, Any, bool]:
+        return (old, new, use_regex and isinstance(old, str))
+
+    if to_replace is None:
+        if pattern_map is not None:
+            if value is not None:
+                raise ValueError("value must not be given with a {pattern: replacement} regex dict")
+            pairs = [(_as_pattern(p), r) for p, r in pattern_map.items()]
+        elif patterns is not None:
+            if value is None:
+                raise ValueError("value is required with regex patterns")
+            pairs = [(p, value) for p in patterns]
+        else:
+            raise ValueError("to_replace and value are both None — nothing to replace")
+        return {c: [_pair(_as_pattern(p) if isinstance(p, re.Pattern) else p, v) for p, v in pairs] for c in columns}
+
+    if isinstance(to_replace, re.Pattern):
+        to_replace = to_replace.pattern
+
+    if isinstance(to_replace, (str, int, float, bool)):
+        if isinstance(value, (dict, list, tuple)) and not _is_null_key(value):
+            raise ValueError("value must be a scalar (or None) when to_replace is a scalar")
+        return {c: _scalar_entries(to_replace) for c in columns}
+
+    if isinstance(to_replace, (list, tuple)):
+        olds = list(to_replace)
+        if not olds or not all(isinstance(o, (str, int, float, bool)) or _is_null_key(o) for o in olds):
+            raise ValueError("to_replace list entries must be scalars")
+        if isinstance(value, (list, tuple)):
+            news = list(value)
+            if len(news) != len(olds):
+                raise ValueError(
+                    f"to_replace and value lists differ in length ({len(olds)} vs {len(news)})"
+                )
+        elif value is None or isinstance(value, (str, int, float, bool)):
+            news = [value] * len(olds)
+        else:
+            raise ValueError("value must be a scalar, list, or None with a to_replace list")
+        return {c: [_pair(o, n) for o, n in zip(olds, news)] for c in columns}
+
+    if isinstance(to_replace, dict):
+        if value is not None:
+            # column-keyed: {'A': 0, 'B': 5} + value → per-column scalars
+            rules: Dict[str, List[Tuple[Any, Any, bool]]] = {}
+            for col, spec in to_replace.items():
+                if col not in columns:
+                    raise ValueError(f"Column '{col}' in to_replace is not among {columns}")
+                specs = list(spec) if isinstance(spec, (list, tuple)) else [spec]
+                if not all(isinstance(o, (str, int, float, bool)) or _is_null_key(o) for o in specs):
+                    raise ValueError(f"Replacement keys for column '{col}' must be scalars")
+                rules[col] = [_pair(o, value) for o in specs]
+            return rules
+        if any(isinstance(v, dict) for v in to_replace.values()):
+            # nested {col: {old: new}}; no mixing with flat entries
+            rules = {}
+            for col, spec in to_replace.items():
+                if col not in columns:
+                    raise ValueError(f"Column '{col}' in to_replace is not among {columns}")
+                if not isinstance(spec, dict):
+                    raise ValueError("Cannot mix nested {col: {...}} and flat entries in to_replace")
+                rules[col] = [_pair(o, n) for o, n in spec.items()]
+            return rules
+        return {c: [_pair(o, n) for o, n in to_replace.items()] for c in columns}
+
+    raise ValueError(
+        f"to_replace must be a scalar, list, dict, pattern, or None (got {type(to_replace).__name__})"
+    )
 
 
 class DataCleaningOps:
@@ -609,6 +724,10 @@ class DataCleaningOps:
         """Regex-match predicate for `expr` against `pattern`."""
         return f"REGEXP_MATCHES({expr}, '{pattern}')"
 
+    def _regex_replace(self, expr: str, pattern: str, replacement: str) -> str:
+        """Global regex substitution (DuckDB/PG share the spelling)."""
+        return f"REGEXP_REPLACE({expr}, '{pattern}', '{replacement}', 'g')"
+
     def _update_stmt(self, tq: str, set_expr: str) -> str:
         """In-place UPDATE statement; ClickHouse overrides with ALTER TABLE UPDATE."""
         return f"UPDATE {tq} SET {set_expr}"
@@ -987,6 +1106,143 @@ class DataCleaningOps:
         except Exception as e:
             return fail(
                 f"numeric_interpolate error: {str(e)}\n{traceback.format_exc()}", [column], [],
+            )
+
+    @staticmethod
+    def _is_text_type(col_type: str) -> bool:
+        return any(k in (col_type or "").lower() for k in ("char", "text", "string"))
+
+    @staticmethod
+    def _replace_literal(value: Any) -> str:
+        if isinstance(value, bool):
+            return "TRUE" if value else "FALSE"
+        return _sql_literal(value)
+
+    def _replace_case(
+        self, safe_col: str, col_type: str, rules: List[Tuple[Any, Any, bool]],
+    ) -> str:
+        """CASE expression for one column's replacement rules.
+
+        Exact replacements are CAST to the column type (typed engines can't
+        hold heterogeneous values); regex replacements stay raw text so
+        backreferences pass through to the engine.
+        """
+        arms = []
+        for old, new, is_regex in rules:
+            if is_regex:
+                pat = str(old).replace("'", "''")
+                quoted_col = f'"{safe_col}"'
+                match = self._regex_match(quoted_col, pat)
+                if _is_null_key(new):
+                    arms.append(f"WHEN {match} THEN NULL")
+                else:
+                    repl = str(new).replace("'", "''")
+                    arms.append(
+                        f"WHEN {match} THEN {self._regex_replace(quoted_col, pat, repl)}"
+                    )
+            else:
+                new_expr = (
+                    "NULL"
+                    if _is_null_key(new)
+                    else f"CAST({self._replace_literal(new)} AS {col_type})"
+                )
+                if _is_null_key(old):
+                    arms.append(f'WHEN "{safe_col}" IS NULL THEN {new_expr}')
+                else:
+                    arms.append(
+                        f'WHEN "{safe_col}" = {self._replace_literal(old)} THEN {new_expr}'
+                    )
+        return "CASE " + " ".join(arms) + f' ELSE "{safe_col}" END'
+
+    async def replace_values(
+        self,
+        table: str,
+        schema: str,
+        columns: Any = None,
+        to_replace: Any = None,
+        value: Any = None,
+        regex: Any = False,
+        backend=None,
+        data_id: Optional[str] = None,
+        new_table: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        try:
+            original = table
+            all_types = await self.db.get_column_types(table, schema)
+            if columns is None:
+                # ponytail: generated cleaned_ columns are outputs, never
+                # re-targeted — otherwise repeat replace-all runs collide.
+                targets = [c for c in all_types if not c.startswith("cleaned_")]
+            else:
+                raw = [columns] if isinstance(columns, str) else list(columns)
+                if not raw or not all(isinstance(c, str) and c.strip() for c in raw):
+                    return fail("columns must be a column name, a list of names, or None (all columns)")
+                targets = [SQLIdentifierSanitizer.sanitize(c) for c in raw]
+                missing = [c for c in targets if c not in all_types]
+                if missing:
+                    return fail(f"Columns not found: {missing}")
+            if not targets:
+                return fail("Table has no columns to replace in")
+            try:
+                rules = _normalize_replace_rules(targets, to_replace, value, regex)
+            except ValueError as ve:
+                return fail(str(ve), targets, [])
+            if not any(rules.values()):
+                return fail("Nothing to replace — rules are empty", targets, [])
+            for col, arms in rules.items():
+                ctype = all_types[col]
+                for old, _new, is_regex in arms:
+                    if is_regex and isinstance(old, str) and not self._is_text_type(ctype):
+                        return fail(
+                            f"regex replace needs a text column (detected: {ctype} for '{col}')",
+                            targets, [],
+                        )
+            involved = list(rules)
+            table = await self._prepare_column_operation_table(
+                # ponytail: involved columns only — a full clone would carry a
+                # previous run's cleaned_ column and collide on ADD.
+                table, schema, involved, backend=backend, data_id=data_id, new_table=new_table,
+            )
+
+            new_cols: Dict[str, str] = {}
+            for col in rules:
+                new_col = self._generate_cleaned_column_name(col, "replaced")
+                new_cols[col] = new_col
+                # ponytail: if_not_exists — repeats overwrite via the UPDATE
+                # below (ELSE keeps, arms recompute every row).
+                await self._add_new_column_if_not_exists(table, schema, new_col, all_types[col])
+
+            qualified = self._qualified_table(table, schema)
+
+            async def _apply(tq):
+                assigns = []
+                for col, arms in rules.items():
+                    case = self._replace_case(
+                        SQLIdentifierSanitizer.sanitize(col), all_types[col], arms
+                    )
+                    assigns.append(f'"{new_cols[col]}" = {case}')
+                await self._exec(self._update_stmt(tq, ", ".join(assigns)))
+
+            await _apply(qualified)
+
+            for col in rules:
+                await self._add_new_column_if_not_exists(original, schema, new_cols[col], all_types[col])
+            await _apply(self._qualified_table(original, schema))
+
+            generated = [new_cols[c] for c in involved]
+            sample_cols = [c for pair in zip(involved, generated) for c in pair]
+            sample = await self._fetch_data(table, schema, columns=sample_cols)
+            n_rules = sum(len(a) for a in rules.values())
+            msg = f"Replaced {n_rules} rule(s) across {involved}"
+
+            return ok(
+                msg, involved, generated, sample, new_table=table,
+            )
+
+        except Exception as e:
+            return fail(
+                f"replace_values error: {str(e)}\n{traceback.format_exc()}",
+                [columns] if isinstance(columns, str) else [],
             )
 
     async def numeric_enforce_range(

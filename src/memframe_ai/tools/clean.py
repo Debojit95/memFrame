@@ -45,6 +45,23 @@ def tools(session):
         """Drop rows where the numeric column's z-score exceeds z_thresh."""
         return await normalize(await w.adrop_outliers(column=column, z_thresh=z_thresh), session)
 
+    async def replace(
+        to_replace=None, value=None, regex: bool = False,
+        column: str | list[str] | None = None,
+    ) -> dict:
+        """Replace values in one, several, or all columns.
+
+        to_replace: scalar, list, {old: new} dict, or {col: {...}} nested
+        dict. value: replacement (None writes NULL). regex: match patterns
+        on text columns. column: name, list, or None (all columns).
+        """
+        return await normalize(
+            await w.areplace(
+                column=column, to_replace=to_replace, value=value, regex=regex,
+            ),
+            session,
+        )
+
     async def interpolate(
         column: str, limit: int | None = None,
         limit_direction: str = "forward", limit_area: str | None = None,
@@ -118,7 +135,7 @@ def tools(session):
     # ----- data quality / reporting -----
     return [
         # fill / drop
-        fillna, groupby_fillna, interpolate, dropna, drop_duplicates, drop, drop_outliers,
+        fillna, groupby_fillna, interpolate, replace, dropna, drop_duplicates, drop, drop_outliers,
         # transform / coerce
         clip, clip_dates, fix_dates, to_numeric, map_values, filter_valid, compress_rare,
         # null masks

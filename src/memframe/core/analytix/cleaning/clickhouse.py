@@ -32,6 +32,14 @@ class ClickHouseCleaningOps(DataCleaningOps):
     def _update_stmt(self, tq: str, set_expr: str) -> str:
         return f"ALTER TABLE {tq} UPDATE {set_expr} WHERE 1"
 
+    def _regex_match(self, expr: str, pattern: str) -> str:
+        # ponytail: base REGEXP_MATCHES is DuckDB/PG-only; match() is the CH
+        # spelling (also fixes numeric_convert_text's predicate on CH).
+        return f"match({expr}, '{pattern}')"
+
+    def _regex_replace(self, expr: str, pattern: str, replacement: str) -> str:
+        return f"replaceRegexpAll({expr}, '{pattern}', '{replacement}')"
+
     # ------------------------------------------------------------------
     # Numeric
     # ------------------------------------------------------------------

@@ -109,6 +109,41 @@ class CleaningWrapper(CleaningOrchestrator):
         )
 
     # ==========================================================
+    # REPLACE
+    # ==========================================================
+
+    async def areplace(
+        self,
+        column: Any = None,
+        to_replace: Any = None,
+        value: Any = None,
+        regex: Any = False,
+    ) -> Dict[str, Any]:
+        """Asynchronously replace values in one, several, or all columns."""
+        return await super().replace(
+            column=column,
+            to_replace=to_replace,
+            value=value,
+            regex=regex,
+        )
+
+    @async_to_sync
+    async def replace(
+        self,
+        column: Any = None,
+        to_replace: Any = None,
+        value: Any = None,
+        regex: Any = False,
+    ) -> Dict[str, Any]:
+        """Synchronously replace values in one, several, or all columns."""
+        return await self.areplace(
+            column=column,
+            to_replace=to_replace,
+            value=value,
+            regex=regex,
+        )
+
+    # ==========================================================
     # CLIP
     # ==========================================================
 
