@@ -37,6 +37,13 @@ def tools(session):
         """Drop duplicate rows; subset restricts comparison to the given columns. keep: 'first'/'last'/False."""
         return await normalize(await w.adrop_duplicates(subset=subset, keep=keep), session)
 
+    async def duplicated(subset: str | list[str] | None = None, keep: str | bool = "first") -> dict:
+        """Flag duplicate rows with a `duplicated` boolean column (no rows dropped).
+
+        subset: column(s) to compare (default all). keep: 'first'/'last'/False.
+        """
+        return await normalize(await w.aduplicated(subset=subset, keep=keep), session)
+
     async def drop(columns: list[str] | None = None, axis: int = 0, index: list[int] | None = None) -> dict:
         """Drop rows (axis=0, by integer index) or columns (axis=1, by name) from the active table."""
         return await normalize(await w.adrop(columns=columns, axis=axis, index=index), session)
@@ -135,7 +142,7 @@ def tools(session):
     # ----- data quality / reporting -----
     return [
         # fill / drop
-        fillna, groupby_fillna, interpolate, replace, dropna, drop_duplicates, drop, drop_outliers,
+        fillna, groupby_fillna, interpolate, replace, dropna, drop_duplicates, duplicated, drop, drop_outliers,
         # transform / coerce
         clip, clip_dates, fix_dates, to_numeric, map_values, filter_valid, compress_rare,
         # null masks

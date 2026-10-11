@@ -515,3 +515,30 @@ class CleaningWrapper(CleaningOrchestrator):
             keep=keep,
         )
 
+    # ==========================================================
+    # DUPLICATED
+    # ==========================================================
+
+    async def aduplicated(
+        self,
+        subset: Any = None,
+        keep: Union[str, bool] = "first",
+    ) -> Dict[str, Any]:
+        """Asynchronously flag duplicate rows with a boolean mask column."""
+        return await super().duplicated(
+            subset=subset,
+            keep=keep,
+        )
+
+    @async_to_sync
+    async def duplicated(
+        self,
+        subset: Any = None,
+        keep: Union[str, bool] = "first",
+    ) -> Dict[str, Any]:
+        """Synchronously flag duplicate rows with a boolean mask column."""
+        return await self.aduplicated(
+            subset=subset,
+            keep=keep,
+        )
+

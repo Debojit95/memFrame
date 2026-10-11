@@ -573,6 +573,25 @@ class CleaningOrchestrator:
             keep=keep,
             **self._persistence_context(),
         )
+
+    @record_call(deep_cache=True)
+    async def duplicated(self, subset: Any = None, keep: Union[str, bool] = "first",) -> Dict[str, Any]:
+        """Flag duplicate rows with a `duplicated` boolean column.
+
+        Same subset/keep semantics as :meth:`drop_duplicates`, minus the
+        delete — the transient clone keeps every row plus the mask.
+        """
+        ops = await self._ensure_ops()
+
+        table, schema = await self._get_context()
+
+        return await ops.dataframe_duplicated(
+            table=table,
+            schema=schema,
+            subset=subset,
+            keep=keep,
+            **self._persistence_context(),
+        )
         
         
         

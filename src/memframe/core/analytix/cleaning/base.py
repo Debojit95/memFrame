@@ -698,6 +698,86 @@ class DataCleaningOps:
         except Exception as e:
             return fail(f"dataframe_drop_duplicates error: {str(e)}\n{traceback.format_exc()}")
 
+    async def dataframe_duplicated(
+        self,
+        table: str,
+        schema: str,
+        subset: Any = None,
+        keep: Union[str, bool] = "first",
+        backend=None,
+        data_id: Optional[str] = None,
+        new_table: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        # ponytail: same windows as drop_duplicates, minus the delete — the
+        # mask IS the product (source cols + `duplicated` BOOL). NULLs share
+        # one partition on all backends, matching pandas' NaN==NaN.
+        try:
+            source_table = SQLIdentifierSanitizer.sanitize(table)
+            qualified = self._qualified_table(source_table, schema)
+
+            column_types = await self.db.get_column_types(source_table, schema)
+            all_cols = list(column_types.keys())
+
+            if not all_cols:
+                return fail("No columns found")
+
+            if subset is None:
+                partition_cols = all_cols
+            else:
+                subs = [subset] if isinstance(subset, str) else list(subset)
+                if not subs or not all(isinstance(c, str) for c in subs):
+                    return fail("subset must be a column label or list of labels")
+                partition_cols = [SQLIdentifierSanitizer.sanitize(c) for c in subs]
+                missing = set(partition_cols) - set(all_cols)
+                if missing:
+                    return fail(f"Columns not found: {missing}")
+
+            partition_expr = ", ".join([f'"{c}"' for c in partition_cols])
+            select_cols = ", ".join([f'"{c}"' for c in all_cols])
+
+            base_query = f"""
+                SELECT *,
+                    ROW_NUMBER() OVER () AS __row_id__
+                FROM {qualified}
+            """
+
+            if keep == "first":
+                mask_expr = f"""ROW_NUMBER() OVER (
+                        PARTITION BY {partition_expr}
+                        ORDER BY __row_id__ ASC
+                    ) > 1"""
+            elif keep == "last":
+                mask_expr = f"""ROW_NUMBER() OVER (
+                        PARTITION BY {partition_expr}
+                        ORDER BY __row_id__ DESC
+                    ) > 1"""
+            elif keep is False:
+                mask_expr = f"""COUNT(*) OVER (
+                        PARTITION BY {partition_expr}
+                    ) > 1"""
+            else:
+                return fail("Invalid 'keep'. Use 'first', 'last', or False")
+
+            query = f"""
+                SELECT {select_cols}, ({mask_expr}) AS "duplicated"
+                FROM ({base_query}) t
+                ORDER BY t.__row_id__
+            """
+            output_table = await self._materialize_query_as_table(
+                query=query, table=source_table, schema=schema,
+                backend=backend, data_id=data_id, new_table=new_table,
+            )
+            df = await self._fetch_data(output_table, schema)
+
+            return ok(
+                message=f"duplicated mask applied (subset={subset}, keep={keep})",
+                involved_cols=partition_cols, generated_cols=["duplicated"],
+                result=df, new_table=output_table,
+            )
+
+        except Exception as e:
+            return fail(f"dataframe_duplicated error: {str(e)}\n{traceback.format_exc()}")
+
     # ------------------------------------------------------------------
     # Shared column-cleaning operations (hoisted verbatim; hooks below)
     # ------------------------------------------------------------------
