@@ -112,6 +112,10 @@ SCENARIOS = {
     "replace_regex": lambda ops: ops.replace_values("t", "s", ["cat"], to_replace=r"^a$", value="z", regex=True),
     "replace_all_columns": lambda ops: ops.replace_values("t", "s", None, to_replace=1, value=2),
     "replace_bad_length": lambda ops: ops.replace_values("t", "s", ["num"], to_replace=[1, 2], value=[3]),
+    "dataframe_duplicated_first": lambda ops: ops.dataframe_duplicated("t", "s"),
+    "dataframe_duplicated_last_subset": lambda ops: ops.dataframe_duplicated("t", "s", subset=["g"], keep="last"),
+    "dataframe_duplicated_all": lambda ops: ops.dataframe_duplicated("t", "s", keep=False),
+    "dataframe_duplicated_bad_keep": lambda ops: ops.dataframe_duplicated("t", "s", keep="middle"),
 }
 
 BACKENDS = {

@@ -204,6 +204,57 @@ def test_interpolate_guards(interpolate_context):
 
 
 @pytest.fixture
+def duplicated_context():
+    memframe = MemFrame(
+        connection_type="local",
+        connection_params={"db_path": ":memory:"},
+    )
+    asyncio.run(memframe.aconnect())
+    try:
+        yield memframe.upload_df(
+            pd.DataFrame(
+                {
+                    "brand": ["Yum Yum", "Yum Yum", "Indomie", "Indomie", "Indomie"],
+                    "style": ["cup", "cup", "cup", "pack", "pack"],
+                    "rating": [4.0, 4.0, 3.5, 15.0, 5.0],
+                }
+            ),
+            filename="duplicated_response",
+        )
+    finally:
+        asyncio.run(memframe.aclose())
+
+
+def _dup_mask(ctx, **kwargs):
+    response = CleaningWrapper(ctx).duplicated(**kwargs)
+    assert response["is_error"] is False, response["error_message"]
+    assert response["generated_cols"] == ["duplicated"]
+    return response["result"]["duplicated"].tolist()
+
+
+def test_duplicated_keep_modes(duplicated_context):
+    assert _dup_mask(duplicated_context) == [False, True, False, False, False]
+    assert _dup_mask(duplicated_context, keep="last") == [True, False, False, False, False]
+    assert _dup_mask(duplicated_context, keep=False) == [True, True, False, False, False]
+
+
+def test_duplicated_subset(duplicated_context):
+    assert _dup_mask(duplicated_context, subset=["brand"]) == [False, True, False, True, True]
+    assert _dup_mask(duplicated_context, subset="brand") == [False, True, False, True, True]
+
+
+def test_duplicated_guards(duplicated_context):
+    wrapper = CleaningWrapper(duplicated_context)
+    response = wrapper.duplicated(keep="middle")
+    assert response["is_error"] is True
+    assert "keep" in response["error_message"]
+    assert response["result"] is None
+    response = wrapper.duplicated(subset=["nope"])
+    assert response["is_error"] is True
+    assert "not found" in response["error_message"]
+
+
+@pytest.fixture
 def replace_context():
     memframe = MemFrame(
         connection_type="local",

@@ -1061,6 +1061,125 @@
    ]
   ]
  },
+ "dataframe_duplicated_all": {
+  "clickhouse": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"num\",\"cat\",\"ts\",\"g\",(COUNT(*)OVER(PARTITIONBY\"num\",\"cat\",\"ts\",\"g\")>1)AS\"duplicated\"FROM(SELECT*,ROW_NUMBER()OVER()AS__row_id__FROM\"s\".\"t\")tORDERBYt.__row_id__",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"t__op_20240101000000000000\"",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"num\",\"cat\",\"ts\",\"g\",(COUNT(*)OVER(PARTITIONBY\"num\",\"cat\",\"ts\",\"g\")>1)AS\"duplicated\"FROM(SELECT*,ROW_NUMBER()OVER()AS__row_id__FROM\"s\".\"t\")tORDERBYt.__row_id__",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"t__op_20240101000000000000\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"num\",\"cat\",\"ts\",\"g\",(COUNT(*)OVER(PARTITIONBY\"num\",\"cat\",\"ts\",\"g\")>1)AS\"duplicated\"FROM(SELECT*,ROW_NUMBER()OVER()AS__row_id__FROM\"s\".\"t\")tORDERBYt.__row_id__",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"t__op_20240101000000000000\"",
+    []
+   ]
+  ]
+ },
+ "dataframe_duplicated_bad_keep": {
+  "clickhouse": [],
+  "duckdb": [],
+  "postgres": []
+ },
+ "dataframe_duplicated_first": {
+  "clickhouse": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"num\",\"cat\",\"ts\",\"g\",(ROW_NUMBER()OVER(PARTITIONBY\"num\",\"cat\",\"ts\",\"g\"ORDERBY__row_id__ASC)>1)AS\"duplicated\"FROM(SELECT*,ROW_NUMBER()OVER()AS__row_id__FROM\"s\".\"t\")tORDERBYt.__row_id__",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"t__op_20240101000000000000\"",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"num\",\"cat\",\"ts\",\"g\",(ROW_NUMBER()OVER(PARTITIONBY\"num\",\"cat\",\"ts\",\"g\"ORDERBY__row_id__ASC)>1)AS\"duplicated\"FROM(SELECT*,ROW_NUMBER()OVER()AS__row_id__FROM\"s\".\"t\")tORDERBYt.__row_id__",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"t__op_20240101000000000000\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"num\",\"cat\",\"ts\",\"g\",(ROW_NUMBER()OVER(PARTITIONBY\"num\",\"cat\",\"ts\",\"g\"ORDERBY__row_id__ASC)>1)AS\"duplicated\"FROM(SELECT*,ROW_NUMBER()OVER()AS__row_id__FROM\"s\".\"t\")tORDERBYt.__row_id__",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"t__op_20240101000000000000\"",
+    []
+   ]
+  ]
+ },
+ "dataframe_duplicated_last_subset": {
+  "clickhouse": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"num\",\"cat\",\"ts\",\"g\",(ROW_NUMBER()OVER(PARTITIONBY\"g\"ORDERBY__row_id__DESC)>1)AS\"duplicated\"FROM(SELECT*,ROW_NUMBER()OVER()AS__row_id__FROM\"s\".\"t\")tORDERBYt.__row_id__",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"t__op_20240101000000000000\"",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"num\",\"cat\",\"ts\",\"g\",(ROW_NUMBER()OVER(PARTITIONBY\"g\"ORDERBY__row_id__DESC)>1)AS\"duplicated\"FROM(SELECT*,ROW_NUMBER()OVER()AS__row_id__FROM\"s\".\"t\")tORDERBYt.__row_id__",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"t__op_20240101000000000000\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"num\",\"cat\",\"ts\",\"g\",(ROW_NUMBER()OVER(PARTITIONBY\"g\"ORDERBY__row_id__DESC)>1)AS\"duplicated\"FROM(SELECT*,ROW_NUMBER()OVER()AS__row_id__FROM\"s\".\"t\")tORDERBYt.__row_id__",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT*FROM\"s\".\"t__op_20240101000000000000\"",
+    []
+   ]
+  ]
+ },
  "datetime_fillna_constant": {
   "clickhouse": [
    [
