@@ -48,6 +48,7 @@ Every cleaning operation has synchronous and asynchronous forms:
 | `isna()` | `await aisna()` | Boolean null mask |
 | `notna()` | `await anotna()` | Boolean non-null mask |
 | `drop_duplicates(subset=None, keep="first")` | `await adrop_duplicates(...)` | Remove duplicate rows |
+| `duplicated(subset=None, keep="first")` | `await aduplicated(...)` | Flag duplicate rows with a boolean column |
 
 Public methods return the operation value directly: usually a DataFrame, report
 dictionary, mask, or `None`. Invalid operations raise `OperationError`.
@@ -165,8 +166,8 @@ Supported group methods:
 
 `interpolate` fills missing values in a numeric column by linear
 interpolation along row order (`a + (b−a)·(p−p₀)/(p₁−p₀)` between the
-surrounding valid values). Only `method="linear"` is supported — the scipy
-family would need scipy. Interior gaps interpolate; edge NaNs fill flat from
+surrounding valid values). Only `method="linear"` is supported.
+Interior gaps interpolate; edge NaNs fill flat from
 the nearest valid value according to `limit_direction` (`forward` fills
 trailing, `backward` fills leading, `both` fills both; leading NaNs stay NaN
 under the default `forward`).
@@ -482,6 +483,28 @@ Parameters:
 | `subset` | `list[str]` or `None` | Columns used to identify duplicates. Defaults to all columns. |
 | `keep` | `"first"`, `"last"`, or `False` | Which duplicate row to keep. `False` keeps only rows with no duplicates. |
 
+### `duplicated`
+
+`duplicated` flags duplicate rows without removing them: same subset/keep
+semantics as `drop_duplicates`, but the generated table keeps every row plus
+a `duplicated` boolean column. `NULL`s group together (pandas' `NaN == NaN`
+rule) on all backends, and first/last follow physical row order.
+
+```python
+result = dataset.duplicated(subset=["email"], keep=False)
+```
+
+```python
+result = await dataset.aduplicated(keep="last")
+```
+
+Parameters:
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `subset` | `str`, `list[str]`, or `None` | Columns used to identify duplicates. Defaults to all columns. |
+| `keep` | `"first"`, `"last"`, or `False` | Which occurrence is not flagged. `False` flags every row of a duplicate set. |
+
 ## Return Values and Errors
 
 Public cleaning methods return the underlying DataFrame, dictionary, mask, or
@@ -530,6 +553,8 @@ Cleaning methods raise `OperationError` for invalid input or backend failures.
 - `dropna` rejects invalid `axis`, invalid `how`, and non-positive `thresh`.
 - `drop` requires `index` for row drops and `columns` for column drops.
 - `drop_duplicates` requires `keep` to be `"first"`, `"last"`, or `False`.
+- `duplicated` requires `keep` to be `"first"`, `"last"`, or `False`, and
+  `subset` to be a label or list of known columns.
 - `filter_valid` requires a non-empty `valid_values` list.
 - `interpolate` requires `method="linear"`, a numeric column, a positive
   `limit`, `limit_direction` in `"forward"`/`"backward"`/`"both"`, and
@@ -579,3 +604,5 @@ Cleaning methods raise `OperationError` for invalid input or backend failures.
         - notna
         - adrop_duplicates
         - drop_duplicates
+        - aduplicated
+        - duplicated
