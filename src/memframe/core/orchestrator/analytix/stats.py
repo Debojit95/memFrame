@@ -78,9 +78,51 @@ class StatsOrchestrator:
     
     
     # ── pandas-like unified APIs with dtype auto-routing ──────────────
-    async def count(self, column: str) -> Dict[str, Any]:
+    async def _whole_table(
+        self,
+        ops: DataStatsOps,
+        table: str,
+        schema: str,
+        op_name: str,
+        families: set,
+        call_single,
+    ) -> Dict[str, Any]:
+        """Fan a single-column stat across its compatible columns.
+
+        `call_single(col)` must behave exactly like the single-column call.
+        Inapplicable columns are skipped (pandas `numeric_only` spirit); zero
+        compatible columns is a clear failure, not an empty dict.
+        """
+        col_types = await ops.db.get_column_types(table, schema)
+        columns = list(col_types.keys())
+        detected = await self._detect_column_families(ops, table, schema, columns)
+        targets = [c for c in columns if detected.get(c) in families]
+        if not targets:
+            return fail(f"{op_name} found no compatible columns", columns, [])
+        combined: Dict[str, Any] = {}
+        for col in targets:
+            resp = await call_single(col)
+            if resp.get("is_error"):
+                return resp
+            combined[col] = resp.get("result")
+        return ok(
+            f"{op_name} for all {len(targets)} compatible columns",
+            targets,
+            result=combined,
+        )
+
+    async def count(self, column: Optional[str] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
+        if column is None:
+            return await self._whole_table(
+                ops, table, schema, "count",
+                {"numeric", "categorical", "datetime"},
+                lambda col: self._count_one(ops, table, schema, col),
+            )
+        return await self._count_one(ops, table, schema, column)
+
+    async def _count_one(self, ops, table, schema, column) -> Dict[str, Any]:
         detected_dtype = await self._detect_stats_dtype(ops, table, schema, column)
 
         if detected_dtype == "datetime":
@@ -89,50 +131,96 @@ class StatsOrchestrator:
             return await ops.categorical_count(table, schema, column)
         return await ops.numeric_count(table, schema, column)
 
-    async def min(self, column: str) -> Dict[str, Any]:
+    async def min(self, column: Optional[str] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
+        if column is None:
+            return await self._whole_table(
+                ops, table, schema, "min",
+                {"numeric", "datetime"},
+                lambda col: self._min_one(ops, table, schema, col),
+            )
+        return await self._min_one(ops, table, schema, column)
+
+    async def _min_one(self, ops, table, schema, column) -> Dict[str, Any]:
         detected_dtype = await self._detect_stats_dtype(ops, table, schema, column)
 
         if detected_dtype == "datetime":
             return await ops.datetime_min(table, schema, column)
         return await ops.numeric_min(table, schema, column)
 
-    async def max(self, column: str) -> Dict[str, Any]:
+    async def max(self, column: Optional[str] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
+        if column is None:
+            return await self._whole_table(
+                ops, table, schema, "max",
+                {"numeric", "datetime"},
+                lambda col: self._max_one(ops, table, schema, col),
+            )
+        return await self._max_one(ops, table, schema, column)
+
+    async def _max_one(self, ops, table, schema, column) -> Dict[str, Any]:
         detected_dtype = await self._detect_stats_dtype(ops, table, schema, column)
 
         if detected_dtype == "datetime":
             return await ops.datetime_max(table, schema, column)
         return await ops.numeric_max(table, schema, column)
 
-    async def mode(self, column: str, top_n: int = 1) -> Dict[str, Any]:
+    async def mode(self, column: Optional[str] = None, top_n: int = 1) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
-        detected_dtype = await self._detect_stats_dtype(ops, table, schema, column)
 
         try:
             top_n = _coerce_int(top_n)
         except ValueError as exc:
             return fail(f"top_n must be an integer: {exc}")
 
+        if column is None:
+            return await self._whole_table(
+                ops, table, schema, "mode",
+                {"categorical", "numeric"},
+                lambda col: self._mode_one(ops, table, schema, col, top_n),
+            )
+        return await self._mode_one(ops, table, schema, column, top_n)
+
+    async def _mode_one(self, ops, table, schema, column, top_n) -> Dict[str, Any]:
+        detected_dtype = await self._detect_stats_dtype(ops, table, schema, column)
+
         if detected_dtype == "categorical":
             return await ops.categorical_mode(table, schema, column, top_n)
         return await ops.numeric_mode(table, schema, column, top_n)
 
-    async def unique(self, column: str) -> Dict[str, Any]:
+    async def unique(self, column: Optional[str] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
+        if column is None:
+            return await self._whole_table(
+                ops, table, schema, "unique",
+                {"categorical", "numeric"},
+                lambda col: self._unique_one(ops, table, schema, col),
+            )
+        return await self._unique_one(ops, table, schema, column)
+
+    async def _unique_one(self, ops, table, schema, column) -> Dict[str, Any]:
         detected_dtype = await self._detect_stats_dtype(ops, table, schema, column)
 
         if detected_dtype == "categorical":
             return await ops.categorical_unique(table, schema, column)
         return await ops.numeric_unique(table, schema, column)
 
-    async def nunique(self, column: str) -> Dict[str, Any]:
+    async def nunique(self, column: Optional[str] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
+        if column is None:
+            return await self._whole_table(
+                ops, table, schema, "nunique",
+                {"numeric", "categorical", "datetime"},
+                lambda col: self._nunique_one(ops, table, schema, col),
+            )
+        return await self._nunique_one(ops, table, schema, column)
+
+    async def _nunique_one(self, ops, table, schema, column) -> Dict[str, Any]:
         detected_dtype = await self._detect_stats_dtype(ops, table, schema, column)
 
         if detected_dtype == "datetime":
@@ -159,35 +247,49 @@ class StatsOrchestrator:
 
         # ponytail: no column → per-column counts for the whole table, reusing
         # the single-column routing above; first column error short-circuits.
-        columns = list((await ops.db.get_column_types(table, schema)).keys())
-        combined: Dict[str, Any] = {}
-        for col in columns:
-            detected_dtype = await self._detect_stats_dtype(ops, table, schema, col)
-            if detected_dtype == "categorical":
-                resp = await ops.categorical_value_counts(table, schema, col, top_n)
-            else:
-                resp = await ops.numeric_value_counts(table, schema, col, top_n)
-            if resp.get("is_error"):
-                return resp
-            combined[col] = resp.get("result")
-        return ok(
-            f"Top {top_n} value counts for all {len(columns)} columns",
-            columns,
-            result=combined,
+        return await self._whole_table(
+            ops, table, schema, f"Top {top_n} value counts",
+            {"numeric", "categorical", "datetime"},
+            lambda col: self._value_counts_one(ops, table, schema, col, top_n),
         )
 
-    async def mean(self, column: str) -> Dict[str, Any]:
+    async def _value_counts_one(self, ops, table, schema, column, top_n) -> Dict[str, Any]:
+        detected_dtype = await self._detect_stats_dtype(ops, table, schema, column)
+
+        if detected_dtype == "categorical":
+            return await ops.categorical_value_counts(table, schema, column, top_n)
+        return await ops.numeric_value_counts(table, schema, column, top_n)
+
+    async def mean(self, column: Optional[str] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
+        if column is None:
+            return await self._whole_table(
+                ops, table, schema, "mean",
+                {"numeric", "datetime"},
+                lambda col: self._mean_one(ops, table, schema, col),
+            )
+        return await self._mean_one(ops, table, schema, column)
+
+    async def _mean_one(self, ops, table, schema, column) -> Dict[str, Any]:
         detected_dtype = await self._detect_stats_dtype(ops, table, schema, column)
 
         if detected_dtype == "datetime":
             return await ops.datetime_mean(table, schema, column)
         return await ops.numeric_mean(table, schema, column)
 
-    async def median(self, column: str) -> Dict[str, Any]:
+    async def median(self, column: Optional[str] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
+        if column is None:
+            return await self._whole_table(
+                ops, table, schema, "median",
+                {"numeric", "datetime"},
+                lambda col: self._median_one(ops, table, schema, col),
+            )
+        return await self._median_one(ops, table, schema, column)
+
+    async def _median_one(self, ops, table, schema, column) -> Dict[str, Any]:
         detected_dtype = await self._detect_stats_dtype(ops, table, schema, column)
 
         if detected_dtype == "datetime":
@@ -195,57 +297,102 @@ class StatsOrchestrator:
         return await ops.numeric_median(table, schema, column)
 
     # ── numeric-focused methods ───────────────────────────────────────
-    async def sum(self, column: str) -> Dict[str, Any]:
+    # ponytail: column=None fans out over numeric columns only (pandas
+    # numeric_only spirit); each branch below is one line via _numeric_whole.
+    async def _numeric_whole(self, ops, table, schema, op_name, call_single) -> Dict[str, Any]:
+        return await self._whole_table(ops, table, schema, op_name, {"numeric"}, call_single)
+
+    async def sum(self, column: Optional[str] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
+        if column is None:
+            return await self._numeric_whole(
+                ops, table, schema, "sum",
+                lambda col: ops.numeric_sum(table, schema, col))
         return await ops.numeric_sum(table, schema, column)
 
-    async def std(self, column: str) -> Dict[str, Any]:
+    async def std(self, column: Optional[str] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
+        if column is None:
+            return await self._numeric_whole(
+                ops, table, schema, "std",
+                lambda col: ops.numeric_std(table, schema, col))
         return await ops.numeric_std(table, schema, column)
 
-    async def var(self, column: str) -> Dict[str, Any]:
+    async def var(self, column: Optional[str] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
+        if column is None:
+            return await self._numeric_whole(
+                ops, table, schema, "var",
+                lambda col: ops.numeric_var(table, schema, col))
         return await ops.numeric_var(table, schema, column)
 
-    async def sem(self, column: str) -> Dict[str, Any]:
+    async def sem(self, column: Optional[str] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
+        if column is None:
+            return await self._numeric_whole(
+                ops, table, schema, "sem",
+                lambda col: ops.numeric_sem(table, schema, col))
         return await ops.numeric_sem(table, schema, column)
 
-    async def mad(self, column: str) -> Dict[str, Any]:
+    async def mad(self, column: Optional[str] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
+        if column is None:
+            return await self._numeric_whole(
+                ops, table, schema, "mad",
+                lambda col: ops.numeric_mad(table, schema, col))
         return await ops.numeric_mad(table, schema, column)
 
-    async def iqr(self, column: str) -> Dict[str, Any]:
+    async def iqr(self, column: Optional[str] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
+        if column is None:
+            return await self._numeric_whole(
+                ops, table, schema, "iqr",
+                lambda col: ops.numeric_iqr(table, schema, col))
         return await ops.numeric_iqr(table, schema, column)
 
-    async def range(self, column: str) -> Dict[str, Any]:
+    async def range(self, column: Optional[str] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
+        if column is None:
+            return await self._numeric_whole(
+                ops, table, schema, "range",
+                lambda col: ops.numeric_range(table, schema, col))
         return await ops.numeric_range(table, schema, column)
 
-    async def skew(self, column: str) -> Dict[str, Any]:
+    async def skew(self, column: Optional[str] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
+        if column is None:
+            return await self._numeric_whole(
+                ops, table, schema, "skew",
+                lambda col: ops.numeric_skew(table, schema, col))
         return await ops.numeric_skew(table, schema, column)
 
-    async def kurtosis(self, column: str) -> Dict[str, Any]:
+    async def kurtosis(self, column: Optional[str] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
+        if column is None:
+            return await self._numeric_whole(
+                ops, table, schema, "kurtosis",
+                lambda col: ops.numeric_kurtosis(table, schema, col))
         return await ops.numeric_kurtosis(table, schema, column)
 
-    async def entropy(self, column: str) -> Dict[str, Any]:
+    async def entropy(self, column: Optional[str] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
+        if column is None:
+            return await self._numeric_whole(
+                ops, table, schema, "entropy",
+                lambda col: ops.numeric_entropy(table, schema, col))
         return await ops.numeric_entropy(table, schema, column)
 
-    async def quantile(self, column: str, q: List[float] = None) -> Dict[str, Any]:
+    async def quantile(self, column: Optional[str] = None, q: List[float] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
         if q is not None:
@@ -253,44 +400,65 @@ class StatsOrchestrator:
                 q = [_coerce_num(x) for x in q]
             except (ValueError, TypeError) as exc:
                 return fail(f"quantiles must be numbers: {exc}")
+        if column is None:
+            return await self._numeric_whole(
+                ops, table, schema, "quantile",
+                lambda col: ops.numeric_quantile(table, schema, col, quantiles=q))
         return await ops.numeric_quantile(table, schema, column, quantiles=q)
 
-    async def autocorr(self, column: str, lag: int = 1) -> Dict[str, Any]:
+    async def autocorr(self, column: Optional[str] = None, lag: int = 1) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
         try:
             lag = _coerce_int(lag)
         except ValueError as exc:
             return fail(f"lag must be an integer: {exc}")
+        if column is None:
+            return await self._numeric_whole(
+                ops, table, schema, "autocorr",
+                lambda col: ops.numeric_autocorr(table, schema, col, lag))
         return await ops.numeric_autocorr(table, schema, column, lag)
 
-    async def coefficient_of_variation(self, column: str) -> Dict[str, Any]:
+    async def coefficient_of_variation(self, column: Optional[str] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
+        if column is None:
+            return await self._numeric_whole(
+                ops, table, schema, "coefficient_of_variation",
+                lambda col: ops.numeric_coefficient_of_variation(table, schema, col))
         return await ops.numeric_coefficient_of_variation(table, schema, column)
 
-    async def outliers_iqr(self, column: str) -> Dict[str, Any]:
+    async def outliers_iqr(self, column: Optional[str] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
+        if column is None:
+            return await self._numeric_whole(
+                ops, table, schema, "outliers_iqr",
+                lambda col: ops.numeric_outliers_iqr(table, schema, col))
         return await ops.numeric_outliers_iqr(table, schema, column)
 
     @record_call(deep_cache=True)
-    async def outliers_zscore(self, column: str, threshold: float = 3.0) -> Dict[str, Any]:
+    async def outliers_zscore(self, column: Optional[str] = None, threshold: float = 3.0) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
+        persist = {"backend": self._memframe._backend, "data_id": self._data_id}
+        if column is None:
+            return await self._numeric_whole(
+                ops, table, schema, "outliers_zscore",
+                lambda col: ops.numeric_outliers_zscore(table, schema, col, threshold, **persist))
         return await ops.numeric_outliers_zscore(
             table, schema, column, threshold,
             backend=self._memframe._backend, data_id=self._data_id,
         )
 
     # ── Methods that **return DataFrames** → table creation + call recording ──
-    async def _detect_numeric_columns(self, ops, table, schema, candidate_columns):
+    async def _detect_column_families(self, ops, table, schema, candidate_columns) -> Dict[str, str]:
         """One 5000-row sample query for all candidate columns (ponytail: was N
-        per-column queries). Dtype inferred per column from that single sample."""
+        per-column queries). Returns {column: 'numeric'|'categorical'|'datetime'}."""
+        families: Dict[str, str] = {}
         if not candidate_columns:
-            return []
+            return families
         sample_df = await ops._fetch_data(table, schema, columns=list(candidate_columns), limit=5000)
-        numeric_cols = []
         for col in candidate_columns:
             if col not in sample_df.columns:
                 continue
@@ -300,8 +468,18 @@ class StatsOrchestrator:
             inferred = self._dtype_detector._infer_column(chunked_array=chunked)
             detected = str(inferred.get("type", "text")).lower()
             if detected in ("integer", "float"):
-                numeric_cols.append(col)
-        return numeric_cols
+                families[col] = "numeric"
+            elif detected == "datetime":
+                families[col] = "datetime"
+            else:
+                families[col] = "categorical"
+        return families
+
+    async def _detect_numeric_columns(self, ops, table, schema, candidate_columns):
+        """One 5000-row sample query for all candidate columns (ponytail: was N
+        per-column queries). Dtype inferred per column from that single sample."""
+        families = await self._detect_column_families(ops, table, schema, candidate_columns)
+        return [col for col, family in families.items() if family == "numeric"]
 
     @record_call(deep_cache=True)
     async def corr(self, columns: List[str] = None) -> Dict[str, Any]:
@@ -342,9 +520,14 @@ class StatsOrchestrator:
         )
 
     # ── categorical-specific methods ───────────────────────────────────
-    async def proportions(self, column: str) -> Dict[str, Any]:
+    async def proportions(self, column: Optional[str] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
+        if column is None:
+            return await self._whole_table(
+                ops, table, schema, "proportions",
+                {"categorical"},
+                lambda col: ops.categorical_proportions(table, schema, col))
         return await ops.categorical_proportions(table, schema, column)
 
 

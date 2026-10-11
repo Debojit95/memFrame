@@ -23,57 +23,57 @@ class StatsWrapper(StatsOrchestrator):
     # Unified APIs
     # ------------------------------------------------------------------
 
-    async def acount(self, column: str) -> Dict[str, Any]:
+    async def acount(self, column: Optional[str] = None) -> Dict[str, Any]:
         """Asynchronously compute count of non-null values."""
         return await super().count(column)
 
     @async_to_sync
-    async def count(self, column: str) -> Dict[str, Any]:
+    async def count(self, column: Optional[str] = None) -> Dict[str, Any]:
         """Synchronously compute count of non-null values."""
         return await self.acount(column)
 
-    async def amin(self, column: str) -> Dict[str, Any]:
+    async def amin(self, column: Optional[str] = None) -> Dict[str, Any]:
         """Asynchronously compute minimum value."""
         return await super().min(column)
 
     @async_to_sync
-    async def min(self, column: str) -> Dict[str, Any]:
+    async def min(self, column: Optional[str] = None) -> Dict[str, Any]:
         """Synchronously compute minimum value."""
         return await self.amin(column)
 
-    async def amax(self, column: str) -> Dict[str, Any]:
+    async def amax(self, column: Optional[str] = None) -> Dict[str, Any]:
         """Asynchronously compute maximum value."""
         return await super().max(column)
 
     @async_to_sync
-    async def max(self, column: str) -> Dict[str, Any]:
+    async def max(self, column: Optional[str] = None) -> Dict[str, Any]:
         """Synchronously compute maximum value."""
         return await self.amax(column)
 
-    async def amode(self, column: str, top_n: int = 1) -> Dict[str, Any]:
+    async def amode(self, column: Optional[str] = None, top_n: int = 1) -> Dict[str, Any]:
         """Asynchronously compute mode values."""
         return await super().mode(column, top_n)
 
     @async_to_sync
-    async def mode(self, column: str, top_n: int = 1) -> Dict[str, Any]:
+    async def mode(self, column: Optional[str] = None, top_n: int = 1) -> Dict[str, Any]:
         """Synchronously compute mode values."""
         return await self.amode(column, top_n)
 
-    async def aunique(self, column: str) -> Dict[str, Any]:
+    async def aunique(self, column: Optional[str] = None) -> Dict[str, Any]:
         """Asynchronously return unique values."""
         return await super().unique(column)
 
     @async_to_sync
-    async def unique(self, column: str) -> Dict[str, Any]:
+    async def unique(self, column: Optional[str] = None) -> Dict[str, Any]:
         """Synchronously return unique values."""
         return await self.aunique(column)
 
-    async def anunique(self, column: str) -> Dict[str, Any]:
+    async def anunique(self, column: Optional[str] = None) -> Dict[str, Any]:
         """Asynchronously compute number of unique values."""
         return await super().nunique(column)
 
     @async_to_sync
-    async def nunique(self, column: str) -> Dict[str, Any]:
+    async def nunique(self, column: Optional[str] = None) -> Dict[str, Any]:
         """Synchronously compute number of unique values."""
         return await self.anunique(column)
 
@@ -94,21 +94,21 @@ class StatsWrapper(StatsOrchestrator):
         """Synchronously compute value counts for a column, or all columns."""
         return await self.avalue_counts(column, top_n)
 
-    async def amean(self, column: str) -> Dict[str, Any]:
+    async def amean(self, column: Optional[str] = None) -> Dict[str, Any]:
         """Asynchronously compute mean value."""
         return await super().mean(column)
 
     @async_to_sync
-    async def mean(self, column: str) -> Dict[str, Any]:
+    async def mean(self, column: Optional[str] = None) -> Dict[str, Any]:
         """Synchronously compute mean value."""
         return await self.amean(column)
 
-    async def amedian(self, column: str) -> Dict[str, Any]:
+    async def amedian(self, column: Optional[str] = None) -> Dict[str, Any]:
         """Asynchronously compute median value."""
         return await super().median(column)
 
     @async_to_sync
-    async def median(self, column: str) -> Dict[str, Any]:
+    async def median(self, column: Optional[str] = None) -> Dict[str, Any]:
         """Synchronously compute median value."""
         return await self.amedian(column)
 
@@ -116,99 +116,99 @@ class StatsWrapper(StatsOrchestrator):
     # Numeric
     # ------------------------------------------------------------------
 
-    async def asum(self, column: str) -> Dict[str, Any]:
+    async def asum(self, column: Optional[str] = None) -> Dict[str, Any]:
         """Asynchronously compute sum."""
         return await super().sum(column)
 
     @async_to_sync
-    async def sum(self, column: str) -> Dict[str, Any]:
+    async def sum(self, column: Optional[str] = None) -> Dict[str, Any]:
         """Synchronously compute sum."""
         return await self.asum(column)
 
-    async def astd(self, column: str) -> Dict[str, Any]:
+    async def astd(self, column: Optional[str] = None) -> Dict[str, Any]:
         """Asynchronously compute standard deviation."""
         return await super().std(column)
 
     @async_to_sync
-    async def std(self, column: str) -> Dict[str, Any]:
+    async def std(self, column: Optional[str] = None) -> Dict[str, Any]:
         """Synchronously compute standard deviation."""
         return await self.astd(column)
 
-    async def avar(self, column: str) -> Dict[str, Any]:
+    async def avar(self, column: Optional[str] = None) -> Dict[str, Any]:
         """Asynchronously compute variance."""
         return await super().var(column)
 
     @async_to_sync
-    async def var(self, column: str) -> Dict[str, Any]:
+    async def var(self, column: Optional[str] = None) -> Dict[str, Any]:
         """Synchronously compute variance."""
         return await self.avar(column)
 
-    async def asem(self, column: str) -> Dict[str, Any]:
+    async def asem(self, column: Optional[str] = None) -> Dict[str, Any]:
         """Asynchronously compute standard error of mean."""
         return await super().sem(column)
 
     @async_to_sync
-    async def sem(self, column: str) -> Dict[str, Any]:
+    async def sem(self, column: Optional[str] = None) -> Dict[str, Any]:
         """Synchronously compute standard error of mean."""
         return await self.asem(column)
 
-    async def amad(self, column: str) -> Dict[str, Any]:
+    async def amad(self, column: Optional[str] = None) -> Dict[str, Any]:
         """Asynchronously compute mean absolute deviation."""
         return await super().mad(column)
 
     @async_to_sync
-    async def mad(self, column: str) -> Dict[str, Any]:
+    async def mad(self, column: Optional[str] = None) -> Dict[str, Any]:
         """Synchronously compute mean absolute deviation."""
         return await self.amad(column)
 
-    async def aiqr(self, column: str) -> Dict[str, Any]:
+    async def aiqr(self, column: Optional[str] = None) -> Dict[str, Any]:
         """Asynchronously compute interquartile range."""
         return await super().iqr(column)
 
     @async_to_sync
-    async def iqr(self, column: str) -> Dict[str, Any]:
+    async def iqr(self, column: Optional[str] = None) -> Dict[str, Any]:
         """Synchronously compute interquartile range."""
         return await self.aiqr(column)
 
-    async def arange(self, column: str) -> Dict[str, Any]:
+    async def arange(self, column: Optional[str] = None) -> Dict[str, Any]:
         """Asynchronously compute numeric range (max-min)."""
         return await super().range(column)
 
     @async_to_sync
-    async def range(self, column: str) -> Dict[str, Any]:
+    async def range(self, column: Optional[str] = None) -> Dict[str, Any]:
         """Synchronously compute numeric range (max-min)."""
         return await self.arange(column)
 
-    async def askew(self, column: str) -> Dict[str, Any]:
+    async def askew(self, column: Optional[str] = None) -> Dict[str, Any]:
         """Asynchronously compute skewness."""
         return await super().skew(column)
 
     @async_to_sync
-    async def skew(self, column: str) -> Dict[str, Any]:
+    async def skew(self, column: Optional[str] = None) -> Dict[str, Any]:
         """Synchronously compute skewness."""
         return await self.askew(column)
 
-    async def akurtosis(self, column: str) -> Dict[str, Any]:
+    async def akurtosis(self, column: Optional[str] = None) -> Dict[str, Any]:
         """Asynchronously compute kurtosis."""
         return await super().kurtosis(column)
 
     @async_to_sync
-    async def kurtosis(self, column: str) -> Dict[str, Any]:
+    async def kurtosis(self, column: Optional[str] = None) -> Dict[str, Any]:
         """Synchronously compute kurtosis."""
         return await self.akurtosis(column)
 
-    async def aentropy(self, column: str) -> Dict[str, Any]:
+    async def aentropy(self, column: Optional[str] = None) -> Dict[str, Any]:
         """Asynchronously compute entropy."""
         return await super().entropy(column)
 
     @async_to_sync
-    async def entropy(self, column: str) -> Dict[str, Any]:
+    async def entropy(self, column: Optional[str] = None) -> Dict[str, Any]:
         """Synchronously compute entropy."""
         return await self.aentropy(column)
 
     async def aquantile(
         self,
-        column: str,
+        column: Optional[str] = None,
         q: List[float] = None,
     ) -> Dict[str, Any]:
         """Asynchronously compute quantiles."""
@@ -217,7 +217,7 @@ class StatsWrapper(StatsOrchestrator):
     @async_to_sync
     async def quantile(
         self,
-        column: str,
+        column: Optional[str] = None,
         q: List[float] = None,
     ) -> Dict[str, Any]:
         """Synchronously compute quantiles."""
@@ -225,7 +225,7 @@ class StatsWrapper(StatsOrchestrator):
 
     async def aautocorr(
         self,
-        column: str,
+        column: Optional[str] = None,
         lag: int = 1,
     ) -> Dict[str, Any]:
         """Asynchronously compute autocorrelation at a lag."""
@@ -234,7 +234,7 @@ class StatsWrapper(StatsOrchestrator):
     @async_to_sync
     async def autocorr(
         self,
-        column: str,
+        column: Optional[str] = None,
         lag: int = 1,
     ) -> Dict[str, Any]:
         """Synchronously compute autocorrelation at a lag."""
@@ -242,7 +242,7 @@ class StatsWrapper(StatsOrchestrator):
 
     async def acoefficient_of_variation(
         self,
-        column: str,
+        column: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Asynchronously compute coefficient of variation."""
         return await super().coefficient_of_variation(column)
@@ -250,23 +250,23 @@ class StatsWrapper(StatsOrchestrator):
     @async_to_sync
     async def coefficient_of_variation(
         self,
-        column: str,
+        column: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Synchronously compute coefficient of variation."""
         return await self.acoefficient_of_variation(column)
 
-    async def aoutliers_iqr(self, column: str) -> Dict[str, Any]:
+    async def aoutliers_iqr(self, column: Optional[str] = None) -> Dict[str, Any]:
         """Asynchronously detect outliers using IQR rule."""
         return await super().outliers_iqr(column)
 
     @async_to_sync
-    async def outliers_iqr(self, column: str) -> Dict[str, Any]:
+    async def outliers_iqr(self, column: Optional[str] = None) -> Dict[str, Any]:
         """Synchronously detect outliers using IQR rule."""
         return await self.aoutliers_iqr(column)
 
     async def aoutliers_zscore(
         self,
-        column: str,
+        column: Optional[str] = None,
         threshold: float = 3.0,
     ) -> Dict[str, Any]:
         """Asynchronously detect outliers using z-score threshold.
@@ -279,7 +279,7 @@ class StatsWrapper(StatsOrchestrator):
     @async_to_sync
     async def outliers_zscore(
         self,
-        column: str,
+        column: Optional[str] = None,
         threshold: float = 3.0,
     ) -> Dict[str, Any]:
         """Synchronously detect outliers using z-score threshold.
@@ -327,12 +327,12 @@ class StatsWrapper(StatsOrchestrator):
     # Categorical
     # ------------------------------------------------------------------
 
-    async def aproportions(self, column: str) -> Dict[str, Any]:
+    async def aproportions(self, column: Optional[str] = None) -> Dict[str, Any]:
         """Asynchronously compute categorical proportions."""
         return await super().proportions(column)
 
     @async_to_sync
-    async def proportions(self, column: str) -> Dict[str, Any]:
+    async def proportions(self, column: Optional[str] = None) -> Dict[str, Any]:
         """Synchronously compute categorical proportions."""
         return await self.aproportions(column)
 
