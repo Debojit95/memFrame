@@ -32,33 +32,33 @@ Every stats operation has synchronous and asynchronous forms:
 
 | Synchronous | Asynchronous | Purpose |
 | --- | --- | --- |
-| `count(column)` | `await acount(...)` | Count non-null values |
-| `min(column)` | `await amin(...)` | Minimum numeric value or earliest datetime |
-| `max(column)` | `await amax(...)` | Maximum numeric value or latest datetime |
-| `mode(column, top_n=1)` | `await amode(...)` | Most frequent value or values |
-| `unique(column)` | `await aunique(...)` | Distinct non-null values |
-| `nunique(column)` | `await anunique(...)` | Number of distinct non-null values |
+| `count(column=None)` | `await acount(...)` | Count non-null values |
+| `min(column=None)` | `await amin(...)` | Minimum numeric value or earliest datetime |
+| `max(column=None)` | `await amax(...)` | Maximum numeric value or latest datetime |
+| `mode(column=None, top_n=1)` | `await amode(...)` | Most frequent value or values |
+| `unique(column=None)` | `await aunique(...)` | Distinct non-null values |
+| `nunique(column=None)` | `await anunique(...)` | Number of distinct non-null values |
 | `value_counts(column=None, top_n=10)` | `await avalue_counts(...)` | Top value frequencies (all columns when omitted) |
-| `mean(column)` | `await amean(...)` | Numeric mean or mean datetime |
-| `median(column)` | `await amedian(...)` | Numeric median or median datetime |
-| `sum(column)` | `await asum(...)` | Numeric sum |
-| `std(column)` | `await astd(...)` | Population standard deviation |
-| `var(column)` | `await avar(...)` | Population variance |
-| `sem(column)` | `await asem(...)` | Standard error of the mean |
-| `mad(column)` | `await amad(...)` | Mean absolute deviation |
-| `iqr(column)` | `await aiqr(...)` | Interquartile range |
-| `range(column)` | `await arange(...)` | Numeric range, `max - min` |
-| `skew(column)` | `await askew(...)` | Skewness |
-| `kurtosis(column)` | `await akurtosis(...)` | Kurtosis |
-| `entropy(column)` | `await aentropy(...)` | Entropy from value frequencies |
-| `quantile(column, q=None)` | `await aquantile(...)` | One or more quantiles |
-| `autocorr(column, lag=1)` | `await aautocorr(...)` | Autocorrelation at a lag |
-| `coefficient_of_variation(column)` | `await acoefficient_of_variation(...)` | Standard deviation divided by mean |
-| `outliers_iqr(column)` | `await aoutliers_iqr(...)` | Returns a dict of IQR outlier bounds (`q1`, `q3`, `iqr`, `lower_bound`, `upper_bound`) |
-| `outliers_zscore(column, threshold=3.0)` | `await aoutliers_zscore(...)` | Returns a dict of z-score outlier bounds (`mean`, `std`, `threshold`, `lower_bound`, `upper_bound`) |
+| `mean(column=None)` | `await amean(...)` | Numeric mean or mean datetime |
+| `median(column=None)` | `await amedian(...)` | Numeric median or median datetime |
+| `sum(column=None)` | `await asum(...)` | Numeric sum |
+| `std(column=None)` | `await astd(...)` | Population standard deviation |
+| `var(column=None)` | `await avar(...)` | Population variance |
+| `sem(column=None)` | `await asem(...)` | Standard error of the mean |
+| `mad(column=None)` | `await amad(...)` | Mean absolute deviation |
+| `iqr(column=None)` | `await aiqr(...)` | Interquartile range |
+| `range(column=None)` | `await arange(...)` | Numeric range, `max - min` |
+| `skew(column=None)` | `await askew(...)` | Skewness |
+| `kurtosis(column=None)` | `await akurtosis(...)` | Kurtosis |
+| `entropy(column=None)` | `await aentropy(...)` | Entropy from value frequencies |
+| `quantile(column=None, q=None)` | `await aquantile(...)` | One or more quantiles |
+| `autocorr(column=None, lag=1)` | `await aautocorr(...)` | Autocorrelation at a lag |
+| `coefficient_of_variation(column=None)` | `await acoefficient_of_variation(...)` | Standard deviation divided by mean |
+| `outliers_iqr(column=None)` | `await aoutliers_iqr(...)` | Returns a dict of IQR outlier bounds (`q1`, `q3`, `iqr`, `lower_bound`, `upper_bound`) |
+| `outliers_zscore(column=None, threshold=3.0)` | `await aoutliers_zscore(...)` | Returns a dict of z-score outlier bounds (`mean`, `std`, `threshold`, `lower_bound`, `upper_bound`) |
 | `corr(columns=None)` | `await acorr(...)` | Numeric correlation matrix |
 | `cov(columns=None)` | `await acov(...)` | Numeric covariance matrix |
-| `proportions(column)` | `await aproportions(...)` | Category proportions |
+| `proportions(column=None)` | `await aproportions(...)` | Category proportions |
 | `datetime_diff(column, target_col=None, new_table=None)` | `await adatetime_diff(...)` | Adds a `{column}__diff_seconds` column and returns the result DataFrame |
 | `time_delta_stats(column)` | `await atime_delta_stats(...)` | Summary stats over datetime deltas |
 | `event_rate(column, unit="day")` | `await aevent_rate(...)` | Event rate per time unit |
@@ -115,11 +115,38 @@ Numeric-only methods should be used on numeric columns. Categorical association
 methods should be used on categorical columns. Datetime methods should be used
 on date or timestamp columns.
 
+## Whole-Table Statistics
+
+Passing no column (`dataset.mean()`) computes the stat on every compatible
+column and returns a `{column: value}` dictionary. Compatibility follows the
+routing table above — only families with a dedicated implementation are
+included, the rest are skipped (pandas `numeric_only` spirit):
+
+| Method | Whole-table columns |
+| --- | --- |
+| `count`, `nunique`, `value_counts` | All columns |
+| `min`, `max`, `mean`, `median` | Numeric and datetime |
+| `mode`, `unique` | Categorical and numeric |
+| `sum`, `std`, `var`, `sem`, `mad`, `iqr`, `range`, `skew`, `kurtosis`, `entropy`, `quantile`, `autocorr`, `coefficient_of_variation`, `outliers_iqr`, `outliers_zscore` | Numeric only |
+| `proportions` | Categorical only |
+
+```python
+dataset = mf.upload_csv("data/employees.csv")
+
+means = dataset.mean()  # {"salary": ..., "age": ..., ...} — text skipped
+```
+
+Detection runs once per call (a single 5000-row sample for all columns), then
+each column takes exactly the single-column path — whole-table results always
+agree with per-column calls. A table with no compatible column fails loudly
+instead of returning an empty dict. Datetime-only methods (`time_delta_stats`,
+`event_rate`, …) stay single-column.
+
 ## Common Parameters
 
 | Parameter | Type | Description |
 | --- | --- | --- |
-| `column` | `str` | Column to analyze. Null values are ignored by most operations. |
+| `column` | `str` or `None` | Column to analyze. Omitted means all compatible columns (see Whole-Table Statistics). Null values are ignored by most operations. |
 | `column1` | `str` | First categorical column used in pairwise association methods. |
 | `column2` | `str` | Second categorical column used in pairwise association methods. |
 | `columns` | `list[str]` or `None` | Candidate numeric columns for matrix operations. If omitted, all backend columns are considered and non-numeric columns are filtered out. |
