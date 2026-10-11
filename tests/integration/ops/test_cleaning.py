@@ -1473,6 +1473,78 @@ class TestCleaningOperations:
             backend=backend_config["connection_type"],
         )
 
+    # ----------------------------------------------------
+    # 24. duplicated (positional: the mask aligns by row)
+    # ----------------------------------------------------
+    def _assert_dup_mask(self, res_df, expected_series):
+        pd.testing.assert_series_equal(
+            res_df["duplicated"].reset_index(drop=True),
+            expected_series.reset_index(drop=True),
+            check_dtype=False,
+            check_names=False,
+        )
+
+    def test_duplicated_keep_modes(self, connected_memframe, sample_df, backend_config):
+        df = pd.DataFrame({
+            "brand": ["Yum Yum", "Yum Yum", "Indomie", "Indomie", "Indomie"],
+            "style": ["cup", "cup", "cup", "pack", "pack"],
+            "rating": [4.0, 4.0, 3.5, 15.0, 5.0],
+        })
+        ctx = connected_memframe.upload_df(df, filename="cleaning_duplicated")
+
+        res_df = get_result_df(ctx.duplicated())
+        assert list(res_df.columns) == ["brand", "style", "rating", "duplicated"]
+        self._assert_dup_mask(res_df, df.duplicated())
+
+        res_df = get_result_df(ctx.duplicated(keep="last"))
+        self._assert_dup_mask(res_df, df.duplicated(keep="last"))
+
+        res_df = get_result_df(ctx.duplicated(keep=False))
+        self._assert_dup_mask(res_df, df.duplicated(keep=False))
+        self._record_result(
+            test_name="duplicated_keep_modes",
+            method_call="ctx.duplicated() / keep='last' / keep=False",
+            pandas_call='df.duplicated() / df.duplicated(keep="last"/False)',
+            original_df=df,
+            memframe_df=res_df,
+            pandas_df=df.duplicated(keep=False).rename("duplicated").to_frame(),
+            backend=backend_config["connection_type"],
+        )
+
+    def test_duplicated_subset(self, connected_memframe, sample_df, backend_config):
+        df = pd.DataFrame({
+            "brand": ["Yum Yum", "Yum Yum", "Indomie", "Indomie", "Indomie"],
+            "style": ["cup", "cup", "cup", "pack", "pack"],
+            "rating": [4.0, 4.0, 3.5, 15.0, 5.0],
+        })
+        ctx = connected_memframe.upload_df(df, filename="cleaning_duplicated_subset")
+        res_df = get_result_df(ctx.duplicated(subset=["brand"]))
+        self._assert_dup_mask(res_df, df.duplicated(subset=["brand"]))
+        self._record_result(
+            test_name="duplicated_subset",
+            method_call='ctx.duplicated(subset=["brand"])',
+            pandas_call='df.duplicated(subset=["brand"])',
+            original_df=df,
+            memframe_df=res_df,
+            pandas_df=df.duplicated(subset=["brand"]).rename("duplicated").to_frame(),
+            backend=backend_config["connection_type"],
+        )
+
+    def test_duplicated_guards(self, uploaded_ctx, sample_df, backend_config):
+        with pytest.raises(OperationError):
+            uploaded_ctx.duplicated(keep="middle")
+        with pytest.raises(OperationError):
+            uploaded_ctx.duplicated(subset=["nope"])
+        self._record_result(
+            test_name="duplicated_guards",
+            method_call="uploaded_ctx.duplicated(...) guard cases",
+            pandas_call="n/a — guard tests (OperationError)",
+            original_df=sample_df,
+            memframe_df=_empty_pdf_df("expected OperationErrors"),
+            pandas_df=_empty_pdf_df("n/a"),
+            backend=backend_config["connection_type"],
+        )
+
     def test_interpolate_order_by(self, connected_memframe, sample_df, backend_config):
         # physical and month order disagree: values follow the declared
         # sequence, rows keep their positions (positional comparison).
