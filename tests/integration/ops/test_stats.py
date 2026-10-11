@@ -853,3 +853,43 @@ class TestStatsOperations:
         assert isinstance(value, (int, dict))
         self._record_result("holiday_counts", 'holiday_counts("date")', sample_df, value, "counts", backend_config["connection_type"], pandas_call='df["date"].dt.date.isin(holidays).value_counts()')
 
+    # ----------------------------------------------------
+    # Whole-table statistics (column omitted)
+    # ----------------------------------------------------
+    def test_mean_no_column(self, uploaded_ctx, sample_df, backend_config):
+        value = get_result_value(uploaded_ctx.mean())
+        assert set(value) == {"score", "salary", "count_all", "date"}
+        for col in ("score", "salary", "count_all"):
+            assert value[col] == pytest.approx(sample_df[col].mean(), rel=1e-5)
+        self._record_result("mean_no_column", 'mean()', sample_df, value, "means", backend_config["connection_type"], pandas_call='{c: df[c].mean() for numeric/datetime c}')
+
+    def test_mode_no_column(self, uploaded_ctx, sample_df, backend_config):
+        value = get_result_value(uploaded_ctx.mode())
+        assert "category" in value and "score" in value
+        assert "date" not in value
+        self._record_result("mode_no_column", 'mode()', sample_df, value, "modes", backend_config["connection_type"], pandas_call='{c: df[c].mode() for categorical/numeric c}')
+
+    def test_sum_no_column_skips_text(self, uploaded_ctx, sample_df, backend_config):
+        value = get_result_value(uploaded_ctx.sum())
+        assert set(value) == {"score", "salary", "count_all"}
+        assert value["salary"] == pytest.approx(sample_df["salary"].sum(), rel=1e-5)
+        self._record_result("sum_no_column", 'sum()', sample_df, value, "sums", backend_config["connection_type"], pandas_call='{c: df[c].sum() for numeric c}')
+
+    def test_count_no_column_covers_all(self, uploaded_ctx, sample_df, backend_config):
+        value = get_result_value(uploaded_ctx.count())
+        assert set(value) == set(sample_df.columns)
+        assert value["category"] == 5
+        self._record_result("count_no_column", 'count()', sample_df, value, "counts", backend_config["connection_type"], pandas_call='{c: df[c].count() for all c}')
+
+    def test_proportions_no_column(self, uploaded_ctx, sample_df, backend_config):
+        value = get_result_value(uploaded_ctx.proportions())
+        assert set(value) == {"category", "category2", "active"}
+        self._record_result("proportions_no_column", 'proportions()', sample_df, value, "proportions", backend_config["connection_type"], pandas_call='{c: proportions for categorical c}')
+
+    def test_whole_table_no_compatible_column_fails(self, connected_memframe, backend_config):
+        ctx = connected_memframe.upload_df(
+            pd.DataFrame({"t": ["a", "b"]}), filename="stats_text_only")
+        with pytest.raises(Exception, match="no compatible columns"):
+            ctx.sum()
+        self._record_result("whole_table_no_compatible", 'sum() on text-only frame', pd.DataFrame({"t": ["a", "b"]}), "OperationError", "error", backend_config["connection_type"], pandas_call='n/a — guard test')
+
