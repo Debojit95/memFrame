@@ -1,5 +1,7 @@
+import asyncio
 import logging
 from abc import ABC, abstractmethod
+from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Optional, Tuple
 
 from memframe.core.ingestion.datatype_detector import DatatypeDetector
@@ -26,6 +28,11 @@ class DatabaseBackend(ABC):
         self.registry_table_full = f"{registry_schema}.{registry_table}"
         self._type_detector = DatatypeDetector()
         self.pool = None
+        # ponytail: one lock per data_id — every MAX(opidx)+1 read-then-insert
+        # must hold it, else concurrent ops read the same MAX and collide.
+        # Tiny dict (one lock per dataset), no eviction needed.
+        self._op_locks: Dict[str, asyncio.Lock] = {}
+        self._op_lock_owners: Dict[str, Any] = {}
 
     @property
     @abstractmethod
@@ -66,6 +73,30 @@ class DatabaseBackend(ABC):
     async def initialize(self) -> None:
         await self._setup_database()
         await self._create_transient_schema()
+
+    @asynccontextmanager
+    async def _locked_op(self, data_id: str):
+        """Serialize opidx allocation + transient writes for one dataset.
+
+        Re-entrant: the cache decorator holds this across execute+store while
+        the inner recorders below re-enter from the same task without deadlock.
+        """
+        current = asyncio.current_task()
+        lock = self._op_locks.get(data_id)
+        if lock is None:
+            # ponytail: no await between get and set, so two coroutines can't
+            # create two locks for the same data_id on one event loop.
+            lock = asyncio.Lock()
+            self._op_locks[data_id] = lock
+        if current is not None and self._op_lock_owners.get(data_id) is current:
+            yield
+            return
+        async with lock:
+            self._op_lock_owners[data_id] = current
+            try:
+                yield
+            finally:
+                self._op_lock_owners.pop(data_id, None)
 
     async def _column_exists(self, schema: str, table: str, column: str) -> bool:
         if self.backend == "clickhouse":

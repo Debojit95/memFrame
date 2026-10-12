@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import time
+from contextlib import asynccontextmanager
 from functools import wraps
 from typing import Any, Callable, Dict, Optional
 
@@ -13,6 +14,11 @@ from memframe.core.ingestion.datatype_detector import Backend
 from memframe.exceptions import OperationError
 
 logger = logging.getLogger("memFrame.cache")
+
+
+@asynccontextmanager
+async def _no_lock():
+    yield
 
 
 class CacheManager:
@@ -71,6 +77,14 @@ class CacheManager:
     def _signature(self, value: Any) -> str:
         return json.dumps(value, sort_keys=True, default=self._json_default)
 
+    @staticmethod
+    def _op_lock_for(backend, data_id: str):
+        """Per-dataset lock, or a no-op when there is nothing to guard."""
+        locked = getattr(backend, "_locked_op", None) if backend is not None else None
+        if locked is None:
+            return _no_lock()
+        return locked(data_id)
+
     def _qualify(self, schema: str, bare: str, backend) -> str:
         if getattr(backend, "backend", None) == Backend.CLICKHOUSE:
             return f"`{schema}`.`{bare}`"
@@ -111,25 +125,26 @@ class CacheManager:
 
     async def _create_deep_cache_table(self, mf, backend, data_id: str, df: pd.DataFrame) -> str:
         """Persist a DataFrame as a typed transient table (deep-cache payload)."""
-        op = await backend.fetchval(
-            f"SELECT COALESCE(MAX(opidx), 0) FROM {backend.transient_registry_table} "
-            f"WHERE data_id = {backend.placeholder(1)}", data_id,
-        )
-        op = (op or 0) + 1
-        qualified = backend.get_transient_table_name(data_id, op)
-        arrow = pa.Table.from_pandas(df, preserve_index=False)
-        uploader = mf._uploader
-        schema = {}
-        for i, name in enumerate(arrow.schema.names):
-            pg_type = uploader._arrow_type_to_postgres(arrow.schema.field(i).type)
-            schema[name] = {
-                "postgres_type": pg_type,
-                "clickhouse_type": uploader._postgres_type_to_clickhouse(pg_type),
-                "is_nullable": True,
-            }
-        await uploader._create_final_table_typed(qualified, arrow.schema.names, schema)
-        await uploader._insert_arrow_table(qualified, arrow)
-        return qualified
+        async with CacheManager._op_lock_for(backend, data_id):
+            op = await backend.fetchval(
+                f"SELECT COALESCE(MAX(opidx), 0) FROM {backend.transient_registry_table} "
+                f"WHERE data_id = {backend.placeholder(1)}", data_id,
+            )
+            op = (op or 0) + 1
+            qualified = backend.get_transient_table_name(data_id, op)
+            arrow = pa.Table.from_pandas(df, preserve_index=False)
+            uploader = mf._uploader
+            schema = {}
+            for i, name in enumerate(arrow.schema.names):
+                pg_type = uploader._arrow_type_to_postgres(arrow.schema.field(i).type)
+                schema[name] = {
+                    "postgres_type": pg_type,
+                    "clickhouse_type": uploader._postgres_type_to_clickhouse(pg_type),
+                    "is_nullable": True,
+                }
+            await uploader._create_final_table_typed(qualified, arrow.schema.names, schema)
+            await uploader._insert_arrow_table(qualified, arrow)
+            return qualified
 
     def _make_hit_response(self, payload: Dict[str, Any], cached: pd.DataFrame, bare_name: str, schema: str) -> Dict[str, Any]:
         qualified = self._qualify(schema, bare_name, payload.get("_backend"))
@@ -217,109 +232,113 @@ class CacheManager:
                     "_backend": backend,
                 }
 
-                # --- Lookup: only for deep cache entries ---
-                if is_deep and backend:
-                    method = f"{payload['class_name']}.{payload['method_name']}"
-                    logger.debug(
-                        "[cache] LOOKUP %s data_id=%s args=%s kwargs=%s",
-                        method, data_id, payload["args_sig"], payload["kwargs_sig"],
-                    )
-                    lookup_start = time.perf_counter()
-                    row = await backend.fetch_row(
-                        f"""
-                        SELECT generated_table_name, schema
-                        FROM {backend.transient_registry_table}
-                        WHERE data_id = {backend.placeholder(1)}
-                          AND operation_type = 'method_call'
-                          AND class_name = {backend.placeholder(2)}
-                          AND method_name = {backend.placeholder(3)}
-                          AND args = {backend.placeholder(4)}
-                          AND kwargs = {backend.placeholder(5)}
-                           AND {backend.backend == "clickhouse" and "CAST(is_deep_cache AS UInt8) = 1" or "is_deep_cache = TRUE"}
-                           AND generated_table_name IS NOT NULL
-                        ORDER BY opidx DESC LIMIT 1
-                        """,
-                        data_id,
-                        payload["class_name"],
-                        payload["method_name"],
-                        payload["args_sig"],
-                        payload["kwargs_sig"],
-                    )
-                    if row:
-                        bare, sch = row[0], row[1]
-                        sch = sch or backend.transient_schema
-                        cached = await manager._load_generated_table(backend, manager._qualify(sch, bare, backend))
-                        if cached is not None:
+                # ponytail: hold the per-dataset lock across lookup+execute+store —
+                # the MAX(opidx)+1 reads inside func() and the writer below must
+                # not interleave with another op on this data_id (same opidx twice).
+                async with manager._op_lock_for(backend, data_id):
+                    # --- Lookup: only for deep cache entries ---
+                    if is_deep and backend:
+                        method = f"{payload['class_name']}.{payload['method_name']}"
+                        logger.debug(
+                            "[cache] LOOKUP %s data_id=%s args=%s kwargs=%s",
+                            method, data_id, payload["args_sig"], payload["kwargs_sig"],
+                        )
+                        lookup_start = time.perf_counter()
+                        row = await backend.fetch_row(
+                            f"""
+                            SELECT generated_table_name, schema
+                            FROM {backend.transient_registry_table}
+                            WHERE data_id = {backend.placeholder(1)}
+                              AND operation_type = 'method_call'
+                              AND class_name = {backend.placeholder(2)}
+                              AND method_name = {backend.placeholder(3)}
+                              AND args = {backend.placeholder(4)}
+                              AND kwargs = {backend.placeholder(5)}
+                               AND {backend.backend == "clickhouse" and "CAST(is_deep_cache AS UInt8) = 1" or "is_deep_cache = TRUE"}
+                               AND generated_table_name IS NOT NULL
+                            ORDER BY opidx DESC LIMIT 1
+                            """,
+                            data_id,
+                            payload["class_name"],
+                            payload["method_name"],
+                            payload["args_sig"],
+                            payload["kwargs_sig"],
+                        )
+                        if row:
+                            bare, sch = row[0], row[1]
+                            sch = sch or backend.transient_schema
+                            cached = await manager._load_generated_table(backend, manager._qualify(sch, bare, backend))
+                            if cached is not None:
+                                logger.info(
+                                    "[cache] HIT %s data_id=%s → %s (%d rows, lookup+reload %.3fs)",
+                                    method, data_id, bare, len(cached),
+                                    time.perf_counter() - lookup_start,
+                                )
+                                return manager._make_hit_response(payload, cached, bare, sch)
                             logger.info(
-                                "[cache] HIT %s data_id=%s → %s (%d rows, lookup+reload %.3fs)",
-                                method, data_id, bare, len(cached),
-                                time.perf_counter() - lookup_start,
+                                "[cache] MISS %s data_id=%s — registry row found but reload failed for %s",
+                                method, data_id, bare,
                             )
-                            return manager._make_hit_response(payload, cached, bare, sch)
-                        logger.info(
-                            "[cache] MISS %s data_id=%s — registry row found but reload failed for %s",
-                            method, data_id, bare,
-                        )
-                    else:
-                        logger.info(
-                            "[cache] MISS %s data_id=%s — no matching registry row",
-                            method, data_id,
-                        )
-
-                # --- Execute ---
-                result = await func(self, *args, **kwargs)
-                generated_table_name = None
-                schema = None
-
-                if is_deep and isinstance(result, dict) and not result.get("is_error", False):
-                    bare_table = result.get("new_table") or result.get("generated_table_name")
-                    if bare_table and backend:
-                        if await backend.table_exists(manager._qualify(backend.transient_schema, bare_table, backend)):
-                            generated_table_name = bare_table
-                            schema = backend.transient_schema
-                        elif await backend.table_exists(manager._qualify(backend.upload_schema, bare_table, backend)):
-                            be = getattr(backend, "backend", None)
-                            if be == Backend.CLICKHOUSE:
-                                await backend.execute(
-                                    f"RENAME TABLE {manager._qualify(backend.upload_schema, bare_table, backend)} "
-                                    f"TO {manager._qualify(backend.transient_schema, bare_table, backend)}"
-                                )
-                            elif be == Backend.DUCKDB:
-                                await backend.execute(
-                                    f"CREATE TABLE {manager._qualify(backend.transient_schema, bare_table, backend)} "
-                                    f"AS SELECT * FROM {manager._qualify(backend.upload_schema, bare_table, backend)}"
-                                )
-                                await backend.execute(
-                                    f"DROP TABLE {manager._qualify(backend.upload_schema, bare_table, backend)}"
-                                )
-                            else:
-                                await backend.execute(
-                                    f"ALTER TABLE {manager._qualify(backend.upload_schema, bare_table, backend)} "
-                                    f"SET SCHEMA {backend.transient_schema}"
-                                )
-                            generated_table_name = bare_table
-                            schema = backend.transient_schema
-                    elif "result" in result:
-                        df = result["result"]
-                        if isinstance(df, pd.DataFrame) and not df.empty and backend:
-                            qualified = await manager._create_deep_cache_table(
-                                mf, backend, data_id, df
+                        else:
+                            logger.info(
+                                "[cache] MISS %s data_id=%s — no matching registry row",
+                                method, data_id,
                             )
-                            if qualified:
-                                _sch, _bare = backend._split_qualified_table_name(qualified)
-                                generated_table_name = _bare
-                                schema = _sch
-                elif not is_deep and isinstance(result, dict) and not result.get("is_error", False):
-                    # ponytail: drop any table the method created — deep_cache=False means no tables
-                    bare_table = result.get("new_table") or result.get("generated_table_name")
-                    if bare_table and backend:
-                        for sch in (backend.transient_schema, backend.upload_schema):
-                            q = manager._qualify(sch, bare_table, backend)
-                            if q and await backend.table_exists(q):
-                                await backend.drop_table(q)
-                                break
 
-                await writer(payload, data_id, generated_table_name, is_deep_cache=is_deep, schema=schema)
+                    # --- Execute ---
+                    result = await func(self, *args, **kwargs)
+                    generated_table_name = None
+                    schema = None
+
+                    if is_deep and isinstance(result, dict) and not result.get("is_error", False):
+                        bare_table = result.get("new_table") or result.get("generated_table_name")
+                        if bare_table and backend:
+                            if await backend.table_exists(manager._qualify(backend.transient_schema, bare_table, backend)):
+                                generated_table_name = bare_table
+                                schema = backend.transient_schema
+                            elif await backend.table_exists(manager._qualify(backend.upload_schema, bare_table, backend)):
+                                be = getattr(backend, "backend", None)
+                                if be == Backend.CLICKHOUSE:
+                                    await backend.execute(
+                                        f"RENAME TABLE {manager._qualify(backend.upload_schema, bare_table, backend)} "
+                                        f"TO {manager._qualify(backend.transient_schema, bare_table, backend)}"
+                                    )
+                                elif be == Backend.DUCKDB:
+                                    await backend.execute(
+                                        f"CREATE TABLE {manager._qualify(backend.transient_schema, bare_table, backend)} "
+                                        f"AS SELECT * FROM {manager._qualify(backend.upload_schema, bare_table, backend)}"
+                                    )
+                                    await backend.execute(
+                                        f"DROP TABLE {manager._qualify(backend.upload_schema, bare_table, backend)}"
+                                    )
+                                else:
+                                    await backend.execute(
+                                        f"ALTER TABLE {manager._qualify(backend.upload_schema, bare_table, backend)} "
+                                        f"SET SCHEMA {backend.transient_schema}"
+                                    )
+                                generated_table_name = bare_table
+                                schema = backend.transient_schema
+                        elif "result" in result:
+                            df = result["result"]
+                            if isinstance(df, pd.DataFrame) and not df.empty and backend:
+                                qualified = await manager._create_deep_cache_table(
+                                    mf, backend, data_id, df
+                                )
+                                if qualified:
+                                    _sch, _bare = backend._split_qualified_table_name(qualified)
+                                    generated_table_name = _bare
+                                    schema = _sch
+                    elif not is_deep and isinstance(result, dict) and not result.get("is_error", False):
+                        # ponytail: drop any table the method created — deep_cache=False means no tables
+                        bare_table = result.get("new_table") or result.get("generated_table_name")
+                        if bare_table and backend:
+                            for sch in (backend.transient_schema, backend.upload_schema):
+                                q = manager._qualify(sch, bare_table, backend)
+                                if q and await backend.table_exists(q):
+                                    await backend.drop_table(q)
+                                    break
+
+                    await writer(payload, data_id, generated_table_name, is_deep_cache=is_deep, schema=schema)
                 if is_deep and generated_table_name:
                     logger.info(
                         "[cache] STORE %s.%s data_id=%s → %s.%s (deep)",

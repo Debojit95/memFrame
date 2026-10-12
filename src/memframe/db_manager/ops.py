@@ -192,18 +192,19 @@ class OpsMixin:
     # ── operation recording (used by ContextManager / wrappers) ──
 
     async def _arecord_operation(self, data_id: str, operation_type: str, generated_table_name: str) -> int:
-        max_op = await self._backend.fetchval(
-            f"SELECT COALESCE(MAX(opidx), 0) FROM {self._backend.transient_registry_table} WHERE data_id = {self._placeholder(1)}",
-            data_id,
-        )
-        opidx = max_op + 1
-        await self._backend.execute(
-            f"INSERT INTO {self._backend.transient_registry_table} "
-            f"(data_id, opidx, generated_table_name, operation_type) "
-            f"VALUES ({self._placeholder(1)}, {self._placeholder(2)}, {self._placeholder(3)}, {self._placeholder(4)})",
-            data_id, opidx, generated_table_name, operation_type,
-        )
-        return opidx
+        async with self._backend._locked_op(data_id):
+            max_op = await self._backend.fetchval(
+                f"SELECT COALESCE(MAX(opidx), 0) FROM {self._backend.transient_registry_table} WHERE data_id = {self._placeholder(1)}",
+                data_id,
+            )
+            opidx = (max_op or 0) + 1
+            await self._backend.execute(
+                f"INSERT INTO {self._backend.transient_registry_table} "
+                f"(data_id, opidx, generated_table_name, operation_type) "
+                f"VALUES ({self._placeholder(1)}, {self._placeholder(2)}, {self._placeholder(3)}, {self._placeholder(4)})",
+                data_id, opidx, generated_table_name, operation_type,
+            )
+            return opidx
 
     async def _arecord_method_call(
         self, data_id: str, class_name: str, method_name: str,
@@ -213,24 +214,25 @@ class OpsMixin:
     ) -> int:
         if not self._backend:
             raise ConnectionNotReady("Not connected.")
-        max_op = await self._backend.fetchval(
-            f"SELECT COALESCE(MAX(opidx), 0) FROM {self._backend.transient_registry_table} "
-            f"WHERE data_id = {self._placeholder(1)}",
-            data_id,
-        )
-        opidx = max_op + 1
-        await self._backend.execute(
-            f"INSERT INTO {self._backend.transient_registry_table} "
-            f"(data_id, opidx, operation_type, class_name, method_name, args, kwargs, "
-            f"generated_table_name, is_deep_cache, schema) "
-            f"VALUES ({self._placeholder(1)}, {self._placeholder(2)}, {self._placeholder(3)}, "
-            f"{self._placeholder(4)}, {self._placeholder(5)}, {self._placeholder(6)}, "
-            f"{self._placeholder(7)}, {self._placeholder(8)}, {self._placeholder(9)}, {self._placeholder(10)})",
-            data_id, opidx, "method_call", class_name, method_name,
-            args_sig, kwargs_sig,
-            generated_table_name, is_deep_cache, schema,
-        )
-        return opidx
+        async with self._backend._locked_op(data_id):
+            max_op = await self._backend.fetchval(
+                f"SELECT COALESCE(MAX(opidx), 0) FROM {self._backend.transient_registry_table} "
+                f"WHERE data_id = {self._placeholder(1)}",
+                data_id,
+            )
+            opidx = (max_op or 0) + 1
+            await self._backend.execute(
+                f"INSERT INTO {self._backend.transient_registry_table} "
+                f"(data_id, opidx, operation_type, class_name, method_name, args, kwargs, "
+                f"generated_table_name, is_deep_cache, schema) "
+                f"VALUES ({self._placeholder(1)}, {self._placeholder(2)}, {self._placeholder(3)}, "
+                f"{self._placeholder(4)}, {self._placeholder(5)}, {self._placeholder(6)}, "
+                f"{self._placeholder(7)}, {self._placeholder(8)}, {self._placeholder(9)}, {self._placeholder(10)})",
+                data_id, opidx, "method_call", class_name, method_name,
+                args_sig, kwargs_sig,
+                generated_table_name, is_deep_cache, schema,
+            )
+            return opidx
 
     # ── operation listing / retrieval ────────────────────────────
 

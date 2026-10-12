@@ -108,6 +108,67 @@ class TestOperationRecording:
         assert a == 1 and b == 2 and c == 3
 
 
+class TestConcurrentRecording:
+    """Finding 3: MAX(opidx)+1 read-then-insert must not hand out one opidx twice."""
+
+    @staticmethod
+    async def _remote_like_fetchval(backend, *args, **kwargs):
+        """Wrap fetchval with a yield, like a real network round-trip.
+
+        Local DuckDB calls never suspend, so coroutines can't interleave
+        between the MAX read and the INSERT without this.
+        """
+        result = await type(backend).fetchval(backend, *args, **kwargs)
+        await asyncio.sleep(0)
+        return result
+
+    @pytest.fixture
+    def remote_like(self, mf, monkeypatch):
+        monkeypatch.setattr(
+            mf._backend, "fetchval",
+            lambda *a, **k: self._remote_like_fetchval(mf._backend, *a, **k),
+        )
+        return mf
+
+    def test_concurrent_method_calls_get_distinct_opidx(self, remote_like, uploaded):
+        mf = remote_like
+        data_id = uploaded._data_id
+
+        async def _go():
+            return await asyncio.gather(*[
+                mf._arecord_method_call(data_id, "C", "m", f"[{i}]", "{}")
+                for i in range(10)
+            ])
+
+        assert sorted(asyncio.run(_go())) == list(range(1, 11))
+        rows = asyncio.run(mf.alist_operations(data_id))
+        assert sorted(r["opidx"] for r in rows) == list(range(1, 11))
+
+    def test_concurrent_decorated_calls_serialize(self, remote_like, uploaded):
+        from memframe.cache import record_call
+
+        mf = remote_like
+        class FakeOps:
+            def __init__(self, mf, data_id):
+                self._memframe = mf
+                self._data_id = data_id
+
+            @record_call(deep_cache=False)
+            async def do(self, i):
+                await asyncio.sleep(0)  # force interleave
+                return {"is_error": False, "n": i}
+
+        ops = FakeOps(mf, uploaded._data_id)
+
+        async def _go():
+            return await asyncio.gather(*[ops.do(i) for i in range(10)])
+
+        results = asyncio.run(_go())
+        assert sorted(r["n"] for r in results) == list(range(10))
+        rows = asyncio.run(mf.alist_operations(uploaded._data_id))
+        assert sorted(r["opidx"] for r in rows) == list(range(1, 11))
+
+
 class TestClearCache:
     def test_clear_cache_drops_tables_and_rows(self, mf, uploaded):
         data_id = uploaded._data_id
