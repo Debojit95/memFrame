@@ -139,3 +139,72 @@ def test_context_snapshots_active_dataset_at_creation():
         assert table == ctx_b._data_id  # MemFrame-level "active" semantics intact
     finally:
         asyncio.run(mf.aclose())
+
+
+# ── concurrent DuckDB use (finding 4) ──────────────────────────────────
+
+
+def _check_uploads_isolated(mf, ctx_a, ctx_b, res_a, res_b):
+    assert sorted(res_a["x"].tolist()) == [1, 2, 3]
+    assert sorted(res_b["x"].tolist()) == [10, 20]
+    views = asyncio.run(mf._backend.fetch(
+        "SELECT view_name FROM duckdb_views() WHERE view_name LIKE 'arrow_temp%'"
+    ))
+    assert views == []  # every temp view unregistered in finally
+
+
+def test_concurrent_duckdb_uploads_stay_isolated():
+    mf = MemFrame(connection_type="local", connection_params={"db_path": ":memory:"})
+    asyncio.run(mf.aconnect())
+    try:
+        async def _go():
+            ctx_a, ctx_b = await asyncio.gather(
+                mf.aupload_df(pd.DataFrame({"x": [1, 2, 3]}), filename="conc_a"),
+                mf.aupload_df(pd.DataFrame({"x": [10, 20]}), filename="conc_b"),
+            )
+            res_a, res_b = await asyncio.gather(
+                ctx_a.ahead(n=10),
+                ctx_b.ahead(n=10),
+            )
+            return ctx_a, ctx_b, res_a, res_b
+
+        _check_uploads_isolated(mf, *asyncio.run(_go()))
+    finally:
+        asyncio.run(mf.aclose())
+
+
+def test_concurrent_duckdb_uploads_with_slow_pool():
+    """Same as above but every pool call yields, maximizing the interleave window."""
+    mf = MemFrame(connection_type="local", connection_params={"db_path": ":memory:"})
+    asyncio.run(mf.aconnect())
+    pool = mf._backend.pool
+    orig_execute = pool.execute
+    orig_fetch = pool.fetch
+
+    async def slow_execute(sql, *args):
+        await asyncio.sleep(0)
+        await orig_execute(sql, *args)
+
+    async def slow_fetch(sql, *args):
+        await asyncio.sleep(0)
+        return await orig_fetch(sql, *args)
+
+    pool.execute = slow_execute
+    pool.fetch = slow_fetch
+    try:
+        async def _go():
+            ctx_a, ctx_b = await asyncio.gather(
+                mf.aupload_df(pd.DataFrame({"x": [1, 2, 3]}), filename="conc_slow_a"),
+                mf.aupload_df(pd.DataFrame({"x": [10, 20]}), filename="conc_slow_b"),
+            )
+            res_a, res_b = await asyncio.gather(
+                ctx_a.ahead(n=10),
+                ctx_b.ahead(n=10),
+            )
+            return ctx_a, ctx_b, res_a, res_b
+
+        _check_uploads_isolated(mf, *asyncio.run(_go()))
+    finally:
+        pool.execute = orig_execute
+        pool.fetch = orig_fetch
+        asyncio.run(mf.aclose())

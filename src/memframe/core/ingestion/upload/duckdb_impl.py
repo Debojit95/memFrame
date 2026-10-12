@@ -1,4 +1,5 @@
 from typing import Any, Dict, List
+from uuid import uuid4
 
 import pyarrow as pa
 
@@ -22,11 +23,14 @@ class DuckDBUploadImpl:
     # ── PyArrow Stream Upload ───────────────────────────────────
     async def _insert_arrow_table_duckdb(self, table_name: str, arrow_table: pa.Table) -> None:
         conn = self._backend.pool.conn
-        conn.register("arrow_temp", arrow_table)
+        # ponytail: unique view per call — a fixed name lets a concurrent upload
+        # re-register mid-INSERT and mix both datasets' rows.
+        view = f"arrow_temp_{uuid4().hex}"
+        conn.register(view, arrow_table)
         try:
-            conn.execute(f"INSERT INTO {table_name} SELECT * FROM arrow_temp")
+            await self.execute(f"INSERT INTO {table_name} SELECT * FROM {view}")
         finally:
-            conn.unregister("arrow_temp")
+            conn.unregister(view)
 
     # ── Sampling ────────────────────────────────────────────────
     async def _fetch_arrow_sample_duckdb(self, table_name: str, columns: List[str], limit: int) -> pa.Table:
@@ -43,13 +47,15 @@ class DuckDBUploadImpl:
         for col in columns:
             target_type = schema.get(col, {}).get("postgres_type", "TEXT")
             col_defs.append(f'"{col}" {target_type}')
-        await self.execute(f'CREATE TABLE {tmp_table} ({", ".join(col_defs)})')
 
         select_parts = []
         for col in columns:
             target_type = schema.get(col, {}).get("postgres_type", "TEXT")
             select_parts.append(f'TRY_CAST("{col}" AS {target_type}) AS "{col}"')
-        await self.execute(f'INSERT INTO {tmp_table} SELECT {", ".join(select_parts)} FROM {final_table}')
 
-        await self.drop_table(final_table)
-        await self.execute(f'ALTER TABLE {tmp_table} RENAME TO {self._quote_identifier(raw_table)}')
+        # ponytail: one transaction — a crash after DROP must not lose the table.
+        async with self._backend.transaction():
+            await self.execute(f'CREATE TABLE {tmp_table} ({", ".join(col_defs)})')
+            await self.execute(f'INSERT INTO {tmp_table} SELECT {", ".join(select_parts)} FROM {final_table}')
+            await self.drop_table(final_table)
+            await self.execute(f'ALTER TABLE {tmp_table} RENAME TO {self._quote_identifier(raw_table)}')

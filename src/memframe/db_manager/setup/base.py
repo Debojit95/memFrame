@@ -75,6 +75,21 @@ class DatabaseBackend(ABC):
         await self._create_transient_schema()
 
     @asynccontextmanager
+    async def transaction(self):
+        """All-or-nothing block for multi-step writes.
+
+        DuckDB/Postgres open a real transaction (commit/rollback together).
+        ClickHouse has none — the block runs plain and callers clean up
+        partial tables themselves on failure.
+        """
+        txn = getattr(self.pool, "transaction", None)
+        if txn is None:
+            yield
+        else:
+            async with txn():
+                yield
+
+    @asynccontextmanager
     async def _locked_op(self, data_id: str):
         """Serialize opidx allocation + transient writes for one dataset.
 

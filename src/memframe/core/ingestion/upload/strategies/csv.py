@@ -38,9 +38,31 @@ class CsvUploadStrategy(UploadStrategy):
         data_id, table_name = await self._alloc_data_id()
 
         logger.info(f"Uploading {file_path.name} as {data_id}...")
-        row_count = await self._create_table_from_csv(table_name, str(file_path), dtypes)
-
-        await self._register(data_id, file_path.name, table_name, row_count)
+        # ponytail: each attempt is its own transaction (create+register commit
+        # together). A failed typed attempt rolls back fully, so the all-text
+        # retry starts clean in a fresh transaction — no savepoints needed.
+        try:
+            try:
+                async with self._uploader._backend.transaction():
+                    row_count = await self._create_table_from_csv(table_name, str(file_path), dtypes)
+                    await self._register(data_id, file_path.name, table_name, row_count)
+            except ConfigurationError:
+                raise
+            except Exception as exc:
+                if self._uploader._backend.backend == Backend.CLICKHOUSE:
+                    raise
+                logger.warning(
+                    f"Typed CSV upload failed ({type(exc).__name__}: {exc}); "
+                    "retrying as all-text then casting."
+                )
+                async with self._uploader._backend.transaction():
+                    row_count = await self._create_table_from_csv_fallback(
+                        table_name, str(file_path), dtypes
+                    )
+                    await self._register(data_id, file_path.name, table_name, row_count)
+        except BaseException:
+            await self._uploader._drop_upload_on_failure(table_name)
+            raise
         logger.info(f"Uploaded {file_path.name} -> {data_id} ({row_count} rows)")
         return data_id
 
@@ -70,37 +92,44 @@ class CsvUploadStrategy(UploadStrategy):
             schema = self._uploader._apply_dtype_override(schema, columns, dtypes)
             await self._uploader._cast_table_in_place(final_table, columns, schema)
         else:
-            # DuckDB/PostgreSQL: type-first optimized path.
-            try:
-                columns, schema = await self._infer_types_from_csv(file_path, encoding)
-                schema = self._uploader._apply_dtype_override(schema, columns, dtypes)
-                await self._uploader._create_final_table_typed(final_table, columns, schema)
-                await self._stream_csv_typed(
-                    final_table, file_path, columns, encoding, schema,
-                    locked_cols=set(dtypes or {}),
-                )
-            except Exception as exc:
-                if isinstance(exc, ConfigurationError):
-                    raise
-                logger.warning(
-                    f"Typed CSV upload failed ({type(exc).__name__}: {exc}); "
-                    "retrying as all-text then casting."
-                )
-                await self._uploader.drop_table(final_table)
-                columns = self._get_csv_columns(file_path, encoding)
-                await self._uploader._create_final_table_all_text(final_table, columns)
-                await self._stream_csv_all_text(final_table, file_path, columns, encoding)
-                sample_table = await self._uploader._fetch_arrow_sample(
-                    final_table, columns, _FALLBACK_SAMPLE_ROWS
-                )
-                schema = {}
-                for col in columns:
-                    schema[col] = self._uploader._type_detector._infer_column(
-                        sample_table.column(col)
-                    )
-                schema = self._uploader._apply_dtype_override(schema, columns, dtypes)
-                schema = self._uploader._make_types_conservative(schema)
-                await self._uploader._cast_table_in_place(final_table, columns, schema)
+            # DuckDB/PostgreSQL: type-first optimized path (no fallback here —
+            # upload() retries all-text in a fresh transaction on failure).
+            columns, schema = await self._infer_types_from_csv(file_path, encoding)
+            schema = self._uploader._apply_dtype_override(schema, columns, dtypes)
+            await self._uploader._create_final_table_typed(final_table, columns, schema)
+            await self._stream_csv_typed(
+                final_table, file_path, columns, encoding, schema,
+                locked_cols=set(dtypes or {}),
+            )
+
+        row_count = await self._uploader.fetchval(f"SELECT COUNT(*) FROM {final_table}")
+        return row_count
+
+    async def _create_table_from_csv_fallback(
+        self, table_name: str, file_path: str, dtypes: Optional[Dict[str, str]] = None
+    ) -> int:
+        """All-text insert then cast — second attempt after typed upload fails."""
+        encoding = await self._uploader._resolve_encoding(file_path)
+
+        schema_name = self._uploader._backend.upload_schema
+        final_table = f'{schema_name}."{table_name}"'
+
+        await self._uploader.create_schema_if_not_exists(schema_name)
+
+        columns = self._get_csv_columns(file_path, encoding)
+        await self._uploader._create_final_table_all_text(final_table, columns)
+        await self._stream_csv_all_text(final_table, file_path, columns, encoding)
+        sample_table = await self._uploader._fetch_arrow_sample(
+            final_table, columns, _FALLBACK_SAMPLE_ROWS
+        )
+        schema = {}
+        for col in columns:
+            schema[col] = self._uploader._type_detector._infer_column(
+                sample_table.column(col)
+            )
+        schema = self._uploader._apply_dtype_override(schema, columns, dtypes)
+        schema = self._uploader._make_types_conservative(schema)
+        await self._uploader._cast_table_in_place(final_table, columns, schema)
 
         row_count = await self._uploader.fetchval(f"SELECT COUNT(*) FROM {final_table}")
         return row_count

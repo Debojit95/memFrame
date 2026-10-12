@@ -34,9 +34,15 @@ class ParquetUploadStrategy(UploadStrategy):
         data_id, table_name = await self._alloc_data_id()
 
         logger.info(f"Uploading {file_path.name} as {data_id}...")
-        row_count = await self._create_table_from_parquet(table_name, str(file_path), dtypes)
-
-        await self._register(data_id, file_path.name, table_name, row_count)
+        try:
+            # ponytail: one transaction — create+insert+register commit together,
+            # so a failed upload never leaves an orphan table with no data_id.
+            async with self._uploader._backend.transaction():
+                row_count = await self._create_table_from_parquet(table_name, str(file_path), dtypes)
+                await self._register(data_id, file_path.name, table_name, row_count)
+        except BaseException:
+            await self._uploader._drop_upload_on_failure(table_name)
+            raise
         logger.info(f"Uploaded {file_path.name} -> {data_id} ({row_count} rows)")
         return data_id
 

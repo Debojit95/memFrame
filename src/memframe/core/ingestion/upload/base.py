@@ -177,6 +177,18 @@ class Uploader(DuckDBUploadImpl, PostgresUploadImpl, ClickHouseUploadImpl):
     async def drop_table(self, table_name: str) -> None:
         await self._backend.drop_table(table_name)
 
+    async def _drop_upload_on_failure(self, table_name: str) -> None:
+        """Best-effort cleanup of a half-uploaded table.
+
+        Only ClickHouse needs it — DuckDB/Postgres roll the transaction back.
+        """
+        if self._backend.backend != Backend.CLICKHOUSE:
+            return
+        try:
+            await self.drop_table(table_name)
+        except Exception as exc:
+            logger.warning("Upload cleanup failed for %s: %s", table_name, exc)
+
     async def table_exists(self, table_name: str) -> bool:
         return await self._backend.table_exists(table_name)
 

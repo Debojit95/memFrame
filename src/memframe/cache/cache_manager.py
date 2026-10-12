@@ -85,6 +85,14 @@ class CacheManager:
             return _no_lock()
         return locked(data_id)
 
+    @staticmethod
+    def _txn_for(backend):
+        """Transaction block, or a no-op when the backend has none."""
+        txn = getattr(backend, "transaction", None) if backend is not None else None
+        if txn is None:
+            return _no_lock()
+        return txn()
+
     def _qualify(self, schema: str, bare: str, backend) -> str:
         if getattr(backend, "backend", None) == Backend.CLICKHOUSE:
             return f"`{schema}`.`{bare}`"
@@ -142,8 +150,19 @@ class CacheManager:
                     "clickhouse_type": uploader._postgres_type_to_clickhouse(pg_type),
                     "is_nullable": True,
                 }
-            await uploader._create_final_table_typed(qualified, arrow.schema.names, schema)
-            await uploader._insert_arrow_table(qualified, arrow)
+            # ponytail: one transaction — create+insert commit together; on
+            # ClickHouse (no transactions) drop the partial table instead.
+            try:
+                async with backend.transaction():
+                    await uploader._create_final_table_typed(qualified, arrow.schema.names, schema)
+                    await uploader._insert_arrow_table(qualified, arrow)
+            except BaseException:
+                if getattr(backend, "backend", None) == Backend.CLICKHOUSE:
+                    try:
+                        await backend.drop_table(qualified)
+                    except Exception as exc:
+                        logger.warning("[cache] deep-cache cleanup failed for %s: %s", qualified, exc)
+                raise
             return qualified
 
     def _make_hit_response(self, payload: Dict[str, Any], cached: pd.DataFrame, bare_name: str, schema: str) -> Dict[str, Any]:
@@ -290,55 +309,59 @@ class CacheManager:
                     generated_table_name = None
                     schema = None
 
-                    if is_deep and isinstance(result, dict) and not result.get("is_error", False):
-                        bare_table = result.get("new_table") or result.get("generated_table_name")
-                        if bare_table and backend:
-                            if await backend.table_exists(manager._qualify(backend.transient_schema, bare_table, backend)):
-                                generated_table_name = bare_table
-                                schema = backend.transient_schema
-                            elif await backend.table_exists(manager._qualify(backend.upload_schema, bare_table, backend)):
-                                be = getattr(backend, "backend", None)
-                                if be == Backend.CLICKHOUSE:
-                                    await backend.execute(
-                                        f"RENAME TABLE {manager._qualify(backend.upload_schema, bare_table, backend)} "
-                                        f"TO {manager._qualify(backend.transient_schema, bare_table, backend)}"
+                    # ponytail: one transaction — the stored table (created or moved
+                    # here) and its registry row commit together, so a crash can't
+                    # leave one without the other.
+                    async with manager._txn_for(backend):
+                        if is_deep and isinstance(result, dict) and not result.get("is_error", False):
+                            bare_table = result.get("new_table") or result.get("generated_table_name")
+                            if bare_table and backend:
+                                if await backend.table_exists(manager._qualify(backend.transient_schema, bare_table, backend)):
+                                    generated_table_name = bare_table
+                                    schema = backend.transient_schema
+                                elif await backend.table_exists(manager._qualify(backend.upload_schema, bare_table, backend)):
+                                    be = getattr(backend, "backend", None)
+                                    if be == Backend.CLICKHOUSE:
+                                        await backend.execute(
+                                            f"RENAME TABLE {manager._qualify(backend.upload_schema, bare_table, backend)} "
+                                            f"TO {manager._qualify(backend.transient_schema, bare_table, backend)}"
+                                        )
+                                    elif be == Backend.DUCKDB:
+                                        await backend.execute(
+                                            f"CREATE TABLE {manager._qualify(backend.transient_schema, bare_table, backend)} "
+                                            f"AS SELECT * FROM {manager._qualify(backend.upload_schema, bare_table, backend)}"
+                                        )
+                                        await backend.execute(
+                                            f"DROP TABLE {manager._qualify(backend.upload_schema, bare_table, backend)}"
+                                        )
+                                    else:
+                                        await backend.execute(
+                                            f"ALTER TABLE {manager._qualify(backend.upload_schema, bare_table, backend)} "
+                                            f"SET SCHEMA {backend.transient_schema}"
+                                        )
+                                    generated_table_name = bare_table
+                                    schema = backend.transient_schema
+                            elif "result" in result:
+                                df = result["result"]
+                                if isinstance(df, pd.DataFrame) and not df.empty and backend:
+                                    qualified = await manager._create_deep_cache_table(
+                                        mf, backend, data_id, df
                                     )
-                                elif be == Backend.DUCKDB:
-                                    await backend.execute(
-                                        f"CREATE TABLE {manager._qualify(backend.transient_schema, bare_table, backend)} "
-                                        f"AS SELECT * FROM {manager._qualify(backend.upload_schema, bare_table, backend)}"
-                                    )
-                                    await backend.execute(
-                                        f"DROP TABLE {manager._qualify(backend.upload_schema, bare_table, backend)}"
-                                    )
-                                else:
-                                    await backend.execute(
-                                        f"ALTER TABLE {manager._qualify(backend.upload_schema, bare_table, backend)} "
-                                        f"SET SCHEMA {backend.transient_schema}"
-                                    )
-                                generated_table_name = bare_table
-                                schema = backend.transient_schema
-                        elif "result" in result:
-                            df = result["result"]
-                            if isinstance(df, pd.DataFrame) and not df.empty and backend:
-                                qualified = await manager._create_deep_cache_table(
-                                    mf, backend, data_id, df
-                                )
-                                if qualified:
-                                    _sch, _bare = backend._split_qualified_table_name(qualified)
-                                    generated_table_name = _bare
-                                    schema = _sch
-                    elif not is_deep and isinstance(result, dict) and not result.get("is_error", False):
-                        # ponytail: drop any table the method created — deep_cache=False means no tables
-                        bare_table = result.get("new_table") or result.get("generated_table_name")
-                        if bare_table and backend:
-                            for sch in (backend.transient_schema, backend.upload_schema):
-                                q = manager._qualify(sch, bare_table, backend)
-                                if q and await backend.table_exists(q):
-                                    await backend.drop_table(q)
-                                    break
+                                    if qualified:
+                                        _sch, _bare = backend._split_qualified_table_name(qualified)
+                                        generated_table_name = _bare
+                                        schema = _sch
+                        elif not is_deep and isinstance(result, dict) and not result.get("is_error", False):
+                            # ponytail: drop any table the method created — deep_cache=False means no tables
+                            bare_table = result.get("new_table") or result.get("generated_table_name")
+                            if bare_table and backend:
+                                for sch in (backend.transient_schema, backend.upload_schema):
+                                    q = manager._qualify(sch, bare_table, backend)
+                                    if q and await backend.table_exists(q):
+                                        await backend.drop_table(q)
+                                        break
 
-                    await writer(payload, data_id, generated_table_name, is_deep_cache=is_deep, schema=schema)
+                        await writer(payload, data_id, generated_table_name, is_deep_cache=is_deep, schema=schema)
                 if is_deep and generated_table_name:
                     logger.info(
                         "[cache] STORE %s.%s data_id=%s → %s.%s (deep)",

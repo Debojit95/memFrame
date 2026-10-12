@@ -1,6 +1,10 @@
+import logging
 from typing import Any, Dict, List
 
 import pyarrow as pa
+
+
+logger = logging.getLogger("memFrame")
 
 
 class ClickHouseUploadImpl:
@@ -102,16 +106,25 @@ class ClickHouseUploadImpl:
             pg_type = schema.get(col, {}).get("postgres_type", "TEXT")
             ch_type = self._postgres_type_to_clickhouse(pg_type)
             col_defs.append(f"`{col}` Nullable({ch_type})")
-        await self.execute(
-            f"CREATE TABLE {tmp_table} ({', '.join(col_defs)}) "
-            f"ENGINE = MergeTree() ORDER BY tuple()"
-        )
 
         select_parts = []
         for col in columns:
             pg_type = schema.get(col, {}).get("postgres_type", "TEXT")
             select_parts.append(self._build_safe_cast_clickhouse(col, pg_type))
-        await self.execute(f"INSERT INTO {tmp_table} SELECT {', '.join(select_parts)} FROM {final_table}")
 
-        await self.drop_table(final_table)
-        await self.execute(f"RENAME TABLE {tmp_table} TO {final_table}")
+        # ponytail: ClickHouse has no transactions — drop the tmp table on
+        # failure so a half-cast never leaves orphans (the original stays).
+        try:
+            await self.execute(
+                f"CREATE TABLE {tmp_table} ({', '.join(col_defs)}) "
+                f"ENGINE = MergeTree() ORDER BY tuple()"
+            )
+            await self.execute(f"INSERT INTO {tmp_table} SELECT {', '.join(select_parts)} FROM {final_table}")
+            await self.drop_table(final_table)
+            await self.execute(f"RENAME TABLE {tmp_table} TO {final_table}")
+        except BaseException:
+            try:
+                await self.drop_table(tmp_table)
+            except Exception as exc:
+                logger.warning("ClickHouse cast cleanup failed for %s: %s", tmp_table, exc)
+            raise

@@ -18,26 +18,30 @@ class DuckDBAdapter(DatabaseAdapter):
         return {"db_path": db_path}
 
     async def execute(self, sql: str, *args):
-        self._ddb_pool.conn.execute(sql, list(args))
+        async with self._ddb_pool._guarded():
+            self._ddb_pool.conn.execute(sql, list(args))
 
     async def fetch(self, sql: str, *args):
-        cursor = self._ddb_pool.conn.execute(sql, list(args))
-        columns = [desc[0] for desc in cursor.description] if cursor.description else []
-        rows = cursor.fetchall()
-        return [dict(zip(columns, row)) for row in rows]
+        async with self._ddb_pool._guarded():
+            cursor = self._ddb_pool.conn.execute(sql, list(args))
+            columns = [desc[0] for desc in cursor.description] if cursor.description else []
+            rows = cursor.fetchall()
+            return [dict(zip(columns, row)) for row in rows]
 
     async def fetchrow(self, sql: str, *args):
-        cursor = self._ddb_pool.conn.execute(sql, list(args))
-        columns = [desc[0] for desc in cursor.description] if cursor.description else []
-        row = cursor.fetchone()
-        if row is None:
-            return None
-        return dict(zip(columns, row))
+        async with self._ddb_pool._guarded():
+            cursor = self._ddb_pool.conn.execute(sql, list(args))
+            columns = [desc[0] for desc in cursor.description] if cursor.description else []
+            row = cursor.fetchone()
+            if row is None:
+                return None
+            return dict(zip(columns, row))
 
     async def fetchval(self, sql: str, *args):
-        cursor = self._ddb_pool.conn.execute(sql, list(args))
-        row = cursor.fetchone()
-        return row[0] if row else None
+        row = await self.fetchrow(sql, *args)
+        if not row:
+            return None
+        return next(iter(row.values()))
 
     async def get_column_types(self, table: str, schema: str) -> Dict[str, str]:
         resolved_schema = schema if schema else "main"

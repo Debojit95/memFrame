@@ -75,16 +75,18 @@ class PostgresUploadImpl:
         for col in columns:
             target_type = schema.get(col, {}).get("postgres_type", "TEXT")
             col_defs.append(f'"{col}" {target_type}')
-        await self.execute(f'CREATE TABLE {tmp_table} ({", ".join(col_defs)})')
 
         select_parts = []
         for col in columns:
             target_type = schema.get(col, {}).get("postgres_type", "TEXT")
             select_parts.append(self._build_safe_cast_postgres(col, target_type))
-        await self.execute(f'INSERT INTO {tmp_table} SELECT {", ".join(select_parts)} FROM {final_table}')
 
-        await self.drop_table(final_table)
-        await self.execute(f'ALTER TABLE {tmp_table} RENAME TO {self._quote_identifier(raw_table)}')
+        # ponytail: one transaction — a crash after DROP must not lose the table.
+        async with self._backend.transaction():
+            await self.execute(f'CREATE TABLE {tmp_table} ({", ".join(col_defs)})')
+            await self.execute(f'INSERT INTO {tmp_table} SELECT {", ".join(select_parts)} FROM {final_table}')
+            await self.drop_table(final_table)
+            await self.execute(f'ALTER TABLE {tmp_table} RENAME TO {self._quote_identifier(raw_table)}')
 
     # ── Safe casting for Postgres ──────────────────────────────
     def _build_safe_cast_postgres(self, col: str, target_type: str) -> str:

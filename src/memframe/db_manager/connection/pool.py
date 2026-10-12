@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from abc import ABC, abstractmethod
+from contextlib import asynccontextmanager
 from typing import Any, List, Optional, Tuple
 
 from memframe.core.ingestion.datatype_detector import Backend
@@ -33,6 +34,52 @@ class DuckDBPool(BasePool):
     def __init__(self, db_path: str):
         self.db_path = db_path
         self._conn = None
+        # ponytail: one connection serves every coroutine — serialize use so two
+        # ops can't interleave on it (same pattern as PostgresPool._ensure_lock).
+        self._lock = asyncio.Lock()
+        self._lock_owner = None
+        # Open transaction owner: a nested transaction() on the same task joins
+        # the outer one instead of issuing a second BEGIN on this connection.
+        self._txn_owner = None
+
+    @asynccontextmanager
+    async def _guarded(self):
+        """Hold the pool lock, re-entrant for the owning task.
+
+        Lets transaction() wrap pool-method calls without deadlocking on the
+        non-re-entrant asyncio.Lock.
+        """
+        current = asyncio.current_task()
+        if current is not None and self._lock_owner is current:
+            yield
+            return
+        async with self._lock:
+            self._lock_owner = current
+            try:
+                yield
+            finally:
+                self._lock_owner = None
+
+    @asynccontextmanager
+    async def transaction(self):
+        """All-or-nothing block: every statement inside commits or rolls back together."""
+        current = asyncio.current_task()
+        if current is not None and self._txn_owner is current:
+            yield  # nested: join the outer transaction, no second BEGIN
+            return
+        async with self._guarded():
+            conn = self._require_conn()
+            self._txn_owner = current
+            conn.execute("BEGIN")
+            try:
+                yield
+            except BaseException:
+                conn.execute("ROLLBACK")
+                raise
+            else:
+                conn.execute("COMMIT")
+            finally:
+                self._txn_owner = None
 
     @property
     def conn(self):
@@ -70,15 +117,18 @@ class DuckDBPool(BasePool):
         return self._conn
 
     async def execute(self, sql: str, *args) -> None:
-        self._require_conn().execute(sql, list(args))
+        async with self._guarded():
+            self._require_conn().execute(sql, list(args))
 
     async def fetch(self, sql: str, *args) -> List[Tuple]:
-        cursor = self._require_conn().execute(sql, list(args))
-        return [tuple(r) for r in cursor.fetchall()]
+        async with self._guarded():
+            cursor = self._require_conn().execute(sql, list(args))
+            return [tuple(r) for r in cursor.fetchall()]
 
     async def fetchrow(self, sql: str, *args) -> Optional[Tuple]:
-        row = self._require_conn().execute(sql, list(args)).fetchone()
-        return tuple(row) if row else None
+        async with self._guarded():
+            row = self._require_conn().execute(sql, list(args)).fetchone()
+            return tuple(row) if row else None
 
     async def fetchval(self, sql: str, *args) -> Any:
         row = await self.fetchrow(sql, *args)
@@ -117,6 +167,32 @@ class PostgresPool(BasePool):
         # ponytail: 3.10+ asyncio primitives grab the running loop at await
         # time, so one lock instance works across sequential event loops.
         self._ensure_lock = asyncio.Lock()
+        # Active transaction connection, when a transaction() block is open on
+        # the current task. Pool calls run on it instead of acquiring a fresh
+        # connection, so the whole block commits or rolls back together.
+        self._txn_conn = None
+        self._txn_owner = None
+
+    @asynccontextmanager
+    async def transaction(self):
+        """All-or-nothing block on one held connection (asyncpg transaction)."""
+        current = asyncio.current_task()
+        if current is not None and self._txn_owner is current:
+            yield  # nested: join the outer transaction, don't open a new one
+            return
+        await self._ensure()
+        async with self._pool.acquire() as conn:
+            async with conn.transaction():
+                self._txn_conn, self._txn_owner = conn, current
+                try:
+                    yield
+                finally:
+                    self._txn_conn, self._txn_owner = None, None
+
+    def _txn_conn_for_current(self):
+        if self._txn_conn is not None and self._txn_owner is asyncio.current_task():
+            return self._txn_conn
+        return None
 
     async def connect(self):
         import asyncpg
@@ -166,31 +242,54 @@ class PostgresPool(BasePool):
         format, header, encoding, null=None,
     ):
         await self._ensure()
+        owned = self._txn_conn_for_current()
+        if owned is not None:
+            await self._copy_with(owned, table, source, columns, schema_name,
+                                  format, header, encoding, null)
+            return
         async with self._pool.acquire() as conn:
-            kwargs = dict(
-                source=source, columns=columns,
-                schema_name=schema_name, format=format,
-                header=header, encoding=encoding,
-            )
-            # ponytail: only forward `null` when explicitly provided —
-            # asyncpg rejects null=None (must be a non-empty marker string).
-            if null is not None:
-                kwargs["null"] = null
-            await conn.copy_to_table(table, **kwargs)
+            await self._copy_with(conn, table, source, columns, schema_name,
+                                  format, header, encoding, null)
+
+    @staticmethod
+    async def _copy_with(conn, table, source, columns, schema_name,
+                         format, header, encoding, null):
+        kwargs = dict(
+            source=source, columns=columns,
+            schema_name=schema_name, format=format,
+            header=header, encoding=encoding,
+        )
+        # ponytail: only forward `null` when explicitly provided —
+        # asyncpg rejects null=None (must be a non-empty marker string).
+        if null is not None:
+            kwargs["null"] = null
+        await conn.copy_to_table(table, **kwargs)
 
     async def execute(self, sql: str, *args) -> None:
         await self._ensure()
+        owned = self._txn_conn_for_current()
+        if owned is not None:
+            await owned.execute(sql, *args)
+            return
         async with self._pool.acquire() as conn:
             await conn.execute(sql, *args)
 
     async def fetch(self, sql: str, *args) -> List[Tuple]:
         await self._ensure()
+        owned = self._txn_conn_for_current()
+        if owned is not None:
+            rows = await owned.fetch(sql, *args)
+            return [tuple(r) for r in rows]
         async with self._pool.acquire() as conn:
             rows = await conn.fetch(sql, *args)
             return [tuple(r) for r in rows]
 
     async def fetchrow(self, sql: str, *args) -> Optional[Tuple]:
         await self._ensure()
+        owned = self._txn_conn_for_current()
+        if owned is not None:
+            row = await owned.fetchrow(sql, *args)
+            return tuple(row) if row else None
         async with self._pool.acquire() as conn:
             row = await conn.fetchrow(sql, *args)
             return tuple(row) if row else None
@@ -276,6 +375,12 @@ class ClickHousePool(BasePool):
         async with self._ensure_lock:
             if self._client is None:
                 await self.connect()
+
+    @asynccontextmanager
+    async def transaction(self):
+        # ponytail: ClickHouse has no transactions — passthrough. Callers do
+        # best-effort compensation (drop partial tables) on failure instead.
+        yield
 
     async def execute(self, sql: str, *args) -> None:
         await self._ensure()

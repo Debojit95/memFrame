@@ -77,46 +77,53 @@ class DfUploadStrategy(UploadStrategy):
         # User override wins over inferred types
         schema = self._uploader._apply_dtype_override(schema, columns, dtypes)
 
-        # Create table with proper types directly
-        await self._uploader._create_final_table_typed(final_table, columns, schema)
+        # ponytail: one transaction — create+insert+cast+register commit together,
+        # so a failed upload never leaves an orphan table with no data_id.
+        try:
+            async with self._uploader._backend.transaction():
+                # Create table with proper types directly
+                await self._uploader._create_final_table_typed(final_table, columns, schema)
 
-        # Cast Arrow table to target schema and insert directly
-        field_list = []
-        for col in columns:
-            pg_type = schema.get(col, {}).get("postgres_type", "TEXT")
-            arrow_type = self._uploader._postgres_type_to_arrow(pg_type)
-            field_list.append(pa.field(col, arrow_type))
-        target_schema = pa.schema(field_list)
-        typed_table = arrow_table.cast(target_schema)
-        await self._uploader._insert_arrow_table(final_table, typed_table)
+                # Cast Arrow table to target schema and insert directly
+                field_list = []
+                for col in columns:
+                    pg_type = schema.get(col, {}).get("postgres_type", "TEXT")
+                    arrow_type = self._uploader._postgres_type_to_arrow(pg_type)
+                    field_list.append(pa.field(col, arrow_type))
+                target_schema = pa.schema(field_list)
+                typed_table = arrow_table.cast(target_schema)
+                await self._uploader._insert_arrow_table(final_table, typed_table)
 
-        # Sample and re-infer types to catch string→date/int/float patterns Arrow misses
-        sample_table = await self._uploader._fetch_arrow_sample(final_table, columns, 50)
-        schema_changed = False
-        for col in columns:
-            if dtypes and col in dtypes:
-                continue
-            chunked = sample_table.column(col)
-            inferred = self._uploader._type_detector._infer_column(chunked)
-            inferred_type = inferred.get("postgres_type", "TEXT")
-            current_type = schema[col]["postgres_type"]
-            if inferred_type != current_type and current_type == "TEXT":
-                schema[col] = {
-                    "postgres_type": inferred_type,
-                    "clickhouse_type": self._uploader._postgres_type_to_clickhouse(inferred_type),
-                    "is_nullable": True,
-                }
-                schema_changed = True
-        if schema_changed:
-            await self._uploader._cast_table_in_place(final_table, columns, schema)
+                # Sample and re-infer types to catch string→date/int/float patterns Arrow misses
+                sample_table = await self._uploader._fetch_arrow_sample(final_table, columns, 50)
+                schema_changed = False
+                for col in columns:
+                    if dtypes and col in dtypes:
+                        continue
+                    chunked = sample_table.column(col)
+                    inferred = self._uploader._type_detector._infer_column(chunked)
+                    inferred_type = inferred.get("postgres_type", "TEXT")
+                    current_type = schema[col]["postgres_type"]
+                    if inferred_type != current_type and current_type == "TEXT":
+                        schema[col] = {
+                            "postgres_type": inferred_type,
+                            "clickhouse_type": self._uploader._postgres_type_to_clickhouse(inferred_type),
+                            "is_nullable": True,
+                        }
+                        schema_changed = True
+                if schema_changed:
+                    await self._uploader._cast_table_in_place(final_table, columns, schema)
 
-        if filename:
-            upload_name = Path(filename).name
-        else:
-            upload_name = f"dataframe_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+                if filename:
+                    upload_name = Path(filename).name
+                else:
+                    upload_name = f"dataframe_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
 
-        row_count = await self._uploader.fetchval(f"SELECT COUNT(*) FROM {final_table}")
+                row_count = await self._uploader.fetchval(f"SELECT COUNT(*) FROM {final_table}")
 
-        await self._register(data_id, upload_name, table_name, row_count)
+                await self._register(data_id, upload_name, table_name, row_count)
+        except BaseException:
+            await self._uploader._drop_upload_on_failure(table_name)
+            raise
         logger.info(f"Uploaded DataFrame -> {data_id} ({row_count} rows)")
         return data_id

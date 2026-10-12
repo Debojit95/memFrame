@@ -154,20 +154,23 @@ class OpsMixin:
             f"WHERE data_id = {self._placeholder(1)}",
             data_id,
         )
-        for t in transient_rows:
-            await self._backend.drop_table(t[0])
-        # ponytail: synced tables live outside memFrame — never drop the
-        # user's real table, only its registry/transient entries.
-        if not is_external:
-            await self._backend.drop_table(upload_table)
-        await self._backend.execute(
-            f"DELETE FROM {self._backend.csv_registry_table} WHERE data_id = {self._placeholder(1)}",
-            data_id,
-        )
-        await self._backend.execute(
-            f"DELETE FROM {self._backend.transient_registry_table} WHERE data_id = {self._placeholder(1)}",
-            data_id,
-        )
+        # ponytail: one transaction — drops + registry deletes commit together,
+        # so a crash can't leave tables without rows or rows without tables.
+        async with self._backend.transaction():
+            for t in transient_rows:
+                await self._backend.drop_table(t[0])
+            # ponytail: synced tables live outside memFrame — never drop the
+            # user's real table, only its registry/transient entries.
+            if not is_external:
+                await self._backend.drop_table(upload_table)
+            await self._backend.execute(
+                f"DELETE FROM {self._backend.csv_registry_table} WHERE data_id = {self._placeholder(1)}",
+                data_id,
+            )
+            await self._backend.execute(
+                f"DELETE FROM {self._backend.transient_registry_table} WHERE data_id = {self._placeholder(1)}",
+                data_id,
+            )
         if self._active_id == data_id:
             self._active_id = None
         logger.info(f"Deleted dataset {data_id}")
@@ -182,12 +185,13 @@ class OpsMixin:
             f"WHERE data_id = {self._placeholder(1)} AND generated_table_name IS NOT NULL",
             data_id,
         )
-        for row in rows:
-            await self._backend.drop_table(row[0])
-        await self._backend.execute(
-            f"DELETE FROM {self._backend.transient_registry_table} WHERE data_id = {self._placeholder(1)}",
-            data_id,
-        )
+        async with self._backend.transaction():
+            for row in rows:
+                await self._backend.drop_table(row[0])
+            await self._backend.execute(
+                f"DELETE FROM {self._backend.transient_registry_table} WHERE data_id = {self._placeholder(1)}",
+                data_id,
+            )
 
     # ── operation recording (used by ContextManager / wrappers) ──
 
