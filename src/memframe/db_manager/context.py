@@ -376,8 +376,11 @@ class ContextManager:
     ) -> str:
         return await self.adashboard(sentence, show=show, filename=filename)
 
-    async def _resolve_override_context(self):
-        # ponytail: exact registry lookup first (bare transient names can repeat
+    def cache_key(self) -> list:
+        """Stable cache identity: dataset plus override table for merge outputs."""
+        return [self._data_id, self._table_override]
+
+    async def _resolve_override_context(self):        # ponytail: exact registry lookup first (bare transient names can repeat
         # across datasets), then an existence probe, so a deep-cache move from
         # the upload schema to the transient schema resolves either way.
         data_id = self._data_id or self.memframe._active_id

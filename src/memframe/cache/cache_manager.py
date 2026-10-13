@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 import json
 import logging
 import time
@@ -38,10 +39,11 @@ class CacheManager:
 
     # ── cache key (signature) ──────────────────────────────────────
     @staticmethod
-    def _content_hash(o: Any) -> Optional[int]:
-        """Content hash so two same-shape frames don't collide in signatures."""
+    def _content_hash(o: Any) -> Optional[str]:
+        """Full content hash so same-shape frames never collide in signatures."""
         try:
-            return int(pd.util.hash_pandas_object(o, index=True).sum())
+            raw = pd.util.hash_pandas_object(o, index=True).to_numpy().tobytes()
+            return hashlib.sha256(raw).hexdigest()
         except Exception:
             return None  # ponytail: exotic dtypes fall back to shape-only
 
@@ -64,15 +66,18 @@ class CacheManager:
                 "hash": CacheManager._content_hash(o),
             }
         # ponytail: structural key for arg objects (e.g. filter Predicates
-        # compile to their SQL+params) — the "<ClassName>" fallback below
-        # collides distinct values and causes false cache hits under deep.
+        # compile to their SQL+params). The repr fallback below never falsely
+        # matches distinct objects (worst case: extra MISSes, never wrong HITs).
         cache_key = getattr(o, "cache_key", None)
         if callable(cache_key):
             try:
                 return {"__cache_key__": o.cache_key(), "__type__": type(o).__name__}
             except Exception:
                 pass
-        return f"<{type(o).__name__}>"
+        try:
+            return {"__repr__": repr(o), "__type__": type(o).__name__}
+        except Exception:
+            return f"<{type(o).__name__}:{id(o)}>"
 
     def _signature(self, value: Any) -> str:
         return json.dumps(value, sort_keys=True, default=self._json_default)
@@ -98,10 +103,56 @@ class CacheManager:
             return f"`{schema}`.`{bare}`"
         return f'{schema}."{bare}"'
 
+    async def _base_fingerprint(self, backend, table: str, schema: str) -> Optional[str]:
+        """Row count + sorted column set of one table: validity stamp for deep entries."""
+        try:
+            be = getattr(backend, "backend", None)
+            if be == Backend.CLICKHOUSE:
+                qualified = f"`{schema}`.`{table}`"
+                count = await backend.fetchval(f"SELECT COUNT(*) FROM {qualified}")
+                col_rows = await backend.fetch(f"DESCRIBE TABLE {qualified}")
+                cols = [r[0] for r in col_rows]
+            else:
+                qualified = f'{schema}."{table}"'
+                count = await backend.fetchval(f"SELECT COUNT(*) FROM {qualified}")
+                col_rows = await backend.fetch(
+                    "SELECT column_name FROM information_schema.columns "
+                    f"WHERE table_schema = {backend.placeholder(1)} "
+                    f"AND table_name = {backend.placeholder(2)} "
+                    "ORDER BY ordinal_position",
+                    schema, table,
+                )
+                cols = [r[0] for r in col_rows]
+            return f"{count}|{','.join(sorted(cols))}"
+        except Exception as exc:
+            logger.warning("[cache] fingerprint failed for %s.%s: %s", schema, table, exc)
+            return None
+
+    async def _read_fingerprint(self, backend, data_id: str, ops_parent) -> Optional[str]:
+        """Fingerprint of the table this op reads (override-aware). None if unresolvable."""
+        try:
+            if ops_parent is not None and hasattr(ops_parent, "_get_active_context"):
+                table, schema = await ops_parent._get_active_context()
+            else:
+                row = await backend.fetch_row(
+                    f"SELECT table_name, schema FROM {backend.csv_registry_table} "
+                    f"WHERE data_id = {backend.placeholder(1)}",
+                    data_id,
+                )
+                if not row:
+                    return None
+                table, schema = row[0], row[1] or backend.upload_schema
+            return await self._base_fingerprint(backend, table, schema)
+        except Exception as exc:
+            logger.warning("[cache] fingerprint failed for data_id=%s: %s", data_id, exc)
+            return None
+
     # ── table load / store ─────────────────────────────────────────
     async def _load_generated_table(self, backend, qualified: str) -> Optional[pd.DataFrame]:
         start = time.perf_counter()
         try:
+            # ponytail: no ORDER BY — the live path reads the same unordered
+            # way, so replay matches live; don't "fix" one side only.
             rows = await backend.fetch(f"SELECT * FROM {qualified}")
             if not rows:
                 return None
@@ -195,7 +246,8 @@ class CacheManager:
         return lambda f: self._make_decorator(f, deep_cache)
 
     def _make_writer(self, mf):
-        async def writer(payload, data_id, generated_table_name=None, is_deep_cache=False, schema=None):
+        async def writer(payload, data_id, generated_table_name=None, is_deep_cache=False, schema=None,
+                         table_scope=None, base_fingerprint=None):
             await mf._arecord_method_call(
                 data_id=data_id,
                 class_name=payload["class_name"],
@@ -205,6 +257,8 @@ class CacheManager:
                 generated_table_name=generated_table_name,
                 is_deep_cache=is_deep_cache,
                 schema=schema,
+                table_scope=table_scope,
+                base_fingerprint=base_fingerprint,
             )
         return writer
 
@@ -255,6 +309,10 @@ class CacheManager:
                 # the MAX(opidx)+1 reads inside func() and the writer below must
                 # not interleave with another op on this data_id (same opidx twice).
                 async with manager._op_lock_for(backend, data_id):
+                    # ponytail: merge/join outputs share the parent data_id — scope
+                    # the key by override table or different results contaminate.
+                    ops_parent = getattr(self, "_ops_parent", None)
+                    scope = getattr(ops_parent, "_table_override", None) if ops_parent is not None else None
                     # --- Lookup: only for deep cache entries ---
                     if is_deep and backend:
                         method = f"{payload['class_name']}.{payload['method_name']}"
@@ -265,7 +323,7 @@ class CacheManager:
                         lookup_start = time.perf_counter()
                         row = await backend.fetch_row(
                             f"""
-                            SELECT generated_table_name, schema
+                            SELECT generated_table_name, schema, base_fingerprint, opidx
                             FROM {backend.transient_registry_table}
                             WHERE data_id = {backend.placeholder(1)}
                               AND operation_type = 'method_call'
@@ -273,6 +331,7 @@ class CacheManager:
                               AND method_name = {backend.placeholder(3)}
                               AND args = {backend.placeholder(4)}
                               AND kwargs = {backend.placeholder(5)}
+                              AND COALESCE(table_scope, '') = {backend.placeholder(6)}
                                AND {backend.backend == "clickhouse" and "CAST(is_deep_cache AS UInt8) = 1" or "is_deep_cache = TRUE"}
                                AND generated_table_name IS NOT NULL
                             ORDER BY opidx DESC LIMIT 1
@@ -282,7 +341,34 @@ class CacheManager:
                             payload["method_name"],
                             payload["args_sig"],
                             payload["kwargs_sig"],
+                            scope or "",
                         )
+                        if row:
+                            bare, sch, stored_fp, opidx = row[0], row[1], row[2], row[3]
+                            sch = sch or backend.transient_schema
+                            current_fp = await manager._read_fingerprint(backend, data_id, ops_parent)
+                            if current_fp is None:
+                                logger.info(
+                                    "[cache] MISS %s data_id=%s — base unmeasurable",
+                                    method, data_id,
+                                )
+                                row = None
+                            elif stored_fp != current_fp:
+                                logger.info(
+                                    "[cache] STALE %s data_id=%s — base changed; dropping entry",
+                                    method, data_id,
+                                )
+                                await backend.execute(
+                                    f"DELETE FROM {backend.transient_registry_table} "
+                                    f"WHERE data_id = {backend.placeholder(1)} "
+                                    f"AND opidx = {backend.placeholder(2)}",
+                                    data_id, opidx,
+                                )
+                                try:
+                                    await backend.drop_table(manager._qualify(sch, bare, backend))
+                                except Exception as exc:
+                                    logger.warning("[cache] stale table drop failed for %s: %s", bare, exc)
+                                row = None
                         if row:
                             bare, sch = row[0], row[1]
                             sch = sch or backend.transient_schema
@@ -300,7 +386,7 @@ class CacheManager:
                             )
                         else:
                             logger.info(
-                                "[cache] MISS %s data_id=%s — no matching registry row",
+                                "[cache] MISS %s data_id=%s — no usable registry row",
                                 method, data_id,
                             )
 
@@ -361,7 +447,13 @@ class CacheManager:
                                         await backend.drop_table(q)
                                         break
 
-                        await writer(payload, data_id, generated_table_name, is_deep_cache=is_deep, schema=schema)
+                        # ponytail: stamp the post-execute base state — a mutating op's
+                    # repeat must see the mutated base, not the pre-state.
+                    store_fp = None
+                    if is_deep and backend:
+                        store_fp = await manager._read_fingerprint(backend, data_id, ops_parent)
+                    await writer(payload, data_id, generated_table_name, is_deep_cache=is_deep, schema=schema,
+                                 table_scope=scope, base_fingerprint=store_fp)
                 if is_deep and generated_table_name:
                     logger.info(
                         "[cache] STORE %s.%s data_id=%s → %s.%s (deep)",

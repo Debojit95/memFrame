@@ -148,6 +148,11 @@ class DatabaseBackend(ABC):
             "kwargs": "TEXT",
             "is_deep_cache": "BOOLEAN",
             "schema": "TEXT",
+            # ponytail: deep-cache validity — base-table fingerprint at store
+            # time (row count + column set) and the override-table scope for
+            # merge outputs. Nullable so pre-upgrade rows read as "unknown".
+            "base_fingerprint": "TEXT",
+            "table_scope": "TEXT",
         }
 
         for column_name, column_type in required_columns.items():
