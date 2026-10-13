@@ -177,6 +177,51 @@ class TestClearCache:
         assert asyncio.run(mf.alist_operations(data_id)) == []
 
 
+class TestTransientDropQualification:
+    """Finding 7: bare registry names must drop from the transient schema."""
+
+    @staticmethod
+    def _seed_transient(mf, data_id):
+        be = mf._backend
+        ph = mf._placeholder
+        asyncio.run(be.execute(f'CREATE TABLE memframe_transient."{data_id}_1" (x INTEGER)'))
+        asyncio.run(mf._arecord_method_call(
+            data_id, "C", "m", "[]", "{}",
+            generated_table_name=f"{data_id}_1", is_deep_cache=True, schema="memframe_transient",
+        ))
+        # Legacy row: NULL schema falls back to the transient schema.
+        asyncio.run(be.execute(f'CREATE TABLE memframe_transient."{data_id}_2" (x INTEGER)'))
+        asyncio.run(be.execute(
+            f"INSERT INTO {be.transient_registry_table} "
+            f"(data_id, opidx, operation_type, generated_table_name) "
+            f"VALUES ({ph(1)}, {ph(2)}, {ph(3)}, {ph(4)})",
+            data_id, 99, "method_call", f"{data_id}_2",
+        ))
+        # Shallow signature-only row: NULL name must not crash the drop loop.
+        asyncio.run(mf._arecord_method_call(data_id, "C", "n", "[]", "{}"))
+
+    def test_qualify_table_round_trips(self, mf):
+        assert mf._backend.qualify_table("memframe_transient", "abc_1") == 'memframe_transient."abc_1"'
+
+    def test_delete_drops_transient_tables(self, mf, uploaded):
+        data_id = uploaded._data_id
+        self._seed_transient(mf, data_id)
+        asyncio.run(mf.adelete_table(data_id=data_id))
+        assert not asyncio.run(mf._backend.table_exists(f'memframe_transient."{data_id}_1"'))
+        assert not asyncio.run(mf._backend.table_exists(f'memframe_transient."{data_id}_2"'))
+        assert asyncio.run(mf.alist_tables()) == []
+
+    def test_clear_cache_drops_transient_tables(self, mf, uploaded):
+        data_id = uploaded._data_id
+        self._seed_transient(mf, data_id)
+        asyncio.run(mf._aclear_cache(data_id))
+        assert not asyncio.run(mf._backend.table_exists(f'memframe_transient."{data_id}_1"'))
+        assert not asyncio.run(mf._backend.table_exists(f'memframe_transient."{data_id}_2"'))
+        assert asyncio.run(mf.alist_operations(data_id)) == []
+        # The upload table itself survives a cache clear.
+        assert asyncio.run(mf._backend.table_exists(f'memframe_upload."{data_id}"'))
+
+
 class TestRegisterTables:
     """SyncDB: register pre-existing, non-empty tables into csv_registry."""
 

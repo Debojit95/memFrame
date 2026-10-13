@@ -150,15 +150,20 @@ class OpsMixin:
         upload_table = row[0]
         is_external = bool(row[1]) if len(row) > 1 else False
         transient_rows = await self._backend.fetch(
-            f"SELECT generated_table_name FROM {self._backend.transient_registry_table} "
-            f"WHERE data_id = {self._placeholder(1)}",
+            f"SELECT generated_table_name, schema FROM {self._backend.transient_registry_table} "
+            f"WHERE data_id = {self._placeholder(1)} AND generated_table_name IS NOT NULL",
             data_id,
         )
         # ponytail: one transaction — drops + registry deletes commit together,
         # so a crash can't leave tables without rows or rows without tables.
         async with self._backend.transaction():
-            for t in transient_rows:
-                await self._backend.drop_table(t[0])
+            for bare, sch in transient_rows:
+                # ponytail: stored names are bare — qualify with the recorded
+                # schema (pre-upgrade rows fall back to transient); an
+                # unqualified drop would target the upload schema and miss.
+                await self._backend.drop_table(
+                    self._backend.qualify_table(sch or self._backend.transient_schema, bare)
+                )
             # ponytail: synced tables live outside memFrame — never drop the
             # user's real table, only its registry/transient entries.
             if not is_external:
@@ -181,13 +186,15 @@ class OpsMixin:
 
     async def _aclear_cache(self, data_id: str) -> None:
         rows = await self._backend.fetch(
-            f"SELECT generated_table_name FROM {self._backend.transient_registry_table} "
+            f"SELECT generated_table_name, schema FROM {self._backend.transient_registry_table} "
             f"WHERE data_id = {self._placeholder(1)} AND generated_table_name IS NOT NULL",
             data_id,
         )
         async with self._backend.transaction():
-            for row in rows:
-                await self._backend.drop_table(row[0])
+            for bare, sch in rows:
+                await self._backend.drop_table(
+                    self._backend.qualify_table(sch or self._backend.transient_schema, bare)
+                )
             await self._backend.execute(
                 f"DELETE FROM {self._backend.transient_registry_table} WHERE data_id = {self._placeholder(1)}",
                 data_id,

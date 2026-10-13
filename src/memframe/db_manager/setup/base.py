@@ -276,6 +276,16 @@ class DatabaseBackend(ABC):
     def _sanitize_table_name(self, name: str) -> str:
         return self._type_detector._sanitize_table_name(name)
 
+    def qualify_table(self, schema: str, table: str) -> str:
+        """Schema-qualified reference that drop_table parses back.
+
+        Same spelling as CacheManager._qualify: the schema is an internal
+        constant, only the table name is quoted.
+        """
+        if self.backend == "clickhouse":
+            return f"`{schema}`.`{table}`"
+        return f'{schema}."{table}"'
+
     @abstractmethod
     def get_upload_table_name(self, data_id: str) -> str:
         pass
