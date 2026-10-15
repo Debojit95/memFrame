@@ -76,23 +76,34 @@ _DATETIME_DIRECT_METHODS = {
 class SQLIdentifierSanitizer:
     """
     SQL Identifier Sanitizer supporting both strict validation and safe normalization.
-    
+
+    Two rules, different jobs:
+    - ``validate``: strict pretty-names (letters/digits/underscore). Legacy;
+      too narrow for real quoted identifiers, so it is NOT the trust boundary.
+    - ``sanitize``: quotable-normalization. Preserves every character that is
+      safe inside a quoted identifier (including spaces and dashes — real
+      SyncDB/CSV names), and neutralizes only what could break out of quotes.
+      Callers must still quote the result. Raises on None/empty/NUL instead
+      of silently rewriting to a different identifier.
+
     Handles:
     - Simple identifiers: column_name, table_name
     - Qualified identifiers: schema.table, db.schema.table
     - Validation mode: raises ValueError on invalid input (secure by default)
     - Normalization mode: cleans invalid characters (permissive)
     """
-    
+
     # Pattern for valid identifier segments (letters, digits, underscore, must start with letter/underscore)
     # \Z (not $) so a trailing newline can't sneak past validation
     _VALID_SEGMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*\Z")
-    
+
     # Pattern for full qualified identifier (supports schema.table or db.schema.table)
     _VALID_QUALIFIED = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*\Z")
-    
-    # Pattern to detect dangerous characters (SQL injection attempts)
-    _DANGEROUS_CHARS = re.compile(r"[;\"'\-\s\(\)\[\]\{\}\*\|\\\/\%\+\=\<\>\!\?\&\^\~\`]")
+
+    # Ponytail: only characters that can break out of a quoted identifier (or
+    # poison a driver) are neutralized. Spaces, dashes and Unicode are legal
+    # inside quotes, so rewriting them only misaddressed real columns.
+    _DANGEROUS_CHARS = re.compile(r"[;\"'\(\)\[\]\{\}\*\|\\\/\%\+\=\<\>\!\?\&\^\~\`]")
 
     @classmethod
     def validate(cls, identifier: str, allow_qualified: bool = True) -> str:
@@ -137,24 +148,35 @@ class SQLIdentifierSanitizer:
     @classmethod
     def sanitize(cls, identifier: str, allow_qualified: bool = True) -> str:
         """
-        Normalization mode - cleans invalid characters to create a safe identifier.
-        
+        Normalization mode - neutralizes quote-breaking characters.
+
+        Preserves spaces, dashes and Unicode (all safe once quoted) so real
+        column names address themselves. Raises on None/empty/NUL instead of
+        silently returning a different identifier.
+
         Args:
             identifier: The identifier to sanitize
             allow_qualified: If True, preserves dot notation (schema.table becomes schema_table if invalid)
-            
+
         Returns:
-            A safe SQL identifier with invalid chars replaced by underscores
+            A quotable SQL identifier.
+
+        Raises:
+            ConfigurationError: If identifier is None, empty, or contains NUL.
         """
+        if identifier is None:
+            raise ConfigurationError("Identifier cannot be None")
         if not isinstance(identifier, str):
             identifier = str(identifier)
-        
+
         # Strip whitespace and quotes
         identifier = identifier.strip().strip('"').strip("'")
-        
+
         if not identifier:
-            return "_"
-        
+            raise ConfigurationError("Identifier cannot be empty")
+        if "\x00" in identifier:
+            raise ConfigurationError("Identifier contains a NUL byte")
+
         if allow_qualified and "." in identifier:
             # Handle qualified names (schema.table) - sanitize each part separately
             parts = identifier.split(".")
@@ -168,15 +190,15 @@ class SQLIdentifierSanitizer:
         """Sanitize a single identifier segment (no dots)."""
         # Replace dangerous/special characters with underscores
         segment = cls._DANGEROUS_CHARS.sub("_", segment)
-        
-        # Preserve Unicode word characters (e.g., REGIÃO) and replace other
-        # unsafe punctuation/symbols with underscore.
-        segment = re.sub(r"[^\w]", "_", segment)
-        
+
+        # Ponytail: word chars, spaces and dashes survive (all safe once
+        # quoted); only other punctuation/symbols are neutralized.
+        segment = re.sub(r"[^\w \-]", "_", segment)
+
         # Handle empty result after sanitization
         if not segment:
             return "_identifier"
-        
+
         return segment
 
     @classmethod

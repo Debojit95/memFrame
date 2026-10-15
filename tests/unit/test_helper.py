@@ -33,15 +33,24 @@ class TestSQLIdentifierSanitizer:
                 SQLIdentifierSanitizer.validate(bad)
 
     def test_sanitize_dangerous_chars(self):
-        assert SQLIdentifierSanitizer.sanitize("col name") == "col_name"
-        assert SQLIdentifierSanitizer.sanitize("col-name") == "col_name"
+        assert SQLIdentifierSanitizer.sanitize("col name") == "col name"
+        assert SQLIdentifierSanitizer.sanitize("col-name") == "col-name"
         assert SQLIdentifierSanitizer.sanitize("col;DROP") == "col_DROP"
 
     def test_sanitize_qualified_preserves_dots(self):
         assert SQLIdentifierSanitizer.sanitize("sch.col") == "sch.col"
 
-    def test_sanitize_empty_returns_underscore(self):
-        assert SQLIdentifierSanitizer.sanitize("") == "_"
+    def test_sanitize_empty_raises(self):
+        with pytest.raises(ConfigurationError):
+            SQLIdentifierSanitizer.sanitize("")
+        with pytest.raises(ConfigurationError):
+            SQLIdentifierSanitizer.sanitize("   ")
+        with pytest.raises(ConfigurationError):
+            SQLIdentifierSanitizer.sanitize(None)
+
+    def test_sanitize_rejects_nul(self):
+        with pytest.raises(ConfigurationError):
+            SQLIdentifierSanitizer.sanitize("a\x00b")
 
     def test_sanitize_strips_quotes(self):
         assert SQLIdentifierSanitizer.sanitize('"col"') == "col"
@@ -51,9 +60,9 @@ class TestSQLIdentifierSanitizer:
         assert not SQLIdentifierSanitizer.is_valid("not ok")
 
     def test_sanitize_many(self):
-        assert SQLIdentifierSanitizer.sanitize_many(["a b", "c-d"]) == ["a_b", "c_d"]
+        assert SQLIdentifierSanitizer.sanitize_many(["a b", "c-d"]) == ["a b", "c-d"]
 
 
 def test_convenience_functions():
-    assert sanitize_sql_identifier("a b") == "a_b"
+    assert sanitize_sql_identifier("a b") == "a b"
     assert validate_sql_identifier("ok_col") == "ok_col"

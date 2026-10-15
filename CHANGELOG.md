@@ -4,6 +4,11 @@ All notable changes to memFrame are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and the project adheres
 to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+- **Identifiers address themselves**: `SQLIdentifierSanitizer.sanitize` no longer rewrites spaces/dashes (only quote-breaking characters are neutralized; callers still quote), and raises `ConfigurationError` on `None`/empty/NUL instead of returning a different name. Columns like `"sale price"`/`"a-b"` now query themselves, including on SyncDB tables.
+
 ## [0.15.1] - 2026-10-01
 
 ### Added

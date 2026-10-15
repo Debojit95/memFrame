@@ -72,7 +72,9 @@ class OpsMixin:
                 )
                 if existing:
                     continue
-                qualified = f"{schema}.{table}" if schema else table
+                # ponytail: qualify (not bare) so names with spaces/dashes
+                # address themselves instead of failing as raw SQL.
+                qualified = self._backend.qualify_table(schema, table) if schema else table
                 if not await self._backend.table_exists(qualified):
                     continue
                 row_count = await self._backend.fetchval(f"SELECT COUNT(*) FROM {qualified}")
