@@ -58,14 +58,13 @@ class PostgresAdapter(DatabaseAdapter):
         count_sql = f"SELECT COUNT(*) FROM {quoted_full}"
         row_count = await self.fetchval(count_sql)
 
-        # ponytail: string-literal context (no bind params inside pg_* functions);
-        # escape single quotes on top of the quoted identifier
-        size_target = quoted_full.replace("'", "''")
-        size_sql = f"""
-            SELECT pg_size_pretty(pg_total_relation_size('{size_target}')) as total_size,
-                   pg_size_pretty(pg_relation_size('{size_target}')) as table_size
+        # ponytail: pass the quoted name as a regclass bind param — stuffing it
+        # into a string literal corrupts names containing single quotes.
+        size_sql = """
+            SELECT pg_size_pretty(pg_total_relation_size($1::regclass)) as total_size,
+                   pg_size_pretty(pg_relation_size($1::regclass)) as table_size
         """
-        size_row = await self.fetchrow(size_sql)
+        size_row = await self.fetchrow(size_sql, quoted_full)
 
         columns = await self.get_column_types(table, schema)
         return {

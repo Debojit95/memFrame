@@ -2,6 +2,7 @@ import asyncio
 import json
 import io
 import logging
+import math
 from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
@@ -83,7 +84,21 @@ def _to_clickhouse_literal(value: Any) -> str:
         return "NULL"
     if isinstance(value, bool):
         return "1" if value else "0"
-    if isinstance(value, (int, float, Decimal)):
+    if isinstance(value, float):
+        # ponytail: bare nan/inf are syntax errors in expression position;
+        # CAST from string parses them (also catches str(1e999) == 'inf').
+        if math.isnan(value):
+            return "CAST('nan' AS Float64)"
+        if math.isinf(value):
+            return "CAST('inf' AS Float64)" if value > 0 else "CAST('-inf' AS Float64)"
+        return str(value)
+    if isinstance(value, Decimal):
+        # ponytail: Decimal columns cannot store NaN/Infinity — fail here with
+        # the value named instead of sending a server-side syntax error.
+        if value.is_nan() or value.is_infinite():
+            raise ConfigurationError(f"Non-finite Decimal not supported by ClickHouse: {value!r}")
+        return str(value)
+    if isinstance(value, int):
         return str(value)
     if isinstance(value, (datetime, date)):
         encoded = (
