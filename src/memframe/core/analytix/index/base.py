@@ -2,6 +2,8 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import bisect
 import json
 import traceback
+from datetime import date, datetime
+
 import pandas as pd
 
 from memframe.db_manager.adapters.base import DatabaseAdapter
@@ -93,6 +95,29 @@ class DataIndexOps:
         if any(k in t for k in ("FLOAT", "DOUBLE", "REAL", "DECIMAL", "NUMERIC")):
             return float(value)
         return value
+
+    def _fill_cast_type(self, value: Any) -> str:
+        """SQL type for a fill literal with no native column to borrow from.
+
+        Missing reindexed columns take the fill value's own type (pandas fills
+        -1 as int64, not text). Native spelling per backend.
+        """
+        from memframe.db_manager.adapters.clickhouse import ClickHouseAdapter
+
+        ch = isinstance(self.db, ClickHouseAdapter)
+        if isinstance(value, bool):
+            return "UInt8" if ch else "BOOLEAN"
+        if isinstance(value, int):
+            return "Int64" if ch else "BIGINT"
+        if isinstance(value, float):
+            return "Float64" if ch else "DOUBLE PRECISION"
+        if isinstance(value, str):
+            return "String" if ch else "TEXT"
+        if isinstance(value, datetime):
+            return "DateTime" if ch else "TIMESTAMPTZ"
+        if isinstance(value, date):
+            return "Date" if ch else "DATE"
+        return "String" if ch else "TEXT"
 
     # ------------------------------------------------------------------
     # Registry metadata I/O (backend is the DatabaseBackend, duck-typed)
@@ -649,10 +674,12 @@ class DataIndexOps:
                 elif fill_value is None:
                     terms.append(f"NULL AS {self._q(cs)}")
                 else:
-                    # ponytail: untyped literal — the DB infers the column type
-                    # from the fill value, like pandas does.
-                    params.append(fill_value)
-                    terms.append(f"{self.db.placeholder(len(params))} AS {self._q(cs)}")
+                    # ponytail: CAST the fill literal to its own value type —
+                    # a bare placeholder infers TEXT on asyncpg and non-str
+                    # values fail to encode (DuckDB binds dynamically).
+                    ctype = self._fill_cast_type(fill_value)
+                    params.append(self._coerce_fill_value(fill_value, ctype))
+                    terms.append(f"CAST({self.db.placeholder(len(params))} AS {ctype}) AS {self._q(cs)}")
             rows = await self._fetch(f"SELECT {', '.join(terms)} FROM {qualified} t", *params)
             df = pd.DataFrame([dict(r) for r in rows])
             return self._success_response(
