@@ -71,6 +71,29 @@ class DataIndexOps:
             return "temporal"
         return "other"
 
+    @staticmethod
+    def _coerce_fill_value(value: Any, ctype: str) -> Any:
+        """Coerce a fill literal to a Python value the driver can encode.
+
+        asyncpg encodes by the inferred bind type, so int 0 bound to a TEXT
+        column fails client-side even inside CAST (DuckDB binds dynamically).
+        Uncoercible values raise loudly; callers surface them as error dicts.
+        """
+        t = (ctype or "").upper()
+        if "CHAR" in t or "TEXT" in t or "STRING" in t:
+            return value if isinstance(value, str) else str(value)
+        if "BOOL" in t:
+            if isinstance(value, bool):
+                return value
+            if value in (0, 1):
+                return bool(value)
+            raise ValueError(f"fill_value {value!r} cannot coerce to BOOLEAN")
+        if "INT" in t:
+            return int(value)
+        if any(k in t for k in ("FLOAT", "DOUBLE", "REAL", "DECIMAL", "NUMERIC")):
+            return float(value)
+        return value
+
     # ------------------------------------------------------------------
     # Registry metadata I/O (backend is the DatabaseBackend, duck-typed)
     # ------------------------------------------------------------------
@@ -289,6 +312,7 @@ class DataIndexOps:
 
     def _want_union_sql(
         self, key_cols: List[str], labels: list, output_labels: Optional[list] = None,
+        key_types: Optional[Dict[str, str]] = None,
     ) -> Tuple[str, list]:
         """UNION ALL derived table of wanted labels with ordinal; portable SQL.
 
@@ -304,15 +328,29 @@ class DataIndexOps:
             ph_idx += 1
             return self.db.placeholder(ph_idx)
 
+        def _cast(ph: str, col: str) -> str:
+            # ponytail: CAST label params to the key column's native type —
+            # bare placeholders let PG infer TEXT, and `text = bigint` has no
+            # operator (DuckDB's dynamic typing forgives it).
+            ktype = (key_types or {}).get(col) or "TEXT"
+            return f"CAST({ph} AS {ktype})"
+
+        def _ord(ph: str) -> str:
+            # ponytail: same inference hazard for the ordinal — native int
+            # spelling per backend (a bare $n infers TEXT on asyncpg).
+            from memframe.db_manager.adapters.clickhouse import ClickHouseAdapter
+            int_type = "Int32" if isinstance(self.db, ClickHouseAdapter) else "INTEGER"
+            return f"CAST({ph} AS {int_type})"
+
         for ord_, lab in enumerate(labels):
             vals = list(lab) if isinstance(lab, (list, tuple)) else [lab]
-            terms = " , ".join(f"{_ph()} AS {self._q(k)}" for k in key_cols)
-            terms += f", {_ph()} AS {self._q('__ord')}"
+            terms = " , ".join(f"{_cast(_ph(), k)} AS {self._q(k)}" for k in key_cols)
+            terms += f", {_ord(_ph())} AS {self._q('__ord')}"
             params.extend(vals)
             params.append(ord_)
             if output_labels is not None:
                 params.append(output_labels[ord_])
-                terms += f", {_ph()} AS {self._q('__out')}"
+                terms += f", {_cast(_ph(), key_cols[0])} AS {self._q('__out')}"
             arms.append(f"SELECT {terms}")
         return " UNION ALL ".join(arms), params
 
@@ -426,7 +464,8 @@ class DataIndexOps:
             value_cols = [c for c in wanted if c not in key_cols]
 
         qualified = self._qualified_table(table, schema)
-        want_sql, params = self._want_union_sql(key_cols, labels, output_labels)
+        key_types = {k: (col_types.get(k) or "TEXT") for k in key_cols}
+        want_sql, params = self._want_union_sql(key_cols, labels, output_labels, key_types)
         join_cond = self._join_cond(key_cols)
 
         if method in ("ffill", "bfill"):
@@ -473,8 +512,8 @@ class DataIndexOps:
             # loudly; pandas' anything-goes object fills are the ceiling.
             val_terms, all_params = [], list(params)
             for c in value_cols:
-                all_params.append(fill_value)
                 ctype = (col_types.get(c) or "VARCHAR").strip() or "VARCHAR"
+                all_params.append(self._coerce_fill_value(fill_value, ctype))
                 val_terms.append(
                     f"COALESCE(t.{self._q(c)}, CAST({self.db.placeholder(len(all_params))} AS {ctype})) "
                     f"AS {self._q(c)}"
@@ -530,8 +569,8 @@ class DataIndexOps:
                     f"THEN f.{q_fill} ELSE f.{self._q(c)} END"
                 )
             if fill_value is not None:
-                params.append(fill_value)
                 ctype = (col_types.get(c) or "VARCHAR").strip() or "VARCHAR"
+                params.append(self._coerce_fill_value(fill_value, ctype))
                 expr = (
                     f"COALESCE({expr}, CAST({self.db.placeholder(len(params))} AS {ctype}))"
                 )
