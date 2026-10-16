@@ -1027,7 +1027,9 @@ class DataCleaningOps:
 
         Exposes ``__idx`` (interpolation position — ``order_by`` sequence when
         given, else physical order), ``__rid`` (physical row id for the write
-        join), ``_pv``/``_pp`` (prev valid value/pos) and ``_nv``/``_np``
+        join), ``__pord`` (pre-update physical position — heap order is not
+        preserved by UPDATE on all backends, so samples order by this),
+        ``_pv``/``_pp`` (prev valid value/pos) and ``_nv``/``_np``
         (next). ``FIRST_VALUE`` is portable; the islands idiom avoids
         ``IGNORE NULLS`` (absent on PG). An island's first row in position
         order is its anchor non-null row; the leading all-null island yields
@@ -1039,11 +1041,14 @@ class DataCleaningOps:
             idx_window = f"ROW_NUMBER() OVER (ORDER BY {order_term})"
         else:
             idx_window = "ROW_NUMBER() OVER ()"
+        # ponytail: __pord lives in its own subquery level — two windows in one
+        # SELECT share PG's sort, so a same-level OVER () would inherit m-order
+        # instead of physical order. (SELECT * omits system columns, so the
+        # row id travels explicitly.)
         return f"""base AS (
                 SELECT *,
-                    {idx_window} AS __idx,
-                    {row_id} AS __rid
-                FROM {tq}
+                    {idx_window} AS __idx
+                FROM (SELECT *, {row_id} AS __rid, ROW_NUMBER() OVER () AS __pord FROM {tq}) _phys
             ),
             isl AS (
                 SELECT b.*,
@@ -1148,9 +1153,24 @@ class DataCleaningOps:
             safe_col = SQLIdentifierSanitizer.sanitize(column)
             safe_new = SQLIdentifierSanitizer.sanitize(new_col)
 
-            async def _apply(tq):
+            async def _apply(tq, want_sample=False):
                 ctes = self._interpolate_ctes(tq, safe_col, self._rowid_expr(), order_cols)
                 case = self._interpolate_case(safe_col, limit, direction, area)
+                sample_df = None
+                if want_sample:
+                    # ponytail: sample the CTE in pre-update physical order —
+                    # the UPDATE scrambles heap order on PG (new row versions),
+                    # so re-reading the table misplaces rows.
+                    sample_rows = await self._fetch(
+                        f"""WITH {ctes},
+                            filled AS (
+                                SELECT *, {case} AS filled_val
+                                FROM anch
+                            )
+                            SELECT "{safe_col}", filled_val AS "{safe_new}"
+                            FROM filled ORDER BY __pord"""
+                    )
+                    sample_df = pd.DataFrame.from_records([dict(r) for r in sample_rows])
                 await self._exec(f"""
                     WITH {ctes},
                     filled AS (
@@ -1162,9 +1182,9 @@ class DataCleaningOps:
                     FROM filled f
                     WHERE t.{self._rowid_expr()} = f.__rid
                 """)
-                return "linear"
+                return "linear", sample_df
 
-            fill_value = await _apply(qualified)
+            fill_value, sample = await _apply(qualified, want_sample=True)
 
             await self._add_new_column_if_not_exists(original, schema, new_col, float_type)
             await _apply(self._qualified_table(original, schema))
@@ -1173,7 +1193,6 @@ class DataCleaningOps:
                 f'SELECT COUNT(*) FROM {qualified} WHERE "{safe_col}" IS NULL'
             ) or 0
 
-            sample = await self._fetch_data(table, schema, columns=[safe_col, safe_new])
             msg = f"Interpolated {null_count} null values in '{column}' using linear"
             if order_cols:
                 msg += f" ordered by {order_cols}"
