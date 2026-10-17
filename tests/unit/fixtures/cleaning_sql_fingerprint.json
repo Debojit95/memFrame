@@ -3451,7 +3451,7 @@
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000__interp_temp\"ASWITHbaseAS(SELECT*,ROW_NUMBER()OVER()AS__idx,ROW_NUMBER()OVER()AS__posFROM\"s\".\"t__op_20240101000000000000\"),islAS(SELECTb.*,countIf(isNotNull(\"num\"))OVER(ORDERBY__idxROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS_isl_f,countIf(isNotNull(\"num\"))OVER(ORDERBY__idxDESCROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS_isl_bFROMbaseb),anchAS(SELECTs.*,first_value(\"num\")OVER(PARTITIONBY_isl_fORDERBY__idx)AS_pv,first_value(__idx)OVER(PARTITIONBY_isl_fORDERBY__idx)AS_pp,first_value(\"num\")OVER(PARTITIONBY_isl_bORDERBY__idxDESC)AS_nv,first_value(__idx)OVER(PARTITIONBY_isl_bORDERBY__idxDESC)AS_npFROMisls)SELECT\"num\",CASEWHEN\"num\"ISNOTNULLTHEN\"num\"WHEN\"num\"ISNULLAND_pvISNOTNULLAND_nvISNOTNULLAND((_np-__idx)<=2)THENCAST(_pvASFloat64)+(CAST(_nvASFloat64)-CAST(_pvASFloat64))*(__idx-_pp)*1.0/(_np-_pp)ELSENULLENDAS\"cleaned_num_interpolated\"FROManchORDERBY__pos",
+    "CREATETABLE\"s\".\"t__op_20240101000000000000__interp_temp\"ASWITHbase_posAS(SELECT*,ROW_NUMBER()OVER()AS__posFROM\"s\".\"t__op_20240101000000000000\"),baseAS(SELECT*,ROW_NUMBER()OVER()AS__idxFROMbase_pos),islAS(SELECTb.*,countIf(isNotNull(\"num\"))OVER(ORDERBY__idxROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS_isl_f,countIf(isNotNull(\"num\"))OVER(ORDERBY__idxDESCROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS_isl_bFROMbaseb),anchAS(SELECTs.*,first_value(\"num\")OVER(PARTITIONBY_isl_fORDERBY__idx)AS_pv,first_value(__idx)OVER(PARTITIONBY_isl_fORDERBY__idx)AS_pp,first_value(\"num\")OVER(PARTITIONBY_isl_bORDERBY__idxDESC)AS_nv,first_value(__idx)OVER(PARTITIONBY_isl_bORDERBY__idxDESC)AS_npFROMisls)SELECT__pos,\"num\",CASEWHEN\"num\"ISNOTNULLTHEN\"num\"WHEN\"num\"ISNULLAND_pvISNOTNULLAND_nvISNOTNULLAND((_np-__idx)<=2)THENCAST(_pvASFloat64)+(CAST(_nvASFloat64)-CAST(_pvASFloat64))*(__idx-_pp)*1.0/(_np-_pp)ELSENULLENDAS\"cleaned_num_interpolated\"FROManchORDERBY__pos",
     []
    ],
    [
@@ -3471,7 +3471,7 @@
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__interp_temp\"ASWITHrankedAS(SELECT*,ROW_NUMBER()OVER()AS__idxFROM\"s\".\"t\"),computedAS(SELECT__idx,\"cleaned_num_interpolated\"FROM\"s\".\"t__op_20240101000000000000\")SELECTr.\"num\",r.\"cat\",r.\"ts\",r.\"g\",c.\"cleaned_num_interpolated\"FROMrankedrLEFTJOINcomputedcONc.__idx=r.__idxORDERBYr.__idx",
+    "CREATETABLE\"s\".\"t__interp_temp\"ASSELECTr.\"num\",r.\"cat\",r.\"ts\",r.\"g\",c.\"cleaned_num_interpolated\"AS\"cleaned_num_interpolated\"FROM(SELECT*,ROW_NUMBER()OVER()AS__idxFROM\"s\".\"t\")rLEFTJOIN\"s\".\"t__op_20240101000000000000\"cONc.__pos=r.__idxORDERBYr.__idx",
     []
    ],
    [
@@ -3584,7 +3584,7 @@
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000__interp_temp\"ASWITHbaseAS(SELECT*,ROW_NUMBER()OVER()AS__idx,ROW_NUMBER()OVER()AS__posFROM\"s\".\"t__op_20240101000000000000\"),islAS(SELECTb.*,countIf(isNotNull(\"num\"))OVER(ORDERBY__idxROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS_isl_f,countIf(isNotNull(\"num\"))OVER(ORDERBY__idxDESCROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS_isl_bFROMbaseb),anchAS(SELECTs.*,first_value(\"num\")OVER(PARTITIONBY_isl_fORDERBY__idx)AS_pv,first_value(__idx)OVER(PARTITIONBY_isl_fORDERBY__idx)AS_pp,first_value(\"num\")OVER(PARTITIONBY_isl_bORDERBY__idxDESC)AS_nv,first_value(__idx)OVER(PARTITIONBY_isl_bORDERBY__idxDESC)AS_npFROMisls)SELECT\"num\",CASEWHEN\"num\"ISNOTNULLTHEN\"num\"WHEN\"num\"ISNULLAND_pvISNOTNULLAND_nvISNOTNULLANDTRUETHENCAST(_pvASFloat64)+(CAST(_nvASFloat64)-CAST(_pvASFloat64))*(__idx-_pp)*1.0/(_np-_pp)WHEN\"num\"ISNULLAND_pvISNOTNULLAND_nvISNULLANDTRUETHEN_pvELSENULLENDAS\"cleaned_num_interpolated\"FROManchORDERBY__pos",
+    "CREATETABLE\"s\".\"t__op_20240101000000000000__interp_temp\"ASWITHbase_posAS(SELECT*,ROW_NUMBER()OVER()AS__posFROM\"s\".\"t__op_20240101000000000000\"),baseAS(SELECT*,ROW_NUMBER()OVER()AS__idxFROMbase_pos),islAS(SELECTb.*,countIf(isNotNull(\"num\"))OVER(ORDERBY__idxROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS_isl_f,countIf(isNotNull(\"num\"))OVER(ORDERBY__idxDESCROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS_isl_bFROMbaseb),anchAS(SELECTs.*,first_value(\"num\")OVER(PARTITIONBY_isl_fORDERBY__idx)AS_pv,first_value(__idx)OVER(PARTITIONBY_isl_fORDERBY__idx)AS_pp,first_value(\"num\")OVER(PARTITIONBY_isl_bORDERBY__idxDESC)AS_nv,first_value(__idx)OVER(PARTITIONBY_isl_bORDERBY__idxDESC)AS_npFROMisls)SELECT__pos,\"num\",CASEWHEN\"num\"ISNOTNULLTHEN\"num\"WHEN\"num\"ISNULLAND_pvISNOTNULLAND_nvISNOTNULLANDTRUETHENCAST(_pvASFloat64)+(CAST(_nvASFloat64)-CAST(_pvASFloat64))*(__idx-_pp)*1.0/(_np-_pp)WHEN\"num\"ISNULLAND_pvISNOTNULLAND_nvISNULLANDTRUETHEN_pvELSENULLENDAS\"cleaned_num_interpolated\"FROManchORDERBY__pos",
     []
    ],
    [
@@ -3604,7 +3604,7 @@
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__interp_temp\"ASWITHrankedAS(SELECT*,ROW_NUMBER()OVER()AS__idxFROM\"s\".\"t\"),computedAS(SELECT__idx,\"cleaned_num_interpolated\"FROM\"s\".\"t__op_20240101000000000000\")SELECTr.\"num\",r.\"cat\",r.\"ts\",r.\"g\",c.\"cleaned_num_interpolated\"FROMrankedrLEFTJOINcomputedcONc.__idx=r.__idxORDERBYr.__idx",
+    "CREATETABLE\"s\".\"t__interp_temp\"ASSELECTr.\"num\",r.\"cat\",r.\"ts\",r.\"g\",c.\"cleaned_num_interpolated\"AS\"cleaned_num_interpolated\"FROM(SELECT*,ROW_NUMBER()OVER()AS__idxFROM\"s\".\"t\")rLEFTJOIN\"s\".\"t__op_20240101000000000000\"cONc.__pos=r.__idxORDERBYr.__idx",
     []
    ],
    [
@@ -3717,7 +3717,7 @@
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000__interp_temp\"ASWITHbaseAS(SELECT*,ROW_NUMBER()OVER(ORDERBY\"g\"ASC,\"num\"ASC)AS__idx,ROW_NUMBER()OVER()AS__posFROM\"s\".\"t__op_20240101000000000000\"),islAS(SELECTb.*,countIf(isNotNull(\"num\"))OVER(ORDERBY__idxROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS_isl_f,countIf(isNotNull(\"num\"))OVER(ORDERBY__idxDESCROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS_isl_bFROMbaseb),anchAS(SELECTs.*,first_value(\"num\")OVER(PARTITIONBY_isl_fORDERBY__idx)AS_pv,first_value(__idx)OVER(PARTITIONBY_isl_fORDERBY__idx)AS_pp,first_value(\"num\")OVER(PARTITIONBY_isl_bORDERBY__idxDESC)AS_nv,first_value(__idx)OVER(PARTITIONBY_isl_bORDERBY__idxDESC)AS_npFROMisls)SELECT\"num\",CASEWHEN\"num\"ISNOTNULLTHEN\"num\"WHEN\"num\"ISNULLAND_pvISNOTNULLAND_nvISNOTNULLANDTRUETHENCAST(_pvASFloat64)+(CAST(_nvASFloat64)-CAST(_pvASFloat64))*(__idx-_pp)*1.0/(_np-_pp)WHEN\"num\"ISNULLAND_pvISNOTNULLAND_nvISNULLANDTRUETHEN_pvELSENULLENDAS\"cleaned_num_interpolated\"FROManchORDERBY__pos",
+    "CREATETABLE\"s\".\"t__op_20240101000000000000__interp_temp\"ASWITHbase_posAS(SELECT*,ROW_NUMBER()OVER()AS__posFROM\"s\".\"t__op_20240101000000000000\"),baseAS(SELECT*,ROW_NUMBER()OVER(ORDERBY\"g\"ASC,\"num\"ASC)AS__idxFROMbase_pos),islAS(SELECTb.*,countIf(isNotNull(\"num\"))OVER(ORDERBY__idxROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS_isl_f,countIf(isNotNull(\"num\"))OVER(ORDERBY__idxDESCROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS_isl_bFROMbaseb),anchAS(SELECTs.*,first_value(\"num\")OVER(PARTITIONBY_isl_fORDERBY__idx)AS_pv,first_value(__idx)OVER(PARTITIONBY_isl_fORDERBY__idx)AS_pp,first_value(\"num\")OVER(PARTITIONBY_isl_bORDERBY__idxDESC)AS_nv,first_value(__idx)OVER(PARTITIONBY_isl_bORDERBY__idxDESC)AS_npFROMisls)SELECT__pos,\"num\",CASEWHEN\"num\"ISNOTNULLTHEN\"num\"WHEN\"num\"ISNULLAND_pvISNOTNULLAND_nvISNOTNULLANDTRUETHENCAST(_pvASFloat64)+(CAST(_nvASFloat64)-CAST(_pvASFloat64))*(__idx-_pp)*1.0/(_np-_pp)WHEN\"num\"ISNULLAND_pvISNOTNULLAND_nvISNULLANDTRUETHEN_pvELSENULLENDAS\"cleaned_num_interpolated\"FROManchORDERBY__pos",
     []
    ],
    [
@@ -3737,7 +3737,7 @@
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__interp_temp\"ASWITHrankedAS(SELECT*,ROW_NUMBER()OVER()AS__idxFROM\"s\".\"t\"),computedAS(SELECT__idx,\"cleaned_num_interpolated\"FROM\"s\".\"t__op_20240101000000000000\")SELECTr.\"num\",r.\"cat\",r.\"ts\",r.\"g\",c.\"cleaned_num_interpolated\"FROMrankedrLEFTJOINcomputedcONc.__idx=r.__idxORDERBYr.__idx",
+    "CREATETABLE\"s\".\"t__interp_temp\"ASSELECTr.\"num\",r.\"cat\",r.\"ts\",r.\"g\",c.\"cleaned_num_interpolated\"AS\"cleaned_num_interpolated\"FROM(SELECT*,ROW_NUMBER()OVER()AS__idxFROM\"s\".\"t\")rLEFTJOIN\"s\".\"t__op_20240101000000000000\"cONc.__pos=r.__idxORDERBYr.__idx",
     []
    ],
    [

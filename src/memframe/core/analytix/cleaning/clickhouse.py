@@ -201,9 +201,13 @@ class ClickHouseCleaningOps(DataCleaningOps):
             await self._exec("DROP TABLE IF EXISTS {}".format(qualified_temp))
             await self._exec(f"""
                 CREATE TABLE {qualified_temp} AS
-                WITH base AS (
-                    SELECT *, {idx_window} AS __idx, ROW_NUMBER() OVER () AS __pos
+                WITH base_pos AS (
+                    SELECT *, ROW_NUMBER() OVER () AS __pos
                     FROM {qualified}
+                ),
+                base AS (
+                    SELECT *, {idx_window} AS __idx
+                    FROM base_pos
                 ),
                 isl AS (
                     SELECT b.*,
@@ -223,13 +227,15 @@ class ClickHouseCleaningOps(DataCleaningOps):
                         first_value(__idx) OVER (PARTITION BY _isl_b ORDER BY __idx DESC) AS _np
                     FROM isl s
                 )
-                SELECT "{safe_col}", {case} AS "{safe_new}"
+                SELECT __pos, "{safe_col}", {case} AS "{safe_new}"
                 FROM anch ORDER BY __pos
             """)
             await self._exec(f"DROP TABLE {qualified}")
             await self._exec(f"RENAME TABLE {qualified_temp} TO {qualified}")
 
-            # apply to the original (multi-column) table via positional join
+            # apply to the original (multi-column) table via positional join;
+            # the join keys are stored columns — a CTE referencing the outer
+            # scope is a correlated subquery, which CH rejects in JOINs.
             original_qualified = self._qualified_table(original, schema)
             ocols = [c for c in await self.db.get_column_types(original, schema) if c != safe_new]
             ocols_clause = ", ".join(f'r."{SQLIdentifierSanitizer.sanitize(c)}"' for c in ocols)
@@ -238,16 +244,9 @@ class ClickHouseCleaningOps(DataCleaningOps):
             await self._exec("DROP TABLE IF EXISTS {}".format(orig_temp_qualified))
             await self._exec(f"""
                 CREATE TABLE {orig_temp_qualified} AS
-                WITH ranked AS (
-                    SELECT *, ROW_NUMBER() OVER () AS __idx
-                    FROM {original_qualified}
-                ),
-                computed AS (
-                    SELECT __idx, "{safe_new}"
-                    FROM {qualified}
-                )
-                SELECT {ocols_clause}, c."{safe_new}"
-                FROM ranked r LEFT JOIN computed c ON c.__idx = r.__idx
+                SELECT {ocols_clause}, c."{safe_new}" AS "{safe_new}"
+                FROM (SELECT *, ROW_NUMBER() OVER () AS __idx FROM {original_qualified}) r
+                LEFT JOIN {qualified} c ON c.__pos = r.__idx
                 ORDER BY r.__idx
             """)
             await self._exec(f"DROP TABLE {original_qualified}")
