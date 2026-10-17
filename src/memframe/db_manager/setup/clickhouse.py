@@ -109,6 +109,17 @@ class ClickHouseBackend(DatabaseBackend):
         """)
         await self._migrate_transient_registry_schema()
         await self._migrate_csv_registry_schema()
+        # ponytail: index registry writes use a plain lightweight UPDATE,
+        # which CH MergeTree only allows once block-number/offset columns
+        # exist; idempotent MODIFY also upgrades pre-existing tables.
+        try:
+            for setting in ("enable_block_number_column", "enable_block_offset_column"):
+                await self.execute(
+                    f"ALTER TABLE {self.registry_schema}.memframe_csv_registry "
+                    f"MODIFY SETTING {setting} = 1"
+                )
+        except Exception:
+            pass  # older CH without these settings keeps today's behavior
 
     def get_upload_table_name(self, data_id: str) -> str:
         return self._clickhouse_qualified_table_name(data_id)
