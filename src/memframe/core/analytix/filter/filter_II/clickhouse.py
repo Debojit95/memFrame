@@ -15,11 +15,12 @@ class ClickHouseFilteringOps(DataFilteringOps):
         self, qualified: str, flag_col: str, where_clause: str, params: list
     ) -> None:
         # ponytail: UPDATE is an async MergeTree mutation — ALTER UPDATE
-        # syntax plus a wait (below) instead of plain UPDATE.
+        # syntax plus a wait (below) instead of plain UPDATE; CH requires
+        # a WHERE clause on every mutation, so a constant one is appended.
         await self._exec(
             f"ALTER TABLE {qualified} UPDATE "
             f"{self.db.quote_identifier(flag_col)} = "
-            f"COALESCE(({where_clause}), FALSE)",
+            f"COALESCE(({where_clause}), FALSE) WHERE 1",
             *params,
         )
 
