@@ -28,8 +28,8 @@ class ClickHouseUploadImpl:
             "DOUBLE": "Float64",
             "FLOAT8": "Float64",
             "DOUBLE PRECISION": "Float64",
-            "BOOLEAN": "UInt8",
-            "BOOL": "UInt8",
+            "BOOLEAN": "Bool",
+            "BOOL": "Bool",
             "DATE": "Date",
             "TIMESTAMP": "DateTime",
             "DATETIME": "DateTime",
@@ -43,6 +43,10 @@ class ClickHouseUploadImpl:
             return f"{col_q} AS `{col}`"
         # to*OrNull functions only accept String arguments; wrap with toString
         # to handle columns that ClickHouse native ingestion already typed.
+        if ch_type == "Bool":
+            # ponytail: no toBoolOrNull in CH — the detector already
+            # guaranteed bool tokens, and a NULL string propagates to NULL.
+            return f"toBool(toString({col_q})) AS `{col}`"
         if ch_type == "Int32":
             return f"toInt32OrNull(toString({col_q})) AS `{col}`"
         if ch_type == "Int64":
