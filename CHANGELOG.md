@@ -6,8 +6,31 @@ to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-10-18
+
+### Added
+- **Index ops (metadata-only)**: `set_index`/`reset_index`/`get_index`/`reindex`/`reindex_like` + `index` property on the dataset context — MultiIndex positioning, `append`, `verify_integrity`, pandas-safe `nearest` matching, ffill/bfill/limit fills. Zero writes to user tables (registry metadata only); `reset_index(names=...)` removed, callers are pointed at `rename()`. Tests: `tests/integration/ops/test_index.py` + SQL-fingerprint snapshot of registry writes. Docs: `docs/api/index.md` + nav/README.
+- **Linear interpolate**: `interpolate(column)` fills numeric gaps by linear interpolation over positional order (islands + `FIRST_VALUE` windows), direction-aware `limit` gating and `limit_area`; pandas doc vectors as parity. **`order_by`** takes a column (or list) to sequence the interpolation instead of row order — values still write back to their original rows (`NULLS LAST`, ties nondeterministic). Response carries the new `cleaned_<col>_interpolated` name, `order_by` metadata and the sample.
+- **Replace**: `replace_values` rewrites cell values — exact or regex, scalar/list/dict/nested value shapes, single column or the whole table — per-column `CASE` with a cast to the column's own type and a `_regex_replace` dialect hook (ClickHouse override); repeat-safe (previous `cleaned_*` columns never leak into later all-column expansion).
+- **Duplicated**: `duplicated()` returns the same physical-row mask pandas gives, kept positionally aligned: a transient clone holds every row plus a boolean `duplicated` column, source table never mutated.
+- **Whole-table stats**: `column=None` fans out over compatible columns on every stats method (`mean`, `sum`, `std`, `unique`, `nunique`, `value_counts`, …) using a single-sample 3-way family detection — inapplicable columns are skipped (pandas `numeric_only` spirit), zero compatible columns is a clear failure.
+- **value_counts without column**: `value_counts()` returns top-N counts per column in one call as `{column: {value: count, ...}}`.
+- **ContextManager properties**: `columns`, `dtypes` and `shape` read live table facts without holding a call.
+- **Deep-cache everywhere**: `deep_cache=True` accepted across all orchestrators (arithmetic, cleaning, chunked, datetime, filter, groupby, inspection, reshape, stats, transform, window, sorting, selection) instead of a hand-picked few; predicate-identity cache keys for filter calls. `MemFrame(deep_cache=...)` remains the master switch.
+- **`mf.DataFrame` constructor**: pandas-style dataset creation on the connected backend — dict, rows+`columns`, `pd.Series` or `pd.DataFrame` input, `dtype` applied to every column — returning a context with the full operation surface.
+- **PDF reports carry pandas equivalents**: result records now include the pandas expression alongside each memframe call across all domains, for the report generator.
+
 ### Fixed
 - **Identifiers address themselves**: `SQLIdentifierSanitizer.sanitize` no longer rewrites spaces/dashes (only quote-breaking characters are neutralized; callers still quote), and raises `ConfigurationError` on `None`/empty/NUL instead of returning a different name. Columns like `"sale price"`/`"a-b"` now query themselves, including on SyncDB tables.
+- **DuckDB concurrency**: the shared connection is serialized with a re-entrant pool lock; opidx allocation is serialized per dataset; cast/upload/delete/cache sequences run inside real `Backend.transaction()` calls (best-effort compensation on ClickHouse), each CSV retry attempt starts from a fresh staging table.
+- **Deep-cache correctness**: cache entries are validated against the base table fingerprint and scope id before reuse; invalidated transient tables are dropped from the schema they were recorded in.
+- **Strict-backend casts**: ClickHouse renders non-finite floats (`nan`/`inf`) as `CAST(... AS Float64)` literals instead of syntax errors; PostgreSQL `regclass` size probes bind parameters instead of splicing literals; index want-list/fill operations cast want-values and fill literals per backend dtype, and missing reindexed columns take the fill value's own type.
+- **Interpolate samples**: the response sample reads in physical row order, so `order_by=True` sequencing never reorders returned rows.
+- **ClickHouse**:
+  - Filter `create_flag` writes now carry the `WHERE` clause every `ALTER TABLE ... UPDATE` mutation requires (the missing clause broke all flag writes with a syntax error at end of query).
+  - Index registry writes (lightweight `UPDATE`) run only once the registry table has materialized block-number/offset columns; setup enables both settings idempotently, also on pre-existing tables.
+  - `interpolate` no longer uses a correlated subquery in the rebuild join (unsupported in CH joins): the physical-order stamp is computed in an inner CTE layer (mixed `OVER (ORDER BY ...)` + `OVER ()` windows in one SELECT leaked the sorted order), and the merged column is aliased so the rebuilt table keeps clean column names.
+  - Boolean columns are stored as native `Bool` (was `UInt8`): values round-trip as `True`/`False` and whole-table stats classify them like DuckDB/PostgreSQL (excluded from `mean`/`sum`, included in `proportions`).
 
 ## [0.15.1] - 2026-10-01
 
