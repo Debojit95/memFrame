@@ -52,7 +52,6 @@ The lower-level files are implementation details:
 | --- | --- | --- |
 | `agg(group_cols, agg_dict, new_table=None, map_feature=False)` | `await aagg(...)` | Group-by aggregation over an explicit column mapping |
 | `event_rate(group_cols, datetime_col, unit="day", new_table=None)` | `await aevent_rate(...)` | Grouped event rate over a time unit |
-| `groupby_fillna(column, group_cols, value=None, method="mean", dtype=None)` | `await agroupby_fillna(...)` | Fill missing values using group-wise statistics |
 
 `group_cols` accepts a single column name or a list of names. `agg_dict`
 maps a value column to a list of statistics, e.g.
@@ -80,7 +79,6 @@ Each terminal method has a synchronous and asynchronous form:
 | `range(column)` | `await arange(...)` | Group-wise range (`max - min`) |
 | `product(column)` | `await aproduct(...)` | Group-wise product |
 | `event_rate(datetime_col, unit="day", new_table=None)` | `await aevent_rate(...)` | Grouped event rate |
-| `fillna(column, value=None, method="mean", dtype=None)` | `await afillna(...)` | Fill missing values using group-wise statistics |
 
 ## Usage Overview
 
