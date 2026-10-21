@@ -42,7 +42,6 @@ Every cleaning operation has synchronous and asynchronous forms:
 | `compress_rare(column, min_count=10, other_label="other")` | `await acompress_rare(...)` | Group rare categories |
 | `fix_dates(column)` | `await afix_dates(...)` | Null known invalid date strings |
 | `clip_dates(column, min_dt=None, max_dt=None)` | `await aclip_dates(...)` | Null dates outside a range |
-| `groupby_fillna(column, group_cols, value=None, method="mean", dtype=None)` | `await agroupby_fillna(...)` | Fill missing values by group |
 | `dropna(axis=0, how="any", thresh=None)` | `await adropna(...)` | Drop rows or columns with missing values |
 | `drop(columns=None, axis=0, index=None)` | `await adrop(...)` | Drop rows or columns |
 | `isna()` | `await aisna()` | Boolean null mask |
@@ -119,48 +118,6 @@ Supported methods depend on detected or supplied dtype:
 
 Numeric `mean`/`median`/`std`/`var`/`min`/`max` methods are rejected for
 categorical columns.
-
-### `groupby_fillna`
-
-`groupby_fillna` fills missing values using statistics or fill behavior within
-groups.
-
-```python
-result = dataset.groupby_fillna(
-    column="salary",
-    group_cols=["department"],
-    method="mean",
-)
-```
-
-```python
-result = await dataset.agroupby_fillna(
-    column="category",
-    group_cols=["department"],
-    method="mode",
-    dtype="categorical",
-)
-```
-
-Parameters:
-
-| Parameter | Type | Description |
-| --- | --- | --- |
-| `column` | `str` | Column to fill. |
-| `group_cols` | `list[str]` | Columns used for grouping. Required. |
-| `value` | any | Replacement value for `method="constant"` where supported. |
-| `method` | `str` | Group-wise fill strategy. Defaults to `"mean"`. |
-| `dtype` | `str` or `None` | Optional dtype override: `"numeric"`, `"categorical"`, or `"datetime"`. |
-
-Supported group methods:
-
-| Dtype | Methods |
-| --- | --- |
-| `numeric` | `mean`, `avg`, `average`, `median`, `mode`, `constant`, `std`, `var`, `min`, `max`, `ffill`, `bfill` |
-| `categorical` | `mode`, `ffill`, `bfill` |
-| `datetime` | `min`, `max`, `mean`, `median`, `mode`, `ffill`, `bfill` |
-
-`group_cols` must be non-empty.
 
 ### `interpolate`
 
@@ -549,7 +506,6 @@ Cleaning methods raise `OperationError` for invalid input or backend failures.
 - `fillna(method="map")` requires `mapping`.
 - Numeric fill methods such as `mean`, `median`, `std`, `var`, `min`, and
   `max` are rejected for categorical columns.
-- `groupby_fillna` requires `group_cols`.
 - `dropna` rejects invalid `axis`, invalid `how`, and non-positive `thresh`.
 - `drop` requires `index` for row drops and `columns` for column drops.
 - `drop_duplicates` requires `keep` to be `"first"`, `"last"`, or `False`.
@@ -592,8 +548,6 @@ Cleaning methods raise `OperationError` for invalid input or backend failures.
         - fix_dates
         - aclip_dates
         - clip_dates
-        - agroupby_fillna
-        - groupby_fillna
         - adropna
         - dropna
         - adrop

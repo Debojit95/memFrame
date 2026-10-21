@@ -5,6 +5,7 @@ import pytest
 
 from memframe.main import MemFrame
 from memframe.wrappers.analytix.cleaning import CleaningWrapper
+from memframe.wrappers.analytix.groupby_stats import GroupByStatsWrapper
 
 
 @pytest.fixture
@@ -33,7 +34,7 @@ def test_cleaning_validation_error_is_canonical(cleaning_context):
 
 
 def test_groupby_validation_error_is_canonical(cleaning_context):
-    response = CleaningWrapper(cleaning_context).groupby_fillna("category", group_cols=[])
+    response = GroupByStatsWrapper(cleaning_context).groupby_fillna("category", group_cols=[])
 
     assert response["is_error"] is True
     assert response["error_message"] == "group_cols must be provided for groupby_fillna"

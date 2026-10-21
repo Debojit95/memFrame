@@ -125,24 +125,6 @@ class CleaningWrapper(CleaningOrchestrator):
         max_dt: Optional[str] = None,
     ) -> Dict[str, Any]: ...
 
-    async def agroupby_fillna(
-        self,
-        column: str,
-        group_cols: List[str],
-        value: Optional[Any] = None,
-        method: str = "mean",
-        dtype: Optional[str] = None,
-    ) -> Dict[str, Any]: ...
-
-    def groupby_fillna(
-        self,
-        column: str,
-        group_cols: List[str],
-        value: Optional[Any] = None,
-        method: str = "mean",
-        dtype: Optional[str] = None,
-    ) -> Dict[str, Any]: ...
-
     async def adropna(
         self,
         axis: int = 0,

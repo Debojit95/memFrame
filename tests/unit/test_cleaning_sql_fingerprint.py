@@ -18,9 +18,10 @@ from datetime import datetime, timezone
 import pytest
 
 from memframe.core.analytix.cleaning.base import DataCleaningOps
-from memframe.core.analytix.cleaning.clickhouse import ClickHouseCleaningOps
-from memframe.core.analytix.cleaning.duckdb import DuckDBCleaningOps
-from memframe.core.analytix.cleaning.postgres import PostgresCleaningOps
+from memframe.core.analytix.groupby_cleaning.base import GroupByCleaningOps
+from memframe.core.analytix.groupby_cleaning.clickhouse import ClickHouseGroupByCleaningOps as ClickHouseCleaningOps
+from memframe.core.analytix.groupby_cleaning.duckdb import DuckDBGroupByCleaningOps as DuckDBCleaningOps
+from memframe.core.analytix.groupby_cleaning.postgres import PostgresGroupByCleaningOps as PostgresCleaningOps
 
 FIXTURE = os.path.join(
     os.path.dirname(__file__), "fixtures", "cleaning_sql_fingerprint.json"
