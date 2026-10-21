@@ -304,8 +304,8 @@ def get_result_df(result: Any) -> pd.DataFrame:
     if isinstance(result, dict):
         if result.get("is_error"):
             raise AssertionError(result.get("error_message") or f"Operation failed: {result}")
-        if "result" in result and isinstance(result, pd.DataFrame):
-            return result
+        if "result" in result and isinstance(result["result"], pd.DataFrame):
+            return result["result"]
         if "data" in result and isinstance(result["data"], pd.DataFrame):
             return result["data"]
     raise AssertionError(f"Cannot extract DataFrame from type {type(result)}: {result}")
@@ -666,7 +666,7 @@ class TestCleaningOperations:
         result = uploaded_ctx.fillna(column="salary", method="median")
         out_col = get_generated_col(result, "salary")
 
-        assert get_materialized_table_columns(uploaded_ctx, result) == ["salary", out_col]
+        assert get_materialized_table_columns(uploaded_ctx, get_result_df(result)) == ["salary", out_col]
 
     # ----------------------------------------------------
     # 3. fillna – categorical constant
@@ -994,8 +994,8 @@ class TestCleaningOperations:
     # 14. groupby_fillna – numeric mean
     # ----------------------------------------------------
     def test_groupby_fillna_numeric_mean(self, uploaded_ctx, sample_df, backend_config):
-        result = uploaded_ctx.groupby_fillna(
-            column="salary", group_cols=["department"], method="mean"
+        result = uploaded_ctx.groupby("department").fillna(
+            column="salary", method="mean"
         )
         res_df = get_result_df(result)
         out_col = get_generated_col(result, "salary")
@@ -1021,8 +1021,8 @@ class TestCleaningOperations:
     # ----------------------------------------------------
     def test_groupby_fillna_numeric_constant(self, uploaded_ctx, sample_df, backend_config):
         value = -1
-        result = uploaded_ctx.groupby_fillna(
-            column="salary", group_cols=["department"], method="constant", value=value
+        result = uploaded_ctx.groupby("department").fillna(
+            column="salary", method="constant", value=value
         )
         res_df = get_result_df(result)
         out_col = get_generated_col(result, "salary")
@@ -1044,12 +1044,12 @@ class TestCleaningOperations:
     def test_groupby_fillna_materialized_table_keeps_only_involved_and_generated_columns(
         self, uploaded_ctx, sample_df, backend_config
     ):
-        result = uploaded_ctx.groupby_fillna(
-            column="salary", group_cols=["department"], method="max"
+        result = uploaded_ctx.groupby("department").fillna(
+            column="salary", method="max"
         )
         out_col = get_generated_col(result, "salary")
 
-        assert get_materialized_table_columns(uploaded_ctx, result) == [
+        assert get_materialized_table_columns(uploaded_ctx, get_result_df(result)) == [
             "department",
             "salary",
             out_col,
@@ -1062,8 +1062,8 @@ class TestCleaningOperations:
         df = sample_df.copy()
         df.loc[1, "category"] = None
         ctx = uploaded_ctx.memframe.upload_df(df, filename="cleaning_gb_cat")
-        result = ctx.groupby_fillna(
-            column="category", group_cols=["department"], method="mode"
+        result = ctx.groupby("department").fillna(
+            column="category", method="mode"
         )
         res_df = get_result_df(result)
         out_col = get_generated_col(result, "category")
@@ -1091,8 +1091,8 @@ class TestCleaningOperations:
         df.loc[2, "date_col"] = None
         ctx = uploaded_ctx.memframe.upload_df(df, filename="cleaning_gb_dt")
         method = "ffill"
-        result = ctx.groupby_fillna(
-            column="date_col", group_cols=["department"], method=method
+        result = ctx.groupby("department").fillna(
+            column="date_col", method=method
         )
         res_df = get_result_df(result)
         out_col = get_generated_col(result, "date_col")

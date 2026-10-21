@@ -40,7 +40,7 @@ class GroupBy:
                 return getattr(self._cum, name)
 
         # Fillna methods
-        if name in ("fillna", "afillna", "groupby_fillna", "agroupby_fillna"):
+        if name in ("fillna", "afillna"):
             if self._fillna is not None and hasattr(self._fillna, name):
                 return getattr(self._fillna, name)
 

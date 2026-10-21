@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 
 class GroupByFillnaBuilder:
@@ -23,24 +23,6 @@ class GroupByFillnaBuilder:
 
 class GroupByFillnaWrapper:
     def __init__(self, memframe_ops_instance) -> None: ...
-
-    async def agroupby_fillna(
-        self,
-        column: str,
-        group_cols: Union[str, List[str]],
-        value: Any = ...,
-        method: str = ...,
-        dtype: Optional[str] = ...,
-    ) -> Dict[str, Any]: ...
-
-    def groupby_fillna(
-        self,
-        column: str,
-        group_cols: Union[str, List[str]],
-        value: Any = ...,
-        method: str = ...,
-        dtype: Optional[str] = ...,
-    ) -> Dict[str, Any]: ...
 
     def groupby(
         self,

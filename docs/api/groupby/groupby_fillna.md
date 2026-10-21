@@ -6,14 +6,6 @@ Source: `src/memframe/wrappers/analytix/groupby_fillna.py`
 within groups.
 
 ```python
-result = dataset.groupby_fillna(
-    column="salary",
-    group_cols=["department"],
-    method="mean",
-)
-```
-
-```python
 result = dataset.groupby("department").fillna("salary", method="mean")
 ```
 

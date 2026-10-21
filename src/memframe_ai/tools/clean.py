@@ -22,10 +22,11 @@ def tools(session):
         dtype: 'numeric'/'categorical'/'datetime' (auto-detected if omitted).
         """
         gw = session.wrappers.groupby_fillna
+        cols = group_cols if isinstance(group_cols, list) else [group_cols]
+        builder = gw.groupby(*cols)
         return await normalize(
-            await gw.agroupby_fillna(
-                column=column, group_cols=group_cols,
-                value=value, method=method, dtype=dtype,
+            await builder.afillna(
+                column=column, value=value, method=method, dtype=dtype,
             ),
             session,
         )

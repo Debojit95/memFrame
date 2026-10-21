@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 from memframe.core.orchestrator.analytix.groupby_fillna import (
     GroupByFillna,
@@ -50,41 +50,6 @@ class GroupByFillnaWrapper(GroupByFillnaOrchestrator):
 
     def __init__(self, memframe_ops_instance):
         super().__init__(memframe_ops_instance)
-
-    async def agroupby_fillna(
-        self,
-        column: str,
-        group_cols: Union[str, List[str]],
-        value: Optional[Any] = None,
-        method: str = "mean",
-        dtype: Optional[str] = None,
-    ) -> Dict[str, Any]:
-        """Asynchronously fill missing values using group-wise statistics."""
-        return await super().groupby_fillna(
-            column=column,
-            group_cols=group_cols,
-            value=value,
-            method=method,
-            dtype=dtype,
-        )
-
-    @async_to_sync
-    async def groupby_fillna(
-        self,
-        column: str,
-        group_cols: Union[str, List[str]],
-        value: Optional[Any] = None,
-        method: str = "mean",
-        dtype: Optional[str] = None,
-    ) -> Dict[str, Any]:
-        """Synchronously fill missing values using group-wise statistics."""
-        return await self.agroupby_fillna(
-            column=column,
-            group_cols=group_cols,
-            value=value,
-            method=method,
-            dtype=dtype,
-        )
 
     def groupby(self, *columns: str) -> GroupByFillnaBuilder:
         if not columns:
