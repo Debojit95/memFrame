@@ -12,10 +12,11 @@ class GroupBy:
     Created by ``ContextManager.groupby(*columns)``.
     """
 
-    def __init__(self, stats_builder: Any, cum_builder: Any, window_builder: Any) -> None:
+    def __init__(self, stats_builder: Any, cum_builder: Any, window_builder: Any, fillna_builder: Any = None) -> None:
         self._stats = stats_builder
         self._cum = cum_builder
         self._window = window_builder
+        self._fillna = fillna_builder
         self.group_cols = stats_builder.group_cols  # expose columns
 
     def __getattr__(self, name: str) -> Any:
@@ -37,6 +38,11 @@ class GroupBy:
         if name.startswith("cum") or name.startswith("acum"):
             if hasattr(self._cum, name):
                 return getattr(self._cum, name)
+
+        # Fillna methods
+        if name in ("fillna", "afillna", "groupby_fillna", "agroupby_fillna"):
+            if self._fillna is not None and hasattr(self._fillna, name):
+                return getattr(self._fillna, name)
 
         # Default: stats builder
         if hasattr(self._stats, name):

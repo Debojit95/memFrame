@@ -57,22 +57,6 @@ class GroupByWrapper:
     async def aproduct(self, column: str) -> Dict[str, Any]: ...
     def product(self, column: str) -> Dict[str, Any]: ...
 
-    async def afillna(
-        self,
-        column: str,
-        value: Any = ...,
-        method: str = ...,
-        dtype: Optional[str] = ...,
-    ) -> Dict[str, Any]: ...
-
-    def fillna(
-        self,
-        column: str,
-        value: Any = ...,
-        method: str = ...,
-        dtype: Optional[str] = ...,
-    ) -> Dict[str, Any]: ...
-
     async def aevent_rate(
         self,
         datetime_col: str,
@@ -121,24 +105,6 @@ class GroupByStatsWrapper:
         datetime_col: str,
         unit: str = ...,
         new_table: Optional[str] = ...,
-    ) -> Dict[str, Any]: ...
-
-    async def agroupby_fillna(
-        self,
-        column: str,
-        group_cols: Union[str, List[str]],
-        value: Any = ...,
-        method: str = ...,
-        dtype: Optional[str] = ...,
-    ) -> Dict[str, Any]: ...
-
-    def groupby_fillna(
-        self,
-        column: str,
-        group_cols: Union[str, List[str]],
-        value: Any = ...,
-        method: str = ...,
-        dtype: Optional[str] = ...,
     ) -> Dict[str, Any]: ...
 
     def groupby(

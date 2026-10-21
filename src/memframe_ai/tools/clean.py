@@ -21,7 +21,7 @@ def tools(session):
         group_cols: columns to group by. method: 'mean'/'median'/'mode'/etc.
         dtype: 'numeric'/'categorical'/'datetime' (auto-detected if omitted).
         """
-        gw = session.wrappers.groupby_stats
+        gw = session.wrappers.groupby_fillna
         return await normalize(
             await gw.agroupby_fillna(
                 column=column, group_cols=group_cols,

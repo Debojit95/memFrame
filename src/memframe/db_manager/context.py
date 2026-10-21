@@ -81,6 +81,7 @@ class ContextManager:
         from memframe.wrappers.analytix.groupby_stats import GroupByStatsWrapper
         from memframe.wrappers.analytix.groupby_cumulative import GroupByCumulativeWrapper
         from memframe.wrappers.analytix.groupby_window import GroupByWindowStatsWrapper
+        from memframe.wrappers.analytix.groupby_fillna import GroupByFillnaWrapper
         from memframe.wrappers.plots.bar import BarWrapper
         from memframe.wrappers.plots.bar_polar import BarPolarWrapper
         from memframe.wrappers.plots.pie import PieWrapper
@@ -109,6 +110,7 @@ class ContextManager:
             GroupByStatsWrapper(self),
             GroupByCumulativeWrapper(self),
             GroupByWindowStatsWrapper(self),
+            GroupByFillnaWrapper(self),
             BarWrapper(self),
             BarPolarWrapper(self),
             PieWrapper(self),
@@ -195,10 +197,12 @@ class ContextManager:
 
         if not columns:
             raise ValueError("Must provide at least one group-by column.")
+        from memframe.wrappers.analytix.groupby_fillna import GroupByFillnaWrapper
         stats_builder = GroupByStatsWrapper(self).groupby(*columns)
         cum_builder = GroupByCumulativeWrapper(self).groupby(*columns)
         window_builder = GroupByWindowStatsWrapper(self).groupby(*columns)
-        return UnifiedGroupBy(stats_builder, cum_builder, window_builder)
+        fillna_builder = GroupByFillnaWrapper(self).groupby(*columns)
+        return UnifiedGroupBy(stats_builder, cum_builder, window_builder, fillna_builder)
 
     def __getattr__(self, name: str) -> Any:
         # `dt` is a property, not a wrapper method
