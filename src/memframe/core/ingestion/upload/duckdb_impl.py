@@ -35,7 +35,7 @@ class DuckDBUploadImpl:
     # ── Sampling ────────────────────────────────────────────────
     async def _fetch_arrow_sample_duckdb(self, table_name: str, columns: List[str], limit: int) -> pa.Table:
         col_str = ", ".join(self._quote_identifier(c) for c in columns)
-        res = self._backend.pool.conn.execute(f"SELECT {col_str} FROM {table_name} LIMIT {limit}").fetch_arrow_table()
+        res = self._backend.pool.conn.execute(f"SELECT {col_str} FROM {table_name} LIMIT {limit}").to_arrow_table()
         return res
 
     # ── Table Casting ───────────────────────────────────────────
