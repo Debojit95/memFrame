@@ -126,7 +126,6 @@ class TransformOrchestrator:
         table, schema = await self._get_context()
         return await ops.numeric_robust_scale(table, schema, column, quantile_range, **self._persistence_context())
 
-    @record_call(deep_cache=True)
     async def robust(self, column: str, quantile_range: tuple = (25, 75)) -> Dict[str, Any]:
         return await self.robust_scale(column, quantile_range)
 
@@ -136,7 +135,6 @@ class TransformOrchestrator:
         table, schema = await self._get_context()
         return await ops.numeric_maxabs_scale(table, schema, column, **self._persistence_context())
 
-    @record_call(deep_cache=True)
     async def maxabs(self, column: str) -> Dict[str, Any]:
         return await self.maxabs_scale(column)
 
@@ -152,7 +150,6 @@ class TransformOrchestrator:
         table, schema = await self._get_context()
         return await ops.numeric_log_transform(table, schema, column, base, epsilon, **self._persistence_context())
 
-    @record_call(deep_cache=True)
     async def log_transform(self, column: str, base: str = "e", epsilon: float = 0) -> Dict[str, Any]:
         return await self.log(column, base, epsilon)
 
@@ -162,7 +159,6 @@ class TransformOrchestrator:
         table, schema = await self._get_context()
         return await ops.numeric_quantile_transform(table, schema, column, output, **self._persistence_context())
 
-    @record_call(deep_cache=True)
     async def quantile(self, column: str, output: str = "uniform") -> Dict[str, Any]:
         return await self.quantile_transform(column, output)
 
@@ -172,7 +168,6 @@ class TransformOrchestrator:
         table, schema = await self._get_context()
         return await ops.numeric_power_transform(table, schema, column, method, **self._persistence_context())
 
-    @record_call(deep_cache=True)
     async def power(self, column: str, method: str = "yeo-johnson") -> Dict[str, Any]:
         return await self.power_transform(column, method)
 
@@ -182,22 +177,18 @@ class TransformOrchestrator:
         table, schema = await self._get_context()
         return await ops.categorical_ordinal_encode(table, schema, column, **self._persistence_context())
 
-    @record_call(deep_cache=True)
     async def ordinal(self, column: str) -> Dict[str, Any]:
         return await self.ordinal_encode(column)
 
     # ------------------------------------------------------------------
     # Pandas/sklearn aliases
     # ------------------------------------------------------------------
-    @record_call(deep_cache=True)
     async def get_dummies(self, column: str, max_categories: int = 10) -> Dict[str, Any]:
         return await self.onehot(column, max_categories)
 
-    @record_call(deep_cache=True)
     async def cut(self, column: str, bins: int = 5, strategy: str = "uniform") -> Dict[str, Any]:
         return await self.bin(column, bins=bins, strategy=strategy)
 
-    @record_call(deep_cache=True)
     async def qcut(self, column: str, bins: int = 5) -> Dict[str, Any]:
         """Quantile-based binning, similar to pandas qcut."""
         return await self.cut(column, bins=bins, strategy="quantile")
