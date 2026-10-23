@@ -1,6 +1,7 @@
 import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
+import importlib.metadata
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -37,6 +38,22 @@ class MemFrame(ContextManager, OpsMixin):
     @property
     def _uploader(self):
         return self._connector._uploader
+
+    @property
+    def __version__(self) -> str:
+        try:
+            return importlib.metadata.version("memframe")
+        except importlib.metadata.PackageNotFoundError:
+            return "0.0.0"
+
+    @property
+    def __active_db__(self) -> Optional[str]:
+        backend = self._backend
+        return backend.backend if backend is not None else None
+
+    @property
+    def __connected__(self) -> bool:
+        return self._backend is not None and self._pool is not None
 
     # ── connect ─────────────────────────────────────────────────────
 

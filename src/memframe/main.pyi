@@ -12,6 +12,13 @@ class MemFrame(ContextManager):
     _active_id: Optional[str]
     deep_cache: Optional[bool]
 
+    @property
+    def __version__(self) -> str: ...
+    @property
+    def __active_db__(self) -> Optional[str]: ...
+    @property
+    def __connected__(self) -> bool: ...
+
     def __init__(
         self,
         connection_type: str = "local",
