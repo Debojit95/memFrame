@@ -6,6 +6,17 @@ to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.16.1] - 2026-10-23
+
+### Fixed
+- DuckDB upload sampling: use `to_arrow_table()` instead of removed `fetch_arrow_table()` (DuckDB >=2.0).
+- GroupBy fillna refactored into its own `groupby_fillna` sub-module; removed redundant flat `groupby_fillna()` API.
+- Transform alias methods (`get_dummies`, `cut`, `qcut`, …) no longer create redundant cache entries.
+- Stats: `autocorr` lineage recording; `datetime_diff` cache already enabled.
+
+### Added
+- `MemFrame.__version__`, `__active_db__`, `__connected__` properties.
+
 ## [0.16.0] - 2026-10-18
 
 ### Added
