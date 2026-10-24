@@ -886,6 +886,32 @@ class TestStatsOperations:
         assert set(value) == {"category", "category2", "active"}
         self._record_result("proportions_no_column", 'proportions()', sample_df, value, "proportions", backend_config["connection_type"], pandas_call='{c: proportions for categorical c}')
 
+    def test_whole_table_eligibility_uses_db_types(self, connected_memframe, backend_config):
+        df = pd.DataFrame({
+            "num": [1.0, 2.0, 3.0],
+            "numtext": ["10", "20", "30"],
+            "cat": ["a", "a", "b"],
+            "date": pd.date_range("2025-01-01", periods=3, freq="D"),
+        })
+        ctx = connected_memframe.upload_df(
+            df, filename="stats_text_numeric", dtypes={"numtext": "TEXT"})
+
+        mean = get_result_value(ctx.mean())
+        assert set(mean) == {"num", "date"}
+        assert "numtext" not in mean
+
+        total = get_result_value(ctx.sum())
+        assert set(total) == {"num"}
+
+        mode = get_result_value(ctx.mode())
+        assert {"num", "numtext", "cat"} <= set(mode)
+        assert "date" not in mode
+
+        self._record_result(
+            "whole_table_eligibility", 'mean()/sum()/mode() with TEXT column',
+            df, mean, "means", backend_config["connection_type"],
+            pandas_call='mean: {c: df[c].mean() for numeric/datetime c}')
+
     def test_whole_table_no_compatible_column_fails(self, connected_memframe, backend_config):
         ctx = connected_memframe.upload_df(
             pd.DataFrame({"t": ["a", "b"]}), filename="stats_text_only")
