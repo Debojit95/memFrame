@@ -4,6 +4,7 @@ import pandas as pd
 import pytest
 
 from memframe.core.analytix.stats import DuckDBDataStatsOps
+from memframe.core.orchestrator.analytix.stats import StatsOrchestrator
 from memframe.main import MemFrame
 from memframe.wrappers.analytix.stats import StatsWrapper
 
@@ -168,3 +169,90 @@ def test_whole_table_no_compatible_column_fails():
 def test_single_column_paths_unchanged(stats_mixed_context):
     assert StatsWrapper(stats_mixed_context).mean("sale")["result"] == pytest.approx(20.0)
     assert StatsWrapper(stats_mixed_context).sum("qty")["result"] == 10
+
+
+@pytest.fixture
+def stats_text_numeric_context():
+    memframe = MemFrame(
+        connection_type="local",
+        connection_params={"db_path": ":memory:"},
+    )
+    asyncio.run(memframe.aconnect())
+    try:
+        yield memframe.upload_df(
+            pd.DataFrame(
+                {
+                    "num": [1.0, 2.0, 3.0],
+                    "numtext": ["10", "20", "30"],
+                    "cat": ["a", "a", "b"],
+                    "ts": pd.to_datetime(
+                        ["2024-01-01", "2024-01-02", "2024-01-03"]
+                    ),
+                }
+            ),
+            filename="stats_text_numeric",
+            dtypes={"numtext": "TEXT"},
+        )
+    finally:
+        asyncio.run(memframe.aclose())
+
+
+def test_mean_skips_text_column_with_numeric_values(stats_text_numeric_context):
+    response = StatsWrapper(stats_text_numeric_context).mean()
+
+    assert response["is_error"] is False
+    assert set(response["result"]) == {"num", "ts"}
+
+
+def test_sum_skips_text_column_with_numeric_values(stats_text_numeric_context):
+    response = StatsWrapper(stats_text_numeric_context).sum()
+
+    assert response["is_error"] is False
+    assert set(response["result"]) == {"num"}
+
+
+def test_mode_and_count_keep_text_columns(stats_text_numeric_context):
+    mode = StatsWrapper(stats_text_numeric_context).mode()
+    count = StatsWrapper(stats_text_numeric_context).count()
+
+    assert mode["is_error"] is False
+    assert set(mode["result"]) == {"num", "numtext", "cat"}
+    assert "numtext" in count["result"]
+
+
+def test_whole_table_does_not_redetect_each_column(stats_mixed_context, monkeypatch):
+    async def fail(*args, **kwargs):
+        raise AssertionError("per-column dtype detection must not run")
+
+    monkeypatch.setattr(StatsOrchestrator, "_detect_stats_dtype", fail)
+    response = StatsWrapper(stats_mixed_context).mean()
+
+    assert response["is_error"] is False
+    assert set(response["result"]) == {"sale", "qty", "ts"}
+
+
+@pytest.mark.parametrize(
+    ("sql_type", "family"),
+    [
+        ("BIGINT", "numeric"),
+        ("DOUBLE", "numeric"),
+        ("DECIMAL(38, 10)", "numeric"),
+        ("double precision", "numeric"),
+        ("numeric", "numeric"),
+        ("HUGEINT", "numeric"),
+        ("TIMESTAMP", "datetime"),
+        ("DATE", "datetime"),
+        ("timestamp with time zone", "datetime"),
+        ("DateTime64(3, 'UTC')", "datetime"),
+        ("Nullable(Float64)", "numeric"),
+        ("LowCardinality(Nullable(String))", "categorical"),
+        ("VARCHAR", "categorical"),
+        ("text", "categorical"),
+        ("Bool", "categorical"),
+        ("UUID", "categorical"),
+        ("interval", "categorical"),
+        ("geometry", "categorical"),
+    ],
+)
+def test_classify_sql_type(sql_type, family):
+    assert StatsOrchestrator._classify_sql_type(sql_type) == family
