@@ -26,7 +26,7 @@ uv build
 import asyncio
 import pandas as pd
 
-from memframe import MemFrame
+import memframe as mf
 
 
 async def main():
@@ -38,25 +38,28 @@ async def main():
         }
     )
 
-    async with MemFrame(
+    await mf.aconnect(
         connection_type="local",
         connection_params={"db_path": "memframe.duckdb"},
-    ) as mf:
-        await mf.aconnect()
-        dataset = await mf.aupload_df(frame, filename="customers")
+    )
+    dataset = await mf.aupload_df(frame, filename="customers")
 
-        preview = await dataset.ahead(n=5)
-        average = await dataset.amean(column="revenue")
+    preview = await dataset.ahead(n=5)
+    average = await dataset.amean(column="revenue")
 
-        print(preview["result"])
-        print(average["result"])
+    print(preview)
+    print(average)
+
+    await mf.aclose()
 
 
 asyncio.run(main())
 ```
 
-The upload returns a `ContextManager` bound to the new dataset. Most operations
-are available directly on that dataset:
+`memframe` is the connection facade: `mf.connect(...)` / `await
+mf.aconnect(...)` configure one default connection, and every instance method
+is available on the module. Each upload returns a `ContextManager` bound to the
+new dataset. Most operations are available directly on that dataset:
 
 ```python
 dataset.head(n=5)
@@ -66,6 +69,8 @@ dataset.mean(column="revenue")
 dataset.bar(x="region", y="revenue")
 ```
 
+Use the `MemFrame` class directly when you need more than one connection.
+
 ## Connect
 
 Choose a backend with `connection_type` and `connection_params`.
@@ -73,9 +78,9 @@ Choose a backend with `connection_type` and `connection_params`.
 ### DuckDB
 
 ```python
-from memframe import MemFrame
+import memframe as mf
 
-mf = MemFrame(
+mf.connect(
     connection_type="local",
     connection_params={"db_path": "memframe.duckdb"},
 )
@@ -89,9 +94,9 @@ connection, so nothing is persisted to disk.
 ### PostgreSQL
 
 ```python
-from memframe import MemFrame
+import memframe as mf
 
-mf = MemFrame(
+mf.connect(
     connection_type="remote",
     connection_params={
         "backend": "postgres",
@@ -107,9 +112,9 @@ mf = MemFrame(
 ### ClickHouse
 
 ```python
-from memframe import MemFrame
+import memframe as mf
 
-mf = MemFrame(
+mf.connect(
     connection_type="remote",
     connection_params={
         "backend": "clickhouse",
@@ -122,30 +127,28 @@ mf = MemFrame(
 )
 ```
 
+Inside async code, use `await mf.aconnect(...)` with the same arguments.
+`connect()` returns the connected `MemFrame` instance and replaces any previous
+default connection.
+
 See the [Connector](api/connector.md) guide for backend-specific connection
 parameters.
 
 ## Sync Usage
 
-Synchronous methods are available for scripts and notebooks. Connect with
-`asyncio.run`, then use the sync wrappers (`connect`, `close`, and every
-dataset operation):
+Synchronous methods are available for scripts and notebooks. Connect once, then
+use the sync wrappers (`close` and every dataset operation):
 
 ```python
-import asyncio
+import memframe as mf
 
-from memframe import MemFrame
+mf.connect(
+    connection_type="local",
+    connection_params={"db_path": "memframe.duckdb"},
+)
 try:
-        
-    mf = MemFrame(
-        connection_type="local",
-        connection_params={"db_path": "memframe.duckdb"},
-    )
-
-    mf.connect()
-
     dataset = mf.upload_csv("data/sales.csv")
-    print(dataset.head(n=5)["result"])
+    print(dataset.head(n=5))
     print(mf.list_tables())
 finally:
     mf.close()

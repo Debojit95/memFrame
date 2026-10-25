@@ -9,6 +9,9 @@ or records operation history. Each public method has an asynchronous
 `OpsMixin` (`src/memframe/db_manager/ops.py`), which `MemFrame` inherits, and
 the connection lifecycle lives on its `ConnectorManager`.
 
+Examples below assume `import memframe as mf` and an active
+`mf.connect(...)` / `await mf.aconnect(...)`.
+
 ## Public API
 
 | Synchronous | Asynchronous | Purpose |

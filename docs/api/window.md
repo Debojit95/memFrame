@@ -765,8 +765,9 @@ column(s), then returns a preview of it:
   in-memory table, then joins it in.
 
 Window operations apply `@record_call`, so repeat calls are recorded in the
-transient registry (L1). With `MemFrame(deep_cache=True)` the result tables are
-persisted and replayed on a hit (L2).
+transient registry (L1). With `deep_cache=True` (via `mf.connect(deep_cache=True)`
+or `MemFrame(deep_cache=True)`) the result tables are persisted and replayed on
+a hit (L2).
 
 ## Backend Behavior
 

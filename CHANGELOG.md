@@ -6,6 +6,14 @@ to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **Module-level connection facade**: `import memframe as mf` now supports
+  `mf.connect(connection_type=..., connection_params=..., deep_cache=...)` and
+  `await mf.aconnect(...)`. All `MemFrame` methods (`upload_df`, `list_tables`,
+  `set_active`, statistics, AI chat, …) are forwarded to one default instance;
+  `mf.close()` / `await mf.aclose()` reset it. The `MemFrame` class remains
+  available for multiple or explicit connections.
+
 ## [0.16.1] - 2026-10-23
 
 ### Fixed

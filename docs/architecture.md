@@ -10,10 +10,11 @@ on top.
 
 ## Layers
 
-- **Public API** — `MemFrame` and the per-dataset `ContextManager` it returns
-  after upload. `ContextManager.__getattr__` lazily resolves any method onto a
-  wrapper; each wrapper exposes an `async`/`sync` twin (`ahead`/`head`) and
-  delegates via `super()`.
+- **Public API** — the `memframe` module facade (`mf.connect(...)` plus
+  forwarded methods), `MemFrame`, and the per-dataset `ContextManager` it
+  returns after upload. `ContextManager.__getattr__` lazily resolves any method
+  onto a wrapper; each wrapper exposes an `async`/`sync` twin (`ahead`/`head`)
+  and delegates via `super()`.
 - **Orchestration** — the `*Orchestrator` resolves the active `data_id` to a
   `table_name`, `schema` (DuckDB/PostgreSQL) or `database` (ClickHouse) from the `memframe_csv_registry`, lazily builds the core ops
   engine, and applies the `@record_call` two-level cache.

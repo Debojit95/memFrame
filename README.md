@@ -54,15 +54,14 @@ uv build
 import asyncio
 import pandas as pd
 
-from memframe import MemFrame
+import memframe as mf
 
 
 async def main():
-    mf = MemFrame(
+    await mf.aconnect(
         connection_type="local",
         connection_params={"db_path": "memFrame.duckdb"},
     )
-    await mf.aconnect()
 
     customers = await mf.aupload_df(
         pd.DataFrame(
@@ -77,7 +76,7 @@ async def main():
     )
 
     preview = await customers.ahead(n=5)
-    print(preview["result"])
+    print(preview)
 
     await mf.aclose()
 
@@ -85,12 +84,27 @@ async def main():
 asyncio.run(main())
 ```
 
-Each upload returns a dataset context; chain inspection, selection, cleaning,
-arithmetic, statistics, and plotting on it. Sync methods drop the `a` prefix
-(`head`, `iloc`, `fillna`, …).
+`memframe` itself is the connection facade: `mf.connect(...)` / `await
+mf.aconnect(...)` configure one default connection, and every instance method
+(`upload_df`, `list_tables`, `set_active`, `mean`, `chat`, …) is available
+directly on the module. Each upload returns a dataset context; chain
+inspection, selection, cleaning, arithmetic, statistics, and plotting on it.
+Sync methods drop the `a` prefix (`head`, `iloc`, `fillna`, …).
+
+Need more than one connection? Use the class directly:
+
+```python
+from memframe import MemFrame
+
+analytics = MemFrame(
+    connection_type="local",
+    connection_params={"db_path": "analytics.duckdb"},
+)
+analytics.connect()
+```
 
 Already have tables in your database? Register them as datasets without
-re-uploading:
+re-uploading (after `mf.connect(...)`):
 
 ```python
 registered = mf.register_tables()
@@ -123,15 +137,14 @@ queries that decompose into specialist tools and return typed response blocks.
 import asyncio
 import pandas as pd
 
-from memframe import MemFrame
+import memframe as mf
 
 
 async def main():
-    mf = MemFrame(
+    await mf.aconnect(
         connection_type="local",
         connection_params={"db_path": "memFrame.duckdb"},
     )
-    await mf.aconnect()
 
     await mf.aenable_agent(
         provider="openai",

@@ -22,6 +22,9 @@ For Logfire tracing of the agents, install `memframe[logfire]` instead — it in
 
 ## Enable
 
+Examples assume `import memframe as mf` and an active
+`mf.connect(...)` / `await mf.aconnect(...)`.
+
 Enable the agent once per `MemFrame` instance. Async:
 
 ```python

@@ -22,6 +22,18 @@
 
 ## Start Here
 
+```python
+import memframe as mf
+
+mf.connect(
+    connection_type="local",
+    connection_params={"db_path": "memframe.duckdb"},
+)
+ctx = mf.upload_csv("data/sales.csv")
+print(ctx.head())
+mf.close()
+```
+
 1. Read [Architecture](architecture.md) for a map of the call path and subsystems.
 2. Follow [Getting Started](getting-started.md) to connect and upload data.
 3. Try the [AI Agent](memframe-ai/agent.md) for natural-language data work.

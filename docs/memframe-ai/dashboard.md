@@ -47,6 +47,9 @@ html = dm.render(design)          # or: dm.save(design, "dashboard.html")
 
 ## One-shot from a sentence
 
+Examples below assume `import memframe as mf` and an active
+`mf.connect(...)` / `await mf.aconnect(...)`.
+
 `MemFrame.adashboard(sentence)` collapses the whole flow into one call: it
 reuses the existing planner + specialist pipeline (`.achat()`) to decompose a
 natural-language sentence into sub-queries, executes them against the **active

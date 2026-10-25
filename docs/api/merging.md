@@ -212,8 +212,9 @@ Every merge, join, and concat materializes a new transient table
    dropped with the parent dataset (`delete_table`) or on cache clear. Sides may
    live in different schemas (e.g. a merged transient table plus an upload
    table) — each side is qualified with its own schema.
-4. `MemFrame(deep_cache=False)` disables persistence globally; a merged context
-   created under it raises `DataNotFound` on use because its table was dropped.
+4. `mf.connect(deep_cache=False)` (or `MemFrame(deep_cache=False)` for an
+   explicit instance) disables persistence globally; a merged context created
+   under it raises `DataNotFound` on use because its table was dropped.
 
 ## Backend Behavior
 

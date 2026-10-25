@@ -11,6 +11,9 @@ Users normally call these methods on a connected `MemFrame` instance. The
 lower-level uploader methods in `src/core/ingestion/upload_manager.py` are
 implementation details used by the wrapper.
 
+Examples below assume `import memframe as mf` and an active
+`mf.connect(...)` / `await mf.aconnect(...)`.
+
 ## Public API
 
 Every upload format has synchronous and asynchronous forms:

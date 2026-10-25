@@ -29,11 +29,13 @@ table.
 The effective cache mode for a call is decided in this order:
 
 1. The decorator argument, e.g. `@record_call(deep_cache=True)`.
-2. `MemFrame(deep_cache=...)` when the decorator does not specify one.
+2. `mf.connect(deep_cache=...)` (or `MemFrame(deep_cache=...)` for an explicit
+   instance) when the decorator does not specify one.
 3. `False` (signature-only) as the default.
 
-`MemFrame(deep_cache=False)` is the master switch: it overrides decorator
-requests and disables deep caching for the whole session.
+`mf.connect(deep_cache=False)` is the master switch: it overrides decorator
+requests and disables deep caching for the whole session. The same applies to
+`MemFrame(deep_cache=False)` on an explicit instance.
 
 ### Level 1 — signature-only (default)
 
