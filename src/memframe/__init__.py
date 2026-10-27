@@ -13,7 +13,7 @@ connection.
 
 import logging
 from importlib.metadata import PackageNotFoundError, version as _package_version
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from .main import MemFrame
 from .core.ingestion.datatype_detector import Backend
@@ -80,6 +80,44 @@ async def aclose() -> None:
     await current.aclose()
 
 
+def DataFrame(
+    data: Any = None,
+    index: Any = None,
+    columns: Optional[List] = None,
+    dtype: Any = None,
+    copy: Optional[bool] = None,
+    *,
+    filename: Optional[str] = None,
+    dtypes: Optional[Dict[str, str]] = None,
+) -> ContextManager:
+    """Pandas-style dataset constructor on the default connection.
+
+    Mirrors ``pd.DataFrame(...)`` and uploads the result as a new table.
+    ``MemFrame`` is the connection class; this is the dataset constructor.
+    """
+    return _default.DataFrame(
+        data, index=index, columns=columns, dtype=dtype, copy=copy,
+        filename=filename, dtypes=dtypes,
+    )
+
+
+async def aDataFrame(
+    data: Any = None,
+    index: Any = None,
+    columns: Optional[List] = None,
+    dtype: Any = None,
+    copy: Optional[bool] = None,
+    *,
+    filename: Optional[str] = None,
+    dtypes: Optional[Dict[str, str]] = None,
+) -> ContextManager:
+    """Async form of :func:`DataFrame`."""
+    return await _default.aDataFrame(
+        data, index=index, columns=columns, dtype=dtype, copy=copy,
+        filename=filename, dtypes=dtypes,
+    )
+
+
 def __getattr__(name: str) -> Any:
     """Forward unknown module attributes to the default MemFrame instance."""
     if name.startswith("_"):
@@ -126,4 +164,6 @@ __all__ = [
     "aconnect",
     "close",
     "aclose",
+    "DataFrame",
+    "aDataFrame",
 ]

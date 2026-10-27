@@ -59,7 +59,29 @@ class MemFrame(ContextManager):
     def memFrame(self, data_id: Optional[str] = ..., data: Any = ..., columns: Optional[List[str]] = ...) -> ContextManager: ...
     def _ops(self, data_id: Optional[str] = ..., data: Any = ..., columns: Optional[List[str]] = ...) -> ContextManager: ...
 
-    def DataFrame(self, data: Any = ..., columns: Optional[List[str]] = ..., dtype: Any = ...) -> ContextManager: ...
+    def DataFrame(
+        self,
+        data: Any = ...,
+        index: Any = ...,
+        columns: Optional[List[str]] = ...,
+        dtype: Any = ...,
+        copy: Optional[bool] = ...,
+        *,
+        filename: Optional[str] = ...,
+        dtypes: Optional[Dict[str, str]] = ...,
+    ) -> ContextManager: ...
+
+    async def aDataFrame(
+        self,
+        data: Any = ...,
+        index: Any = ...,
+        columns: Optional[List[str]] = ...,
+        dtype: Any = ...,
+        copy: Optional[bool] = ...,
+        *,
+        filename: Optional[str] = ...,
+        dtypes: Optional[Dict[str, str]] = ...,
+    ) -> ContextManager: ...
 
     async def aclose(self) -> None: ...
     def close(self) -> None: ...
