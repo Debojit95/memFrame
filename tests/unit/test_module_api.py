@@ -96,6 +96,35 @@ def test_aconnect_delegates():
     asyncio.run(run())
 
 
+def test_dataframe_delegates():
+    try:
+        mf.connect(
+            connection_type="local",
+            connection_params={"db_path": ":memory:"},
+        )
+        ctx = mf.DataFrame({"a": [1, 2]})
+
+        assert ctx.head(2)["a"].tolist() == [1, 2]
+    finally:
+        mf.close()
+
+
+def test_adataframe_delegates():
+    async def run():
+        try:
+            await mf.aconnect(
+                connection_type="local",
+                connection_params={"db_path": ":memory:"},
+            )
+            ctx = await mf.aDataFrame({"a": [1, 2]})
+
+            assert (await ctx.ahead(2))["a"].tolist() == [1, 2]
+        finally:
+            await mf.aclose()
+
+    asyncio.run(run())
+
+
 def test_class_api_still_works():
     instance = MemFrame(
         connection_type="local",
