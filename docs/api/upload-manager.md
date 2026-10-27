@@ -77,6 +77,20 @@ The DataFrame path writes a temporary CSV, passes it through CSV ingestion, and
 then updates the registry with the requested filename. The temporary file is
 removed whether the upload succeeds or fails.
 
+### From in-memory data
+
+`mf.DataFrame(...)` is the pandas-style constructor: it builds a frame in
+memory (dict, rows + `columns`, `pd.Series`, `pd.DataFrame`, or an existing
+dataset context) and uploads it to the upload schema, returning a dataset
+context. `index` is used for pandas alignment only; `filename` and `dtypes` are
+optional memFrame extensions.
+
+```python
+dataset = mf.DataFrame({"id": [1, 2], "name": ["a", "b"]}, filename="built.csv")
+dataset = mf.DataFrame(pd.DataFrame({"id": [1, 2]}), dtypes={"id": "BIGINT"})
+dataset = mf.DataFrame(existing_dataset)   # snapshot into a new dataset
+```
+
 ## Column Names
 
 Column names are normalized before table creation:

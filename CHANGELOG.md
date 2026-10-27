@@ -13,6 +13,11 @@ to [Semantic Versioning](https://semver.org/).
   `set_active`, statistics, AI chat, …) are forwarded to one default instance;
   `mf.close()` / `await mf.aclose()` reset it. The `MemFrame` class remains
   available for multiple or explicit connections.
+- **`mf.DataFrame(...)` constructor**: full pandas-style signature (`index`,
+  `columns`, `dtype`, `copy`) plus keyword-only `filename`/`dtypes`. Accepts a
+  dict, rows, `pd.Series`, `pd.DataFrame`, or a dataset `ContextManager`
+  (snapshotted) and uploads the result to the upload schema. Async twin:
+  `await mf.aDataFrame(...)`.
 
 ## [0.16.1] - 2026-10-23
 

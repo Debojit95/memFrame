@@ -23,6 +23,7 @@
 - Compiles every pandas-style call to backend-native SQL (DuckDB / PostgreSQL / ClickHouse) and runs it in-engine — your data never leaves the database.
 - Async-first surface with sync equivalents for every operation.
 - Upload from CSV, Parquet, or pandas DataFrame.
+- Pandas-style `mf.DataFrame(...)` constructor for dicts, frames, or existing dataset contexts.
 - Sync pre-existing DuckDB, PostgreSQL, or ClickHouse tables as datasets — no re-upload.
 - Two-level cache: lineage audit + replayable result tables.
 - Optional AI agent layer (`memframe_ai`) for chatting with your CSV.
@@ -101,6 +102,13 @@ analytics = MemFrame(
     connection_params={"db_path": "analytics.duckdb"},
 )
 analytics.connect()
+```
+
+Build a dataset from in-memory data with the pandas-style constructor:
+
+```python
+dataset = mf.DataFrame({"name": ["Alice", "Bob"], "score": [95.5, 82.0]})
+dataset = mf.DataFrame(existing_dataset)   # snapshot into a new dataset
 ```
 
 Already have tables in your database? Register them as datasets without

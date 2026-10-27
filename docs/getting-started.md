@@ -170,6 +170,19 @@ dataset = mf.upload_parquet("data/events.parquet")
 dataset = mf.upload_df(frame, filename="customers")
 ```
 
+### Build from in-memory data
+
+`mf.DataFrame` mirrors `pd.DataFrame` and uploads the result as a new dataset:
+
+```python
+dataset = mf.DataFrame({"name": ["Alice", "Bob"], "score": [95.5, 82.0]})
+dataset = mf.DataFrame(frame, columns=["score", "name"], dtype="float64")
+dataset = mf.DataFrame(existing_dataset)   # snapshot into a new dataset
+```
+
+`index` is used for pandas alignment only; `filename` and `dtypes` are optional
+memFrame extensions.
+
 Each upload creates backend tables and records a six-character `data_id` in the
 registry. Dataset management APIs use that `data_id` when listing, activating,
 or deleting datasets.

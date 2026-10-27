@@ -31,11 +31,26 @@ rolling = await dataset.arolling(column="sales", window=7, func="mean", order_by
 
 ## Creating Datasets
 
-`mf.DataFrame` mirrors the `pd.DataFrame` constructor: pass a dict, a list
-of rows (with `columns`), a `pd.Series`, or a `pd.DataFrame`, and it creates a
-new table and returns its dataset context with the full operation surface.
-`dtype` applies one dtype to every column, exactly like pandas; per-column
-control lives on `upload_df(..., dtypes={...})`.
+`mf.DataFrame(...)` mirrors the `pd.DataFrame` constructor and creates a new
+table in the upload schema, returning its dataset context with the full
+operation surface:
+
+```python
+mf.DataFrame(
+    data=None,       # dict, rows, pd.Series, pd.DataFrame, or dataset context
+    index=None,      # pandas alignment; the index is not persisted
+    columns=None,    # selection/order, pandas semantics
+    dtype=None,      # single dtype, pandas semantics
+    copy=None,       # pandas construction semantics
+    *,
+    filename=None,   # memFrame extension: registry filename
+    dtypes=None,     # memFrame extension: per-column overrides
+)
+```
+
+`data` may be a `ContextManager` (a dataset context); its full table is
+snapshotted into a new upload dataset, leaving the source untouched. Async
+code uses `await mf.aDataFrame(...)` with the same arguments.
 
 ```python
 dataset = mf.DataFrame({"name": ["Alice", "Bob"], "score": [95.5, 82.0]})
@@ -48,8 +63,14 @@ print(dataset.head(n=2))
 ```python
 dataset = mf.DataFrame([[1, "x"], [2, "y"]], columns=["id", "tag"])
 dataset = mf.DataFrame(pd.Series([1, 2, 3], name="s"))
-dataset = mf.DataFrame(frame, dtype="float64")
+dataset = mf.DataFrame(frame, dtype="float64", copy=True)
+dataset = mf.DataFrame(dataset)                      # snapshot to a new dataset
+dataset = mf.DataFrame({"id": [1]}, filename="built.csv", dtypes={"id": "BIGINT"})
 ```
+
+!!! note
+    `MemFrame` is the connection class; `mf.DataFrame` is the pandas-style
+    dataset constructor. Use `MemFrame(...)` directly for multiple connections.
 
 Supported dtypes: integers (`int8`–`int64`, unsigned variants) → integer
 columns (`uint64` values past 9.2e18 overflow at insert); `float32`/`float64`,
@@ -57,7 +78,7 @@ columns (`uint64` values past 9.2e18 overflow at insert); `float32`/`float64`,
 `category` → text; `decimal`, `date`, `bytes` map natively. Anything else falls
 back to text (lossy). Empty input raises — a table needs typed columns.
 `df.columns` selects/orders columns at construction, pandas semantics verbatim;
-the pandas index is dropped (tables are unordered).
+the pandas index is used for alignment only and dropped (tables are unordered).
 
 ## Domains
 
