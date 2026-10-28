@@ -912,17 +912,6 @@ class TestInspectionOperations:
         )
 
     # ----------------------------------------------------
-    # set_index / reset_index
-    # ----------------------------------------------------
-    def test_set_index(self, uploaded_ctx, sample_df, backend_config):
-        # ponytail: ctx.set_index dispatches to the metadata-only IndexWrapper;
-        # the public value is {"index_cols": [...], ...}, no DDL involved.
-        result = uploaded_ctx.set_index(columns=["id"])
-        plain = get_plain_result(result)
-        assert plain.get("index_cols") == ["id"]
-    
-    
-    # ----------------------------------------------------
     # update
     # ----------------------------------------------------
     def test_update(self, connected_memframe, uploaded_ctx, sample_df, backend_config):

@@ -229,17 +229,15 @@ class DatabaseBackend(ABC):
                     f"ALTER TABLE {fq_table_name} ADD COLUMN is_external BOOLEAN DEFAULT FALSE"
                 )
 
-        # index_cols stores the logical (metadata-only) index key columns as a
-        # JSON list, e.g. '["month"]' or '["year", "month"]'. No DDL involved.
-        if not await self._column_exists(schema_name, table_name, "index_cols"):
-            if self.backend == "clickhouse":
+        # The old metadata-only logical index stored key columns here. Indexes
+        # are now database-native, so drop the legacy column when present.
+        if await self._column_exists(schema_name, table_name, "index_cols"):
+            try:
                 await self.execute(
-                    f"ALTER TABLE {fq_table_name} ADD COLUMN IF NOT EXISTS index_cols Nullable(String)"
+                    f"ALTER TABLE {fq_table_name} DROP COLUMN IF EXISTS index_cols"
                 )
-            else:
-                await self.execute(
-                    f"ALTER TABLE {fq_table_name} ADD COLUMN index_cols TEXT"
-                )
+            except Exception as exc:
+                logger.warning("Could not drop legacy index_cols: %s", exc)
 
     async def _resolve_encoding(self, file_path: str) -> str:
         detected = self._type_detector._detect_encoding(file_path)

@@ -7,8 +7,8 @@ from memframe.utils.helper import SQLIdentifierSanitizer
 
 class ClickHouseTableOps(GeneralTableOps):
     """ClickHouse backend — overrides hooks plus the methods whose algorithm
-    differs wholesale from PostgreSQL/DuckDB (insert / update / set_index and
-    the nullable-aware type mapping)."""
+    differs wholesale from PostgreSQL/DuckDB (insert / update and the
+    nullable-aware type mapping)."""
 
     # ── hooks ──────────────────────────────────────────────────────
     def _limit_offset(self, limit: int, offset: int) -> str:
@@ -144,26 +144,6 @@ class ClickHouseTableOps(GeneralTableOps):
                 involved_cols=[],
                 generated_cols=[column],
                 result=df,
-            )
-        except Exception as e:
-            return self._error_response(str(e))
-
-    async def dataframe_set_index(self, table: str, schema: str, columns: List[str], **kwargs) -> Dict[str, Any]:
-        try:
-            table = SQLIdentifierSanitizer.sanitize(table)
-            qualified = self._qualified_table(table, schema)
-
-            # ClickHouse uses ORDER BY for sorting; recreate table with proper ORDER BY
-            df = await self._get_table_dataframe(table, schema)
-
-            temp_name = await self._save_dataframe_as_table(df, schema, table)
-            temp_qualified = self._qualified_table(temp_name, schema)
-
-            await self._exec(f"DROP TABLE IF EXISTS {qualified}")
-            await self._exec(f"RENAME TABLE {temp_qualified} TO {qualified}")
-
-            return self._success_response(
-                result="Index set (ORDER BY in ClickHouse)", involved_cols=columns
             )
         except Exception as e:
             return self._error_response(str(e))

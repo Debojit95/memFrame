@@ -351,25 +351,6 @@ class TableOpsWrapper(TableOpsOrchestrator):
         return await self.arename(columns=columns)
 
     # ==========================================================
-    # SET INDEX (legacy DDL path — ctx.set_index dispatches to IndexWrapper)
-    # ==========================================================
-
-    async def aset_index(
-        self,
-        columns: List[str],
-    ) -> Dict[str, Any]:
-        """Asynchronously set one or more columns as index."""
-        return await super().set_index(columns=columns)
-
-    @async_to_sync
-    async def set_index(
-        self,
-        columns: List[str],
-    ) -> Dict[str, Any]:
-        """Synchronously set one or more columns as index."""
-        return await self.aset_index(columns=columns)
-
-    # ==========================================================
     # UPDATE
     # ==========================================================
 

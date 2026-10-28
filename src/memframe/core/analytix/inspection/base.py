@@ -28,7 +28,7 @@ class GeneralTableOps:
     ``duckdb.py`` / ``postgres.py`` / ``clickhouse.py`` override only the hooks
     that differ; ClickHouse additionally overrides the few methods with a
     wholly different algorithm (``dataframe_insert`` / ``dataframe_update`` /
-    ``dataframe_set_index`` / ``_sql_type_for_series``).
+    ``_sql_type_for_series``).
 
     All database access is delegated to the provided DatabaseAdapter.
     """
@@ -1236,22 +1236,6 @@ class GeneralTableOps:
                 generated_cols=list(columns.values()),
                 result=current_df,
                 column_mapping=columns,
-            )
-        except Exception as e:
-            return self._error_response(str(e))
-
-    async def dataframe_set_index(self, table: str, schema: str, columns: List[str], **kwargs) -> Dict[str, Any]:
-        try:
-            table = SQLIdentifierSanitizer.sanitize(table)
-            qualified = self._qualified_table(table, schema)
-
-            cols = [f'"{SQLIdentifierSanitizer.sanitize(c)}"' for c in columns]
-            await self._exec(
-                f"ALTER TABLE {qualified} ADD PRIMARY KEY ({', '.join(cols)})"
-            )
-
-            return self._success_response(
-                result="Index set", involved_cols=columns
             )
         except Exception as e:
             return self._error_response(str(e))
