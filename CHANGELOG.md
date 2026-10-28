@@ -18,6 +18,20 @@ to [Semantic Versioning](https://semver.org/).
   dict, rows, `pd.Series`, `pd.DataFrame`, or a dataset `ContextManager`
   (snapshotted) and uploads the result to the upload schema. Async twin:
   `await mf.aDataFrame(...)`.
+- **Database-native indexes**: `ctx.create_index`, `ctx.drop_index`, and
+  `ctx.list_indexes` with per-backend options (DuckDB unique ART indexes;
+  PostgreSQL methods, partial/covering indexes, `CONCURRENTLY`; ClickHouse
+  skipping-index types and materialization). ClickHouse also gains
+  `ctx.set_order_by` — a guarded, dry-run-first physical `ORDER BY` rebuild
+  that preserves engine/partitioning/TTL/settings/skip indexes and optionally
+  keeps a backup table.
+
+### Removed
+- **Metadata-only logical index** (breaking): the `index_cols` registry column,
+  `set_index`/`reset_index`/`get_index`/`reindex`/`reindex_like`, the
+  `ContextManager.index` property, and the legacy `TableOps.set_index`
+  primary-key path. Use the database-native index API instead; use pandas on a
+  fetched frame for row-label alignment.
 
 ## [0.16.1] - 2026-10-23
 

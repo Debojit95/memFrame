@@ -1,164 +1,195 @@
-# Index
+# Database Indexes
 
-Source: `src/memframe/wrappers/analytix/index.py`
-
-`IndexWrapper` is the public index interface exposed through a
-`ContextManager`. It provides pandas-like `set_index`, `reset_index`, `index`,
-`reindex`, and `reindex_like` backed by backend-native SQL across DuckDB,
-PostgreSQL, and ClickHouse. SQL tables have no row labels, so the index is
-**metadata-only** — a JSON list of key columns in
-`memframe_csv_registry.index_cols`, never DDL. `set_index`/`reset_index`
-only read/write that metadata; `reindex`/`reindex_like` are read-time
-`LEFT JOIN`s against the key.
-
-Users normally call index methods directly on a dataset context returned by
-an upload operation:
+memFrame manages **real database indexes**. There is no pandas-style logical
+index and no index metadata in `memframe_csv_registry`: the backend catalog is
+the source of truth. Indexes are created, listed, and dropped with ordinary
+DDL on the active dataset's table.
 
 ```python
-dataset = mf.upload_df(frame)
-dataset.set_index("month")
-labels = dataset.index
+ctx.create_index(columns=["month"], name="idx_month")
+ctx.list_indexes()
+ctx.drop_index("idx_month")
 ```
 
-The same methods are available asynchronously:
-
-```python
-dataset = await mf.aupload_df(frame)
-await dataset.aset_index("month")
-aligned = await dataset.areindex([1, 2, 4])
-```
-
-The lower-level files are implementation details:
-
-- `src/memframe/core/analytix/index/` builds and executes backend-specific SQL
-  (`base.py` holds all logic; `duckdb.py` / `postgres.py` / `clickhouse.py`
-  inherit unchanged — the fill SQL is portable).
-- `src/memframe/core/orchestrator/analytix/index.py` resolves the active dataset
-  context and passes persistence metadata (metadata writes are signature-only
-  in the cache; `reindex` reads persist under `deep_cache`).
-- `src/memframe/wrappers/analytix/index.py` exposes synchronous and asynchronous
-  public methods.
+Every method has an asynchronous twin: `acreate_index`, `adrop_index`,
+`alist_indexes`. Index operations are **not cached** and do not create
+transient tables. Dropping a dataset/table drops its indexes with it; synced
+external tables keep their indexes.
 
 ## Public API
 
-Every index operation has synchronous and asynchronous forms (`ctx.index` is
-the property form of `get_index`, returning bare label values):
-
 | Synchronous | Asynchronous | Purpose |
 | --- | --- | --- |
-| `set_index(keys, append=False, drop=True, verify_integrity=False)` | `await aset_index(...)` | Track key column(s) as the logical index |
-| `reset_index(level=None, drop=False)` | `await areset_index(...)` | Clear the tracked index, or a subset of levels |
-| `get_index(limit=None)` / `index` | `await aget_index(...)` | Read back index columns and labels |
-| `reindex(labels, ...)` | `await areindex(...)` | Conform rows/columns to new labels |
-| `reindex_like(other, ...)` | `await areindex_like(...)` | Conform to another dataset's index and columns |
+| `create_index(columns=None, name=None, unique=False, if_not_exists=True, ...)` | `await acreate_index(...)` | Create a backend-native index |
+| `drop_index(name, if_exists=True, concurrently=False)` | `await adrop_index(...)` | Drop an index |
+| `list_indexes()` | `await alist_indexes()` | Read the backend catalog |
+| `set_order_by(columns, primary_key=None, dry_run=True, ...)` | `await aset_order_by(...)` | ClickHouse-only physical ORDER BY rebuild |
 
-Public methods return the operation value directly (a `DataFrame`, label
-list, or dict). Invalid operations raise `OperationError`.
+Backend-specific options are documented below. Unsupported options for a
+backend return an `OperationError` rather than being ignored.
 
-## Usage Overview
+## DuckDB
 
-```python
-dataset = mf.upload_df(frame)
-dataset.set_index("month")
+DuckDB has two index types:
 
-labels = dataset.index                    # [1, 4, 7, 10]
-aligned = dataset.reindex([1, 2, 4])      # gap months -> NaN
-filled = dataset.reindex([1, 2, 4], fill_value=0)
-dataset.reset_index()                     # back to synthetic RangeIndex
-```
+- **Min-max (zonemap)** indexes are created automatically for all general
+  columns. You do not need to create them.
+- **ART** indexes speed up point and highly selective (`< 0.1%`) lookups.
+  They are persisted on disk, but must fit in memory during creation. They
+  slow down loads and updates.
 
-```python
-dataset = await mf.aupload_df(frame)
-await dataset.aset_index(["year", "month"])
-aligned = await dataset.areindex([(2012, 1), (2014, 5)], fill_value=0)
-filled = await dataset.areindex([1, 2, 3, 4], method="ffill", limit=1)
-nearest = await dataset.areindex([2, 9], method="nearest")
-remaining = await dataset.areset_index(level="year")  # keep ["month"]
-```
-
-Multi-key index and fill methods:
+`create_index` creates an ART index. DuckDB has no `CONCURRENTLY`, partial
+indexes, covering `INCLUDE`, or index methods.
 
 ```python
-await orch.set_index(["year", "month"])
-await orch.reindex([(2012, 1), (2014, 5)], fill_value=0)
-await orch.reindex([1, 2, 3, 4], method="ffill", limit=1)
-await orch.reindex([2, 9], method="nearest")
-await orch.reset_index(level="year")     # keep ["month"]
+ctx.create_index(columns=["customer_id"], name="idx_customer")
+ctx.create_index(columns=["email"], name="idx_email", unique=True)
+ctx.create_index(columns=["tenant_id", "created_at"], name="idx_tenant_time")
+ctx.create_index(columns=["email"])          # generated name: <table>_email_idx
 ```
 
-## Parameters
+- `UNIQUE` is enforced by DuckDB for existing and future rows.
+- Index names are schema-scoped. `CREATE INDEX` cannot schema-qualify the name;
+  the index is created in the table's schema. `DROP INDEX` is schema-qualified.
+- `IF NOT EXISTS` still attempts the build before checking existence, so
+  memFrame checks the catalog first.
 
-| Parameter | Ops | Description |
-| --- | --- | --- |
-| `keys` | `set_index` | Column name or list. MultiIndex = list of 2+ columns (labels are tuples). `columns=` is accepted as an alias. |
-| `append` | `set_index` | `True` extends the tracked keys, `False` replaces them. Defaults to `False`. |
-| `drop` | `set_index` / `reset_index` | Recorded, not executed — key columns never leave the table; future projections may hide them. Defaults to `True` / `False`. |
-| `verify_integrity` | `set_index` | One `COUNT(*)` vs `COUNT(DISTINCT keys)` probe; fails on duplicates. Defaults to `False`. |
-| `level` | `reset_index` | `None` clears all levels; a name or list removes a subset. To rename levels, call `rename()` first — index ops never alter tables. |
-| `labels` / `index` / `columns` / `axis` | `reindex` | New labels: `labels` + `axis` (`0`/`"index"`, `1`/`"columns"`), or `index=`/`columns=` keywords. Both axes at once is allowed. |
-| `method` | `reindex` | `None` (gaps stay missing), `"ffill"`/`"pad"`, `"bfill"`/`"backfill"`, `"nearest"`. Row axis only; needs monotonic labels. |
-| `fill_value` | `reindex` | Scalar for still-missing cells (applied after any method fill). Defaults to `None` (NULL). |
-| `limit` | `reindex` | Max consecutive fills for `ffill`/`bfill`. Needs a fill method. |
-| `other` | `reindex_like` | The other dataset's `data_id` string. Same key columns required; labels and columns are taken from it. Thin wrapper over `reindex`. |
+## PostgreSQL
 
-Validation (each returns `is_error True` internally):
+PostgreSQL supports real secondary indexes: B-tree, hash, GIN, GiST, BRIN,
+composite keys, uniqueness, partial predicates, and covering columns.
 
-- Unknown key/column names; empty label lists.
-- `method` outside `ffill/pad`, `bfill/backfill`, `nearest`.
-- `method` with non-monotonic labels; `limit` without a fill method.
-- Label width != index width; `reindex` with no index set (`Call set_index(keys) first`).
-- `reindex_like` against an unknown `data_id`, an index-less dataset, or mismatched key columns.
+```python
+ctx.create_index(columns=["tenant_id", "created_at"], name="idx_tenant_time")
+ctx.create_index(columns=["email"], name="idx_email", unique=True)
+ctx.create_index(
+    columns=["customer_id"], name="idx_active_customer",
+    where="status = 'active'",          # partial index
+    include=["name"],                   # covering index
+)
+ctx.create_index(
+    columns=["created_at"], name="idx_created_brin",
+    method="brin",
+)
+ctx.create_index(
+    columns=["customer_id"], name="idx_customer_concurrent",
+    concurrently=True,                   # avoids blocking writes
+)
+```
 
-## Backend Behavior
+- **Column order matters.** Put equality columns first, then range/sort
+  columns. An index on `(a, b, c)` serves `a`, `a,b`, and `a,b,c`; it does not
+  serve `b` alone on pre-PG18.
+- `method` accepts `btree` (default), `hash`, `gin`, `gist`, `brin`.
+- `where` is a raw SQL predicate. It must match the query predicate for the
+  planner to use the index.
+- `include` adds non-key columns for index-only scans.
+- `CONCURRENTLY` cannot run inside a transaction. memFrame does not wrap index
+  operations in a transaction. A cancelled/failed concurrent build can leave an
+  INVALID index; `list_indexes()` reports `valid`.
+- Index names are schema-scoped and limited to 63 bytes. Generated names are
+  truncated with a hash suffix.
+- Constraint-backed indexes (PRIMARY KEY/UNIQUE) are listed but cannot be
+  dropped with `DROP INDEX`; drop the constraint instead.
+- Avoid duplicate indexes and over-indexing; monitor usage and invalid indexes.
 
-Index ops support DuckDB, PostgreSQL, and ClickHouse with one shared
-implementation:
+## ClickHouse
 
-- Wanted labels are inlined as a portable `UNION ALL` derived table
-  (`SELECT ? AS "k", ? AS "__ord" UNION ALL ...`) with bind params, then
-  `LEFT JOIN`ed to the base table on null-safe key equality, ordered by the
-  input ordinal. Read-only — no table is created or altered.
-- `ffill`/`bfill` use the islands idiom — `COUNT(col)` over the ordering plus
-  `MAX(col)` per island — exact on all three backends (no `IGNORE NULLS`
-  needed). `limit` caps the per-island run via `ROW_NUMBER`.
-- `nearest` (single numeric/datetime key only) fetches one `DISTINCT` key list
-  and maps gap labels to the closest present key in Python (ties go to the
-  predecessor), then reuses the plain join path.
-- Identifiers are sanitized via `SQLIdentifierSanitizer` and quoted per backend
-  (`"` vs `` ` ``).
-- `reindex` on the column axis is a projection: missing columns render as
-  `fill_value` (or `NULL`), extras are dropped, order follows the request.
+ClickHouse has **no conventional secondary B-tree index**. The sparse primary
+index is the table's physical `ORDER BY`, and **`ORDER BY` is immutable after
+table creation**. A new `ORDER BY` requires rebuilding the table.
 
-Ceilings that fail loudly today: multi-key `nearest`, `tolerance`,
-`limit` with `nearest`, and pandas `level=` broadcast — ask when a real query
-needs them.
+### Data-skipping indexes
 
-## Errors
+`create_index` adds a data-skipping index for filters on columns that are not
+in `ORDER BY`:
 
-Failures return `is_error True` with an `error_message` (raised as
-`OperationError` once the `ContextManager` wrapper lands):
+```python
+ctx.create_index(
+    columns=["user_id"], name="idx_user",
+    index_type="bloom_filter", granularity=4,
+)
+ctx.create_index(
+    columns=["amount"], name="idx_amount",
+    index_type="minmax",
+)
+ctx.create_index(
+    expression="lower(name)", name="idx_name_token",
+    index_type="tokenbf_v1(10240, 3, 0)",
+)
+```
 
-- `No index set. Call set_index(keys) first.`
-- `method='...' needs monotonically increasing/decreasing labels.`
-- `Label width N != index width M.` / `MultiIndex needs tuple labels ...`
-- `Index mismatch: self [...] vs other [...] (same key columns required).`
-- `method='nearest' needs a numeric or datetime key column.`
-- `backend and data_id required` — internal invariant, should not surface in normal use.
+Supported types: `minmax`, `set(N)`, `bloom_filter`, `ngrambf_v1(...)`,
+`tokenbf_v1(...)`, `text`. Only local `*MergeTree` engines are supported.
+`unique=True`, `method`, `where`, `include`, and `concurrently` are rejected.
 
-## API Reference
+`ADD INDEX` is metadata-only for existing parts. With `materialize=True`
+(default), memFrame runs `MATERIALIZE INDEX ... SETTINGS mutations_sync = 1`,
+which is a mutation and can be expensive on large tables. New parts are indexed
+automatically.
 
-::: memframe.wrappers.analytix.index.IndexWrapper
-    options:
-      show_root_heading: true
-      show_root_full_path: true
-      members:
-        - aset_index
-        - set_index
-        - areset_index
-        - reset_index
-        - aget_index
-        - get_index
-        - areindex
-        - reindex
-        - areindex_like
-        - reindex_like
+`list_indexes()` returns skipping indexes plus a non-droppable `order_by`
+entry with the table's `engine`, `sorting_key`, `primary_key`, and
+`partition_key`.
+
+Use skipping indexes **after** choosing native types, the `ORDER BY` key, and
+materialized views. Verify with:
+
+```sql
+EXPLAIN indexes = 1
+SELECT * FROM events WHERE user_id = 12345;
+```
+
+### Changing ORDER BY (`set_order_by`)
+
+`set_order_by` is a ClickHouse-only **physical rebuild**:
+
+1. read `system.tables.create_table_query`;
+2. rewrite the top-level `ORDER BY`/`PRIMARY KEY` (preserving engine,
+   partitioning, TTL, settings, skip indexes, projections, and columns);
+3. create a temp table, `INSERT SELECT` all rows, verify row count;
+4. atomically `RENAME` temp to the table and drop/keep the old table.
+
+```python
+# inspect first (default: no writes)
+plan = ctx.set_order_by(
+    columns=["tenant_id", "event_date"],
+    primary_key=["tenant_id"],   # must be a prefix of columns
+)
+print(plan["ddl"], plan["rows"], plan["bytes_on_disk"])
+
+# run in a maintenance window
+result = ctx.set_order_by(
+    columns=["tenant_id", "event_date"],
+    primary_key=["tenant_id"],
+    dry_run=False,
+    keep_backup=True,
+)
+```
+
+- `dry_run=True` is the default; pass `dry_run=False` to execute.
+- `verify="count"` (default) checks the copied row count; `verify=None` skips
+  it.
+- `keep_backup=True` leaves `<table>__old_<timestamp>`; otherwise it is dropped
+  after the swap.
+- Requires **~2× table space** and takes time proportional to table size.
+- **External writes during the copy can be lost.** memFrame serializes its own
+  operations on the dataset, but ClickHouse cannot lock a table against
+  external writers; use a maintenance window and back up first.
+- Replicated, Distributed, and non-MergeTree engines are rejected.
+- Nullable `ORDER BY` columns are supported by adding the table setting
+  `allow_nullable_key = 1` (memFrame uploads columns as `Nullable`).
+- Choose the key from real query filters, low-cardinality columns first, and
+  keep it to 4–5 columns. `ORDER BY` is immutable; planning it at table
+  creation is preferable to rebuilding later.
+
+## What was removed
+
+The old metadata-only logical index is gone:
+
+- no `index_cols` column in `memframe_csv_registry`;
+- no `set_index`/`reset_index`/`get_index`/`reindex`/`reindex_like`;
+- no `ctx.index` property.
+
+Use pandas on a fetched frame for row-label alignment, or the index API above
+for database indexing.

@@ -85,6 +85,7 @@ the pandas index is used for alignment only and dropped (tables are unordered).
 | Domain | What it covers |
 | --- | --- |
 | [Inspect](inspect.md) | Shape, dtypes, head/tail, value counts, describe-style summaries, sampling. |
+| [Index](index.md) | Database-native indexes (DuckDB ART, PostgreSQL B-tree/partial/covering, ClickHouse skipping indexes) and ClickHouse `ORDER BY` rebuilds. |
 | [Clean](cleaning.md) | Null filling (global, group-wise, forward/backward), outlier handling, type conversion, duplicate removal. |
 | [Arithmetic](arithmetic.md) | Element-wise arithmetic, rounding, clipping, percentage change, column-to-column operations. |
 | [Cumulative](cumulative.md) | Running sum/product/min/max/mean/count/std/var over an ordered column. |

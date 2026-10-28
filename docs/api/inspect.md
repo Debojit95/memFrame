@@ -47,7 +47,6 @@ Every inspect operation has synchronous and asynchronous forms:
 | `insert(column, value)` | `await ainsert(...)` | Add a column from a value list |
 | `map(func, na_action=None, columns=None, datetime_action="skip")` | `await amap(...)` | Apply SQL expression to values |
 | `rename(columns)` | `await arename(...)` | Rename columns |
-| `set_index(columns)` | `await aset_index(...)` | Track key columns (see [Index](index.md)) |
 | `update(on, other_table, other_schema="upload", overwrite=True, errors="ignore")` | `await aupdate(...)` | Update from another table |
 | `dt.resample(column, freq, ...)` | `await dt.aresample(...)` | Time-series aggregation — see [Datetime](datetime.md#resampling) |
 | `columns` | `await acolumns()` | Column labels |
@@ -422,24 +421,6 @@ Parameters:
 | --- | --- | --- |
 | `columns` | `dict[str, str]` | Mapping of old column names to new names. |
 
-### `set_index`
-
-> Superseded by the metadata-only [Index](index.md) engine (`set_index` tracks
-> key columns in the registry; no `PRIMARY KEY` DDL). This `TableOps` path is
-> kept for compatibility.
-
-`set_index` adds a primary-key constraint over selected columns.
-
-```python
-result = dataset.set_index(columns=["customer_id"])
-```
-
-`set_index` parameters:
-
-| Parameter | Type | Description |
-| --- | --- | --- |
-| `columns` | `list[str]` | Columns used for the primary key. |
-
 ### `update`
 
 `update` updates rows from another backend table using a key column.
@@ -579,8 +560,8 @@ Inspect methods raise `OperationError` for invalid input or backend failures.
   match the row count.
 - `map` raises an error when `func` is not a SQL expression string or when no
   selected columns are compatible with the expression.
-- `rename`, `set_index`, and `update` can raise
-  backend SQL errors when identifiers or constraints are invalid.
+- `rename` and `update` can raise backend SQL errors when identifiers or
+  constraints are invalid.
 
 ## API Reference
 
@@ -611,8 +592,6 @@ Inspect methods raise `OperationError` for invalid input or backend failures.
         - map
         - arename
         - rename
-        - aset_index
-        - set_index
         - aupdate
         - update
         - acolumns

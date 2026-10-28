@@ -25,6 +25,11 @@ on top.
 - **Adapter** — `DatabaseAdapter` is the only place that knows placeholder style
   (`?` vs `$1`), identifier quoting, and metadata queries, per backend.
 
+Index operations are DDL against the backend catalog: `create_index`,
+`drop_index`, and `list_indexes` store no memFrame metadata. ClickHouse also
+exposes `set_order_by`, a guarded table rebuild because its `ORDER BY` primary
+key is immutable in place.
+
 ## Cross-cutting subsystems
 
 - **Connection** — `ConnectorManager` owns the lifecycle: connection pool, the
