@@ -65,6 +65,7 @@ class ContextManager:
         if self._wrappers is not None:
             return
         from memframe.wrappers.analytix.selection import SelectionWrapper
+        from memframe.wrappers.analytix.index import IndexWrapper
         from memframe.wrappers.analytix.inspection import TableOpsWrapper
         from memframe.wrappers.analytix.cleaning import CleaningWrapper
         from memframe.wrappers.analytix.stats import StatsWrapper
@@ -90,6 +91,7 @@ class ContextManager:
 
         self._wrappers = [
             SelectionWrapper(self),
+            IndexWrapper(self),
             TableOpsWrapper(self),
             CleaningWrapper(self),
             StatsWrapper(self),
