@@ -1,0 +1,308 @@
+{
+ "clickhouse_create_bloom": [
+  [
+   "fetch",
+   "SELECT engine, sorting_key, primary_key, partition_key FROM system.tables WHERE database = ? AND name = ?",
+   [
+    "db",
+    "t"
+   ]
+  ],
+  [
+   "fetch",
+   "SELECT name, type_full, expr, granularity FROM system.data_skipping_indices WHERE database = ? AND table = ? ORDER BY name",
+   [
+    "db",
+    "t"
+   ]
+  ],
+  [
+   "execute",
+   "ALTER TABLE `db`.`t` ADD INDEX IF NOT EXISTS `idx_name` `name` TYPE bloom_filter GRANULARITY 2",
+   []
+  ],
+  [
+   "execute",
+   "ALTER TABLE `db`.`t` MATERIALIZE INDEX `idx_name` SETTINGS mutations_sync = 1",
+   []
+  ],
+  [
+   "fetch",
+   "SELECT name, type_full, expr, granularity FROM system.data_skipping_indices WHERE database = ? AND table = ? ORDER BY name",
+   [
+    "db",
+    "t"
+   ]
+  ]
+ ],
+ "clickhouse_create_minmax": [
+  [
+   "fetch",
+   "SELECT engine, sorting_key, primary_key, partition_key FROM system.tables WHERE database = ? AND name = ?",
+   [
+    "db",
+    "t"
+   ]
+  ],
+  [
+   "fetch",
+   "SELECT name, type_full, expr, granularity FROM system.data_skipping_indices WHERE database = ? AND table = ? ORDER BY name",
+   [
+    "db",
+    "t"
+   ]
+  ],
+  [
+   "execute",
+   "ALTER TABLE `db`.`t` ADD INDEX IF NOT EXISTS `idx` `id` TYPE minmax GRANULARITY 1",
+   []
+  ],
+  [
+   "execute",
+   "ALTER TABLE `db`.`t` MATERIALIZE INDEX `idx` SETTINGS mutations_sync = 1",
+   []
+  ],
+  [
+   "fetch",
+   "SELECT name, type_full, expr, granularity FROM system.data_skipping_indices WHERE database = ? AND table = ? ORDER BY name",
+   [
+    "db",
+    "t"
+   ]
+  ]
+ ],
+ "clickhouse_drop": [
+  [
+   "fetch",
+   "SELECT name, type_full, expr, granularity FROM system.data_skipping_indices WHERE database = ? AND table = ? ORDER BY name",
+   [
+    "db",
+    "t"
+   ]
+  ],
+  [
+   "execute",
+   "ALTER TABLE `db`.`t` DROP INDEX IF EXISTS `idx` SETTINGS mutations_sync = 1",
+   []
+  ]
+ ],
+ "clickhouse_list": [
+  [
+   "fetch",
+   "SELECT name, type_full, expr, granularity FROM system.data_skipping_indices WHERE database = ? AND table = ? ORDER BY name",
+   [
+    "db",
+    "t"
+   ]
+  ],
+  [
+   "fetch",
+   "SELECT engine, sorting_key, primary_key, partition_key FROM system.tables WHERE database = ? AND name = ?",
+   [
+    "db",
+    "t"
+   ]
+  ]
+ ],
+ "clickhouse_order_by_dry_run": [
+  [
+   "fetch",
+   "SELECT engine, sorting_key, primary_key, partition_key FROM system.tables WHERE database = ? AND name = ?",
+   [
+    "db",
+    "t"
+   ]
+  ],
+  [
+   "fetch",
+   "SELECT create_table_query FROM system.tables WHERE database = ? AND name = ?",
+   [
+    "db",
+    "t"
+   ]
+  ],
+  [
+   "fetchval",
+   "SELECT count() FROM `db`.`t`",
+   []
+  ],
+  [
+   "fetchval",
+   "SELECT sum(bytes_on_disk) FROM system.parts WHERE database = ? AND table = ? AND active",
+   [
+    "db",
+    "t"
+   ]
+  ]
+ ],
+ "duckdb_create": [
+  [
+   "fetch",
+   "SELECT schema_name, index_name, table_name, is_unique, sql FROM duckdb_indexes() WHERE schema_name = ? ORDER BY index_name",
+   [
+    "s"
+   ]
+  ],
+  [
+   "execute",
+   "CREATE INDEX IF NOT EXISTS \"idx\" ON \"s\".\"t\" (\"id\")",
+   []
+  ],
+  [
+   "fetch",
+   "SELECT schema_name, index_name, table_name, is_unique, sql FROM duckdb_indexes() WHERE schema_name = ? AND table_name = ? ORDER BY index_name",
+   [
+    "s",
+    "t"
+   ]
+  ]
+ ],
+ "duckdb_create_unique": [
+  [
+   "fetch",
+   "SELECT schema_name, index_name, table_name, is_unique, sql FROM duckdb_indexes() WHERE schema_name = ? ORDER BY index_name",
+   [
+    "s"
+   ]
+  ],
+  [
+   "execute",
+   "CREATE UNIQUE INDEX IF NOT EXISTS \"idx\" ON \"s\".\"t\" (\"id\", \"name\")",
+   []
+  ],
+  [
+   "fetch",
+   "SELECT schema_name, index_name, table_name, is_unique, sql FROM duckdb_indexes() WHERE schema_name = ? AND table_name = ? ORDER BY index_name",
+   [
+    "s",
+    "t"
+   ]
+  ]
+ ],
+ "duckdb_drop": [
+  [
+   "fetch",
+   "SELECT schema_name, index_name, table_name, is_unique, sql FROM duckdb_indexes() WHERE schema_name = ? ORDER BY index_name",
+   [
+    "s"
+   ]
+  ],
+  [
+   "execute",
+   "DROP INDEX IF EXISTS \"s\".\"idx\"",
+   []
+  ]
+ ],
+ "duckdb_list": [
+  [
+   "fetch",
+   "SELECT schema_name, index_name, table_name, is_unique, sql FROM duckdb_indexes() WHERE schema_name = ? AND table_name = ? ORDER BY index_name",
+   [
+    "s",
+    "t"
+   ]
+  ],
+  [
+   "fetch",
+   "SELECT constraint_name, constraint_type, constraint_column_names FROM duckdb_constraints() WHERE schema_name = ? AND table_name = ? AND constraint_type IN ('PRIMARY KEY', 'UNIQUE') ORDER BY constraint_name",
+   [
+    "s",
+    "t"
+   ]
+  ]
+ ],
+ "postgres_create": [
+  [
+   "fetch",
+   "SELECT i.relname AS index_name, t.relname AS table_name, ix.indisunique AS is_unique, ix.indisvalid AS is_valid, am.amname AS method, pg_get_indexdef(ix.indexrelid) AS definition, con.contype AS constraint_type FROM pg_index ix JOIN pg_class i ON i.oid = ix.indexrelid JOIN pg_class t ON t.oid = ix.indrelid JOIN pg_namespace n ON n.oid = t.relnamespace JOIN pg_am am ON am.oid = i.relam LEFT JOIN pg_constraint con ON con.conindid = ix.indexrelid WHERE n.nspname = $1 AND i.relname = $2 ORDER BY i.relname",
+   [
+    "s",
+    "idx"
+   ]
+  ],
+  [
+   "execute",
+   "CREATE INDEX IF NOT EXISTS \"idx\" ON \"s\".\"t\" USING btree (\"id\")",
+   []
+  ],
+  [
+   "fetch",
+   "SELECT i.relname AS index_name, t.relname AS table_name, ix.indisunique AS is_unique, ix.indisvalid AS is_valid, am.amname AS method, pg_get_indexdef(ix.indexrelid) AS definition, con.contype AS constraint_type FROM pg_index ix JOIN pg_class i ON i.oid = ix.indexrelid JOIN pg_class t ON t.oid = ix.indrelid JOIN pg_namespace n ON n.oid = t.relnamespace JOIN pg_am am ON am.oid = i.relam LEFT JOIN pg_constraint con ON con.conindid = ix.indexrelid WHERE n.nspname = $1 AND i.relname = $2 ORDER BY i.relname",
+   [
+    "s",
+    "idx"
+   ]
+  ]
+ ],
+ "postgres_create_concurrent": [
+  [
+   "fetch",
+   "SELECT i.relname AS index_name, t.relname AS table_name, ix.indisunique AS is_unique, ix.indisvalid AS is_valid, am.amname AS method, pg_get_indexdef(ix.indexrelid) AS definition, con.contype AS constraint_type FROM pg_index ix JOIN pg_class i ON i.oid = ix.indexrelid JOIN pg_class t ON t.oid = ix.indrelid JOIN pg_namespace n ON n.oid = t.relnamespace JOIN pg_am am ON am.oid = i.relam LEFT JOIN pg_constraint con ON con.conindid = ix.indexrelid WHERE n.nspname = $1 AND i.relname = $2 ORDER BY i.relname",
+   [
+    "s",
+    "idx"
+   ]
+  ],
+  [
+   "execute",
+   "CREATE INDEX CONCURRENTLY IF NOT EXISTS \"idx\" ON \"s\".\"t\" (\"id\")",
+   []
+  ],
+  [
+   "fetch",
+   "SELECT i.relname AS index_name, t.relname AS table_name, ix.indisunique AS is_unique, ix.indisvalid AS is_valid, am.amname AS method, pg_get_indexdef(ix.indexrelid) AS definition, con.contype AS constraint_type FROM pg_index ix JOIN pg_class i ON i.oid = ix.indexrelid JOIN pg_class t ON t.oid = ix.indrelid JOIN pg_namespace n ON n.oid = t.relnamespace JOIN pg_am am ON am.oid = i.relam LEFT JOIN pg_constraint con ON con.conindid = ix.indexrelid WHERE n.nspname = $1 AND i.relname = $2 ORDER BY i.relname",
+   [
+    "s",
+    "idx"
+   ]
+  ]
+ ],
+ "postgres_create_partial_include": [
+  [
+   "fetch",
+   "SELECT i.relname AS index_name, t.relname AS table_name, ix.indisunique AS is_unique, ix.indisvalid AS is_valid, am.amname AS method, pg_get_indexdef(ix.indexrelid) AS definition, con.contype AS constraint_type FROM pg_index ix JOIN pg_class i ON i.oid = ix.indexrelid JOIN pg_class t ON t.oid = ix.indrelid JOIN pg_namespace n ON n.oid = t.relnamespace JOIN pg_am am ON am.oid = i.relam LEFT JOIN pg_constraint con ON con.conindid = ix.indexrelid WHERE n.nspname = $1 AND i.relname = $2 ORDER BY i.relname",
+   [
+    "s",
+    "idx"
+   ]
+  ],
+  [
+   "execute",
+   "CREATE INDEX IF NOT EXISTS \"idx\" ON \"s\".\"t\" (\"id\") INCLUDE (\"name\") WHERE id > 1",
+   []
+  ],
+  [
+   "fetch",
+   "SELECT i.relname AS index_name, t.relname AS table_name, ix.indisunique AS is_unique, ix.indisvalid AS is_valid, am.amname AS method, pg_get_indexdef(ix.indexrelid) AS definition, con.contype AS constraint_type FROM pg_index ix JOIN pg_class i ON i.oid = ix.indexrelid JOIN pg_class t ON t.oid = ix.indrelid JOIN pg_namespace n ON n.oid = t.relnamespace JOIN pg_am am ON am.oid = i.relam LEFT JOIN pg_constraint con ON con.conindid = ix.indexrelid WHERE n.nspname = $1 AND i.relname = $2 ORDER BY i.relname",
+   [
+    "s",
+    "idx"
+   ]
+  ]
+ ],
+ "postgres_drop": [
+  [
+   "fetch",
+   "SELECT i.relname AS index_name, t.relname AS table_name, ix.indisunique AS is_unique, ix.indisvalid AS is_valid, am.amname AS method, pg_get_indexdef(ix.indexrelid) AS definition, con.contype AS constraint_type FROM pg_index ix JOIN pg_class i ON i.oid = ix.indexrelid JOIN pg_class t ON t.oid = ix.indrelid JOIN pg_namespace n ON n.oid = t.relnamespace JOIN pg_am am ON am.oid = i.relam LEFT JOIN pg_constraint con ON con.conindid = ix.indexrelid WHERE n.nspname = $1 AND i.relname = $2 ORDER BY i.relname",
+   [
+    "s",
+    "idx"
+   ]
+  ],
+  [
+   "execute",
+   "DROP INDEX IF EXISTS \"s\".\"idx\"",
+   []
+  ]
+ ],
+ "postgres_list": [
+  [
+   "fetch",
+   "SELECT i.relname AS index_name, t.relname AS table_name, ix.indisunique AS is_unique, ix.indisvalid AS is_valid, am.amname AS method, pg_get_indexdef(ix.indexrelid) AS definition, con.contype AS constraint_type FROM pg_index ix JOIN pg_class i ON i.oid = ix.indexrelid JOIN pg_class t ON t.oid = ix.indrelid JOIN pg_namespace n ON n.oid = t.relnamespace JOIN pg_am am ON am.oid = i.relam LEFT JOIN pg_constraint con ON con.conindid = ix.indexrelid WHERE n.nspname = $1 AND t.relname = $2 ORDER BY i.relname",
+   [
+    "s",
+    "t"
+   ]
+  ]
+ ]
+}
