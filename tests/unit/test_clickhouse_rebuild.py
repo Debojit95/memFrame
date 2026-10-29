@@ -9,9 +9,10 @@ from memframe.core.analytix.index.clickhouse_ddl import (
 
 
 class _CHAdapter:
-    def __init__(self, ddl: str, engine: str = "MergeTree"):
+    def __init__(self, ddl: str, engine: str = "MergeTree", version=None):
         self.ddl = ddl
         self.engine = engine
+        self.version = version
         self.executed = []
 
     async def fetch(self, sql, *args):
@@ -33,6 +34,8 @@ class _CHAdapter:
 
     async def fetchval(self, sql, *args):
         upper = " ".join(sql.split()).upper()
+        if "VERSION()" in upper:
+            return self.version
         if "COUNT()" in upper:
             return 3
         if "SYSTEM.PARTS" in upper:
@@ -153,13 +156,40 @@ def test_clickhouse_unique_index_is_rejected():
     assert adapter.executed == []
 
 
-def test_clickhouse_multi_column_requires_expression():
+def test_clickhouse_create_index_defaults_to_projection():
     adapter = _CHAdapter(DDL)
     response = asyncio.run(
         ClickHouseIndexOps(adapter).create_index(
-            "t", "db", columns=["id", "name"]
+            "t", "db", columns=["id"], name="proj"
+        )
+    )
+
+    assert response["is_error"] is False
+    joined = "\n".join(adapter.executed)
+    assert "ADD PROJECTION" in joined
+    assert "_part_offset" in joined
+
+
+def test_clickhouse_multi_column_creates_composite_projection():
+    adapter = _CHAdapter(DDL)
+    response = asyncio.run(
+        ClickHouseIndexOps(adapter).create_index(
+            "t", "db", columns=["id", "name"], name="proj"
+        )
+    )
+
+    assert response["is_error"] is False
+    assert "ORDER BY (`id`, `name`)" in "\n".join(adapter.executed)
+
+
+def test_clickhouse_projection_requires_version_25_5():
+    adapter = _CHAdapter(DDL, version="25.4.1")
+    response = asyncio.run(
+        ClickHouseIndexOps(adapter).create_index(
+            "t", "db", columns=["id"], name="proj"
         )
     )
 
     assert response["is_error"] is True
-    assert "expression" in response["error_message"]
+    assert "25.5" in response["error_message"]
+    assert adapter.executed == []

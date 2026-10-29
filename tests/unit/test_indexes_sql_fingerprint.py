@@ -95,13 +95,16 @@ def _pg(rows=None):
     return handler
 
 
-def _ch(skipping=None, ddl=CH_DDL, engine="MergeTree"):
+def _ch(skipping=None, projections=None, ddl=CH_DDL, engine="MergeTree"):
     skipping = skipping or []
+    projections = projections or []
 
     def handler(sql, *args):
         upper = " ".join(sql.split()).upper()
         if "CREATE_TABLE_QUERY" in upper:
             return [{"create_table_query": ddl}]
+        if "SYSTEM.PROJECTIONS" in upper:
+            return list(projections)
         if "SYSTEM.TABLES" in upper:
             return [
                 {
@@ -139,6 +142,12 @@ CH_ROW = {
     "type_full": "minmax",
     "expr": "id",
     "granularity": 1,
+}
+CH_PROJECTION_ROW = {
+    "name": "proj",
+    "type": "Normal",
+    "sorting_key": ["id"],
+    "query": "SELECT _part_offset ORDER BY id",
 }
 
 
@@ -227,6 +236,30 @@ def _build_scenarios():
     scenarios["clickhouse_list"] = (
         _FakeAdapter(_ch([CH_ROW]), CH_COLS, quote=ch_quote),
         lambda a: ClickHouseIndexOps(a).list_indexes("t", "db"),
+    )
+    scenarios["clickhouse_create_projection"] = (
+        _FakeAdapter(_ch(), CH_COLS, quote=ch_quote),
+        lambda a: ClickHouseIndexOps(a).create_index(
+            "t", "db", columns=["id"], name="proj"
+        ),
+    )
+    scenarios["clickhouse_create_projection_composite"] = (
+        _FakeAdapter(_ch(), CH_COLS, quote=ch_quote),
+        lambda a: ClickHouseIndexOps(a).create_index(
+            "t", "db", columns=["id", "name"], name="proj"
+        ),
+    )
+    scenarios["clickhouse_list_projection"] = (
+        _FakeAdapter(
+            _ch(projections=[CH_PROJECTION_ROW]), CH_COLS, quote=ch_quote
+        ),
+        lambda a: ClickHouseIndexOps(a).list_indexes("t", "db"),
+    )
+    scenarios["clickhouse_drop_projection"] = (
+        _FakeAdapter(
+            _ch(projections=[CH_PROJECTION_ROW]), CH_COLS, quote=ch_quote
+        ),
+        lambda a: ClickHouseIndexOps(a).drop_index("t", "db", "proj"),
     )
     scenarios["clickhouse_order_by_dry_run"] = (
         _FakeAdapter(_ch(), CH_COLS, quote=ch_quote),

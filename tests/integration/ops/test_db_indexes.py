@@ -103,6 +103,32 @@ def test_postgres_options(indexed_ctx, backend_config):
     assert brin["method"] == "brin"
 
 
+def test_clickhouse_default_projection(indexed_ctx, backend_config):
+    if backend_config["backend"] != "clickhouse":
+        pytest.skip("ClickHouse-specific projection indexes")
+
+    name = _name("proj_name")
+    created = indexed_ctx.create_index(columns=["name"], name=name)
+    assert created["source"] == "projection_index"
+
+    listed = indexed_ctx.list_indexes()
+    projection = next(row for row in listed if row["name"] == name)
+    assert projection["source"] == "projection_index"
+    assert "_part_offset" in (projection.get("definition") or "")
+
+    composite = _name("proj_composite")
+    created_composite = indexed_ctx.create_index(
+        columns=["id", "name"], name=composite
+    )
+    assert created_composite["source"] == "projection_index"
+
+    assert indexed_ctx.drop_index(name)["dropped"] is True
+    assert indexed_ctx.drop_index(composite)["dropped"] is True
+    remaining = {row["name"] for row in indexed_ctx.list_indexes()}
+    assert name not in remaining
+    assert composite not in remaining
+
+
 def test_clickhouse_skipping_index(indexed_ctx, backend_config):
     if backend_config["backend"] != "clickhouse":
         pytest.skip("ClickHouse-specific skipping indexes")
