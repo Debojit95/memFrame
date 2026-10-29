@@ -35,6 +35,36 @@ class ClickHouseIndexOps(DataIndexOps):
         re.IGNORECASE,
     )
 
+    def __init__(self, db):
+        super().__init__(db)
+        self._server_version_cache: Optional[tuple] = None
+
+    async def _server_version(self) -> tuple:
+        if self._server_version_cache is None:
+            try:
+                raw = await self.db.fetchval("SELECT version()")
+                parts = str(raw).split(".")
+                self._server_version_cache = (
+                    int(parts[0]), int(parts[1])
+                ) if len(parts) >= 2 else ()
+            except Exception:
+                self._server_version_cache = ()
+        return self._server_version_cache
+
+    async def _projections(
+        self, table: str, schema: str
+    ) -> List[Dict[str, Any]]:
+        try:
+            return await self.db.fetch(
+                "SELECT name, type, sorting_key, query "
+                "FROM system.projections "
+                "WHERE database = ? AND table = ? ORDER BY name",
+                schema,
+                table,
+            )
+        except Exception:
+            return []
+
     async def _table_meta(self, table: str, schema: str) -> Dict[str, Any]:
         rows = await self.db.fetch(
             "SELECT engine, sorting_key, primary_key, partition_key "
@@ -78,6 +108,45 @@ class ClickHouseIndexOps(DataIndexOps):
             if options.get(key) not in (None, False):
                 return self._error(f"ClickHouse does not support '{key}' for indexes")
 
+        kind = (index_type or "").strip().lower()
+        if kind in ("", "projection", "projection_index"):
+            if granularity not in (None, 1):
+                return self._error(
+                    "granularity applies only to ClickHouse skipping indexes"
+                )
+            return await self.create_projection(
+                table,
+                schema,
+                columns=columns,
+                expression=expression,
+                name=name,
+                if_not_exists=if_not_exists,
+                materialize=materialize,
+            )
+        return await self._create_skipping_index(
+            table,
+            schema,
+            columns=columns,
+            name=name,
+            if_not_exists=if_not_exists,
+            expression=expression,
+            index_type=index_type,
+            granularity=granularity,
+            materialize=materialize,
+        )
+
+    async def _create_skipping_index(
+        self,
+        table: str,
+        schema: str,
+        columns: Optional[List[str]] = None,
+        name: Optional[str] = None,
+        if_not_exists: bool = True,
+        expression: Optional[str] = None,
+        index_type: Optional[str] = None,
+        granularity: int = 1,
+        materialize: bool = True,
+    ) -> Dict[str, Any]:
         cols = self._as_columns(columns)
         if expression and cols:
             return self._error("Pass either `columns` or `expression`, not both")
@@ -134,6 +203,11 @@ class ClickHouseIndexOps(DataIndexOps):
                 return self._error(
                     f"Index '{index_name}' already exists on '{table}'"
                 )
+        for row in await self._projections(table, schema):
+            if row["name"] == index_name:
+                return self._error(
+                    f"Name '{index_name}' is already used by a projection"
+                )
 
         sql = (
             f"ALTER TABLE {self._qualified(table, schema)} "
@@ -175,6 +249,141 @@ class ClickHouseIndexOps(DataIndexOps):
             },
         )
 
+    async def create_projection(
+        self,
+        table: str,
+        schema: str,
+        columns: Optional[List[str]] = None,
+        expression: Optional[str] = None,
+        name: Optional[str] = None,
+        if_not_exists: bool = True,
+        materialize: bool = True,
+    ) -> Dict[str, Any]:
+        version = await self._server_version()
+        if version and version < (25, 5):
+            return self._error(
+                "Projection indexes require ClickHouse >= 25.5; "
+                "pass index_type='minmax'/'bloom_filter' for a skipping index "
+                "or upgrade the server"
+            )
+
+        cols = self._as_columns(columns)
+        if expression is not None and cols:
+            return self._error("Pass either `columns` or `expression`, not both")
+        if expression is not None:
+            if not str(expression).strip():
+                return self._error("`expression` cannot be empty")
+            order_sql = str(expression).strip()
+        else:
+            if not cols:
+                return self._error("Provide at least one column for the projection")
+            available = await self._available_columns(table, schema)
+            invalid = self._validate_columns(cols, available)
+            if invalid:
+                return invalid
+            order_sql = "(" + ", ".join(self._q(c) for c in cols) + ")"
+
+        meta = await self._table_meta(table, schema)
+        if not meta:
+            return self._error(f"Table '{table}' not found in '{schema}'")
+        engine = str(meta.get("engine") or "")
+        if engine not in self._MERGETREE_ENGINES:
+            return self._error(
+                f"Projections require a local MergeTree engine; '{table}' uses {engine!r}"
+            )
+
+        projection_name = self._resolve_name(name, table, cols, expression)
+        projections = await self._projections(table, schema)
+        for row in projections:
+            if row["name"] == projection_name:
+                if if_not_exists:
+                    return self._ok(
+                        f"Projection '{projection_name}' already exists",
+                        self._projection_row(row, schema, table),
+                    )
+                return self._error(
+                    f"Projection '{projection_name}' already exists on '{table}'"
+                )
+        for row in await self._skipping_indexes(table, schema):
+            if row["name"] == projection_name:
+                return self._error(
+                    f"Name '{projection_name}' is already used by a skipping index"
+                )
+
+        sql = (
+            f"ALTER TABLE {self._qualified(table, schema)} "
+            f"ADD PROJECTION IF NOT EXISTS {self._q(projection_name)} "
+            f"(SELECT _part_offset ORDER BY {order_sql})"
+        )
+        try:
+            await self.db.execute(sql)
+            if materialize:
+                await self.db.execute(
+                    f"ALTER TABLE {self._qualified(table, schema)} "
+                    f"MATERIALIZE PROJECTION {self._q(projection_name)} "
+                    f"SETTINGS mutations_sync = 1"
+                )
+        except Exception as exc:
+            return self._error(f"create_projection error: {exc}")
+
+        refreshed = await self._projections(table, schema)
+        for row in refreshed:
+            if row["name"] == projection_name:
+                return self._ok(
+                    f"Created projection '{projection_name}' on '{table}'",
+                    self._projection_row(row, schema, table),
+                )
+        return self._ok(
+            f"Created projection '{projection_name}' on '{table}'",
+            {
+                "name": projection_name,
+                "schema": schema,
+                "table": table,
+                "columns": cols,
+                "expression": expression,
+                "source": "projection_index",
+                "materialized": materialize,
+                "droppable": True,
+                "backend": "clickhouse",
+            },
+        )
+
+    async def drop_projection(
+        self,
+        table: str,
+        schema: str,
+        name: str,
+        if_exists: bool = True,
+    ) -> Dict[str, Any]:
+        projection_name = self._fit_name(name)
+        rows = await self._projections(table, schema)
+        if not any(row["name"] == projection_name for row in rows):
+            if if_exists:
+                return self._ok(
+                    f"Projection '{projection_name}' does not exist",
+                    {"name": projection_name, "dropped": False},
+                )
+            return self._error(f"Projection '{projection_name}' does not exist")
+
+        try:
+            await self.db.execute(
+                f"ALTER TABLE {self._qualified(table, schema)} "
+                f"DROP PROJECTION IF EXISTS {self._q(projection_name)} "
+                f"SETTINGS mutations_sync = 1"
+            )
+        except Exception as exc:
+            return self._error(f"drop_projection error: {exc}")
+        return self._ok(
+            f"Dropped projection '{projection_name}'",
+            {
+                "name": projection_name,
+                "table": table,
+                "schema": schema,
+                "source": "projection",
+                "dropped": True,
+            },
+        )
+
     async def drop_index(
         self,
         table: str,
@@ -187,6 +396,12 @@ class ClickHouseIndexOps(DataIndexOps):
             return self._error("ClickHouse does not support concurrent drops")
 
         index_name = self._fit_name(name)
+        projection_rows = await self._projections(table, schema)
+        if any(row["name"] == index_name for row in projection_rows):
+            return await self.drop_projection(
+                table, schema, index_name, if_exists=if_exists
+            )
+
         rows = await self._skipping_indexes(table, schema)
         if not any(row["name"] == index_name for row in rows):
             if if_exists:
@@ -210,8 +425,13 @@ class ClickHouseIndexOps(DataIndexOps):
         )
 
     async def list_indexes(self, table: str, schema: str) -> Dict[str, Any]:
+        projections = await self._projections(table, schema)
+        result = [
+            self._projection_row(row, schema, table) for row in projections
+        ]
+
         rows = await self._skipping_indexes(table, schema)
-        result = [self._row(row) for row in rows]
+        result.extend(self._row(row) for row in rows)
 
         meta = await self._table_meta(table, schema)
         if meta:
@@ -394,6 +614,26 @@ class ClickHouseIndexOps(DataIndexOps):
             "expression": row.get("expr"),
             "granularity": row.get("granularity"),
             "source": "skipping",
+            "droppable": True,
+            "backend": "clickhouse",
+        }
+
+    @staticmethod
+    def _projection_row(
+        row: Dict[str, Any],
+        schema: Optional[str] = None,
+        table: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        query = str(row.get("query") or "")
+        is_index = "_part_offset" in query or query.strip().upper().startswith("INDEX")
+        return {
+            "name": row["name"],
+            "schema": schema,
+            "table": table,
+            "source": "projection_index" if is_index else "projection",
+            "projection_type": row.get("type"),
+            "sorting_key": row.get("sorting_key"),
+            "definition": query,
             "droppable": True,
             "backend": "clickhouse",
         }
