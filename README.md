@@ -24,7 +24,7 @@
 - Async-first surface with sync equivalents for every operation.
 - Upload from CSV, Parquet, or pandas DataFrame.
 - Pandas-style `mf.DataFrame(...)` constructor for dicts, frames, or existing dataset contexts.
-- Database-native indexes: DuckDB ART, PostgreSQL B-tree/partial/covering, ClickHouse skipping indexes, plus a guarded ClickHouse `ORDER BY` rebuild.
+- Database-native indexes: DuckDB ART, PostgreSQL B-tree/partial/covering, ClickHouse projection indexes (no full data copy) with explicit skipping-index types, plus a guarded ClickHouse `ORDER BY` rebuild.
 - Sync pre-existing DuckDB, PostgreSQL, or ClickHouse tables as datasets — no re-upload.
 - Two-level cache: lineage audit + replayable result tables.
 - Optional AI agent layer (`memframe_ai`) for chatting with your CSV.

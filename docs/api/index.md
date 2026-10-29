@@ -99,10 +99,47 @@ ClickHouse has **no conventional secondary B-tree index**. The sparse primary
 index is the table's physical `ORDER BY`, and **`ORDER BY` is immutable after
 table creation**. A new `ORDER BY` requires rebuilding the table.
 
-### Data-skipping indexes
+### Projection indexes (default)
 
-`create_index` adds a data-skipping index for filters on columns that are not
-in `ORDER BY`:
+On ClickHouse, `create_index` creates a **projection index** by default:
+
+```python
+ctx.create_index(columns=["user_id"], name="proj_user")
+ctx.create_index(columns=["tenant_id", "event_date"], name="proj_tenant_time")
+ctx.create_index(expression="lower(name)", name="proj_name_lower")
+```
+
+The generated DDL is:
+
+```sql
+ALTER TABLE events
+ADD PROJECTION IF NOT EXISTS proj_user
+(SELECT _part_offset ORDER BY (`user_id`));
+
+ALTER TABLE events MATERIALIZE PROJECTION proj_user
+SETTINGS mutations_sync = 1;
+```
+
+- `_part_offset` stores a **permutation**, not a full copy of the table's
+  columns. This is the no-full-data-duplication option.
+- One composite projection is created per call:
+  `ORDER BY (col1, col2)`. It helps **prefix** predicates (`col1`,
+  `col1 + col2`); create separate projections for independent filters.
+- ClickHouse uses projection indexes for **part-level pruning** (as of
+  CH 25.6/26.x), not granule-level skipping. They are useful when the table
+  has many parts; data-skipping indexes remain better for granule-level
+  selective filters.
+- Projection indexes require **ClickHouse >= 25.5**. Older servers return a
+  clear error; pass an explicit `index_type` (below) to use a skipping index
+  instead.
+- `MATERIALIZE` is a mutation and can be expensive on large tables; pass
+  `materialize=False` to defer it. New parts are built automatically.
+- `list_indexes()` reports projection indexes with
+  `source="projection_index"` and includes their sorting key and definition.
+
+### Data-skipping indexes (explicit)
+
+Pass an explicit `index_type` to create a data-skipping index instead:
 
 ```python
 ctx.create_index(
@@ -128,9 +165,10 @@ Supported types: `minmax`, `set(N)`, `bloom_filter`, `ngrambf_v1(...)`,
 which is a mutation and can be expensive on large tables. New parts are indexed
 automatically.
 
-`list_indexes()` returns skipping indexes plus a non-droppable `order_by`
-entry with the table's `engine`, `sorting_key`, `primary_key`, and
-`partition_key`.
+`list_indexes()` returns skipping indexes with `source="skipping"`, plus a
+non-droppable `order_by` entry with the table's `engine`, `sorting_key`,
+`primary_key`, and `partition_key`. `drop_index` auto-detects projection vs
+skipping index by name.
 
 Use skipping indexes **after** choosing native types, the `ORDER BY` key, and
 materialized views. Verify with:
@@ -139,6 +177,20 @@ materialized views. Verify with:
 EXPLAIN indexes = 1
 SELECT * FROM events WHERE user_id = 12345;
 ```
+
+For projection indexes, inspect `EXPLAIN projections = 1` or
+`system.query_log.projections`.
+
+### Projection index vs normal projection vs skipping index
+
+| Mechanism | Data copy | Pruning |
+| --- | --- | --- |
+| Projection index (`SELECT _part_offset ORDER BY ...`) | Permutation/offset only | Part-level |
+| Normal projection (`SELECT * ORDER BY ...`) | Full selected columns | Alternate sort order |
+| Data-skipping index (`INDEX ... TYPE bloom_filter/minmax/...`) | Metadata only | Granule-level |
+
+memFrame only generates the `_part_offset` form; it never creates a normal
+projection that duplicates full rows.
 
 ### Changing ORDER BY (`set_order_by`)
 

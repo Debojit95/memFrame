@@ -20,11 +20,13 @@ to [Semantic Versioning](https://semver.org/).
   `await mf.aDataFrame(...)`.
 - **Database-native indexes**: `ctx.create_index`, `ctx.drop_index`, and
   `ctx.list_indexes` with per-backend options (DuckDB unique ART indexes;
-  PostgreSQL methods, partial/covering indexes, `CONCURRENTLY`; ClickHouse
-  skipping-index types and materialization). ClickHouse also gains
-  `ctx.set_order_by` — a guarded, dry-run-first physical `ORDER BY` rebuild
-  that preserves engine/partitioning/TTL/settings/skip indexes and optionally
-  keeps a backup table.
+  PostgreSQL methods, partial/covering indexes, `CONCURRENTLY`). ClickHouse
+  `create_index` now defaults to a projection index (`SELECT _part_offset
+  ORDER BY ...`) that avoids full data duplication; explicit
+  `index_type="minmax"`/`"bloom_filter"`/etc. still creates a data-skipping
+  index. ClickHouse also gains `ctx.set_order_by` — a guarded, dry-run-first
+  physical `ORDER BY` rebuild that preserves engine/partitioning/TTL/settings/
+  skip indexes and optionally keeps a backup table.
 
 ### Removed
 - **Metadata-only logical index** (breaking): the `index_cols` registry column,
