@@ -32,6 +32,28 @@ class ClickHouseCleaningOps(DataCleaningOps):
     def _update_stmt(self, tq: str, set_expr: str) -> str:
         return f"ALTER TABLE {tq} UPDATE {set_expr} WHERE 1"
 
+    def _timestamp_literal(self, value: Any) -> str:
+        return f"toDateTime({_sql_literal(str(value))})"
+
+    def _now_expr(self) -> str:
+        return "now()"
+
+    def _datetime_fill_stat_expr(self, mode: str, col: str, table: str) -> str:
+        q = f'"{col}"'
+        if mode == "MEAN":
+            return f"toDateTime(AVG(toUnixTimestamp({q})))"
+        if mode == "MEDIAN":
+            return f"toDateTime(quantile(0.5)(toUnixTimestamp({q})))"
+        if mode == "MODE":
+            return (
+                f"(SELECT {q} FROM {table} WHERE {q} IS NOT NULL "
+                f"GROUP BY {q} ORDER BY count() DESC LIMIT 1)"
+            )
+        return f"{mode}({q})"
+
+    def _supports_window_fill(self) -> bool:
+        return False
+
     def _regex_match(self, expr: str, pattern: str) -> str:
         # ponytail: base REGEXP_MATCHES is DuckDB/PG-only; match() is the CH
         # spelling (also fixes numeric_convert_text's predicate on CH).

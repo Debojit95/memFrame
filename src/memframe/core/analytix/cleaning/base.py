@@ -812,6 +812,38 @@ class DataCleaningOps:
         """In-place UPDATE statement; ClickHouse overrides with ALTER TABLE UPDATE."""
         return f"UPDATE {tq} SET {set_expr}"
 
+    def _timestamp_literal(self, value: Any) -> str:
+        """SQL literal for a timestamp fill value."""
+        return f"CAST({_sql_literal(str(value))} AS TIMESTAMP)"
+
+    def _now_expr(self) -> str:
+        """SQL expression for the current timestamp."""
+        return "CURRENT_TIMESTAMP"
+
+    def _datetime_fill_stat_expr(self, mode: str, col: str, table: str) -> str:
+        """Complete scalar expression for a datetime fill statistic."""
+        stat_map = {
+            "MIN": f'MIN("{col}")',
+            "MAX": f'MAX("{col}")',
+            "MEAN": f'TO_TIMESTAMP(AVG(EPOCH("{col}")))',
+            "MEDIAN": f'TO_TIMESTAMP(MEDIAN(EPOCH("{col}")))',
+            "MODE": f"""
+                (
+                    SELECT "{col}"
+                    FROM {table}
+                    WHERE "{col}" IS NOT NULL
+                    GROUP BY "{col}"
+                    ORDER BY COUNT(*) DESC
+                    LIMIT 1
+                )
+            """,
+        }
+        return stat_map[mode]
+
+    def _supports_window_fill(self) -> bool:
+        """Whether FFILL/BFILL can use UPDATE ... FROM on this backend."""
+        return True
+
     # ------------------------------------------------------------------
     # Numeric
     # ------------------------------------------------------------------
@@ -1600,13 +1632,20 @@ class DataCleaningOps:
 
             async def _apply(tq):
                 if mode == "CONSTANT":
-                    val_str = str(value).replace("'", "''")
                     await self._exec(
-                        f'UPDATE {tq} SET "{safe_new}" = COALESCE("{safe_col}", \'{val_str}\')'
+                        self._update_stmt(
+                            tq,
+                            f'"{safe_new}" = COALESCE("{safe_col}", '
+                            f"{_sql_literal(str(value))})",
+                        )
                     )
                     return value
 
                 elif mode in ["FFILL", "BFILL"]:
+                    if not self._supports_window_fill():
+                        raise NotImplementedError(
+                            f"{mode} is not supported for categorical fill on this backend"
+                        )
                     row_id = self._rowid_expr()
 
                     if mode == "FFILL":
@@ -1647,18 +1686,18 @@ class DataCleaningOps:
                     return mode
 
                 elif mode == "MODE":
-                    await self._exec(f"""
-                        WITH mode_val AS (
-                            SELECT "{safe_col}" AS mode_value
-                            FROM {tq}
-                            WHERE "{safe_col}" IS NOT NULL
-                            GROUP BY "{safe_col}"
-                            ORDER BY COUNT(*) DESC
-                            LIMIT 1
+                    mode_expr = (
+                        f'(SELECT "{safe_col}" FROM {tq} '
+                        f'WHERE "{safe_col}" IS NOT NULL '
+                        f'GROUP BY "{safe_col}" '
+                        f'ORDER BY COUNT(*) DESC LIMIT 1)'
+                    )
+                    await self._exec(
+                        self._update_stmt(
+                            tq,
+                            f'"{safe_new}" = COALESCE("{safe_col}", {mode_expr})',
                         )
-                        UPDATE {tq}
-                        SET "{safe_new}" = COALESCE("{safe_col}", (SELECT mode_value FROM mode_val))
-                    """)
+                    )
 
                     return await self._fetchval(f"""
                         SELECT "{safe_col}" AS mode_value
@@ -1677,10 +1716,12 @@ class DataCleaningOps:
                         case_parts.append(f'WHEN "{safe_col}" = \'{old_esc}\' THEN \'{new_esc}\'')
                     case_expr = f"CASE {' '.join(case_parts)} ELSE \"{safe_col}\" END"
 
-                    await self._exec(f"""
-                        UPDATE {tq}
-                        SET "{safe_new}" = COALESCE({case_expr}, "{safe_col}")
-                    """)
+                    await self._exec(
+                        self._update_stmt(
+                            tq,
+                            f'"{safe_new}" = COALESCE({case_expr}, "{safe_col}")',
+                        )
+                    )
 
                     return f"{len(mapping)} mappings applied"
 
@@ -1917,18 +1958,28 @@ class DataCleaningOps:
             async def _apply(tq):
                 if mode == "CONSTANT":
                     await self._exec(
-                        f'UPDATE {tq} SET "{safe_new}" = COALESCE("{safe_col}", ?::TIMESTAMP)',
-                        str(value),
+                        self._update_stmt(
+                            tq,
+                            f'"{safe_new}" = COALESCE("{safe_col}", '
+                            f"{self._timestamp_literal(value)})",
+                        )
                     )
                     return value
 
                 elif mode == "NOW":
                     await self._exec(
-                        f'UPDATE {tq} SET "{safe_new}" = COALESCE("{safe_col}", CURRENT_TIMESTAMP)'
+                        self._update_stmt(
+                            tq,
+                            f'"{safe_new}" = COALESCE("{safe_col}", {self._now_expr()})',
+                        )
                     )
                     return "CURRENT_TIMESTAMP"
 
                 elif mode in ["FFILL", "BFILL"]:
+                    if not self._supports_window_fill():
+                        raise NotImplementedError(
+                            f"{mode} is not supported for datetime fill on this backend"
+                        )
                     row_id = self._rowid_expr()
 
                     if mode == "FFILL":
@@ -1969,34 +2020,15 @@ class DataCleaningOps:
                     return mode
 
                 else:
-                    stat_map = {
-                        "MIN": f'MIN("{safe_col}")',
-                        "MAX": f'MAX("{safe_col}")',
-                        "MEAN": f'TO_TIMESTAMP(AVG(EPOCH("{safe_col}")))',
-                        "MEDIAN": f'TO_TIMESTAMP(MEDIAN(EPOCH("{safe_col}")))',
-                        "MODE": f"""
-                            (
-                                SELECT "{safe_col}"
-                                FROM {tq}
-                                WHERE "{safe_col}" IS NOT NULL
-                                GROUP BY "{safe_col}"
-                                ORDER BY COUNT(*) DESC
-                                LIMIT 1
-                            )
-                        """
-                    }
-
-                    stat_expr = stat_map[mode]
-
-                    await self._exec(f"""
-                        WITH stat_val AS (
-                            SELECT {stat_expr} AS val
-                            FROM {tq}
-                            WHERE "{safe_col}" IS NOT NULL
+                    stat_expr = self._datetime_fill_stat_expr(
+                        mode, safe_col, tq
+                    )
+                    await self._exec(
+                        self._update_stmt(
+                            tq,
+                            f'"{safe_new}" = COALESCE("{safe_col}", ({stat_expr}))',
                         )
-                        UPDATE {tq}
-                        SET "{safe_new}" = COALESCE("{safe_col}", (SELECT val FROM stat_val))
-                    """)
+                    )
 
                     return await self._fetchval(f"""
                         SELECT {stat_expr}

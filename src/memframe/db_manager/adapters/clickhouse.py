@@ -371,8 +371,7 @@ class ClickHouseConnectClient:
             password=password,
             database=database,
             secure=secure,
-            autoconnect=False,
-            settings={"send_receive_timeout": int(timeout)},
+            send_receive_timeout=int(timeout),
         )
         self.database = database
 

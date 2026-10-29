@@ -768,7 +768,7 @@
    ],
    [
     "exec",
-    "WITHmode_valAS(SELECT\"cat\"ASmode_valueFROM\"s\".\"t__op_20240101000000000000\"WHERE\"cat\"ISNOTNULLGROUPBY\"cat\"ORDERBYCOUNT(*)DESCLIMIT1)UPDATE\"s\".\"t__op_20240101000000000000\"SET\"cleaned_cat_mode_filled\"=COALESCE(\"cat\",(SELECTmode_valueFROMmode_val))",
+    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"cleaned_cat_mode_filled\"=COALESCE(\"cat\",(SELECT\"cat\"FROM\"s\".\"t__op_20240101000000000000\"WHERE\"cat\"ISNOTNULLGROUPBY\"cat\"ORDERBYCOUNT(*)DESCLIMIT1))",
     []
    ],
    [
@@ -783,7 +783,7 @@
    ],
    [
     "exec",
-    "WITHmode_valAS(SELECT\"cat\"ASmode_valueFROM\"s\".\"t\"WHERE\"cat\"ISNOTNULLGROUPBY\"cat\"ORDERBYCOUNT(*)DESCLIMIT1)UPDATE\"s\".\"t\"SET\"cleaned_cat_mode_filled\"=COALESCE(\"cat\",(SELECTmode_valueFROMmode_val))",
+    "UPDATE\"s\".\"t\"SET\"cleaned_cat_mode_filled\"=COALESCE(\"cat\",(SELECT\"cat\"FROM\"s\".\"t\"WHERE\"cat\"ISNOTNULLGROUPBY\"cat\"ORDERBYCOUNT(*)DESCLIMIT1))",
     []
    ],
    [
@@ -815,7 +815,7 @@
    ],
    [
     "exec",
-    "WITHmode_valAS(SELECT\"cat\"ASmode_valueFROM\"s\".\"t__op_20240101000000000000\"WHERE\"cat\"ISNOTNULLGROUPBY\"cat\"ORDERBYCOUNT(*)DESCLIMIT1)UPDATE\"s\".\"t__op_20240101000000000000\"SET\"cleaned_cat_mode_filled\"=COALESCE(\"cat\",(SELECTmode_valueFROMmode_val))",
+    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"cleaned_cat_mode_filled\"=COALESCE(\"cat\",(SELECT\"cat\"FROM\"s\".\"t__op_20240101000000000000\"WHERE\"cat\"ISNOTNULLGROUPBY\"cat\"ORDERBYCOUNT(*)DESCLIMIT1))",
     []
    ],
    [
@@ -830,7 +830,7 @@
    ],
    [
     "exec",
-    "WITHmode_valAS(SELECT\"cat\"ASmode_valueFROM\"s\".\"t\"WHERE\"cat\"ISNOTNULLGROUPBY\"cat\"ORDERBYCOUNT(*)DESCLIMIT1)UPDATE\"s\".\"t\"SET\"cleaned_cat_mode_filled\"=COALESCE(\"cat\",(SELECTmode_valueFROMmode_val))",
+    "UPDATE\"s\".\"t\"SET\"cleaned_cat_mode_filled\"=COALESCE(\"cat\",(SELECT\"cat\"FROM\"s\".\"t\"WHERE\"cat\"ISNOTNULLGROUPBY\"cat\"ORDERBYCOUNT(*)DESCLIMIT1))",
     []
    ],
    [
@@ -1231,10 +1231,8 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"cleaned_ts_constant_filled\"=COALESCE(\"ts\",?::TIMESTAMP)",
-    [
-     "2024-01-01"
-    ]
+    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"cleaned_ts_constant_filled\"=COALESCE(\"ts\",CAST('2024-01-01'ASTIMESTAMP))",
+    []
    ],
    [
     "exec",
@@ -1243,10 +1241,8 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"SET\"cleaned_ts_constant_filled\"=COALESCE(\"ts\",?::TIMESTAMP)",
-    [
-     "2024-01-01"
-    ]
+    "UPDATE\"s\".\"t\"SET\"cleaned_ts_constant_filled\"=COALESCE(\"ts\",CAST('2024-01-01'ASTIMESTAMP))",
+    []
    ],
    [
     "fetchval",
@@ -1816,7 +1812,7 @@
    ],
    [
     "exec",
-    "WITHstat_valAS(SELECTTO_TIMESTAMP(AVG(EPOCH(\"ts\")))ASvalFROM\"s\".\"t__op_20240101000000000000\"WHERE\"ts\"ISNOTNULL)UPDATE\"s\".\"t__op_20240101000000000000\"SET\"cleaned_ts_mean_filled\"=COALESCE(\"ts\",(SELECTvalFROMstat_val))",
+    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"cleaned_ts_mean_filled\"=COALESCE(\"ts\",(TO_TIMESTAMP(AVG(EPOCH(\"ts\")))))",
     []
    ],
    [
@@ -1831,7 +1827,7 @@
    ],
    [
     "exec",
-    "WITHstat_valAS(SELECTTO_TIMESTAMP(AVG(EPOCH(\"ts\")))ASvalFROM\"s\".\"t\"WHERE\"ts\"ISNOTNULL)UPDATE\"s\".\"t\"SET\"cleaned_ts_mean_filled\"=COALESCE(\"ts\",(SELECTvalFROMstat_val))",
+    "UPDATE\"s\".\"t\"SET\"cleaned_ts_mean_filled\"=COALESCE(\"ts\",(TO_TIMESTAMP(AVG(EPOCH(\"ts\")))))",
     []
    ],
    [
