@@ -11,6 +11,7 @@ from memframe.core.analytix.groupby_cumulative import (
     GroupbyCumulativeOps,
     make_groupby_cumulative_ops,
 )
+from memframe.core.analytix._generated import make_sig, publish_row_aligned
 from memframe.cache import record_call
 
 
@@ -46,6 +47,41 @@ class GroupByCumulativeOrchestrator:
             self._core_ops = make_groupby_cumulative_ops(self._adapter)
         return self._core_ops
 
+    @staticmethod
+    def _involved_cols(column, group_cols, order_col):
+        cols = [column, *group_cols]
+        if order_col:
+            if isinstance(order_col, (list, tuple)):
+                cols.extend(order_col)
+            else:
+                cols.append(order_col)
+        return cols
+
+    async def _run(self, operation, column, group_cols, order_col, target_col):
+        ops = await self._ensure_ops()
+        table, schema = await self._get_active_context()
+        backend = self._memframe._backend
+        data_id = self._data_id or self._memframe._active_id
+        if isinstance(group_cols, str):
+            group_cols = [group_cols]
+        result = await getattr(ops, operation)(
+            table, schema, column, group_cols,
+            order_col=order_col, target_col=target_col,
+            backend=backend, data_id=data_id, map_feature=False,
+        )
+        sig = make_sig(
+            op=f"groupby_cumulative.{operation}", column=column,
+            group_cols=group_cols, order_col=order_col,
+            target_col=target_col,
+        )
+        return await publish_row_aligned(
+            ops, table, schema, result,
+            self._involved_cols(column, group_cols, order_col),
+            sig=sig, op_type="groupby_cum_map",
+            class_name=self.__class__.__name__, method_name=operation,
+            backend=backend, data_id=data_id,
+        )
+
     # ------------------------------------------------------------------
     #  UNIFIED DIRECT METHODS
     # ------------------------------------------------------------------
@@ -58,17 +94,7 @@ class GroupByCumulativeOrchestrator:
         target_col: Optional[str] = None,
         map_feature: bool = False,) -> Dict[str, Any]:
         
-        ops = await self._ensure_ops()
-        table, schema = await self._get_active_context()
-        backend = self._memframe._backend
-        data_id = self._data_id or self._memframe._active_id
-        if isinstance(group_cols, str):
-            group_cols = [group_cols]
-        return await ops.cumsum(
-            table, schema, column, group_cols,
-            order_col=order_col, target_col=target_col,
-            backend=backend, data_id=data_id, map_feature=map_feature,
-        )
+        return await self._run("cumsum", column, group_cols, order_col, target_col)
 
     @record_call(deep_cache=True)
     async def cumprod(
@@ -79,17 +105,7 @@ class GroupByCumulativeOrchestrator:
         target_col: Optional[str] = None,
         map_feature: bool = False,
     ) -> Dict[str, Any]:
-        ops = await self._ensure_ops()
-        table, schema = await self._get_active_context()
-        backend = self._memframe._backend
-        data_id = self._data_id or self._memframe._active_id
-        if isinstance(group_cols, str):
-            group_cols = [group_cols]
-        return await ops.cumprod(
-            table, schema, column, group_cols,
-            order_col=order_col, target_col=target_col,
-            backend=backend, data_id=data_id, map_feature=map_feature,
-        )
+        return await self._run("cumprod", column, group_cols, order_col, target_col)
 
     @record_call(deep_cache=True)
     async def cummax(
@@ -100,17 +116,7 @@ class GroupByCumulativeOrchestrator:
         target_col: Optional[str] = None,
         map_feature: bool = False,
     ) -> Dict[str, Any]:
-        ops = await self._ensure_ops()
-        table, schema = await self._get_active_context()
-        backend = self._memframe._backend
-        data_id = self._data_id or self._memframe._active_id
-        if isinstance(group_cols, str):
-            group_cols = [group_cols]
-        return await ops.cummax(
-            table, schema, column, group_cols,
-            order_col=order_col, target_col=target_col,
-            backend=backend, data_id=data_id, map_feature=map_feature,
-        )
+        return await self._run("cummax", column, group_cols, order_col, target_col)
 
     @record_call(deep_cache=True)
     async def cummin(
@@ -121,17 +127,7 @@ class GroupByCumulativeOrchestrator:
         target_col: Optional[str] = None,
         map_feature: bool = False,
     ) -> Dict[str, Any]:
-        ops = await self._ensure_ops()
-        table, schema = await self._get_active_context()
-        backend = self._memframe._backend
-        data_id = self._data_id or self._memframe._active_id
-        if isinstance(group_cols, str):
-            group_cols = [group_cols]
-        return await ops.cummin(
-            table, schema, column, group_cols,
-            order_col=order_col, target_col=target_col,
-            backend=backend, data_id=data_id, map_feature=map_feature,
-        )
+        return await self._run("cummin", column, group_cols, order_col, target_col)
 
     @record_call(deep_cache=True)
     async def cummean(
@@ -142,17 +138,7 @@ class GroupByCumulativeOrchestrator:
         target_col: Optional[str] = None,
         map_feature: bool = False,
     ) -> Dict[str, Any]:
-        ops = await self._ensure_ops()
-        table, schema = await self._get_active_context()
-        backend = self._memframe._backend
-        data_id = self._data_id or self._memframe._active_id
-        if isinstance(group_cols, str):
-            group_cols = [group_cols]
-        return await ops.cummean(
-            table, schema, column, group_cols,
-            order_col=order_col, target_col=target_col,
-            backend=backend, data_id=data_id, map_feature=map_feature,
-        )
+        return await self._run("cummean", column, group_cols, order_col, target_col)
 
     @record_call(deep_cache=True)
     async def cumcount(
@@ -163,17 +149,7 @@ class GroupByCumulativeOrchestrator:
         target_col: Optional[str] = None,
         map_feature: bool = False,
     ) -> Dict[str, Any]:
-        ops = await self._ensure_ops()
-        table, schema = await self._get_active_context()
-        backend = self._memframe._backend
-        data_id = self._data_id or self._memframe._active_id
-        if isinstance(group_cols, str):
-            group_cols = [group_cols]
-        return await ops.cumcount(
-            table, schema, column, group_cols,
-            order_col=order_col, target_col=target_col,
-            backend=backend, data_id=data_id, map_feature=map_feature,
-        )
+        return await self._run("cumcount", column, group_cols, order_col, target_col)
 
     @record_call(deep_cache=True)
     async def cumstd(
@@ -184,17 +160,7 @@ class GroupByCumulativeOrchestrator:
         target_col: Optional[str] = None,
         map_feature: bool = False,
     ) -> Dict[str, Any]:
-        ops = await self._ensure_ops()
-        table, schema = await self._get_active_context()
-        backend = self._memframe._backend
-        data_id = self._data_id or self._memframe._active_id
-        if isinstance(group_cols, str):
-            group_cols = [group_cols]
-        return await ops.cumstd(
-            table, schema, column, group_cols,
-            order_col=order_col, target_col=target_col,
-            backend=backend, data_id=data_id, map_feature=map_feature,
-        )
+        return await self._run("cumstd", column, group_cols, order_col, target_col)
 
     @record_call(deep_cache=True)
     async def cumvar(
@@ -205,17 +171,7 @@ class GroupByCumulativeOrchestrator:
         target_col: Optional[str] = None,
         map_feature: bool = False,
     ) -> Dict[str, Any]:
-        ops = await self._ensure_ops()
-        table, schema = await self._get_active_context()
-        backend = self._memframe._backend
-        data_id = self._data_id or self._memframe._active_id
-        if isinstance(group_cols, str):
-            group_cols = [group_cols]
-        return await ops.cumvar(
-            table, schema, column, group_cols,
-            order_col=order_col, target_col=target_col,
-            backend=backend, data_id=data_id, map_feature=map_feature,
-        )
+        return await self._run("cumvar", column, group_cols, order_col, target_col)
 
     # ------------------------------------------------------------------
     #  BUILDER PATTERN (returns a GroupByCumulative helper)

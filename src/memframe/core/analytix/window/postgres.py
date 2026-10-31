@@ -112,10 +112,11 @@ class PostgresWindowOps(WindowOps):
             )
             q_col = self.db.quote_identifier(safe_col)
             q_rn = self.db.quote_identifier("__totem_quant_rn")
+            src_star = await self._source_star(ordered_table, schema, [new_col])
             sql = f"""
                 CREATE TABLE {self.db.quote_identifier(schema)}.{self.db.quote_identifier(result_table)} AS
                 WITH __base AS (
-                    SELECT *,
+                    SELECT {src_star},
                         ROW_NUMBER() OVER (ORDER BY {order_sql}) AS {q_rn}
                     FROM {qualified}
                 )

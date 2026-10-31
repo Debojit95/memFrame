@@ -147,8 +147,12 @@ class ClickHouseWindowOps(WindowOps):
                 """
                 select_exprs.append(f"{window_expr} AS {self.db.quote_identifier(col_name)}")
 
+            select_exprs[0] = await self._source_star(
+                table, schema, new_cols, prefix="" if order_by else "__source",
+            )
             sql = f"""
-                CREATE TABLE {qualified_target} AS
+                CREATE TABLE {qualified_target}
+                ENGINE = MergeTree() ORDER BY tuple() AS
                 SELECT {", ".join(select_exprs)}
                 FROM {source_sql}
             """
@@ -234,9 +238,11 @@ class ClickHouseWindowOps(WindowOps):
             result_table = await self._resolve_output_table_name(
                 table, schema, backend=backend, data_id=data_id, new_table=new_table
             )
+            src_star = await self._source_star(ordered_table, schema, [new_col])
             await self._exec(f"""
-                CREATE TABLE {self.db.quote_identifier(schema)}.{self.db.quote_identifier(result_table)} AS
-                SELECT *,
+                CREATE TABLE {self.db.quote_identifier(schema)}.{self.db.quote_identifier(result_table)}
+                ENGINE = MergeTree() ORDER BY tuple() AS
+                SELECT {src_star},
                     {window_sql} AS {self.db.quote_identifier(new_col)}
                 FROM {qualified}
             """)
@@ -309,9 +315,11 @@ class ClickHouseWindowOps(WindowOps):
             result_table = await self._resolve_output_table_name(
                 table, schema, backend=backend, data_id=data_id, new_table=new_table
             )
+            src_star = await self._source_star(ordered_table, schema, [new_col])
             await self._exec(f"""
-                CREATE TABLE {self.db.quote_identifier(schema)}.{self.db.quote_identifier(result_table)} AS
-                SELECT *,
+                CREATE TABLE {self.db.quote_identifier(schema)}.{self.db.quote_identifier(result_table)}
+                ENGINE = MergeTree() ORDER BY tuple() AS
+                SELECT {src_star},
                     {sem_expr} AS {self.db.quote_identifier(new_col)}
                 FROM {qualified}
             """)
@@ -383,9 +391,11 @@ class ClickHouseWindowOps(WindowOps):
             result_table = await self._resolve_output_table_name(
                 table, schema, backend=backend, data_id=data_id, new_table=new_table
             )
+            src_star = await self._source_star(ordered_table, schema, [new_col])
             await self._exec(f"""
-                CREATE TABLE {self.db.quote_identifier(schema)}.{self.db.quote_identifier(result_table)} AS
-                SELECT *,
+                CREATE TABLE {self.db.quote_identifier(schema)}.{self.db.quote_identifier(result_table)}
+                ENGINE = MergeTree() ORDER BY tuple() AS
+                SELECT {src_star},
                     {window_sql} AS {self.db.quote_identifier(new_col)}
                 FROM {qualified}
             """)
@@ -505,8 +515,12 @@ class ClickHouseWindowOps(WindowOps):
 
                 select_exprs.append(f"{agg_with_null} AS {self.db.quote_identifier(col_name)}")
 
+            select_exprs[0] = await self._source_star(
+                table, schema, new_cols, prefix="" if order_by else "__source",
+            )
             await self._exec(f"""
-                CREATE TABLE {qualified_target} AS
+                CREATE TABLE {qualified_target}
+                ENGINE = MergeTree() ORDER BY tuple() AS
                 SELECT {", ".join(select_exprs)}
                 FROM {source_sql}
             """)
@@ -580,9 +594,11 @@ class ClickHouseWindowOps(WindowOps):
             result_table = await self._resolve_output_table_name(
                 table, schema, backend=backend, data_id=data_id, new_table=new_table
             )
+            src_star = await self._source_star(ordered_table, schema, [new_col])
             await self._exec(f"""
-                CREATE TABLE {self.db.quote_identifier(schema)}.{self.db.quote_identifier(result_table)} AS
-                SELECT *,
+                CREATE TABLE {self.db.quote_identifier(schema)}.{self.db.quote_identifier(result_table)}
+                ENGINE = MergeTree() ORDER BY tuple() AS
+                SELECT {src_star},
                     {quantile_expr} AS {self.db.quote_identifier(new_col)}
                 FROM {qualified}
             """)
@@ -649,9 +665,11 @@ class ClickHouseWindowOps(WindowOps):
             result_table = await self._resolve_output_table_name(
                 table, schema, backend=backend, data_id=data_id, new_table=new_table
             )
+            src_star = await self._source_star(ordered_table, schema, [new_col])
             await self._exec(f"""
-                CREATE TABLE {self.db.quote_identifier(schema)}.{self.db.quote_identifier(result_table)} AS
-                SELECT *,
+                CREATE TABLE {self.db.quote_identifier(schema)}.{self.db.quote_identifier(result_table)}
+                ENGINE = MergeTree() ORDER BY tuple() AS
+                SELECT {src_star},
                     {sem_expr} AS {self.db.quote_identifier(new_col)}
                 FROM {qualified}
             """)
@@ -715,9 +733,11 @@ class ClickHouseWindowOps(WindowOps):
             else:
                 nunique_expr = count_distinct
 
+            src_star = await self._source_star(ordered_table, schema, [new_col])
             sql = f"""
-            CREATE TABLE {self.db.quote_identifier(schema)}.{self.db.quote_identifier(result_table)} AS
-            SELECT *, {nunique_expr} AS {self.db.quote_identifier(new_col)}
+            CREATE TABLE {self.db.quote_identifier(schema)}.{self.db.quote_identifier(result_table)}
+            ENGINE = MergeTree() ORDER BY tuple() AS
+            SELECT {src_star}, {nunique_expr} AS {self.db.quote_identifier(new_col)}
             FROM {qualified}
             """
             await self._exec(sql)

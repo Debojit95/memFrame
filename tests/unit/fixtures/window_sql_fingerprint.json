@@ -275,7 +275,7 @@
    ],
    [
     "exec",
-    "CREATETABLE`s`.`t__op_1`ASSELECT*,avg(`num`)OVER(ORDERBY`__totem_order`ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS`num_expanding_mean`FROM(SELECT*,ROW_NUMBER()OVER()AS`__totem_order`FROM`s`.`t`)AS__source",
+    "CREATETABLE`s`.`t__op_1`ENGINE=MergeTree()ORDERBYtuple()ASSELECT__source.*,avg(`num`)OVER(ORDERBY`__totem_order`ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS`num_expanding_mean`FROM(SELECT*,ROW_NUMBER()OVER()AS`__totem_order`FROM`s`.`t`)AS__source",
     []
    ],
    [
@@ -396,7 +396,7 @@
    ],
    [
     "exec",
-    "CREATETABLE`s`.`t__op_1`ASSELECT*,CASEWHENcount(`num`)OVER(ORDERBY`g`ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)>=2THENquantile(0.5)(`num`)OVER(ORDERBY`g`ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ELSENULLENDAS`num_expanding_q0.5`FROM`s`.`t__op_1`",
+    "CREATETABLE`s`.`t__op_1`ENGINE=MergeTree()ORDERBYtuple()ASSELECT*,CASEWHENcount(`num`)OVER(ORDERBY`g`ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)>=2THENquantile(0.5)(`num`)OVER(ORDERBY`g`ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ELSENULLENDAS`num_expanding_q0.5`FROM`s`.`t__op_1`",
     []
    ],
    [
@@ -487,7 +487,7 @@
    ],
    [
     "exec",
-    "CREATETABLE`s`.`t__op_1`ASSELECT*,CASEWHENcount(`num`)OVER(ORDERBY`g`ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)>=2THEN(stddevSamp(`num`)OVER(ORDERBY`g`ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)/sqrt(count(`num`)OVER(ORDERBY`g`ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)))ELSENULLENDAS`num_expanding_sem`FROM`s`.`t__op_1`",
+    "CREATETABLE`s`.`t__op_1`ENGINE=MergeTree()ORDERBYtuple()ASSELECT*,CASEWHENcount(`num`)OVER(ORDERBY`g`ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)>=2THEN(stddevSamp(`num`)OVER(ORDERBY`g`ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)/sqrt(count(`num`)OVER(ORDERBY`g`ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)))ELSENULLENDAS`num_expanding_sem`FROM`s`.`t__op_1`",
     []
    ],
    [
@@ -566,7 +566,7 @@
    ],
    [
     "exec",
-    "CREATETABLE`s`.`t__op_1`ASSELECT*,CASEWHENcount(`num`)OVER(ORDERBY`g`ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)>=2THENstddevSamp(`num`)OVER(ORDERBY`g`ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ELSENULLENDAS`num_expanding_std`FROM`s`.`t`",
+    "CREATETABLE`s`.`t__op_1`ENGINE=MergeTree()ORDERBYtuple()ASSELECT*,CASEWHENcount(`num`)OVER(ORDERBY`g`ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)>=2THENstddevSamp(`num`)OVER(ORDERBY`g`ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ELSENULLENDAS`num_expanding_std`FROM`s`.`t`",
     []
    ],
    [
@@ -645,7 +645,7 @@
    ],
    [
     "exec",
-    "CREATETABLE`s`.`t__op_1`ASSELECT*,CASEWHENcount(`num`)OVER(ORDERBY`g`ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)>=2THENsum(`num`)OVER(ORDERBY`g`ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ELSENULLENDAS`num_expanding_sum`FROM`s`.`t`",
+    "CREATETABLE`s`.`t__op_1`ENGINE=MergeTree()ORDERBYtuple()ASSELECT*,CASEWHENcount(`num`)OVER(ORDERBY`g`ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)>=2THENsum(`num`)OVER(ORDERBY`g`ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ELSENULLENDAS`num_expanding_sum`FROM`s`.`t`",
     []
    ],
    [
@@ -916,7 +916,7 @@
    ],
    [
     "exec",
-    "CREATETABLE`s`.`t__op_1`ASSELECT*,first_value(`num`)OVER(ORDERBY`g`ROWSBETWEEN2PRECEDINGANDCURRENTROW)AS`num_rolling_first_w3`FROM`s`.`t`",
+    "CREATETABLE`s`.`t__op_1`ENGINE=MergeTree()ORDERBYtuple()ASSELECT*,first_value(`num`)OVER(ORDERBY`g`ROWSBETWEEN2PRECEDINGANDCURRENTROW)AS`num_rolling_first_w3`FROM`s`.`t`",
     []
    ],
    [
@@ -995,7 +995,7 @@
    ],
    [
     "exec",
-    "CREATETABLE`s`.`t__op_1`ASSELECT*,last_value(`num`)OVER(ORDERBY`g`ROWSBETWEEN2PRECEDINGANDCURRENTROW)AS`num_rolling_last_w3`FROM`s`.`t`",
+    "CREATETABLE`s`.`t__op_1`ENGINE=MergeTree()ORDERBYtuple()ASSELECT*,last_value(`num`)OVER(ORDERBY`g`ROWSBETWEEN2PRECEDINGANDCURRENTROW)AS`num_rolling_last_w3`FROM`s`.`t`",
     []
    ],
    [
@@ -1074,7 +1074,7 @@
    ],
    [
     "exec",
-    "CREATETABLE`s`.`t__op_1`ASSELECT*,sum(`num`)OVER(ORDERBY`g`ROWSBETWEEN2PRECEDINGANDCURRENTROW)AS`num_rolling_sum_w3`,avg(`num`)OVER(ORDERBY`g`ROWSBETWEEN2PRECEDINGANDCURRENTROW)AS`num_rolling_mean_w3`FROM`s`.`t`",
+    "CREATETABLE`s`.`t__op_1`ENGINE=MergeTree()ORDERBYtuple()ASSELECT*,sum(`num`)OVER(ORDERBY`g`ROWSBETWEEN2PRECEDINGANDCURRENTROW)AS`num_rolling_sum_w3`,avg(`num`)OVER(ORDERBY`g`ROWSBETWEEN2PRECEDINGANDCURRENTROW)AS`num_rolling_mean_w3`FROM`s`.`t`",
     []
    ],
    [
@@ -1185,7 +1185,7 @@
    ],
    [
     "exec",
-    "CREATETABLE`s`.`t__op_1`ASSELECT*,uniq(`num`)OVER(ORDERBY`g`ROWSBETWEEN2PRECEDINGANDCURRENTROW)AS`num_rolling_nunique_w3`FROM`s`.`t__op_1`",
+    "CREATETABLE`s`.`t__op_1`ENGINE=MergeTree()ORDERBYtuple()ASSELECT*,uniq(`num`)OVER(ORDERBY`g`ROWSBETWEEN2PRECEDINGANDCURRENTROW)AS`num_rolling_nunique_w3`FROM`s`.`t__op_1`",
     []
    ],
    [
@@ -1310,7 +1310,7 @@
    ],
    [
     "exec",
-    "CREATETABLE`s`.`t__op_1`ASSELECT*,CASEWHENcount(`num`)OVER(ORDERBY`g`ROWSBETWEEN2PRECEDINGANDCURRENTROW)>=3THENquantile(0.5)(`num`)OVER(ORDERBY`g`ROWSBETWEEN2PRECEDINGANDCURRENTROW)ELSENULLENDAS`num_rolling_q0.5_w3`FROM`s`.`t__op_1`",
+    "CREATETABLE`s`.`t__op_1`ENGINE=MergeTree()ORDERBYtuple()ASSELECT*,CASEWHENcount(`num`)OVER(ORDERBY`g`ROWSBETWEEN2PRECEDINGANDCURRENTROW)>=3THENquantile(0.5)(`num`)OVER(ORDERBY`g`ROWSBETWEEN2PRECEDINGANDCURRENTROW)ELSENULLENDAS`num_rolling_q0.5_w3`FROM`s`.`t__op_1`",
     []
    ],
    [
@@ -1498,7 +1498,7 @@
    ],
    [
     "exec",
-    "CREATETABLE`s`.`t__op_1`ASSELECT*,(stddevSamp(`num`)OVER(ORDERBY`g`ROWSBETWEEN2PRECEDINGANDCURRENTROW)/sqrt(count(`num`)OVER(ORDERBY`g`ROWSBETWEEN2PRECEDINGANDCURRENTROW)))AS`num_rolling_sem_w3`FROM`s`.`t__op_1`",
+    "CREATETABLE`s`.`t__op_1`ENGINE=MergeTree()ORDERBYtuple()ASSELECT*,(stddevSamp(`num`)OVER(ORDERBY`g`ROWSBETWEEN2PRECEDINGANDCURRENTROW)/sqrt(count(`num`)OVER(ORDERBY`g`ROWSBETWEEN2PRECEDINGANDCURRENTROW)))AS`num_rolling_sem_w3`FROM`s`.`t__op_1`",
     []
    ],
    [
@@ -1577,7 +1577,7 @@
    ],
    [
     "exec",
-    "CREATETABLE`s`.`t__op_1`ASSELECT*,stddevPop(`num`)OVER(ORDERBY`g`ROWSBETWEEN2PRECEDINGANDCURRENTROW)AS`num_rolling_std_w3`FROM`s`.`t`",
+    "CREATETABLE`s`.`t__op_1`ENGINE=MergeTree()ORDERBYtuple()ASSELECT*,stddevPop(`num`)OVER(ORDERBY`g`ROWSBETWEEN2PRECEDINGANDCURRENTROW)AS`num_rolling_std_w3`FROM`s`.`t`",
     []
    ],
    [
@@ -1656,7 +1656,7 @@
    ],
    [
     "exec",
-    "CREATETABLE`s`.`t__op_1`ASSELECT*,sum(`num`)OVER(ORDERBY`g`ROWSBETWEEN2PRECEDINGANDCURRENTROW)AS`num_rolling_sum_w3`FROM`s`.`t`",
+    "CREATETABLE`s`.`t__op_1`ENGINE=MergeTree()ORDERBYtuple()ASSELECT*,sum(`num`)OVER(ORDERBY`g`ROWSBETWEEN2PRECEDINGANDCURRENTROW)AS`num_rolling_sum_w3`FROM`s`.`t`",
     []
    ],
    [
@@ -1735,7 +1735,7 @@
    ],
    [
     "exec",
-    "CREATETABLE`s`.`t__op_1`ASSELECT*,sum(`num`)OVER(ORDERBY`__totem_order`ROWSBETWEEN2PRECEDINGANDCURRENTROW)AS`num_rolling_sum_w3`FROM(SELECT*,ROW_NUMBER()OVER()AS`__totem_order`FROM`s`.`t`)AS__source",
+    "CREATETABLE`s`.`t__op_1`ENGINE=MergeTree()ORDERBYtuple()ASSELECT__source.*,sum(`num`)OVER(ORDERBY`__totem_order`ROWSBETWEEN2PRECEDINGANDCURRENTROW)AS`num_rolling_sum_w3`FROM(SELECT*,ROW_NUMBER()OVER()AS`__totem_order`FROM`s`.`t`)AS__source",
     []
    ],
    [
@@ -1844,7 +1844,7 @@
    ],
    [
     "exec",
-    "CREATETABLE`s`.`t__op_1`ASSELECT*,varSamp(`num`)OVER(ORDERBY`g`ROWSBETWEEN2PRECEDINGANDCURRENTROW)AS`num_rolling_var_w3`FROM`s`.`t`",
+    "CREATETABLE`s`.`t__op_1`ENGINE=MergeTree()ORDERBYtuple()ASSELECT*,varSamp(`num`)OVER(ORDERBY`g`ROWSBETWEEN2PRECEDINGANDCURRENTROW)AS`num_rolling_var_w3`FROM`s`.`t`",
     []
    ],
    [

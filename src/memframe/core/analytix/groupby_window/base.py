@@ -28,28 +28,6 @@ class GroupbyWindowOps(WindowOps):
             f"Unsupported database backend for groupby window operation: {self.db.__class__.__name__}"
         )
 
-    async def _source_star(
-        self, table: str, schema: str, exclude=(), prefix: str = "",
-        extra=(),
-    ) -> str:
-        # ponytail: SELECT * stays byte-identical unless a previous
-        # map_feature run left one of the about-to-be-created columns on the
-        # source table — then an explicit list minus those names avoids
-        # duplicate-column failures (hard error on ClickHouse/Postgres).
-        # Only the no-clash shape is fingerprint-locked.
-        try:
-            cols = list(await self.db.get_column_types(table, schema) or {})
-        except Exception:
-            cols = []
-        bare_star = "*" if not prefix else f"{prefix}.*"
-        if not any(c in cols for c in exclude):
-            return bare_star
-        keep = [c for c in cols if c not in set(exclude)]
-        qualifier = f"{prefix}." if prefix else ""
-        parts = [f"{qualifier}{self.db.quote_identifier(c)}" for c in keep]
-        parts += [f"{qualifier}{self.db.quote_identifier(c)}" for c in extra]
-        return ", ".join(parts) if parts else bare_star if parts else bare_star
-
     def _error_response(self, msg, **extra):
         # ponytail: the pre-split engine accepted extras (e.g. group_cols);
         # keep that shape on top of the narrowed base signature.

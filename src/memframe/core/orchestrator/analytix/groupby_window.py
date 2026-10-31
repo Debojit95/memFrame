@@ -16,6 +16,7 @@ from memframe.core.analytix.groupby_window import (
     GroupbyWindowOps,
     make_groupby_window_ops,
 )
+from memframe.core.analytix._generated import make_sig, publish_row_aligned
 from memframe.core.ingestion.datatype_detector import DatatypeDetector
 from memframe.cache import record_call
 
@@ -262,6 +263,27 @@ class GroupByWindowOrchestrator:
     async def _get_active_context(self):
         return await self._ops_parent._get_active_context()
 
+    @staticmethod
+    def _involved_cols(column, group_cols, order_by):
+        cols = [column, *group_cols]
+        if order_by:
+            if isinstance(order_by, (list, tuple)):
+                cols.extend(order_by)
+            else:
+                cols.append(order_by)
+        return cols
+
+    async def _publish(
+        self, ops, table, schema, result, involved,
+        sig, method_name, backend, data_id,
+    ):
+        return await publish_row_aligned(
+            ops, table, schema, result, involved,
+            sig=sig, op_type="groupby_win_map",
+            class_name=self.__class__.__name__, method_name=method_name,
+            backend=backend, data_id=data_id,
+        )
+
     async def _ensure_ops(self) -> GroupbyWindowOps:
         if self._core_ops is None:
             await self._ensure_adapter()
@@ -415,6 +437,7 @@ class GroupByWindowOrchestrator:
         if not requested_funcs:
             return {"is_error": True, "error_message": "At least one valid rolling function is required."}
 
+        op_kind = "rolling"
         dtype_map = self._dtype_method_map(dtype, "rolling")
         all_known = set().union(
             self._dtype_method_map("numeric", "rolling").keys(),
@@ -464,7 +487,9 @@ class GroupByWindowOrchestrator:
                 window=window,
                 backend=backend,
                 data_id=data_id,
-                map_feature=map_feature,
+                # Source mutation is handled once by the orchestrator after
+                # the func chain; the core must not map back on its own.
+                map_feature=False,
             )
             if func_key == "quantile":
                 call_kwargs["q"] = q
@@ -486,6 +511,14 @@ class GroupByWindowOrchestrator:
             elif result.get("new_column"):
                 generated_cols.append(result["new_column"])
 
+        sig = make_sig(
+            op=f"groupby_window.{op_kind}", column=column,
+            group_cols=group_cols, func=requested_funcs, order_by=order_by,
+            window=locals().get("window"),
+            min_periods=locals().get("min_periods"),
+        )
+        involved = self._involved_cols(column, group_cols, order_by)
+
         if not successful_funcs:
             first_failure = next(iter(failed_funcs.values()), "")
             detail = f" First failure: {first_failure}" if first_failure else ""
@@ -502,7 +535,10 @@ class GroupByWindowOrchestrator:
             }
 
         if len(requested_funcs) == 1 and not failed_funcs and not unsupported_unknown and not unsupported_dtype and not invalid_funcs:
-            return last_success_result
+            return await self._publish(
+                ops, table, schema, last_success_result, involved,
+                sig, op_kind, backend, data_id,
+            )
 
         generated_cols = list(dict.fromkeys(generated_cols))
         preview_cols = [column] + generated_cols
@@ -528,7 +564,7 @@ class GroupByWindowOrchestrator:
         is_partial = bool(skipped or failed_funcs)
         message = "Partial rolling functions applied." if is_partial else "All requested rolling functions applied."
 
-        return {
+        response = {
             "is_error": False,
             "message": message,
             "error_message": None,
@@ -541,6 +577,10 @@ class GroupByWindowOrchestrator:
             "failed_funcs": failed_funcs,
             "is_partial": is_partial,
         }
+        return await self._publish(
+            ops, table, schema, response, involved,
+            sig, op_kind, backend, data_id,
+        )
 
     # --------------------------------------------------
     #  UNIFIED EXPANDING
@@ -569,6 +609,7 @@ class GroupByWindowOrchestrator:
         if not requested_funcs:
             return {"is_error": True, "error_message": "At least one valid expanding function is required."}
 
+        op_kind = "expanding"
         dtype_map = self._dtype_method_map(dtype, "expanding")
         all_known = set().union(
             self._dtype_method_map("numeric", "expanding").keys(),
@@ -617,7 +658,9 @@ class GroupByWindowOrchestrator:
                 min_periods=min_periods,
                 backend=backend,
                 data_id=data_id,
-                map_feature=map_feature,
+                # Source mutation is handled once by the orchestrator after
+                # the func chain; the core must not map back on its own.
+                map_feature=False,
             )
             if func_key == "quantile":
                 call_kwargs["q"] = q
@@ -639,6 +682,14 @@ class GroupByWindowOrchestrator:
             elif result.get("new_column"):
                 generated_cols.append(result["new_column"])
 
+        sig = make_sig(
+            op=f"groupby_window.{op_kind}", column=column,
+            group_cols=group_cols, func=requested_funcs, order_by=order_by,
+            window=locals().get("window"),
+            min_periods=locals().get("min_periods"),
+        )
+        involved = self._involved_cols(column, group_cols, order_by)
+
         if not successful_funcs:
             first_failure = next(iter(failed_funcs.values()), "")
             detail = f" First failure: {first_failure}" if first_failure else ""
@@ -652,7 +703,10 @@ class GroupByWindowOrchestrator:
             }
 
         if len(requested_funcs) == 1 and not failed_funcs and not unsupported_unknown and not unsupported_dtype and not invalid_funcs:
-            return last_success_result
+            return await self._publish(
+                ops, table, schema, last_success_result, involved,
+                sig, op_kind, backend, data_id,
+            )
 
         generated_cols = list(dict.fromkeys(generated_cols))
         preview_cols = [column] + generated_cols
@@ -678,7 +732,7 @@ class GroupByWindowOrchestrator:
         is_partial = bool(skipped or failed_funcs)
         message = "Partial expanding functions applied." if is_partial else "All requested expanding functions applied."
 
-        return {
+        response = {
             "is_error": False,
             "message": message,
             "dtype": dtype,
@@ -691,6 +745,10 @@ class GroupByWindowOrchestrator:
             "is_partial": is_partial,
             "min_periods": min_periods,
         }
+        return await self._publish(
+            ops, table, schema, response, involved,
+            sig, op_kind, backend, data_id,
+        )
 
     # --------------------------------------------------
     #  UNIFIED EWM
@@ -745,7 +803,17 @@ class GroupByWindowOrchestrator:
             agg=funcs,
             backend=backend, data_id=data_id,
         )
-        return result
+        sig = make_sig(
+            op="groupby_window.ewm", column=column, group_cols=group_cols,
+            order_by=order_by, func=funcs, com=com, span=span,
+            halflife=halflife, alpha=alpha, adjust=adjust,
+            ignore_na=ignore_na, min_periods=min_periods,
+        )
+        return await self._publish(
+            ops, table, schema, result,
+            self._involved_cols(column, group_cols, order_by),
+            sig, "ewm", backend, data_id,
+        )
 
     # --------------------------------------------------
     #  BUILDER PATTERN (kept for convenience)

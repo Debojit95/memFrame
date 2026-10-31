@@ -2,6 +2,7 @@ from typing import Any, Dict, List, Tuple, Union
 
 import numpy as np
 from memframe.core.analytix.window import WindowOps, make_window_ops
+from memframe.core.analytix._generated import make_sig, publish_row_aligned
 from memframe.core.ingestion.datatype_detector import DatatypeDetector
 from memframe.cache import record_call
 
@@ -27,6 +28,27 @@ class WindowOrchestrator:
 
     async def _get_context(self):
         return await self._ops_parent._get_active_context()
+
+    @staticmethod
+    def _involved_cols(column, order_by):
+        cols = [column]
+        if order_by:
+            if isinstance(order_by, (list, tuple)):
+                cols.extend(order_by)
+            else:
+                cols.append(order_by)
+        return cols
+
+    async def _publish(
+        self, ops, table, schema, result, involved,
+        sig, method_name, backend, data_id,
+    ):
+        return await publish_row_aligned(
+            ops, table, schema, result, involved,
+            sig=sig, op_type="window_map",
+            class_name=self.__class__.__name__, method_name=method_name,
+            backend=backend, data_id=data_id,
+        )
 
     async def _detect_dtype(self, ops, table, schema, column):
         sample_df = await ops._fetch_data(table, schema, columns=[column], limit=10)
@@ -232,9 +254,18 @@ class WindowOrchestrator:
                 "invalid_funcs": invalid_funcs,
             }
 
+        sig = make_sig(
+            op="window.rolling", column=column, window=window,
+            func=requested_funcs, order_by=order_by,
+        )
+        involved = self._involved_cols(column, order_by)
+
         # Single successful function → pass through its original result unchanged
         if len(requested_funcs) == 1 and not failed_funcs and not unsupported_unknown and not unsupported_dtype and not invalid_funcs:
-            return last_success_result
+            return await self._publish(
+                ops, table, schema, last_success_result, involved,
+                sig, "rolling", backend, data_id,
+            )
 
         # Multiple functions → fetch from the final chained table
         generated_cols = list(dict.fromkeys(generated_cols))  # order preserving dedup
@@ -263,7 +294,7 @@ class WindowOrchestrator:
             else "All requested rolling functions applied."
         )
 
-        return {
+        response = {
             "is_error": False,
             "message": message,
             "error_message": None,
@@ -276,6 +307,10 @@ class WindowOrchestrator:
             "failed_funcs": failed_funcs,
             "is_partial": is_partial,
         }
+        return await self._publish(
+            ops, table, schema, response, involved,
+            sig, "rolling", backend, data_id,
+        )
 
     # --------------------------------------------------
     # EXPANDING API (FIXED CHAINING)
@@ -419,9 +454,18 @@ class WindowOrchestrator:
                 "invalid_funcs": invalid_funcs,
             }
 
+        sig = make_sig(
+            op="window.expanding", column=column, min_periods=min_periods,
+            func=requested_funcs, order_by=order_by,
+        )
+        involved = self._involved_cols(column, order_by)
+
         # Single successful function → pass through
         if len(requested_funcs) == 1 and not failed_funcs and not unsupported_unknown and not unsupported_dtype and not invalid_funcs:
-            return last_success_result
+            return await self._publish(
+                ops, table, schema, last_success_result, involved,
+                sig, "expanding", backend, data_id,
+            )
 
         generated_cols = list(dict.fromkeys(generated_cols))
         preview_cols = [column] + generated_cols
@@ -446,7 +490,7 @@ class WindowOrchestrator:
         is_partial = bool(skipped or failed_funcs)
         message = "Partial expanding functions applied." if is_partial else "All requested expanding functions applied."
 
-        return {
+        response = {
             "is_error": False,
             "message": message,
             "dtype": dtype,
@@ -459,6 +503,10 @@ class WindowOrchestrator:
             "is_partial": is_partial,
             "min_periods": min_periods,
         }
+        return await self._publish(
+            ops, table, schema, response, involved,
+            sig, "expanding", backend, data_id,
+        )
 
     # --------------------------------------------------
     # EWM API (already returns a single table; unchanged)
@@ -508,4 +556,12 @@ class WindowOrchestrator:
             agg=funcs,
             backend=backend, data_id=data_id,
         )
-        return result
+        sig = make_sig(
+            op="window.ewm", column=column, order_by=order_by, func=funcs,
+            com=com, span=span, halflife=halflife, alpha=alpha,
+            adjust=adjust, ignore_na=ignore_na, min_periods=min_periods,
+        )
+        return await self._publish(
+            ops, table, schema, result, self._involved_cols(column, order_by),
+            sig, "ewm", backend, data_id,
+        )

@@ -214,6 +214,26 @@ class WindowOps:
         await self._exec(f"CREATE TABLE {qualified_target} AS SELECT * FROM {qualified_source}")
         return output_table
 
+    async def _source_star(
+        self, table: str, schema: str, exclude=(), prefix: str = "",
+        extra=(),
+    ) -> str:
+        # ponytail: SELECT * stays byte-identical unless a previous run left
+        # one of the about-to-be-created columns on the source table — then an
+        # explicit list minus those names avoids duplicate-column failures.
+        try:
+            cols = list(await self.db.get_column_types(table, schema) or {})
+        except Exception:
+            cols = []
+        bare_star = "*" if not prefix else f"{prefix}.*"
+        if not any(c in cols for c in exclude):
+            return bare_star
+        keep = [c for c in cols if c not in set(exclude)]
+        qualifier = f"{prefix}." if prefix else ""
+        parts = [f"{qualifier}{self.db.quote_identifier(c)}" for c in keep]
+        parts += [f"{qualifier}{self.db.quote_identifier(c)}" for c in extra]
+        return ", ".join(parts) if parts else bare_star
+
     async def _is_date_only_column(self, table: str, schema: str, column: str) -> bool:
         try:
             col_types = await self.db.get_column_types(table, schema)
@@ -336,10 +356,11 @@ class WindowOps:
             else:
                 return self._error_response(f"Unsupported datetime rolling stat '{stat}'")
 
+            src_star = await self._source_star(working_table, schema, [new_col])
             sql = f"""
                 CREATE TABLE {q_schema}.{q_new_table} AS
                 WITH __base AS (
-                    SELECT *,
+                    SELECT {src_star},
                         ROW_NUMBER() OVER (ORDER BY {order_sql}) AS {q_rn}
                     FROM {qualified}
                 )
@@ -759,9 +780,10 @@ class WindowOps:
             result_table = await self._resolve_output_table_name(
                 table, schema, backend=backend, data_id=data_id, new_table=new_table
             )
+            src_star = await self._source_star(ordered_table, schema, [new_col])
             await self._exec(f"""
                 CREATE TABLE {self.db.quote_identifier(schema)}.{self.db.quote_identifier(result_table)} AS
-                SELECT *,
+                SELECT {src_star},
                     {window_sql} AS {self.db.quote_identifier(new_col)}
                 FROM {qualified}
             """)
@@ -821,10 +843,11 @@ class WindowOps:
                 table, schema, backend=backend, data_id=data_id, new_table=new_table
             )
 
+            src_star = await self._source_star(ordered_table, schema, [new_col])
             sql = f"""
             CREATE TABLE {self.db.quote_identifier(schema)}.{self.db.quote_identifier(result_table)} AS
             WITH __base AS (
-                SELECT *,
+                SELECT {src_star},
                     ROW_NUMBER() OVER (ORDER BY {order_sql}) AS __rn
                 FROM {qualified}
             )
@@ -1268,10 +1291,11 @@ class WindowOps:
             else:
                 rank_expr = f"({rank_subq})"
 
+            src_star = await self._source_star(ordered_table, schema, [new_col])
             sql = f"""
             CREATE TABLE {self.db.quote_identifier(schema)}.{self.db.quote_identifier(result_table)} AS
             WITH __base AS (
-                SELECT *,
+                SELECT {src_star},
                     ROW_NUMBER() OVER (ORDER BY {order_sql}) AS __rn
                 FROM {qualified}
             )
@@ -1337,9 +1361,10 @@ class WindowOps:
             else:
                 nunique_expr = count_distinct
 
+            src_star = await self._source_star(ordered_table, schema, [new_col])
             sql = f"""
             CREATE TABLE {self.db.quote_identifier(schema)}.{self.db.quote_identifier(result_table)} AS
-            SELECT *, {nunique_expr} AS {self.db.quote_identifier(new_col)}
+            SELECT {src_star}, {nunique_expr} AS {self.db.quote_identifier(new_col)}
             FROM {qualified}
             """
             await self._exec(sql)
@@ -1442,10 +1467,11 @@ class WindowOps:
                     value_sql = f"({value_subq})"
 
             # --- 6. Create the result table from the cloned data ---
+            src_star = await self._source_star(ordered_table, schema, [new_col])
             sql = f"""
                 CREATE TABLE {self.db.quote_identifier(schema)}.{self.db.quote_identifier(result_table)} AS
                 WITH __base AS (
-                    SELECT *,
+                    SELECT {src_star},
                         ROW_NUMBER() OVER (ORDER BY {order_sql}) AS __rn
                     FROM {qualified}
                 )
@@ -1725,6 +1751,8 @@ class WindowOps:
                 f"e.{self.db.quote_identifier(c)} AS {self.db.quote_identifier(c)}"
                 for c in col_defs[1:]
             )
+            base_table = working_table if order_by else ordered_table
+            src_star = await self._source_star(base_table, schema, col_defs[1:])
 
             if self._ewm_uses_stage_table():
                 stage_table = SQLIdentifierSanitizer.sanitize(
@@ -1767,7 +1795,7 @@ class WindowOps:
                     final_sql = f"""
                     CREATE TABLE {q_schema}.{q_new} AS
                     WITH __base AS (
-                        SELECT *,
+                        SELECT {src_star},
                             ROW_NUMBER() OVER (ORDER BY {order_sql}) AS rn
                         FROM {qualified}
                     )
@@ -1785,7 +1813,7 @@ class WindowOps:
                 # Build CTE with base (from clone) and ewm values
                 base_cte = f"""
                 WITH __base AS (
-                    SELECT *,
+                    SELECT {src_star},
                         ROW_NUMBER() OVER (ORDER BY {order_sql}) AS rn
                     FROM {qualified}
                 ),
