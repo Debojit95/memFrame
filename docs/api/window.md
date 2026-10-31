@@ -5,8 +5,9 @@ Source: `src/memframe/wrappers/analytix/window.py`
 `WindowWrapper` is the public rolling / expanding / exponentially-weighted
 interface exposed through a `ContextManager`. Every operation compiles to
 backend-native SQL and runs in-engine across DuckDB, PostgreSQL, and
-ClickHouse; each call writes a new transient table (`<table>__op_<n>`) and the
-source upload table is never mutated in place.
+ClickHouse; each call adds its generated column(s) to the source upload
+table and writes a separate narrow result table (`<table>__op_<n>`) that the
+deep cache stores.
 
 Users normally call window methods directly on a dataset context returned by an
 upload operation. There are two equivalent entry points:
@@ -736,9 +737,11 @@ method) returns the raw operation envelope:
     "is_error": False,
     "message": "Rolling mean on 'sales' (window=2)",
     "result": <pandas.DataFrame>,
-    "new_table": "ab12CD__op_3",
+    "new_table": "ab12CD__op_3",             # narrow cache table
     "new_columns": ["sales_rolling_mean_w2"],
     "new_column": "sales_rolling_mean_w2",   # single-function calls only
+    "mapped_table": "ab12CD",                # source now holds the generated column
+    "mapped_columns": ["sales_rolling_mean_w2"],
     "window": 2,
     # multi-function calls also include:
     # "successful_funcs", "skipped_funcs", "failed_funcs", "is_partial", "dtype"
@@ -753,21 +756,35 @@ missing `backend`/`data_id`. When inspecting the raw envelope, check
 
 ## Generated Tables
 
-Every window operation is non-destructive to the source upload table. It
-creates a new transient table holding the source rows plus the generated
-column(s), then returns a preview of it:
+Every window operation **adds its generated column(s) to the source table**
+and returns a separate narrow result table containing only the involved
+columns and the generated columns:
 
-- **PostgreSQL / DuckDB:** the source is cloned, each result column is added,
-  then the window values are written back per physical row. Some shapes
+```
+result.new_table = SELECT <column>, <order_by...>, <generated...>
+```
+
+- **PostgreSQL / DuckDB:** the window column(s) are computed, then the source
+  is replaced by the computed table under the same name. Some shapes
   (quantile, rank, nunique, ewm) build the result in a single pass instead.
-- **ClickHouse:** each operation builds the result table in a single pass —
-  window functions are computed inline. EWM stages its values in a temporary
-  in-memory table, then joins it in.
+- **ClickHouse:** each operation builds the result table in a single pass and
+  atomically swaps it into the source with `EXCHANGE TABLES`. EWM stages its
+  values in a temporary in-memory table, then joins it in.
+
+The envelope gains `mapped_table` (the source table name) and `mapped_columns`
+(the generated column names). The narrow result table is what the deep cache
+stores, so a cached replay returns the same columns as the first call.
+
+A repeated identical call reuses/replaces the same generated columns; a
+different call leaves the other derived columns intact. If a generated name
+already exists from a foreign source, the call fails and the source is left
+unchanged.
 
 Window operations apply `@record_call`, so repeat calls are recorded in the
 transient registry (L1). With `deep_cache=True` (via `mf.connect(deep_cache=True)`
-or `MemFrame(deep_cache=True)`) the result tables are persisted and replayed on
-a hit (L2).
+or `MemFrame(deep_cache=True)`) the narrow result tables are persisted and
+replayed on a hit (L2). With `deep_cache=False` the source is still mutated;
+only the narrow table is dropped.
 
 ## Backend Behavior
 

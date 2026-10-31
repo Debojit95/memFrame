@@ -97,7 +97,7 @@ sample = dataset.groupby("region").cummean("score")
 | `column` | `str` | Numeric column to accumulate. |
 | `order_col` | `str`, `list[str]`, or `None` | Row ordering inside each group. `None` (default) uses physical row order. A list orders by multiple columns. |
 | `target_col` | `str` or `None` | Name for the result column. Auto-generated as `cum_<column>_<op>_by_<groups>` with `_order_by_<orders>` appended when `order_col` is given (e.g. `cum_revenue_sum_by_region_order_by_month`). |
-| `map_feature` | `bool` | When `True` (default `False`), LEFT JOIN the new feature column back onto the original table — matched on full row identity. No extra result table is created; the envelope gains `mapped_table` / `mapped_columns`. |
+| `map_feature` | `bool` | Deprecated/ignored. The running-value column is always written back to the source; the envelope carries `mapped_table` / `mapped_columns`. The returned `new_table` is the narrow `involved + generated` cache table. |
 
 `group_cols` are fixed at builder creation (`groupby("region", "month")`)
 and accept one or more columns.
@@ -180,29 +180,29 @@ result = dataset.groupby("region").cumstd("score", order_col="month")
 result = dataset.groupby("region").cumvar("score", order_col="month")
 ```
 
-## Map Feature Back (`map_feature`)
+## Source Write-Back
 
-With `map_feature=True`, the new running-value column is LEFT JOINed back
-onto the original table — every original row gains its own running value
-(one output row per input row, matched on full row identity). Only the
-feature column is added and no extra result table is created. Only the
-group table is recorded by `@record_call`.
+Every cumulative call writes its running-value column back to the source
+table by replacing the source with the row-aligned result, then creates the
+narrow `involved + generated` result table that `@record_call` stores.
 
 ```python
-result = dataset.groupby("region").cumsum("revenue", map_feature=True)
-# original table now has: region, revenue, cum_revenue_sum_by_region
+result = dataset.groupby("region").cumsum("revenue")
+# source now has: region, revenue, cum_revenue_sum_by_region
+# result["new_table"] has: revenue, region, cum_revenue_sum_by_region
 ```
 
 Rules:
 
-- A repeated identical call re-runs cleanly (its own column is dropped and
-  re-added). This also holds in non-deep mode, which saves nothing.
-- If the column name already exists from anything else, the call fails with
-  an error — drop or rename it first.
+- A repeated identical call reuses the same generated column; the source
+  keeps exactly one copy. This also holds with `deep_cache=False`, which
+  recomputes but drops only the narrow table.
+- The `map_feature` parameter is retained for compatibility but ignored:
+  write-back is always on.
+- If the column name already exists from anything else, the call fails and
+  the source is left unchanged — drop or rename it first.
 - Backend swaps keep the original table name: DuckDB `CREATE OR REPLACE`,
   PostgreSQL create-swap-rename, ClickHouse atomic `EXCHANGE TABLES`.
-- Rows with `NULL` key columns match nothing (`NULL = NULL` is false in
-  SQL) and keep a `NULL` feature value.
 
 ## Return Values and Errors
 
@@ -214,7 +214,7 @@ operation envelope:
     "is_error": False,
     "message": "Cumulative sum of 'revenue' grouped by [region] ...",
     "result": <pandas.DataFrame>,
-    "new_table": "ab12CD__op_3",
+    "new_table": "ab12CD__op_3",   # narrow cache table
     "new_columns": ["cum_revenue_sum_by_region"],
     "group_cols": ["region"],
     "operation": "sum",
@@ -227,9 +227,9 @@ column, a missing `backend`/`data_id`, or an unsupported backend.
 
 ## Generated Tables
 
-Every group-by cumulative operation is non-destructive to the source
-upload table. It creates a new transient table holding the source rows
-plus the result column, then returns a preview of it:
+Every group-by cumulative operation writes its result column to the source
+upload table, then creates a separate narrow result table holding only the
+involved and generated columns. The deep cache stores that narrow table:
 
 - **PostgreSQL / DuckDB:** `CREATE TABLE … AS SELECT *,
   <window> AS <target> FROM …` with `PARTITION BY` + physical-row

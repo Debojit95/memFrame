@@ -7,8 +7,10 @@ exposed through a `ContextManager`. It provides
 pandas-`groupby().rolling()`-like analytics: rolling fixed-size windows
 and expanding unbounded windows computed **per group** (`PARTITION BY`
 the group columns), in-engine across DuckDB, PostgreSQL, and ClickHouse.
-Each call writes a new transient table (`<table>__op_<n>`) and the source
-upload table is never mutated in place.
+Each call adds the generated column(s) to the source upload table and
+returns a separate narrow result table (`<table>__op_<n>`) containing only
+the involved and generated columns. The narrow table is what the deep
+cache stores.
 
 Users normally call grouped window methods through the unified `groupby`
 builder on a dataset context returned by an upload operation. There are
@@ -138,8 +140,8 @@ sample = dataset.groupby("region").expanding().sum("sales")
 | `order_by` | `str`, `list[str]`, or `None` | Row ordering inside each group. `None` (default) uses physical row order. |
 | `q` | `float` | Quantile level for `quantile` (default `0.5`). |
 | `min_periods` | `int` | Minimum rows before an expanding value is produced (default `1`). |
-| `new_table` | `str` or `None` | Explicit name for the output table (chaining). Auto-generated as `<table>__op_<n>` when omitted. |
-| `map_feature` | `bool` | When `True` (default `False`), LEFT JOIN the new feature column(s) back onto the original table — matched on full row identity. No extra result table is created; the envelope gains `mapped_table` / `mapped_columns`. Rolling, expanding, and the specials; not EWM. |
+| `new_table` | `str` or `None` | Explicit name for the narrow result/cache table. Auto-generated as `<table>__op_<n>` when omitted. |
+| `map_feature` | `bool` | Deprecated/ignored. Generated columns are always written back to the source; the envelope carries `mapped_table` / `mapped_columns`. The returned `new_table` is the narrow `involved + generated` cache table. |
 
 With no `order_by`, rows accumulate in physical storage order
 (PostgreSQL `ctid`, DuckDB `rowid`). ClickHouse has no stable row id, so
@@ -234,32 +236,31 @@ categorical) and maps each requested function to the dtype-appropriate
 engine method; datetime columns support `min`/`max`/`mean`/`median`/
 `mode`/`count`/`nunique`/`rank`/`first`/`last` via epoch conversion.
 
-## Map Feature Back (`map_feature`)
+## Source Write-Back
 
-With `map_feature=True`, the new window column(s) are LEFT JOINed back
-onto the original table — every original row gains its own running value
-(one output row per input row, matched on full row identity). Only the
-feature column(s) are added and no extra result table is created. Only
-the window table is recorded by `@record_call`.
+Every grouped window call writes its generated column(s) back to the source
+table by replacing the source with the row-aligned window result, then creates
+the narrow `involved + generated` result table that `@record_call` stores.
 
 ```python
 result = dataset.groupby("region").rolling(3, order_by="month").agg(
-    "sales", ["mean"], map_feature=True
+    "sales", ["mean"]
 )
-# original table now has: region, month, sales, sales_rolling_mean_w3_by_region
+# source now has: region, month, sales, sales_rolling_mean_w3_by_region
+# result["new_table"] has: sales, region, month, sales_rolling_mean_w3_by_region
 ```
 
 Rules:
 
-- A repeated identical call re-runs cleanly (its own column(s) are
-  dropped and re-added). This also holds in non-deep mode, which saves
-  nothing.
-- If the column name already exists from anything else, the call fails
-  with an error — drop or rename it first.
+- A repeated identical call reuses the same generated column(s); the source
+  keeps exactly one copy. This also holds with `deep_cache=False`, which
+  recomputes but drops only the narrow table.
+- The `map_feature` parameter is retained for compatibility but ignored:
+  write-back is always on.
+- If the column name already exists from anything else, the call fails and
+  the source is left unchanged — drop or rename it first.
 - Backend swaps keep the original table name: DuckDB `CREATE OR REPLACE`,
   PostgreSQL create-swap-rename, ClickHouse atomic `EXCHANGE TABLES`.
-- Rows with `NULL` key columns match nothing (`NULL = NULL` is false in
-  SQL) and keep a `NULL` feature value.
 
 ## Return Values and Errors
 
@@ -288,9 +289,9 @@ missing column fails the call (`message == ""` on the raw envelope).
 
 ## Generated Tables
 
-Every grouped window operation is non-destructive to the source upload
-table. It creates a new transient table holding the source rows plus the
-generated column(s), then returns a preview of it:
+Every grouped window operation writes its generated column(s) to the source
+upload table, then creates a separate narrow result table holding only the
+involved and generated columns. The deep cache stores that narrow table:
 
 - **PostgreSQL / DuckDB:** `CREATE TABLE … AS SELECT *,
   <window> AS <target> FROM …` (quantile / nunique / rank use a

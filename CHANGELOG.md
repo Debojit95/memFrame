@@ -35,6 +35,20 @@ to [Semantic Versioning](https://semver.org/).
   Cached reruns return that same narrow table; a cache miss with an existing
   target column skips recomputation instead of running the diff again.
 
+### Changed
+- **Row-preserving window/groupby ops now write generated columns to the
+  source** (breaking): `window.rolling`/`expanding`/`ewm`,
+  `groupby_cumulative.cum*`, and `groupby_window.rolling`/`expanding`/`ewm`
+  now mutate the source table and return a separate narrow result table
+  containing only the involved and generated columns. The deep cache stores
+  that narrow table, so cached reruns return the same columns as the first
+  call. `new_table` is no longer a full-width copy of the source.
+  `map_feature` on cumulative/grouped-window calls is retained but ignored
+  (write-back is always on). A repeated identical call replaces the same
+  generated columns; a foreign name collision fails without touching the
+  source. `deep_cache=False` still mutates the source and drops only the
+  narrow table.
+
 ### Removed
 - **Metadata-only logical index** (breaking): the `index_cols` registry column,
   `set_index`/`reset_index`/`get_index`/`reindex`/`reindex_like`, the
