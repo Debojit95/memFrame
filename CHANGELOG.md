@@ -28,6 +28,13 @@ to [Semantic Versioning](https://semver.org/).
   physical `ORDER BY` rebuild that preserves engine/partitioning/TTL/settings/
   skip indexes and optionally keeps a backup table.
 
+### Fixed
+- **`datetime_diff` cache shape and idempotency**: the source table continues
+  to receive the generated diff column, but the result/deep-cache table now
+  contains only the involved datetime column and the generated diff column.
+  Cached reruns return that same narrow table; a cache miss with an existing
+  target column skips recomputation instead of running the diff again.
+
 ### Removed
 - **Metadata-only logical index** (breaking): the `index_cols` registry column,
   `set_index`/`reset_index`/`get_index`/`reindex`/`reindex_like`, the

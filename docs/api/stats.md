@@ -59,7 +59,7 @@ Every stats operation has synchronous and asynchronous forms:
 | `corr(columns=None)` | `await acorr(...)` | Numeric correlation matrix |
 | `cov(columns=None)` | `await acov(...)` | Numeric covariance matrix |
 | `proportions(column=None)` | `await aproportions(...)` | Category proportions |
-| `datetime_diff(column, target_col=None, new_table=None)` | `await adatetime_diff(...)` | Adds a `{column}__diff_seconds` column and returns the result DataFrame |
+| `datetime_diff(column, target_col=None, new_table=None)` | `await adatetime_diff(...)` | Adds a `{column}__diff_seconds` column to the source and returns a two-column result/cache table |
 | `time_delta_stats(column)` | `await atime_delta_stats(...)` | Summary stats over datetime deltas |
 | `event_rate(column, unit="day")` | `await aevent_rate(...)` | Event rate per time unit |
 | `time_unit_counts(column, unit="day")` | `await atime_unit_counts(...)` | Counts grouped by a datetime part |
@@ -416,7 +416,13 @@ Datetime stats operate on non-null date or timestamp values.
 
 `datetime_diff` sorts the column and computes the difference in seconds between
 each row and the previous row (pandas `.diff()` style; the first row is `NULL`),
-writes it to a new `{column}__diff_seconds` column, and returns the result DataFrame.
+writes it to a new `{column}__diff_seconds` column on the source table, and
+returns a two-column result table containing only the involved datetime column
+and the generated diff column. The result table is also the deep-cache payload,
+so a cached rerun returns the same narrow table without recomputing the diff.
+If the target column already exists (for example after clearing the cache), the
+diff is not recalculated; the existing column is returned in a fresh narrow
+result table.
 
 ```python
 result = dataset.datetime_diff(column="last_login")
