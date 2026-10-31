@@ -823,6 +823,26 @@ class TestStatsOperations:
         assert np.allclose(got[mask].values, expected[mask].values, rtol=0.01)
         self._record_result("datetime_diff", 'datetime_diff("date")', sample_df, res_df, expected, backend_config["connection_type"], pandas_call='df["date"].diff().dt.total_seconds()')
 
+    def test_datetime_diff_rerun_is_narrow_and_cached(self, uploaded_ctx, sample_df, backend_config):
+        first = uploaded_ctx.datetime_diff("date")
+        second = uploaded_ctx.datetime_diff("date")
+        forced = uploaded_ctx.datetime_diff("date", new_table="forced_diff_table")
+
+        expected_columns = ["date", "date__diff_seconds"]
+        assert list(first.columns) == expected_columns
+        assert list(second.columns) == expected_columns
+        assert list(forced.columns) == expected_columns
+        assert first.shape == second.shape
+        assert first.equals(second)
+        assert first.equals(forced)
+        assert "date__diff_seconds" in uploaded_ctx.dtypes
+
+        self._record_result(
+            "datetime_diff_rerun", 'datetime_diff("date") twice',
+            sample_df, first, first, backend_config["connection_type"],
+            pandas_call='df["date"].diff().dt.total_seconds()',
+        )
+
     def test_time_delta_stats(self, uploaded_ctx, sample_df, backend_config):
         result = uploaded_ctx.time_delta_stats("date")
         value = get_result_value(result)
