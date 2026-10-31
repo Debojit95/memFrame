@@ -843,7 +843,7 @@ class TestGroupByCumulativeOperations:
             backend=backend_config["connection_type"],
         )
 
-    def test_map_feature_false_leaves_original_untouched(
+    def test_default_writes_generated_column_to_source(
         self, uploaded_ctx, sample_df, backend_config
     ):
         before = get_result_df(uploaded_ctx.head(n=len(sample_df)))
@@ -853,18 +853,25 @@ class TestGroupByCumulativeOperations:
         )
 
         assert result["is_error"] is False
-        assert result["mapped_table"] is None
-        assert result["mapped_columns"] == []
+        assert result["mapped_table"] is not None
+        assert result["mapped_columns"] == ["cumsum_val"]
+        assert list(result["result"].columns) == [
+            "value", "group", "order_col", "cumsum_val",
+        ]
 
         after = get_result_df(uploaded_ctx.head(n=len(sample_df)))
+        assert "cumsum_val" in after.columns
+        key = [c for c in ("group", "order_col") if c in before.columns]
+        after_sorted = after.sort_values(key).reset_index(drop=True)[before.columns]
+        before_sorted = before.sort_values(key).reset_index(drop=True)
         pd.testing.assert_frame_equal(
-            normalize_frame(after),
-            normalize_frame(before),
+            normalize_frame(after_sorted),
+            normalize_frame(before_sorted),
             check_dtype=False,
         )
         self._record_result(
-            test_name="map_feature_false_leaves_original_untouched",
-            method_call='uploaded_ctx.groupby("group").cumsum("value", order_col="order_col", map_feature=False)',
+            test_name="default_writes_generated_column_to_source",
+            method_call='uploaded_ctx.groupby("group").cumsum("value", order_col="order_col", target_col="cumsum_val")',
             pandas_call='df.groupby("group")["value"].cumsum()',
             original_df=sample_df,
             memframe_df=after,
@@ -905,21 +912,25 @@ class TestGroupByCumulativeOperations:
             backend=backend_config["connection_type"],
         )
 
-    def test_mutation_safety(self, uploaded_ctx, sample_df, backend_config):
+    def test_source_gains_generated_column(self, uploaded_ctx, sample_df, backend_config):
         original_uploaded = get_result_df(uploaded_ctx.head(n=len(sample_df)))
         uploaded_ctx.groupby("group").cumsum(
             "value", order_col="order_col", target_col="cumsum_val"
         )
         after_op = get_result_df(uploaded_ctx.head(n=len(sample_df)))
+        assert "cumsum_val" in after_op.columns
+        key = [c for c in ("group", "order_col") if c in original_uploaded.columns]
+        after_sorted = after_op.sort_values(key).reset_index(drop=True)[original_uploaded.columns]
+        before_sorted = original_uploaded.sort_values(key).reset_index(drop=True)
         pd.testing.assert_frame_equal(
-            normalize_frame(after_op),
-            normalize_frame(original_uploaded),
+            normalize_frame(after_sorted),
+            normalize_frame(before_sorted),
             check_dtype=False,
         )
         self._record_result(
-            test_name="mutation_safety",
-            method_call='groupby("group").cumsum(...) → original checked',
-            pandas_call='sample_df  # unchanged by cumsum',
+            test_name="source_gains_generated_column",
+            method_call='groupby("group").cumsum(...)',
+            pandas_call='df.groupby("group")["value"].cumsum()',
             original_df=sample_df,
             memframe_df=after_op,
             pandas_df=original_uploaded,

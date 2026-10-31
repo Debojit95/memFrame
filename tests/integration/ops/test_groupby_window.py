@@ -867,7 +867,7 @@ class TestGroupByWindowOperations:
             pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].expanding().sum()  # mapped back',
         )
 
-    def test_map_feature_false_leaves_original_untouched(
+    def test_default_writes_generated_column_to_source(
         self, uploaded_ctx, sample_df, backend_config
     ):
         before = get_result_df(uploaded_ctx.head(n=len(sample_df)))
@@ -876,18 +876,25 @@ class TestGroupByWindowOperations:
         )
 
         assert result["is_error"] is False
-        assert result["mapped_table"] is None
-        assert result["mapped_columns"] == []
+        assert result["mapped_table"] is not None
+        assert result["mapped_columns"] == ["value_rolling_mean_w2_by_group"]
+        assert list(result["result"].columns) == [
+            "value", "group", "id", "value_rolling_mean_w2_by_group",
+        ]
 
         after = get_result_df(uploaded_ctx.head(n=len(sample_df)))
+        assert "value_rolling_mean_w2_by_group" in after.columns
+        key = [c for c in ("group", "id") if c in before.columns]
+        after_sorted = after.sort_values(key).reset_index(drop=True)[before.columns]
+        before_sorted = before.sort_values(key).reset_index(drop=True)
         pd.testing.assert_frame_equal(
-            normalize_frame(after),
-            normalize_frame(before),
+            normalize_frame(after_sorted),
+            normalize_frame(before_sorted),
             check_dtype=False,
         )
         self._record_result(
-            "map_feature_false_leaves_original_untouched",
-            'groupby("group").rolling(2).agg("value", ["mean"], map_feature=False)',
+            "default_writes_generated_column_to_source",
+            'groupby("group").rolling(2).agg("value", ["mean"])',
             sample_df, after, before, backend_config["connection_type"],
             pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].rolling(2, min_periods=1).mean()',
         )
@@ -920,18 +927,22 @@ class TestGroupByWindowOperations:
         )
 
     # --- Mutation safety ---
-    def test_mutation_safety(self, uploaded_ctx, sample_df, backend_config):
+    def test_source_gains_generated_column(self, uploaded_ctx, sample_df, backend_config):
         original_uploaded = get_result_df(uploaded_ctx.head(n=len(sample_df)))
         uploaded_ctx.groupby("group").rolling(2, order_by="id").mean("value")
         after_op = get_result_df(uploaded_ctx.head(n=len(sample_df)))
+        assert "value_rolling_mean_w2_by_group" in after_op.columns
+        key = [c for c in ("group", "id") if c in original_uploaded.columns]
+        after_sorted = after_op.sort_values(key).reset_index(drop=True)[original_uploaded.columns]
+        before_sorted = original_uploaded.sort_values(key).reset_index(drop=True)
         pd.testing.assert_frame_equal(
-            normalize_frame(after_op),
-            normalize_frame(original_uploaded),
+            normalize_frame(after_sorted),
+            normalize_frame(before_sorted),
             check_dtype=False,
         )
         self._record_result(
-            "mutation_safety",
-            '.groupby("group").rolling(2).mean("value") → original checked',
+            "source_gains_generated_column",
+            '.groupby("group").rolling(2).mean("value")',
             sample_df, after_op, original_uploaded, backend_config["connection_type"],
-            pandas_call='sample_df  # unchanged by rolling mean',
+            pandas_call='df.groupby("group")["value"].rolling(2, min_periods=1).mean()',
         )

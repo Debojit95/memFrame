@@ -630,6 +630,33 @@ class TestWindowOperations:
             backend=backend_config["connection_type"],
         )
 
+    def test_rolling_source_mutation_and_narrow_cache(
+        self, uploaded_ctx, time_series_df, backend_config
+    ):
+        first = get_result_df(
+            uploaded_ctx.rolling(column="sales", window=3, func="mean", order_by="date")
+        )
+        second = get_result_df(
+            uploaded_ctx.rolling(column="sales", window=3, func="mean", order_by="date")
+        )
+        generated = _generated_col(first, "sales")
+
+        assert generated in uploaded_ctx.dtypes
+        assert list(first.columns) == ["sales", "date", generated]
+        assert list(second.columns) == list(first.columns)
+        assert first.equals(second)
+        assert list(uploaded_ctx.dtypes).count(generated) == 1
+
+        self._record_result(
+            test_name="rolling_source_mutation_and_narrow_cache",
+            method_call='rolling(column="sales", window=3, func="mean", order_by="date") twice',
+            pandas_call='_ordered(df)["sales"].rolling(3, min_periods=1).mean()',
+            original_df=time_series_df,
+            memframe_df=second,
+            pandas_df=first,
+            backend=backend_config["connection_type"],
+        )
+
     # ----------------------------------------------------------------
     # Rolling (direct, no order_by — unordered physical order)
     # ----------------------------------------------------------------
