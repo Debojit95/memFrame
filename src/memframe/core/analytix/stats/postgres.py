@@ -61,24 +61,6 @@ class PostgresDataStatsOps(DataStatsOps):
         except Exception as e:
             return self._error_response(str(e), [column])
 
-    async def datetime_diff(self, table: str, schema: str, column: str, backend=None, data_id: Optional[str]=None, new_table: Optional[str]=None, target_col: Optional[str]=None) -> Dict[str, Any]:
-        try:
-            q = self._qualified_table(table, schema)
-            c = SQLIdentifierSanitizer.sanitize(column)
-            e = f'EXTRACT(EPOCH FROM CAST("{c}" AS TIMESTAMP))::DOUBLE PRECISION'
-            diff_expr = f'{e} - LAG({e}) OVER (ORDER BY CAST("{c}" AS TIMESTAMP))'
-            tgt = SQLIdentifierSanitizer.sanitize(target_col) if target_col else f'{c}__diff_seconds'
-            out = await self._materialize_query_as_table(f'SELECT *, ({diff_expr}) AS "{tgt}" FROM {q}', table, schema, backend=backend, data_id=data_id, new_table=new_table)
-            await self._add_column_if_not_exists(table, schema, tgt, 'DOUBLE PRECISION')
-            orig_q = self._qualified_table(table, schema)
-            key = 'ctid'
-            await self._exec(f'UPDATE {orig_q} SET "{tgt}" = sub.d FROM (SELECT {key}, ({diff_expr}) AS d FROM {orig_q}) sub WHERE {orig_q}.{key} = sub.{key}')
-            sample = await self._fetch_data(out, schema, [column, tgt])
-            msg = f"Time differences for '{column}' → '{tgt}'"
-            return self._success_response(msg, [column], [tgt], sample, new_table=out)
-        except Exception as e:
-            return self._error_response(str(e), [column])
-
     async def datetime_delta_stats(self, table: str, schema: str, column: str) -> Dict[str, Any]:
         try:
             q = self._qualified_table(table, schema)

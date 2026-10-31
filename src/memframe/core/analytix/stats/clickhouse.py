@@ -88,28 +88,33 @@ class ClickHouseDataStatsOps(DataStatsOps):
         except Exception as e:
             return self._error_response(str(e), [column])
 
-    async def datetime_diff(self, table: str, schema: str, column: str, backend=None, data_id: Optional[str]=None, new_table: Optional[str]=None, target_col: Optional[str]=None) -> Dict[str, Any]:
+    async def _ensure_datetime_diff_column(self, table: str, schema: str, column: str, target: str, backend=None, data_id: Optional[str]=None) -> None:
+        """ClickHouse cannot UPDATE with a window expression; rebuild the source."""
+        q = self._qualified_table(table, schema)
+        c = SQLIdentifierSanitizer.sanitize(column)
+        tgt = SQLIdentifierSanitizer.sanitize(target)
+        e = f'toUnixTimestamp(CAST("{c}" AS DateTime))'
+        diff_expr = f'{e} - lagInFrame({e}) OVER (ORDER BY CAST("{c}" AS DateTime))'
+        mirror = await self._materialize_query_as_table(
+            f'SELECT *, ({diff_expr}) AS "{tgt}" FROM {q}',
+            table, schema, backend=backend, data_id=data_id,
+            new_table=f'{table}__diff_mirror',
+        )
+        mirror_q = self._qualified_table(mirror, schema)
+        backup = await self._resolve_output_table_name(
+            table, schema, backend=backend, data_id=data_id,
+            new_table=f'{table}__diff_old',
+        )
+        backup_q = self._qualified_table(backup, schema)
         try:
-            q = self._qualified_table(table, schema)
-            c = SQLIdentifierSanitizer.sanitize(column)
-            e = f'toUnixTimestamp(CAST("{c}" AS DateTime))'
-            diff_expr = f'{e} - lagInFrame({e}) OVER (ORDER BY CAST("{c}" AS DateTime))'
-            tgt = SQLIdentifierSanitizer.sanitize(target_col) if target_col else f'{c}__diff_seconds'
-            out = await self._materialize_query_as_table(f'SELECT *, ({diff_expr}) AS "{tgt}" FROM {q}', table, schema, backend=backend, data_id=data_id, new_table=new_table)
-            await self._add_column_if_not_exists(table, schema, tgt, 'DOUBLE PRECISION')
-            orig_q = self._qualified_table(table, schema)
-            try:
-                orig_new = await self._materialize_query_as_table(f'SELECT *, ({diff_expr}) AS "{tgt}" FROM {q}', table, schema, backend=backend, data_id=data_id, new_table=f'{table}__tmp_mirror')
-                await self._exec(f'DROP TABLE {orig_q}')
-                new_qualified = self._qualified_table(orig_new, schema)
-                await self._exec(f'RENAME TABLE {new_qualified} TO {orig_q}')
-            except Exception:
-                pass
-            sample = await self._fetch_data(out, schema, [column, tgt])
-            msg = f"Time differences for '{column}' → '{tgt}'"
-            return self._success_response(msg, [column], [tgt], sample, new_table=out)
-        except Exception as e:
-            return self._error_response(str(e), [column])
+            await self._exec(f'RENAME TABLE {q} TO {backup_q}, {mirror_q} TO {q}')
+        except Exception:
+            await self._exec(f'DROP TABLE IF EXISTS {mirror_q}')
+            raise
+        try:
+            await self._exec(f'DROP TABLE {backup_q}')
+        except Exception:
+            pass
 
     async def datetime_delta_stats(self, table: str, schema: str, column: str) -> Dict[str, Any]:
         try:

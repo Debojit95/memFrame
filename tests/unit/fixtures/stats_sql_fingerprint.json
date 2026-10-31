@@ -245,27 +245,22 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*,(toUnixTimestamp(CAST(\"ts\"ASDateTime))-lagInFrame(toUnixTimestamp(CAST(\"ts\"ASDateTime)))OVER(ORDERBYCAST(\"ts\"ASDateTime)))AS\"ts__diff_seconds\"FROM\"s\".\"t\"",
+    "CREATETABLE\"s\".\"t__diff_mirror\"ASSELECT*,(toUnixTimestamp(CAST(\"ts\"ASDateTime))-lagInFrame(toUnixTimestamp(CAST(\"ts\"ASDateTime)))OVER(ORDERBYCAST(\"ts\"ASDateTime)))AS\"ts__diff_seconds\"FROM\"s\".\"t\"",
     []
    ],
    [
     "exec",
-    "SELECT\"ts__diff_seconds\"FROM\"s\".\"t\"LIMIT1",
+    "RENAMETABLE\"s\".\"t\"TO\"s\".\"t__diff_old\",\"s\".\"t__diff_mirror\"TO\"s\".\"t\"",
     []
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__tmp_mirror\"ASSELECT*,(toUnixTimestamp(CAST(\"ts\"ASDateTime))-lagInFrame(toUnixTimestamp(CAST(\"ts\"ASDateTime)))OVER(ORDERBYCAST(\"ts\"ASDateTime)))AS\"ts__diff_seconds\"FROM\"s\".\"t\"",
+    "DROPTABLE\"s\".\"t__diff_old\"",
     []
    ],
    [
     "exec",
-    "DROPTABLE\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "RENAMETABLE\"s\".\"t__tmp_mirror\"TO\"s\".\"t\"",
+    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"ts\",\"ts__diff_seconds\"FROM\"s\".\"t\"",
     []
    ],
    [
@@ -277,17 +272,17 @@
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*,(epoch(CAST(\"ts\"ASTIMESTAMP))-LAG(epoch(CAST(\"ts\"ASTIMESTAMP)))OVER(ORDERBYCAST(\"ts\"ASTIMESTAMP)))AS\"ts__diff_seconds\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"ts__diff_seconds\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"SET\"ts__diff_seconds\"=sub.dFROM(SELECTrowid,(epoch(CAST(\"ts\"ASTIMESTAMP))-LAG(epoch(CAST(\"ts\"ASTIMESTAMP)))OVER(ORDERBYCAST(\"ts\"ASTIMESTAMP)))ASdFROM\"s\".\"t\")subWHERE\"s\".\"t\".rowid=sub.rowid",
+    "UPDATE\"s\".\"t\"SET\"ts__diff_seconds\"=sub.dFROM(SELECTrowid,(epoch(CAST(\"ts\"ASTIMESTAMP))-LAG(epoch(CAST(\"ts\"ASTIMESTAMP)),1)OVER(ORDERBYCAST(\"ts\"ASTIMESTAMP)))ASdFROM\"s\".\"t\")subWHERE\"s\".\"t\".rowid=sub.rowid",
+    []
+   ],
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"ts\",\"ts__diff_seconds\"FROM\"s\".\"t\"",
     []
    ],
    [
@@ -299,17 +294,17 @@
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*,(EXTRACT(EPOCHFROMCAST(\"ts\"ASTIMESTAMP))::DOUBLEPRECISION-LAG(EXTRACT(EPOCHFROMCAST(\"ts\"ASTIMESTAMP))::DOUBLEPRECISION)OVER(ORDERBYCAST(\"ts\"ASTIMESTAMP)))AS\"ts__diff_seconds\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"ts__diff_seconds\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"SET\"ts__diff_seconds\"=sub.dFROM(SELECTctid,(EXTRACT(EPOCHFROMCAST(\"ts\"ASTIMESTAMP))::DOUBLEPRECISION-LAG(EXTRACT(EPOCHFROMCAST(\"ts\"ASTIMESTAMP))::DOUBLEPRECISION)OVER(ORDERBYCAST(\"ts\"ASTIMESTAMP)))ASdFROM\"s\".\"t\")subWHERE\"s\".\"t\".ctid=sub.ctid",
+    "UPDATE\"s\".\"t\"SET\"ts__diff_seconds\"=sub.dFROM(SELECTctid,(EXTRACT(EPOCHFROM\"ts\")-LAG(EXTRACT(EPOCHFROM\"ts\"),1)OVER(ORDERBYCAST(\"ts\"ASTIMESTAMP)))ASdFROM\"s\".\"t\")subWHERE\"s\".\"t\".ctid=sub.ctid",
+    []
+   ],
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"ts\",\"ts__diff_seconds\"FROM\"s\".\"t\"",
     []
    ],
    [
