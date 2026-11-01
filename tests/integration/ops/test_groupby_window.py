@@ -709,10 +709,29 @@ class TestGroupByWindowOperations:
             pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].expanding().sum()',
         )
 
-    # --- EWM (engine port pending — see docs) ---
-    # Grouped EWM is not covered: ewm_groupby depends on engine helpers
-    # (_ensure_row_id, _alpha_from_params, _compute_ewm_array) that did not
-    # survive the window core split. Re-add these tests with the port.
+    # --- EWM ---
+    def test_groupby_ewm_source_writeback_and_cache(
+        self, uploaded_ctx, sample_df, backend_config
+    ):
+        first = uploaded_ctx.groupby("group").ewm(span=3, order_by="id").mean("value")
+        second = uploaded_ctx.groupby("group").ewm(span=3, order_by="id").mean("value")
+
+        assert first["is_error"] is False
+        assert second.get("result_metadata", {}).get("from_cache") is True
+
+        generated = get_generated_col(first, "value_ewm_mean_by_group")
+        assert generated in uploaded_ctx.dtypes
+        first_df = get_result_df(first)
+        second_df = get_result_df(second)
+        assert list(first_df.columns) == ["value", "group", "id", generated]
+        assert first_df.equals(second_df)
+
+        self._record_result(
+            "groupby_ewm",
+            '.groupby("group").ewm(span=3, order_by="id").mean("value")',
+            sample_df, first_df, second_df, backend_config["connection_type"],
+            pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].ewm(span=3).mean()',
+        )
 
     # --- Aggregation ---
     def test_groupby_rolling_agg(self, uploaded_ctx, sample_df, backend_config):

@@ -39,29 +39,6 @@ class PostgresWindowOps(WindowOps):
         return "BIGINT", "DOUBLE PRECISION"
 
     # --------------------------------------------------
-    # Row-id helpers (used by the Python fallbacks)
-    # --------------------------------------------------
-    async def _ensure_row_id(self, table: str, schema: str, order_col: Union[str, List[str]]):
-        """Add a temporary row-id column with a sequential row number ordered by the provided keys."""
-        q = self._qualified_table(table, schema)
-        if isinstance(order_col, (list, tuple)):
-            safe_orders = [SQLIdentifierSanitizer.sanitize(c) for c in order_col]
-        else:
-            safe_orders = [SQLIdentifierSanitizer.sanitize(order_col)]
-        order_sql = ", ".join(f'"{c}"' for c in safe_orders)
-        await self._add_col(table, schema, self.TMP_ROW, "BIGINT")
-
-        await self._exec(
-            f'UPDATE {q} AS t SET "{self.TMP_ROW}" = rn FROM '
-            f'(SELECT ctid, ROW_NUMBER() OVER (ORDER BY {order_sql}) AS rn FROM {q}) sub '
-            f'WHERE t.ctid = sub.ctid'
-        )
-
-    async def _drop_tmp_row(self, table: str, schema: str):
-        q = self._qualified_table(table, schema)
-        await self._exec(f'ALTER TABLE {q} DROP COLUMN IF EXISTS "{self.TMP_ROW}"')
-
-    # --------------------------------------------------
     # Rolling quantile (ordered-set aggregate cannot take a window frame)
     # --------------------------------------------------
     async def rolling_quantile(

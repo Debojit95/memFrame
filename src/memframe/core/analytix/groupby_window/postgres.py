@@ -7,6 +7,9 @@ from memframe.utils.helper import SQLIdentifierSanitizer
 class PostgresGroupbyWindowOps(GroupbyWindowOps):
     """PostgreSQL backend — map-back swaps tables; all else inherited."""
 
+    @property
+    def _row_id_col(self) -> str:
+        return "ctid"
 
     async def _apply_map(
         self, table, schema, group_table, new_columns, backend, data_id, sig,

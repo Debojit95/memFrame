@@ -214,6 +214,34 @@ class WindowOps:
         await self._exec(f"CREATE TABLE {qualified_target} AS SELECT * FROM {qualified_source}")
         return output_table
 
+    async def _ensure_row_id(self, table: str, schema: str, order_col):
+        """Add a temporary sequential row-id column ordered by the given keys."""
+        q = self._qualified_table(table, schema)
+        if isinstance(order_col, (list, tuple)):
+            safe_orders = [SQLIdentifierSanitizer.sanitize(c) for c in order_col]
+        else:
+            safe_orders = [SQLIdentifierSanitizer.sanitize(order_col)]
+        order_sql = ", ".join(self.db.quote_identifier(c) for c in safe_orders)
+        await self._add_col(table, schema, self.TMP_ROW, "BIGINT")
+
+        rid = self._row_id_col
+        if rid == "ctid":
+            await self._exec(
+                f'UPDATE {q} AS t SET "{self.TMP_ROW}" = rn FROM '
+                f'(SELECT ctid, ROW_NUMBER() OVER (ORDER BY {order_sql}) AS rn FROM {q}) sub '
+                f'WHERE t.ctid = sub.ctid'
+            )
+        else:
+            await self._exec(
+                f'UPDATE {q} SET "{self.TMP_ROW}" = rn FROM '
+                f'(SELECT {rid}, ROW_NUMBER() OVER (ORDER BY {order_sql}) AS rn FROM {q}) sub '
+                f'WHERE {q}.{rid} = sub.{rid}'
+            )
+
+    async def _drop_tmp_row(self, table: str, schema: str):
+        q = self._qualified_table(table, schema)
+        await self._exec(f'ALTER TABLE {q} DROP COLUMN IF EXISTS "{self.TMP_ROW}"')
+
     async def _source_star(
         self, table: str, schema: str, exclude=(), prefix: str = "",
         extra=(),
