@@ -77,6 +77,34 @@ class DeepOps:
         return {"is_error": False, "result": pd.DataFrame({"n": [i]}), "n": i}
 
 
+class CanonicalOps:
+    """Tracks whether positional and keyword call styles share one key."""
+
+    def __init__(self, mf, data_id):
+        self._memframe = mf
+        self._data_id = data_id
+        self.calls = 0
+
+    @record_call(deep_cache=True)
+    async def do(self, a, b=2):
+        self.calls += 1
+        return {"is_error": False, "result": pd.DataFrame({"n": [a + b]})}
+
+
+class TestCanonicalKey:
+    def test_positional_and_keyword_calls_share_one_entry(self, mf, uploaded):
+        ops = CanonicalOps(mf, uploaded._data_id)
+
+        first = asyncio.run(ops.do(1, b=3))
+        second = asyncio.run(ops.do(a=1, b=3))
+        third = asyncio.run(ops.do(1))
+
+        assert first["result"]["n"].tolist() == [4]
+        assert second["result_metadata"]["from_cache"] is True
+        assert third["result"]["n"].tolist() == [3]
+        assert ops.calls == 2  # 1+3 and 1+2 are distinct logical calls
+
+
 class TestFingerprint:
     def test_hit_then_stale_after_external_edit(self, mf, uploaded):
         data_id = uploaded._data_id

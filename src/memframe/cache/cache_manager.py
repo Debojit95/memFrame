@@ -1,5 +1,6 @@
 import asyncio
 import hashlib
+import inspect
 import json
 import logging
 import time
@@ -297,11 +298,25 @@ class CacheManager:
                     writer = manager._make_writer(mf)
                     self._call_writer = writer
 
+                # Normalise positional/keyword/default differences so the
+                # sync bridge, async callers, and direct calls share one key.
+                args_sig = manager._signature(args)
+                kwargs_sig = manager._signature(kwargs)
+                try:
+                    bound = inspect.signature(func).bind(self, *args, **kwargs)
+                    bound.apply_defaults()
+                    arguments = dict(bound.arguments)
+                    arguments.pop("self", None)
+                    args_sig = manager._signature(arguments)
+                    kwargs_sig = ""
+                except (TypeError, ValueError):
+                    pass
+
                 payload = {
                     "class_name": self.__class__.__name__,
                     "method_name": func.__name__,
-                    "args_sig": manager._signature(args),
-                    "kwargs_sig": manager._signature(kwargs),
+                    "args_sig": args_sig,
+                    "kwargs_sig": kwargs_sig,
                     "_backend": backend,
                 }
 
