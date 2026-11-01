@@ -131,6 +131,16 @@ class GroupBy:
         self._data_id = parent._data_id
         self.group_cols = group_cols
 
+    def cache_key(self) -> list:
+        """Cache identity: group columns and parent context, not call args."""
+        context_owner = getattr(self._parent, "_ops_parent", None)
+        context = (
+            context_owner.cache_key()
+            if callable(getattr(context_owner, "cache_key", None))
+            else None
+        )
+        return [context, list(self.group_cols)]
+
     async def _get_ops_and_context(self):
         ops = await self._parent._ensure_ops()
         table, schema = await self._parent._get_active_context()

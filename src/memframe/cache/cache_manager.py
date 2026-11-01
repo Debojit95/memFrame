@@ -49,6 +49,22 @@ class CacheManager:
             return None  # ponytail: exotic dtypes fall back to shape-only
 
     @staticmethod
+    def _self_key(instance: Any) -> Any:
+        """Opt-in result-affecting instance state (e.g. groupby columns).
+
+        Call arguments omit ``self``; a builder whose state changes the result
+        (``GroupBy.group_cols``) implements ``cache_key()`` so two builders
+        can't share one entry. Classes without it keep their existing key.
+        """
+        cache_key = getattr(instance, "cache_key", None)
+        if not callable(cache_key):
+            return None
+        try:
+            return cache_key()
+        except Exception:
+            return None
+
+    @staticmethod
     def _json_default(o: Any) -> Any:
         if isinstance(o, np.generic):
             return o.item()
@@ -322,6 +338,7 @@ class CacheManager:
 
                 # Normalise positional/keyword/default differences so the
                 # sync bridge, async callers, and direct calls share one key.
+                state_key = manager._self_key(self)
                 args_sig = manager._signature(args)
                 kwargs_sig = manager._signature(kwargs)
                 try:
@@ -329,10 +346,15 @@ class CacheManager:
                     bound.apply_defaults()
                     arguments = dict(bound.arguments)
                     arguments.pop("self", None)
+                    if state_key is not None:
+                        arguments["__self__"] = state_key
                     args_sig = manager._signature(arguments)
                     kwargs_sig = ""
                 except (TypeError, ValueError):
-                    pass
+                    if state_key is not None:
+                        kwargs_sig = manager._signature(
+                            {"kwargs": kwargs, "__self__": state_key}
+                        )
 
                 payload = {
                     "class_name": self.__class__.__name__,

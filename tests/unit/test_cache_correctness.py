@@ -243,3 +243,30 @@ class TestOverrideScope:
         assert r2b["result"]["x"].tolist() == [2]
         assert r1b["result_metadata"]["from_cache"] is True
         assert r2b["result_metadata"]["from_cache"] is True
+
+
+class TestInstanceStateKey:
+    def test_groupby_group_cols_do_not_share_cache(self, mf):
+        ctx = mf.upload_df(
+            pd.DataFrame(
+                {
+                    "region": ["N", "N", "S", "S"],
+                    "category": ["a", "b", "a", "b"],
+                    "sales": [1, 2, 10, 20],
+                }
+            ),
+            filename="groupby_cache_key",
+        )
+
+        by_region = asyncio.run(ctx.groupby("region").asum("sales"))
+        by_category = asyncio.run(ctx.groupby("category").asum("sales"))
+
+        assert by_region["result"]["region"].tolist() == ["N", "S"]
+        assert by_region["result"]["sales_sum"].tolist() == [3.0, 30.0]
+        assert by_category["result"]["category"].tolist() == ["a", "b"]
+        assert by_category["result"]["sales_sum"].tolist() == [11.0, 22.0]
+        assert not (by_category.get("result_metadata") or {}).get("from_cache")
+
+        # The same builder must still replay.
+        again = asyncio.run(ctx.groupby("region").asum("sales"))
+        assert again["result_metadata"]["from_cache"] is True
