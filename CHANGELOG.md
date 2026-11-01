@@ -6,6 +6,8 @@ to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.16.2] - 2026-11-01
+
 ### Added
 - **Module-level connection facade**: `import memframe as mf` now supports
   `mf.connect(connection_type=..., connection_params=..., deep_cache=...)` and
@@ -34,6 +36,18 @@ to [Semantic Versioning](https://semver.org/).
   contains only the involved datetime column and the generated diff column.
   Cached reruns return that same narrow table; a cache miss with an existing
   target column skips recomputation instead of running the diff again.
+- **Grouped EWM on DuckDB/PostgreSQL**: restored the shared row-id helper so
+  `groupby(...).ewm(...)` computes, writes the generated columns back to the
+  source, and replays from the deep cache instead of failing with a missing
+  `_ensure_row_id` helper.
+- **Canonical deep-cache keys**: positional, keyword, sync, and async calls
+  with the same arguments now share one cache entry instead of creating
+  separate keys.
+- **Deep-cache hits replay the operation envelope**: `new_columns`,
+  `new_column`, `mapped_table`, and `mapped_columns` are preserved on a hit,
+  so cached and fresh responses have the same shape.
+- **Dead cache decorators removed** from sync builders; `record_call` now
+  warns when applied to a non-coroutine instead of silently doing nothing.
 
 ### Changed
 - **Row-preserving window/groupby ops now write generated columns to the
