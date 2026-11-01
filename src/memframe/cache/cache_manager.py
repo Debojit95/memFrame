@@ -217,9 +217,27 @@ class CacheManager:
                 raise
             return qualified
 
-    def _make_hit_response(self, payload: Dict[str, Any], cached: pd.DataFrame, bare_name: str, schema: str) -> Dict[str, Any]:
+    def _make_hit_response(
+        self, payload: Dict[str, Any], cached: pd.DataFrame,
+        bare_name: str, schema: str, envelope: Optional[str] = None,
+    ) -> Dict[str, Any]:
         qualified = self._qualify(schema, bare_name, payload.get("_backend"))
-        return {
+
+        stored: Dict[str, Any] = {}
+        if envelope:
+            try:
+                parsed = json.loads(envelope)
+                if isinstance(parsed, dict):
+                    stored = parsed
+            except Exception:
+                stored = {}
+
+        generated = stored.get("new_columns")
+        if not isinstance(generated, list) or not generated:
+            single = stored.get("new_column")
+            generated = [single] if single else list(cached.columns)
+
+        response = {
             "is_error": False,
             "message": (
                 f"Cache hit for {payload['class_name']}."
@@ -227,18 +245,21 @@ class CacheManager:
                 f"reused generated table '{bare_name}'"
             ),
             "error_message": None,
-            "involved_cols": [],
-            "generated_cols": list(cached.columns),
+            **stored,
             "result": cached,
             "new_table": bare_name,
-            "result_metadata": {
-                "from_cache": True,
-                "saved_table": qualified,
-                "row_count": len(cached),
-                "column_count": len(cached.columns),
-                "strict_args_kwargs_match": True,
-            },
         }
+        response.setdefault("involved_cols", [])
+        response.setdefault("new_columns", generated)
+        response["generated_cols"] = list(generated)
+        response["result_metadata"] = {
+            "from_cache": True,
+            "saved_table": qualified,
+            "row_count": len(cached),
+            "column_count": len(cached.columns),
+            "strict_args_kwargs_match": True,
+        }
+        return response
 
     # ── decorator ──────────────────────────────────────────────────
     def __call__(self, func: Optional[Callable] = None, deep_cache: Optional[bool] = None):
@@ -248,7 +269,7 @@ class CacheManager:
 
     def _make_writer(self, mf):
         async def writer(payload, data_id, generated_table_name=None, is_deep_cache=False, schema=None,
-                         table_scope=None, base_fingerprint=None):
+                         table_scope=None, base_fingerprint=None, result_envelope=None):
             await mf._arecord_method_call(
                 data_id=data_id,
                 class_name=payload["class_name"],
@@ -260,6 +281,7 @@ class CacheManager:
                 schema=schema,
                 table_scope=table_scope,
                 base_fingerprint=base_fingerprint,
+                result_envelope=result_envelope,
             )
         return writer
 
@@ -338,7 +360,7 @@ class CacheManager:
                         lookup_start = time.perf_counter()
                         row = await backend.fetch_row(
                             f"""
-                            SELECT generated_table_name, schema, base_fingerprint, opidx
+                            SELECT generated_table_name, schema, base_fingerprint, opidx, result_envelope
                             FROM {backend.transient_registry_table}
                             WHERE data_id = {backend.placeholder(1)}
                               AND operation_type = 'method_call'
@@ -360,6 +382,7 @@ class CacheManager:
                         )
                         if row:
                             bare, sch, stored_fp, opidx = row[0], row[1], row[2], row[3]
+                            stored_envelope = row[4] if len(row) > 4 else None
                             sch = sch or backend.transient_schema
                             current_fp = await manager._read_fingerprint(backend, data_id, ops_parent)
                             if current_fp is None:
@@ -394,7 +417,9 @@ class CacheManager:
                                     method, data_id, bare, len(cached),
                                     time.perf_counter() - lookup_start,
                                 )
-                                return manager._make_hit_response(payload, cached, bare, sch)
+                                return manager._make_hit_response(
+                                    payload, cached, bare, sch, stored_envelope,
+                                )
                             logger.info(
                                 "[cache] MISS %s data_id=%s — registry row found but reload failed for %s",
                                 method, data_id, bare,
@@ -467,8 +492,26 @@ class CacheManager:
                     store_fp = None
                     if is_deep and backend:
                         store_fp = await manager._read_fingerprint(backend, data_id, ops_parent)
+
+                    result_envelope = None
+                    if is_deep and isinstance(result, dict) and not result.get("is_error", False):
+                        try:
+                            result_envelope = json.dumps(
+                                {
+                                    k: v for k, v in result.items()
+                                    if k not in (
+                                        "result", "new_table", "result_metadata",
+                                        "is_error", "message", "error_message",
+                                    )
+                                },
+                                default=manager._json_default,
+                            )
+                        except Exception:
+                            result_envelope = None
+
                     await writer(payload, data_id, generated_table_name, is_deep_cache=is_deep, schema=schema,
-                                 table_scope=scope, base_fingerprint=store_fp)
+                                 table_scope=scope, base_fingerprint=store_fp,
+                                 result_envelope=result_envelope)
                 if is_deep and generated_table_name:
                     logger.info(
                         "[cache] STORE %s.%s data_id=%s → %s.%s (deep)",

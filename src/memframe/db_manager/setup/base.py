@@ -153,6 +153,9 @@ class DatabaseBackend(ABC):
             # merge outputs. Nullable so pre-upgrade rows read as "unknown".
             "base_fingerprint": "TEXT",
             "table_scope": "TEXT",
+            # Operation envelope (minus the DataFrame/table name) so a cache
+            # hit can replay the same keys as the original call.
+            "result_envelope": "TEXT",
         }
 
         for column_name, column_type in required_columns.items():

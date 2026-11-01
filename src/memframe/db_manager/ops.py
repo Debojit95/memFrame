@@ -225,6 +225,7 @@ class OpsMixin:
         generated_table_name: Optional[str] = None,
         is_deep_cache: bool = False, schema: Optional[str] = None,
         table_scope: Optional[str] = None, base_fingerprint: Optional[str] = None,
+        result_envelope: Optional[str] = None,
     ) -> int:
         if not self._backend:
             raise ConnectionNotReady("Not connected.")
@@ -238,15 +239,16 @@ class OpsMixin:
             await self._backend.execute(
                 f"INSERT INTO {self._backend.transient_registry_table} "
                 f"(data_id, opidx, operation_type, class_name, method_name, args, kwargs, "
-                f"generated_table_name, is_deep_cache, schema, table_scope, base_fingerprint) "
+                f"generated_table_name, is_deep_cache, schema, table_scope, base_fingerprint, "
+                f"result_envelope) "
                 f"VALUES ({self._placeholder(1)}, {self._placeholder(2)}, {self._placeholder(3)}, "
                 f"{self._placeholder(4)}, {self._placeholder(5)}, {self._placeholder(6)}, "
                 f"{self._placeholder(7)}, {self._placeholder(8)}, {self._placeholder(9)}, {self._placeholder(10)}, "
-                f"{self._placeholder(11)}, {self._placeholder(12)})",
+                f"{self._placeholder(11)}, {self._placeholder(12)}, {self._placeholder(13)})",
                 data_id, opidx, "method_call", class_name, method_name,
                 args_sig, kwargs_sig,
                 generated_table_name, is_deep_cache, schema,
-                table_scope, base_fingerprint,
+                table_scope, base_fingerprint, result_envelope,
             )
             return opidx
 

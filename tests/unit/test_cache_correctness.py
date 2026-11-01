@@ -105,6 +105,41 @@ class TestCanonicalKey:
         assert ops.calls == 2  # 1+3 and 1+2 are distinct logical calls
 
 
+class MetadataOps:
+    """Returns the operation-envelope keys a real orchestrator would."""
+
+    def __init__(self, mf, data_id):
+        self._memframe = mf
+        self._data_id = data_id
+
+    @record_call(deep_cache=True)
+    async def do(self, i):
+        return {
+            "is_error": False,
+            "result": pd.DataFrame({"n": [i]}),
+            "new_columns": ["n"],
+            "new_column": "n",
+            "mapped_table": "source_table",
+            "mapped_columns": ["n"],
+        }
+
+
+class TestHitEnvelope:
+    def test_hit_replays_operation_metadata(self, mf, uploaded):
+        ops = MetadataOps(mf, uploaded._data_id)
+
+        first = asyncio.run(ops.do(1))
+        second = asyncio.run(ops.do(1))
+
+        assert first["new_columns"] == ["n"]
+        assert second["result_metadata"]["from_cache"] is True
+        assert second["new_columns"] == ["n"]
+        assert second["new_column"] == "n"
+        assert second["mapped_table"] == "source_table"
+        assert second["mapped_columns"] == ["n"]
+        assert second["generated_cols"] == ["n"]
+
+
 class TestFingerprint:
     def test_hit_then_stale_after_external_edit(self, mf, uploaded):
         data_id = uploaded._data_id
