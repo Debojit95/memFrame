@@ -140,6 +140,43 @@ class TestHitEnvelope:
         assert second["generated_cols"] == ["n"]
 
 
+class TestSyncAsyncBridge:
+    def test_window_sync_then_async_hits(self, mf, uploaded):
+        from memframe.wrappers.analytix.window import WindowWrapper
+
+        wrapper = WindowWrapper(uploaded)
+        first = wrapper.rolling("x", window=2, func="mean")
+        second = asyncio.run(wrapper.arolling("x", window=2, func="mean"))
+
+        assert second["result_metadata"]["from_cache"] is True
+        assert first["result"].equals(second["result"])
+        assert second["new_columns"] == ["x_rolling_mean_w2"]
+
+    def test_groupby_sync_then_async_hits(self, mf, uploaded):
+        from memframe.wrappers.analytix.groupby_stats import GroupByStatsWrapper
+
+        builder = GroupByStatsWrapper(uploaded).groupby("x")
+        first = builder.sum("x")
+        second = asyncio.run(builder.asum("x"))
+
+        assert second["result_metadata"]["from_cache"] is True
+        assert first["result"].equals(second["result"])
+        assert second["new_columns"] == ["x_sum"]
+
+    def test_groupby_cumulative_sync_then_async_hits(self, mf, uploaded):
+        from memframe.wrappers.analytix.groupby_cumulative import (
+            GroupByCumulativeWrapper,
+        )
+
+        builder = GroupByCumulativeWrapper(uploaded).groupby("x")
+        first = builder.cumsum("x")
+        second = asyncio.run(builder.acumsum("x"))
+
+        assert second["result_metadata"]["from_cache"] is True
+        assert first["result"].equals(second["result"])
+        assert second["new_columns"] == ["cum_x_sum_by_x"]
+
+
 class TestFingerprint:
     def test_hit_then_stale_after_external_edit(self, mf, uploaded):
         data_id = uploaded._data_id
