@@ -106,7 +106,6 @@ class GroupByStatsOrchestrator:
     # ------------------------------------------------------------------
     #  BUILDER PATTERN (returns a GroupBy helper)
     # ------------------------------------------------------------------
-    @record_call(deep_cache=True)
     def groupby(self, *columns: str) -> "GroupBy":
         """
         Create a GroupBy object for the given column(s).

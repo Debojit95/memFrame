@@ -42,15 +42,12 @@ class GroupByWindow:
         data_id = self._parent._data_id or self._parent._memframe._active_id
         return self._parent._core_ops, table, schema, backend, data_id
 
-    @record_call(deep_cache=True)
     def rolling(self, window: int, order_by: Union[str, List[str]] = None) -> "GroupByRolling":
         return GroupByRolling(self, window, order_by)
     
-    @record_call(deep_cache=True)
     def expanding(self, min_periods: int = 1, order_by: Union[str, List[str]] = None) -> "GroupByExpanding":
         return GroupByExpanding(self, min_periods, order_by)
     
-    @record_call(deep_cache=True)
     def ewm(self, order_by=None, com=None, span=None, halflife=None, alpha=None,
             adjust=True, ignore_na=False, min_periods=0) -> "GroupByEWM":
         return GroupByEWM(self,order_by, com, span, halflife, alpha, adjust, ignore_na, min_periods)

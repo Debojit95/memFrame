@@ -468,6 +468,12 @@ class CacheManager:
                 return result
             return async_wrapper
         else:
+            logger.warning(
+                "record_call applied to sync function %s; caching is only "
+                "supported for coroutine functions",
+                getattr(func, "__qualname__", func),
+            )
+
             @wraps(func)
             def sync_wrapper(self, *args, **kwargs):
                 return func(self, *args, **kwargs)
