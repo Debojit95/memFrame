@@ -15,7 +15,7 @@ class Session:
 
     Bound to the caller's `ops` (ContextManager) and its parent MemFrame.
     The active table starts as the registered upload and advances as
-    transform tools create transient tables.
+    transform tools create cache tables.
     """
 
     session_id: str
@@ -149,18 +149,18 @@ class Session:
         return ctx
 
     async def advance_table(self, new_table: str) -> None:
-        """Move the active table to a transform result's transient table.
+        """Move the active table to a transform result's cache table.
 
         When the session is pinned (during chat sub-query execution), the
         active table stays constant — the one from ctx.chat(). Transform
-        results still land in persistent transient tables, but the session
+        results still land in persistent cache tables, but the session
         reference never drifts, so every specialist sees the same schema.
         """
         if self._pinned is not None:
             return
-        schema = self._schema or self.memframe._backend.transient_schema
-        if self._adapter is not None and await self._adapter.table_exists(new_table, self.memframe._backend.transient_schema):
-            schema = self.memframe._backend.transient_schema
+        schema = self._schema or self.memframe._backend.cache_schema
+        if self._adapter is not None and await self._adapter.table_exists(new_table, self.memframe._backend.cache_schema):
+            schema = self.memframe._backend.cache_schema
         self._table, self._schema = new_table, schema
         # Invalidate context caches when the table changes
         self._clear_context_cache()

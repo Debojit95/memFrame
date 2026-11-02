@@ -30,7 +30,7 @@ FIXTURE = os.path.join(
 
 
 class _FakeBackend:
-    transient_registry_table = "transient_registry"
+    cache_registry_table = "cache_registry"
 
     @staticmethod
     def placeholder(i):

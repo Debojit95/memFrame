@@ -58,7 +58,7 @@ class DataStatsOps:
         return NotImplementedError(f'Unsupported database backend for stats operation: {self.db.__class__.__name__}')
 
     async def _generate_result_table_name(self, base_table: str, backend, data_id: str) -> str:
-        max_op = await self.db.fetchval(f'SELECT COALESCE(MAX(opidx), 0) FROM {backend.transient_registry_table} WHERE data_id = {backend.placeholder(1)}', data_id)
+        max_op = await self.db.fetchval(f'SELECT COALESCE(MAX(opidx), 0) FROM {backend.cache_registry_table} WHERE data_id = {backend.placeholder(1)}', data_id)
         next_op = (max_op or 0) + 1
         safe_base = SQLIdentifierSanitizer.sanitize(base_table)
         return f'{safe_base}__op_{next_op}'
@@ -80,7 +80,7 @@ class DataStatsOps:
         return output_table
 
     async def _materialize_query_as_table(self, query: str, table: str, schema: str, backend=None, data_id: Optional[str]=None, new_table: Optional[str]=None) -> str:
-        """Create a transient result table from a SELECT query and return its name."""
+        """Create a cache result table from a SELECT query and return its name."""
         safe_schema = SQLIdentifierSanitizer.sanitize(schema)
         output_table = await self._resolve_output_table_name(table, safe_schema, backend=backend, data_id=data_id, new_table=new_table)
         qualified_target = f'{self.db.quote_identifier(safe_schema)}.{self.db.quote_identifier(output_table)}'

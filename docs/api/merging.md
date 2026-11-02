@@ -202,15 +202,15 @@ Error messages:
 
 ## Generated Tables
 
-Every merge, join, and concat materializes a new transient table
+Every merge, join, and concat materializes a new cache table
 (`<left_table>__op_<n>`) and leaves the source upload tables untouched:
 
-1. Resolves the output name via the transient registry (with a dedupe suffix on collision).
+1. Resolves the output name via the cache registry (with a dedupe suffix on collision).
 2. `CREATE TABLE <new> AS <join/union SELECT>`.
-3. Persists the table in the transient schema and records it in the transient
+3. Persists the table in the cache schema and records it in the cache
    registry, so the returned context stays live and replays work. Outputs are
    dropped with the parent dataset (`delete_table`) or on cache clear. Sides may
-   live in different schemas (e.g. a merged transient table plus an upload
+   live in different schemas (e.g. a merged cache table plus an upload
    table) — each side is qualified with its own schema.
 4. `mf.connect(deep_cache=False)` (or `MemFrame(deep_cache=False)` for an
    explicit instance) disables persistence globally; a merged context created

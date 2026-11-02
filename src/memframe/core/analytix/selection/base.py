@@ -122,7 +122,7 @@ class DataSelectionOps:
             yield pd.DataFrame([dict(r) for r in rows])
             offset += chunk_size
 
-    async def _generate_transient_table_name(
+    async def _generate_cache_table_name(
         self,
         base_table: str,
         backend,
@@ -131,7 +131,7 @@ class DataSelectionOps:
         max_op = await backend.fetchval(
             f"""
             SELECT COALESCE(MAX(opidx), 0)
-            FROM {backend.transient_registry_table}
+            FROM {backend.cache_registry_table}
             WHERE data_id = {backend.placeholder(1)}
             """,
             data_id,
@@ -140,16 +140,16 @@ class DataSelectionOps:
         safe_base = SQLIdentifierSanitizer.sanitize(base_table)
         return f"{safe_base}__op_{next_op}"
 
-    async def _resolve_transient_table_name(
+    async def _resolve_cache_table_name(
         self,
         base_table: str,
         backend,
         data_id: str,
     ) -> str:
-        candidate = await self._generate_transient_table_name(base_table, backend, data_id)
+        candidate = await self._generate_cache_table_name(base_table, backend, data_id)
         output_table = SQLIdentifierSanitizer.sanitize(candidate)
         dedupe_idx = 1
-        while await self.db.table_exists(output_table, backend.transient_schema):
+        while await self.db.table_exists(output_table, backend.cache_schema):
             output_table = SQLIdentifierSanitizer.sanitize(f"{candidate}_{dedupe_idx}")
             dedupe_idx += 1
         return output_table
@@ -490,7 +490,7 @@ class DataSelectionOps:
 
             new_table = None
             if backend is not None and data_id is not None:
-                new_table = await self._generate_transient_table_name(table, backend, data_id)
+                new_table = await self._generate_cache_table_name(table, backend, data_id)
                 full_new = f"{self.db.quote_identifier(schema)}.{self._quote(new_table)}"
                 create_sql = f"""
                     CREATE TABLE {full_new} AS
@@ -592,13 +592,13 @@ class DataSelectionOps:
             if row_where is not None:
                 sql = f"SELECT {quoted_cols} FROM {qualified} WHERE {row_where}"
                 if backend is not None and data_id is not None:
-                    new_table = await self._resolve_transient_table_name(
+                    new_table = await self._resolve_cache_table_name(
                         "iloc_sel", backend, data_id
                     )
-                    full_new = f"{self.db.quote_identifier(backend.transient_schema)}.{self._quote(new_table)}"
+                    full_new = f"{self.db.quote_identifier(backend.cache_schema)}.{self._quote(new_table)}"
                     await self._exec(f"CREATE TABLE {full_new} AS {sql}", *row_params)
                     sample = await self._fetch_sample(
-                        new_table, backend.transient_schema, columns=selected_col_names
+                        new_table, backend.cache_schema, columns=selected_col_names
                     )
                     return self._success_response(
                         "iloc selection (filtered)",
@@ -690,11 +690,11 @@ class DataSelectionOps:
     ) -> Dict[str, Any]:
         if backend and data_id:
             base_table_name = f"iloc_{len(row_pos)}x{len(col_pos)}"
-            new_table = await self._resolve_transient_table_name(base_table_name, backend, data_id)
-            full_new = f"{self.db.quote_identifier(backend.transient_schema)}.{self._quote(new_table)}"
+            new_table = await self._resolve_cache_table_name(base_table_name, backend, data_id)
+            full_new = f"{self.db.quote_identifier(backend.cache_schema)}.{self._quote(new_table)}"
             create_sql = f"CREATE TABLE {full_new} AS {sql}"
             await self._exec(create_sql)
-            sample = await self._fetch_sample(new_table, backend.transient_schema, columns=selected_cols)
+            sample = await self._fetch_sample(new_table, backend.cache_schema, columns=selected_cols)
             return self._success_response(
                 f"iloc rows {row_pos} cols {col_pos}",
                 sample,

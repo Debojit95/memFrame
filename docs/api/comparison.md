@@ -5,7 +5,7 @@ Source: `src/memframe/wrappers/analytix/comparison.py`
 `ComparisonWrapper` is the public comparison interface exposed through a
 `ContextManager`. It compares two columns element-wise with a SQL comparison
 operator and writes the boolean result into a new column (`cmp_<col1>_<op>_<col2>`)
-on a freshly created transient table — the source table is never mutated.
+on a freshly created cache table — the source table is never mutated.
 
 Users normally call comparison methods directly on a dataset context returned by
 an upload operation:
@@ -129,7 +129,7 @@ Comparison methods return the canonical error envelope (`is_error=True` with
 ## Caching
 
 `compare` applies `@record_call`, so repeat calls are recorded in the
-transient registry like every other orchestrated operation. With
+cache registry like every other orchestrated operation. With
 `deep_cache=True` the result table is persisted and replayed on a repeat call;
 otherwise the call is signature-logged only.
 

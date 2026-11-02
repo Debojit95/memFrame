@@ -233,7 +233,7 @@ await ds.achat("sum the revenue column of ops2")
    steps so the next specialist sees any new columns produced by the prior
    step.
 3. The session pins the active table for the duration of a chat so every
-   specialist sees the same schema, even when transforms create transient
+   specialist sees the same schema, even when transforms create cache
    tables.
 4. Every tool call is routed through the public memFrame wrapper layer, so
    AI chat inherits the same two-level cache (audit lineage + replayable

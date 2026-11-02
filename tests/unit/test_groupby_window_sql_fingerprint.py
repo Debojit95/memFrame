@@ -37,7 +37,7 @@ class _FakeBackend:
     # recorded SQL stays deterministic (MAX(opidx) -> 0).
     def __init__(self, persona):
         self._persona = persona
-        self.transient_registry_table = "transient_registry"
+        self.cache_registry_table = "cache_registry"
 
     @staticmethod
     def placeholder(i):

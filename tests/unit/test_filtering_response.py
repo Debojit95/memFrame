@@ -12,7 +12,7 @@ from memframe.wrappers.analytix.filter import FilteringWrapper
 
 @pytest.fixture
 def filtering_context_deep():
-    # ponytail: chunk streaming reads the transient table lazily, so it
+    # ponytail: chunk streaming reads the cache table lazily, so it
     # needs deep_cache=True — L1 mode drops the table when the call returns.
     memframe = MemFrame(
         connection_type="local",

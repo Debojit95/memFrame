@@ -179,7 +179,7 @@ def test_reshape_crosstab_margins(reshape_context):
 
 def test_reshape_chunked_response_shape(reshape_context):
     # ponytail: shape-only — consuming the iterator hits reshape's
-    # _fetch_in_chunks, which lacks sorting's transient-schema fallback
+    # _fetch_in_chunks, which lacks sorting's cache-schema fallback
     # (deep cache moves the table; default cache drops it), so deferred
     # iteration raises CatalogException. Pinned as shape, not round-trip.
     response = ReshapingWrapper(reshape_context).melt(
@@ -191,7 +191,7 @@ def test_reshape_chunked_response_shape(reshape_context):
 
 
 def test_reshape_chunked_iterator_roundtrip(reshape_deep_context):
-    # ponytail: deep cache moves the transient table to the transient
+    # ponytail: deep cache moves the cache table to the cache
     # schema; _fetch_in_chunks falls back there on miss.
     response = ReshapingWrapper(reshape_deep_context).melt(
         id_vars=["id"], value_vars=["val"], chunk_size=2

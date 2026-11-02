@@ -56,18 +56,18 @@ class GroupByStatsOps:
         safe_schema = SQLIdentifierSanitizer.sanitize(schema)
         return f'{self.db.quote_identifier(safe_schema)}.{self.db.quote_identifier(safe_table)}'
 
-    # ---------- Transient-table helpers (mirror WindowOps) ----------
+    # ---------- Cache-table helpers (mirror WindowOps) ----------
     async def _backend_fetch_val(self, backend, sql: str, *args):
         if hasattr(backend, "fetch_val"):
             return await backend.fetch_val(sql, *args)
         return await self.db.fetchval(sql, *args)
 
-    async def _generate_transient_table_name(self, base_table: str, backend, data_id: str) -> str:
+    async def _generate_cache_table_name(self, base_table: str, backend, data_id: str) -> str:
         max_op = await self._backend_fetch_val(
             backend,
             f"""
             SELECT COALESCE(MAX(opidx), 0)
-            FROM {backend.transient_registry_table}
+            FROM {backend.cache_registry_table}
             WHERE data_id = {backend.placeholder(1)}
             """,
             data_id,
@@ -90,7 +90,7 @@ class GroupByStatsOps:
         if new_table:
             candidate = SQLIdentifierSanitizer.sanitize(new_table)
         elif backend is not None and data_id:
-            candidate = await self._generate_transient_table_name(safe_table, backend, data_id)
+            candidate = await self._generate_cache_table_name(safe_table, backend, data_id)
         else:
             candidate = f"{safe_table}__op_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}"
 
@@ -167,7 +167,7 @@ class GroupByStatsOps:
 
     # ------------------------------------------------------------------
     # map_feature helpers: LEFT JOIN group results back onto the original
-    # table (new feature columns only). Marker rows in the transient
+    # table (new feature columns only). Marker rows in the cache
     # registry tell our own re-runs apart from foreign column collisions.
     # ------------------------------------------------------------------
     def _map_sig(
@@ -201,7 +201,7 @@ class GroupByStatsOps:
             return None
         sig = self._map_sig(safe_group_cols, agg_spec, new_columns)
         rows = await self._fetch(
-            f"""SELECT kwargs FROM {backend.transient_registry_table}
+            f"""SELECT kwargs FROM {backend.cache_registry_table}
                 WHERE data_id = {backend.placeholder(1)}
                   AND operation_type = 'groupby_map'
                   AND generated_table_name = {backend.placeholder(2)}""",
@@ -247,14 +247,14 @@ class GroupByStatsOps:
             backend,
             f"""
             SELECT COALESCE(MAX(opidx), 0)
-            FROM {backend.transient_registry_table}
+            FROM {backend.cache_registry_table}
             WHERE data_id = {backend.placeholder(1)}
             """,
             data_id,
         )
         opidx = (max_op or 0) + 1
         await self._exec(
-            f"""INSERT INTO {backend.transient_registry_table}
+            f"""INSERT INTO {backend.cache_registry_table}
                 (data_id, opidx, operation_type, class_name, method_name,
                  args, kwargs, generated_table_name, is_deep_cache, schema)
                 VALUES ({backend.placeholder(1)}, {backend.placeholder(2)},

@@ -24,12 +24,12 @@ async def _no_lock():
 
 
 class CacheManager:
-    """Two-level method-call cache backed by the transient registry.
+    """Two-level method-call cache backed by the cache registry.
 
     Level 1 (default, deep_cache=False): records arg/kwarg signatures only —
     an audit/lineage log; repeat calls re-execute (no table to replay).
     Level 2 (deep, deep_cache=True): persists result DataFrames as typed
-    transient tables; repeat calls load the table and skip execution.
+    cache tables; repeat calls load the table and skip execution.
     Resolution order: decorator arg -> MemFrame.deep_cache -> False.
 
     The instance itself is the ``record_call`` decorator:
@@ -200,14 +200,14 @@ class CacheManager:
             return None
 
     async def _create_deep_cache_table(self, mf, backend, data_id: str, df: pd.DataFrame) -> str:
-        """Persist a DataFrame as a typed transient table (deep-cache payload)."""
+        """Persist a DataFrame as a typed cache table (deep-cache payload)."""
         async with CacheManager._op_lock_for(backend, data_id):
             op = await backend.fetchval(
-                f"SELECT COALESCE(MAX(opidx), 0) FROM {backend.transient_registry_table} "
+                f"SELECT COALESCE(MAX(opidx), 0) FROM {backend.cache_registry_table} "
                 f"WHERE data_id = {backend.placeholder(1)}", data_id,
             )
             op = (op or 0) + 1
-            qualified = backend.get_transient_table_name(data_id, op)
+            qualified = backend.get_cache_table_name(data_id, op)
             arrow = pa.Table.from_pandas(df, preserve_index=False)
             uploader = mf._uploader
             schema = {}
@@ -383,7 +383,7 @@ class CacheManager:
                         row = await backend.fetch_row(
                             f"""
                             SELECT generated_table_name, schema, base_fingerprint, opidx, result_envelope
-                            FROM {backend.transient_registry_table}
+                            FROM {backend.cache_registry_table}
                             WHERE data_id = {backend.placeholder(1)}
                               AND operation_type = 'method_call'
                               AND class_name = {backend.placeholder(2)}
@@ -405,7 +405,7 @@ class CacheManager:
                         if row:
                             bare, sch, stored_fp, opidx = row[0], row[1], row[2], row[3]
                             stored_envelope = row[4] if len(row) > 4 else None
-                            sch = sch or backend.transient_schema
+                            sch = sch or backend.cache_schema
                             current_fp = await manager._read_fingerprint(backend, data_id, ops_parent)
                             if current_fp is None:
                                 logger.info(
@@ -419,7 +419,7 @@ class CacheManager:
                                     method, data_id,
                                 )
                                 await backend.execute(
-                                    f"DELETE FROM {backend.transient_registry_table} "
+                                    f"DELETE FROM {backend.cache_registry_table} "
                                     f"WHERE data_id = {backend.placeholder(1)} "
                                     f"AND opidx = {backend.placeholder(2)}",
                                     data_id, opidx,
@@ -431,7 +431,7 @@ class CacheManager:
                                 row = None
                         if row:
                             bare, sch = row[0], row[1]
-                            sch = sch or backend.transient_schema
+                            sch = sch or backend.cache_schema
                             cached = await manager._load_generated_table(backend, manager._qualify(sch, bare, backend))
                             if cached is not None:
                                 logger.info(
@@ -464,19 +464,19 @@ class CacheManager:
                         if is_deep and isinstance(result, dict) and not result.get("is_error", False):
                             bare_table = result.get("new_table") or result.get("generated_table_name")
                             if bare_table and backend:
-                                if await backend.table_exists(manager._qualify(backend.transient_schema, bare_table, backend)):
+                                if await backend.table_exists(manager._qualify(backend.cache_schema, bare_table, backend)):
                                     generated_table_name = bare_table
-                                    schema = backend.transient_schema
+                                    schema = backend.cache_schema
                                 elif await backend.table_exists(manager._qualify(backend.upload_schema, bare_table, backend)):
                                     be = getattr(backend, "backend", None)
                                     if be == Backend.CLICKHOUSE:
                                         await backend.execute(
                                             f"RENAME TABLE {manager._qualify(backend.upload_schema, bare_table, backend)} "
-                                            f"TO {manager._qualify(backend.transient_schema, bare_table, backend)}"
+                                            f"TO {manager._qualify(backend.cache_schema, bare_table, backend)}"
                                         )
                                     elif be == Backend.DUCKDB:
                                         await backend.execute(
-                                            f"CREATE TABLE {manager._qualify(backend.transient_schema, bare_table, backend)} "
+                                            f"CREATE TABLE {manager._qualify(backend.cache_schema, bare_table, backend)} "
                                             f"AS SELECT * FROM {manager._qualify(backend.upload_schema, bare_table, backend)}"
                                         )
                                         await backend.execute(
@@ -485,10 +485,10 @@ class CacheManager:
                                     else:
                                         await backend.execute(
                                             f"ALTER TABLE {manager._qualify(backend.upload_schema, bare_table, backend)} "
-                                            f"SET SCHEMA {backend.transient_schema}"
+                                            f"SET SCHEMA {backend.cache_schema}"
                                         )
                                     generated_table_name = bare_table
-                                    schema = backend.transient_schema
+                                    schema = backend.cache_schema
                             elif "result" in result:
                                 df = result["result"]
                                 if isinstance(df, pd.DataFrame) and not df.empty and backend:
@@ -503,7 +503,7 @@ class CacheManager:
                             # ponytail: drop any table the method created — deep_cache=False means no tables
                             bare_table = result.get("new_table") or result.get("generated_table_name")
                             if bare_table and backend:
-                                for sch in (backend.transient_schema, backend.upload_schema):
+                                for sch in (backend.cache_schema, backend.upload_schema):
                                     q = manager._qualify(sch, bare_table, backend)
                                     if q and await backend.table_exists(q):
                                         await backend.drop_table(q)

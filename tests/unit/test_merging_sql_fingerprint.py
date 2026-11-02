@@ -64,8 +64,8 @@ TABLE_COLUMNS = {
 
 
 class _StubBackend:
-    transient_schema = "memframe_transient"
-    transient_registry_table = "memframe_transient.memframe_transient_registry"
+    cache_schema = "memframe_cache"
+    cache_registry_table = "memframe_cache.memframe_cache_registry"
 
     def __init__(self, placeholder):
         self._placeholder = placeholder

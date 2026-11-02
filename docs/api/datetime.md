@@ -704,7 +704,7 @@ operations raise `OperationError`:
 
 Every datetime operation is non-destructive to the source upload table. Each operation:
 
-1. Clones the source table into a new transient table (`<table>__op_<n>`).
+1. Clones the source table into a new cache table (`<table>__op_<n>`).
 2. Adds a result column (e.g. `dt_event_time_year`, `dt_ts_floor_day`).
 3. Populates it with backend-specific SQL (`EXTRACT`/`DATE_TRUNC`/ClickHouse `to*`).
 4. Returns the sample DataFrame directly; table metadata remains internal.

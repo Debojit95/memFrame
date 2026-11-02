@@ -151,23 +151,23 @@ class OpsMixin:
             raise DataNotFound(f"No table found for data_id: {data_id}")
         upload_table = row[0]
         is_external = bool(row[1]) if len(row) > 1 else False
-        transient_rows = await self._backend.fetch(
-            f"SELECT generated_table_name, schema FROM {self._backend.transient_registry_table} "
+        cache_rows = await self._backend.fetch(
+            f"SELECT generated_table_name, schema FROM {self._backend.cache_registry_table} "
             f"WHERE data_id = {self._placeholder(1)} AND generated_table_name IS NOT NULL",
             data_id,
         )
         # ponytail: one transaction — drops + registry deletes commit together,
         # so a crash can't leave tables without rows or rows without tables.
         async with self._backend.transaction():
-            for bare, sch in transient_rows:
+            for bare, sch in cache_rows:
                 # ponytail: stored names are bare — qualify with the recorded
-                # schema (pre-upgrade rows fall back to transient); an
+                # schema (pre-upgrade rows fall back to cache); an
                 # unqualified drop would target the upload schema and miss.
                 await self._backend.drop_table(
-                    self._backend.qualify_table(sch or self._backend.transient_schema, bare)
+                    self._backend.qualify_table(sch or self._backend.cache_schema, bare)
                 )
             # ponytail: synced tables live outside memFrame — never drop the
-            # user's real table, only its registry/transient entries.
+            # user's real table, only its registry/cache entries.
             if not is_external:
                 await self._backend.drop_table(upload_table)
             await self._backend.execute(
@@ -175,7 +175,7 @@ class OpsMixin:
                 data_id,
             )
             await self._backend.execute(
-                f"DELETE FROM {self._backend.transient_registry_table} WHERE data_id = {self._placeholder(1)}",
+                f"DELETE FROM {self._backend.cache_registry_table} WHERE data_id = {self._placeholder(1)}",
                 data_id,
             )
         if self._active_id == data_id:
@@ -188,17 +188,17 @@ class OpsMixin:
 
     async def _aclear_cache(self, data_id: str) -> None:
         rows = await self._backend.fetch(
-            f"SELECT generated_table_name, schema FROM {self._backend.transient_registry_table} "
+            f"SELECT generated_table_name, schema FROM {self._backend.cache_registry_table} "
             f"WHERE data_id = {self._placeholder(1)} AND generated_table_name IS NOT NULL",
             data_id,
         )
         async with self._backend.transaction():
             for bare, sch in rows:
                 await self._backend.drop_table(
-                    self._backend.qualify_table(sch or self._backend.transient_schema, bare)
+                    self._backend.qualify_table(sch or self._backend.cache_schema, bare)
                 )
             await self._backend.execute(
-                f"DELETE FROM {self._backend.transient_registry_table} WHERE data_id = {self._placeholder(1)}",
+                f"DELETE FROM {self._backend.cache_registry_table} WHERE data_id = {self._placeholder(1)}",
                 data_id,
             )
 
@@ -207,12 +207,12 @@ class OpsMixin:
     async def _arecord_operation(self, data_id: str, operation_type: str, generated_table_name: str) -> int:
         async with self._backend._locked_op(data_id):
             max_op = await self._backend.fetchval(
-                f"SELECT COALESCE(MAX(opidx), 0) FROM {self._backend.transient_registry_table} WHERE data_id = {self._placeholder(1)}",
+                f"SELECT COALESCE(MAX(opidx), 0) FROM {self._backend.cache_registry_table} WHERE data_id = {self._placeholder(1)}",
                 data_id,
             )
             opidx = (max_op or 0) + 1
             await self._backend.execute(
-                f"INSERT INTO {self._backend.transient_registry_table} "
+                f"INSERT INTO {self._backend.cache_registry_table} "
                 f"(data_id, opidx, generated_table_name, operation_type) "
                 f"VALUES ({self._placeholder(1)}, {self._placeholder(2)}, {self._placeholder(3)}, {self._placeholder(4)})",
                 data_id, opidx, generated_table_name, operation_type,
@@ -231,13 +231,13 @@ class OpsMixin:
             raise ConnectionNotReady("Not connected.")
         async with self._backend._locked_op(data_id):
             max_op = await self._backend.fetchval(
-                f"SELECT COALESCE(MAX(opidx), 0) FROM {self._backend.transient_registry_table} "
+                f"SELECT COALESCE(MAX(opidx), 0) FROM {self._backend.cache_registry_table} "
                 f"WHERE data_id = {self._placeholder(1)}",
                 data_id,
             )
             opidx = (max_op or 0) + 1
             await self._backend.execute(
-                f"INSERT INTO {self._backend.transient_registry_table} "
+                f"INSERT INTO {self._backend.cache_registry_table} "
                 f"(data_id, opidx, operation_type, class_name, method_name, args, kwargs, "
                 f"generated_table_name, is_deep_cache, schema, table_scope, base_fingerprint, "
                 f"result_envelope) "
@@ -261,7 +261,7 @@ class OpsMixin:
                 raise DataNotFound("No data_id provided and no active CSV set.")
         rows = await self._backend.fetch(
             f"SELECT opidx, operation_type, generated_table_name, created_at "
-            f"FROM {self._backend.transient_registry_table} "
+            f"FROM {self._backend.cache_registry_table} "
             f"WHERE data_id = {self._placeholder(1)} ORDER BY opidx",
             data_id,
         )
@@ -276,7 +276,7 @@ class OpsMixin:
 
     async def aretrieve_operation(self, data_id: str, opidx: int) -> str:
         row = await self._backend.fetch_row(
-            f"SELECT generated_table_name FROM {self._backend.transient_registry_table} "
+            f"SELECT generated_table_name FROM {self._backend.cache_registry_table} "
             f"WHERE data_id = {self._placeholder(1)} AND opidx = {self._placeholder(2)}",
             data_id, opidx,
         )

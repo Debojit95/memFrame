@@ -71,7 +71,7 @@ class GroupbyWindowOps(WindowOps):
         if not clashes:
             return None
         rows = await self._fetch(
-            f"""SELECT kwargs FROM {backend.transient_registry_table}
+            f"""SELECT kwargs FROM {backend.cache_registry_table}
                 WHERE data_id = {backend.placeholder(1)}
                   AND operation_type = 'groupby_win_map'
                   AND generated_table_name = {backend.placeholder(2)}""",
@@ -110,14 +110,14 @@ class GroupbyWindowOps(WindowOps):
             backend,
             f"""
             SELECT COALESCE(MAX(opidx), 0)
-            FROM {backend.transient_registry_table}
+            FROM {backend.cache_registry_table}
             WHERE data_id = {backend.placeholder(1)}
             """,
             data_id,
         )
         opidx = (max_op or 0) + 1
         await self._exec(
-            f"""INSERT INTO {backend.transient_registry_table}
+            f"""INSERT INTO {backend.cache_registry_table}
                 (data_id, opidx, operation_type, class_name, method_name,
                  args, kwargs, generated_table_name, is_deep_cache, schema)
                 VALUES ({backend.placeholder(1)}, {backend.placeholder(2)},

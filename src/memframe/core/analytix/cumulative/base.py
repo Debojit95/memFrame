@@ -90,21 +90,21 @@ class CumulativeOps:
             )
 
     # ------------------------------------------------------------------
-    # Transient table helpers
+    # Cache table helpers
     # ------------------------------------------------------------------
     async def _backend_fetch_val(self, backend, sql: str, *args):
         if hasattr(backend, "fetch_val"):
             return await backend.fetch_val(sql, *args)
         return await backend.fetchval(sql, *args)
 
-    async def _generate_transient_table_name(
+    async def _generate_cache_table_name(
         self, base_table: str, backend, data_id: str
     ) -> str:
         max_op = await self._backend_fetch_val(
             backend,
             f"""
             SELECT COALESCE(MAX(opidx), 0)
-            FROM {backend.transient_registry_table}
+            FROM {backend.cache_registry_table}
             WHERE data_id = {backend.placeholder(1)}
             """,
             data_id,
@@ -127,7 +127,7 @@ class CumulativeOps:
         if new_table:
             candidate = SQLIdentifierSanitizer.sanitize(new_table)
         elif backend is not None and data_id:
-            candidate = await self._generate_transient_table_name(
+            candidate = await self._generate_cache_table_name(
                 safe_table, backend, data_id
             )
         else:
@@ -223,9 +223,9 @@ class CumulativeOps:
         data_id: Optional[str] = None,
         new_table: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Create a new transient table with a cumulative column."""
+        """Create a new cache table with a cumulative column."""
         try:
-            # 1. Clone source table into a working transient table
+            # 1. Clone source table into a working cache table
             working_table = await self._prepare_operation_table(
                 table, schema, backend=backend, data_id=data_id, new_table=new_table
             )

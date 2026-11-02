@@ -44,7 +44,7 @@ class DatabaseBackend(ABC):
         pass
 
     @abstractmethod
-    async def _create_transient_schema(self) -> None:
+    async def _create_cache_schema(self) -> None:
         pass
 
     async def execute(self, query: str, *params) -> None:
@@ -72,7 +72,7 @@ class DatabaseBackend(ABC):
 
     async def initialize(self) -> None:
         await self._setup_database()
-        await self._create_transient_schema()
+        await self._create_cache_schema()
 
     @asynccontextmanager
     async def transaction(self):
@@ -91,7 +91,7 @@ class DatabaseBackend(ABC):
 
     @asynccontextmanager
     async def _locked_op(self, data_id: str):
-        """Serialize opidx allocation + transient writes for one dataset.
+        """Serialize opidx allocation + cache writes for one dataset.
 
         Re-entrant: the cache decorator holds this across execute+store while
         the inner recorders below re-enter from the same task without deadlock.
@@ -136,9 +136,9 @@ class DatabaseBackend(ABC):
         count = await self.fetchval(query, schema, table, column)
         return bool(count and count > 0)
 
-    async def _migrate_transient_registry_schema(self) -> None:
+    async def _migrate_cache_registry_schema(self) -> None:
         schema_name = self.registry_schema
-        table_name = "memframe_transient_registry"
+        table_name = "memframe_cache_registry"
         fq_table_name = f"{schema_name}.{table_name}"
 
         required_columns = {
@@ -292,12 +292,12 @@ class DatabaseBackend(ABC):
         pass
 
     @abstractmethod
-    def get_transient_table_name(self, data_id: str, opidx: int) -> str:
+    def get_cache_table_name(self, data_id: str, opidx: int) -> str:
         pass
 
     @property
     @abstractmethod
-    def transient_registry_table(self) -> str:
+    def cache_registry_table(self) -> str:
         pass
 
     @property
@@ -310,6 +310,6 @@ class DatabaseBackend(ABC):
         """Return {schema: [table_name, ...]} for user tables only.
 
         Excludes system schemas and memFrame-managed schemas (upload,
-        transient, registry) so SyncDB only surfaces real user data.
+        cache, registry) so SyncDB only surfaces real user data.
         """
         pass

@@ -4,7 +4,7 @@ The `memFrame` API is the pandas-style surface you call on a dataset context
 returned by an upload (or by `register_tables` / `set_active`). Every method
 compiles to backend-native SQL and runs in-engine across DuckDB, PostgreSQL,
 and ClickHouse — your data never leaves the database — and each call writes a
-new transient table (`<table>__op_<n>`) without mutating the source upload.
+new cache table (`<table>__op_<n>`) without mutating the source upload.
 
 Every operation has a synchronous and an asynchronous twin: drop the `a`
 prefix for sync (`head`) and use `await dataset.ahead(...)` for async. Methods

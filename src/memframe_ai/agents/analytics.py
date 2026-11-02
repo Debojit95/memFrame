@@ -268,7 +268,7 @@ class AnalyticsAgent:
         """Walk the linked list.
 
         The session table is pinned to the original ctx table (set in achat), so
-        tools never advance it to transient tables. Independent sub-queries run
+        tools never advance it to cache tables. Independent sub-queries run
         in parallel against the frozen base context. Dependent sub-queries run
         sequentially and force-refresh the domain context, which is computed on
         the same original table — now including any columns created by prior

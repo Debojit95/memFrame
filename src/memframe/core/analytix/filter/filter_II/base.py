@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 class DataFilteringOps:
     """
     Core filtering operations – translates a Predicate tree into a SQL WHERE
-    clause and creates a new transient table with the filtered result.
+    clause and creates a new cache table with the filtered result.
 
     Shared infrastructure lives here on DuckDB/PostgreSQL-flavoured
     defaults; clickhouse.py overrides one small dialect hook
@@ -111,12 +111,12 @@ class DataFilteringOps:
             f"Unsupported database backend for filtering operation: {self.db.__class__.__name__}"
         )
 
-    async def _generate_transient_table_name(self, base_table: str,
+    async def _generate_cache_table_name(self, base_table: str,
                                              backend, data_id: str) -> str:
         max_op = await backend.fetchval(
             f"""
             SELECT COALESCE(MAX(opidx), 0)
-            FROM {backend.transient_registry_table}
+            FROM {backend.cache_registry_table}
             WHERE data_id = {backend.placeholder(1)}
             """,
             data_id,
@@ -209,7 +209,7 @@ class DataFilteringOps:
         create_flag: bool = False,
     ) -> Dict[str, Any]:
         """
-        Create a new transient table containing only rows that satisfy
+        Create a new cache table containing only rows that satisfy
         the given predicate. Returns a sample or an async iterator.
 
         With create_flag=True and a proper row subset, a boolean flag
@@ -241,13 +241,13 @@ class DataFilteringOps:
 
                 qualified = self._qualified_table(table, schema)
 
-                # Generate transient table name if not supplied
+                # Generate cache table name if not supplied
                 if new_table is None:
                     if backend is None or data_id is None:
                         return self._error_response(
-                            "backend and data_id are required to generate transient table"
+                            "backend and data_id are required to generate cache table"
                         )
-                    new_table = await self._generate_transient_table_name(
+                    new_table = await self._generate_cache_table_name(
                         table, backend, data_id
                     )
                 new_table_safe = SQLIdentifierSanitizer.sanitize(new_table)
@@ -293,19 +293,19 @@ class DataFilteringOps:
                         flag_column=flag_column,
                     )
                 else:
-                    # ponytail: deep_cache relocates the table to the transient
+                    # ponytail: deep_cache relocates the table to the cache
                     # schema after this call returns; resolve the live location
                     # on first pull so the lazy iterator reads the right place.
-                    transient_schema = (
-                        backend.transient_schema if backend is not None else None
+                    cache_schema = (
+                        backend.cache_schema if backend is not None else None
                     )
 
                     async def iterator():
                         read_schema = schema
-                        if transient_schema and not await self.db.table_exists(
+                        if cache_schema and not await self.db.table_exists(
                             new_table_safe, read_schema
                         ):
-                            read_schema = transient_schema
+                            read_schema = cache_schema
                         async for chunk in self._fetch_in_chunks(
                             new_table_safe, read_schema, chunk_size,
                             columns=output_cols,

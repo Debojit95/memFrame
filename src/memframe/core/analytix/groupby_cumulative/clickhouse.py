@@ -191,7 +191,7 @@ class ClickHouseGroupbyCumulativeOps(GroupbyCumulativeOps):
             #
             # When no order_cols were given we wrap the source in a
             # subquery that adds _mf_row_num, then strip it out with
-            # SELECT * EXCEPT(_mf_row_num) so the transient result
+            # SELECT * EXCEPT(_mf_row_num) so the cache result
             # stays clean for downstream chaining.
             if use_row_num_fallback:
                 fallback_star = await self._source_star(table, schema, [tgt_safe])

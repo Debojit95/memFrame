@@ -191,11 +191,11 @@ class DataCleaningOps:
         types = await self.db.get_column_types(table, schema)
         return types.get(column, "TEXT")
 
-    async def _generate_transient_table_name(self, base_table: str, backend, data_id: str) -> str:
+    async def _generate_cache_table_name(self, base_table: str, backend, data_id: str) -> str:
         max_op = await backend.fetchval(
             f"""
             SELECT COALESCE(MAX(opidx), 0)
-            FROM {backend.transient_registry_table}
+            FROM {backend.cache_registry_table}
             WHERE data_id = {backend.placeholder(1)}
             """,
             data_id,
@@ -218,7 +218,7 @@ class DataCleaningOps:
         if new_table:
             candidate = SQLIdentifierSanitizer.sanitize(new_table)
         elif backend is not None and data_id:
-            candidate = await self._generate_transient_table_name(safe_table, backend, data_id)
+            candidate = await self._generate_cache_table_name(safe_table, backend, data_id)
         else:
             candidate = f"{safe_table}__op_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}"
 
@@ -1158,7 +1158,7 @@ class DataCleaningOps:
         try:
             original = table
             # ponytail: validate before preparing — bad input must not mint
-            # junk transient tables.
+            # junk cache tables.
             col_type = await self._get_column_type(table, schema, column)
             try:
                 direction, area, order_cols = self._validate_interpolate(

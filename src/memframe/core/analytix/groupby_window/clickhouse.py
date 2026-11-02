@@ -74,7 +74,7 @@ class ClickHouseGroupbyWindowOps(GroupbyWindowOps):
     # ------------------------------------------------------------------
     # map_feature helpers: LEFT JOIN the new feature column(s) back onto the
     # original table on full row identity (one output row per input row).
-    # Marker rows in the transient registry tell our own re-runs apart
+    # Marker rows in the cache registry tell our own re-runs apart
     # from foreign column collisions.
     # ------------------------------------------------------------------
     async def _projection_sql(

@@ -58,7 +58,7 @@ class MergeOrchestrator:
     ) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         left_table, schema = await self._get_context()
-        # ponytail: sides may live in different schemas (a merged transient
+        # ponytail: sides may live in different schemas (a merged cache
         # table plus an upload table), so each side keeps its own schema.
         right_table, right_schema = await self._get_table_and_schema(right_ops)
         backend = self._memframe._backend

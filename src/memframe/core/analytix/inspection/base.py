@@ -179,15 +179,15 @@ class GeneralTableOps:
         records = await self._normalize_records_by_type(records, table, schema)
         return pd.DataFrame.from_records(records)
 
-    async def _generate_transient_table_name(self, base_table: str, backend, data_id: str) -> str:
-        transient_registry_table = getattr(
-            backend, "transient_registry_table", "memframe_csv_registry.memframe_transient_registry"
+    async def _generate_cache_table_name(self, base_table: str, backend, data_id: str) -> str:
+        cache_registry_table = getattr(
+            backend, "cache_registry_table", "memframe_csv_registry.memframe_cache_registry"
         )
 
         max_op = await backend.fetchval(
             f"""
             SELECT COALESCE(MAX(opidx), 0)
-            FROM {transient_registry_table}
+            FROM {cache_registry_table}
             WHERE data_id = {backend.placeholder(1)}
             """,
             data_id,
@@ -264,7 +264,7 @@ class GeneralTableOps:
         if new_table:
             candidate = SQLIdentifierSanitizer.sanitize(new_table)
         elif backend is not None and data_id:
-            candidate = await self._generate_transient_table_name(base_table, backend, data_id)
+            candidate = await self._generate_cache_table_name(base_table, backend, data_id)
         else:
             safe_base = SQLIdentifierSanitizer.sanitize(base_table)
             ts = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f")

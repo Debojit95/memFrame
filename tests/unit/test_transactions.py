@@ -37,7 +37,7 @@ async def _upload_tables(mf):
 
 async def _registry_rows(mf, data_id: str):
     return await mf._backend.fetch(
-        f"SELECT opidx FROM {mf._backend.transient_registry_table} "
+        f"SELECT opidx FROM {mf._backend.cache_registry_table} "
         f"WHERE data_id = {mf._placeholder(1)}",
         data_id,
     )
@@ -130,7 +130,7 @@ class TestDeleteAtomicity:
         with pytest.raises(RuntimeError, match="boom mid-delete"):
             asyncio.run(mf.adelete_table(data_id=data_id))
 
-        # Everything still there: table, csv row, both transient rows.
+        # Everything still there: table, csv row, both cache rows.
         assert asyncio.run(mf._backend.table_exists(_qualified_upload(data_id)))
         assert any(t["data_id"] == data_id for t in asyncio.run(mf.alist_tables()))
         assert len(asyncio.run(_registry_rows(mf, data_id))) == 2
@@ -153,7 +153,7 @@ class TestDeepCacheAtomicity:
 
         rows = asyncio.run(mf._backend.fetch(
             "SELECT table_name FROM information_schema.tables "
-            "WHERE table_schema = 'memframe_transient'"
+            "WHERE table_schema = 'memframe_cache'"
         ))
         assert rows == []
         assert asyncio.run(_registry_rows(mf, data_id)) == []

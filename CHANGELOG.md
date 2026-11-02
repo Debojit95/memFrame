@@ -87,7 +87,7 @@ to [Semantic Versioning](https://semver.org/).
 - **Index ops (metadata-only)**: `set_index`/`reset_index`/`get_index`/`reindex`/`reindex_like` + `index` property on the dataset context — MultiIndex positioning, `append`, `verify_integrity`, pandas-safe `nearest` matching, ffill/bfill/limit fills. Zero writes to user tables (registry metadata only); `reset_index(names=...)` removed, callers are pointed at `rename()`. Tests: `tests/integration/ops/test_index.py` + SQL-fingerprint snapshot of registry writes. Docs: `docs/api/index.md` + nav/README.
 - **Linear interpolate**: `interpolate(column)` fills numeric gaps by linear interpolation over positional order (islands + `FIRST_VALUE` windows), direction-aware `limit` gating and `limit_area`; pandas doc vectors as parity. **`order_by`** takes a column (or list) to sequence the interpolation instead of row order — values still write back to their original rows (`NULLS LAST`, ties nondeterministic). Response carries the new `cleaned_<col>_interpolated` name, `order_by` metadata and the sample.
 - **Replace**: `replace_values` rewrites cell values — exact or regex, scalar/list/dict/nested value shapes, single column or the whole table — per-column `CASE` with a cast to the column's own type and a `_regex_replace` dialect hook (ClickHouse override); repeat-safe (previous `cleaned_*` columns never leak into later all-column expansion).
-- **Duplicated**: `duplicated()` returns the same physical-row mask pandas gives, kept positionally aligned: a transient clone holds every row plus a boolean `duplicated` column, source table never mutated.
+- **Duplicated**: `duplicated()` returns the same physical-row mask pandas gives, kept positionally aligned: a cache clone holds every row plus a boolean `duplicated` column, source table never mutated.
 - **Whole-table stats**: `column=None` fans out over compatible columns on every stats method (`mean`, `sum`, `std`, `unique`, `nunique`, `value_counts`, …) using a single-sample 3-way family detection — inapplicable columns are skipped (pandas `numeric_only` spirit), zero compatible columns is a clear failure.
 - **value_counts without column**: `value_counts()` returns top-N counts per column in one call as `{column: {value: count, ...}}`.
 - **ContextManager properties**: `columns`, `dtypes` and `shape` read live table facts without holding a call.
@@ -98,7 +98,7 @@ to [Semantic Versioning](https://semver.org/).
 ### Fixed
 - **Identifiers address themselves**: `SQLIdentifierSanitizer.sanitize` no longer rewrites spaces/dashes (only quote-breaking characters are neutralized; callers still quote), and raises `ConfigurationError` on `None`/empty/NUL instead of returning a different name. Columns like `"sale price"`/`"a-b"` now query themselves, including on SyncDB tables.
 - **DuckDB concurrency**: the shared connection is serialized with a re-entrant pool lock; opidx allocation is serialized per dataset; cast/upload/delete/cache sequences run inside real `Backend.transaction()` calls (best-effort compensation on ClickHouse), each CSV retry attempt starts from a fresh staging table.
-- **Deep-cache correctness**: cache entries are validated against the base table fingerprint and scope id before reuse; invalidated transient tables are dropped from the schema they were recorded in.
+- **Deep-cache correctness**: cache entries are validated against the base table fingerprint and scope id before reuse; invalidated cache tables are dropped from the schema they were recorded in.
 - **Strict-backend casts**: ClickHouse renders non-finite floats (`nan`/`inf`) as `CAST(... AS Float64)` literals instead of syntax errors; PostgreSQL `regclass` size probes bind parameters instead of splicing literals; index want-list/fill operations cast want-values and fill literals per backend dtype, and missing reindexed columns take the fill value's own type.
 - **Interpolate samples**: the response sample reads in physical row order, so `order_by=True` sequencing never reorders returned rows.
 - **ClickHouse**:
@@ -127,7 +127,7 @@ to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 - **XOR param duplication**: reusing one compiled predicate string repeated `?` markers without adding params on DuckDB/ClickHouse; each occurrence is now compiled separately.
-- **Chunk iterator relocation**: the lazy iterator captured the source schema while deep-cache moves the table to the transient schema; it now resolves the live location on first pull.
+- **Chunk iterator relocation**: the lazy iterator captured the source schema while deep-cache moves the table to the cache schema; it now resolves the live location on first pull.
 - **ClickHouse datetime reads**: the httpx fallback returned `Date`/`DateTime` columns as raw strings; values are now parsed via the response `meta` types (unparseable values pass through).
 
 ## [0.14.1] - 2026-09-29
@@ -138,7 +138,7 @@ to [Semantic Versioning](https://semver.org/).
 ## [0.14.0] - 2026-09-28
 
 ### Added
-- **Comparison (new domain)**: element-wise comparison of two columns via `ContextManager` — predicate form (`compare("salary >= bonus")`) and query form (`compare("salary", "bonus", ">=")`, sync + `a`-prefixed async) across `==`, `!=`, `>`, `<`, `>=`, `<=`. Numeric/categorical/datetime routing with automatic timestamp casts, `cmp_<col>_<op>_<col>` result columns on fresh transient tables; the source table is never mutated.
+- **Comparison (new domain)**: element-wise comparison of two columns via `ContextManager` — predicate form (`compare("salary >= bonus")`) and query form (`compare("salary", "bonus", ">=")`, sync + `a`-prefixed async) across `==`, `!=`, `>`, `<`, `>=`, `<=`. Numeric/categorical/datetime routing with automatic timestamp casts, `cmp_<col>_<op>_<col>` result columns on fresh cache tables; the source table is never mutated.
 - **Comparison tests**: `tests/unit/test_comparison_response.py` (9: both call forms, all three type families, error paths, naming helpers) + `tests/integration/ops/test_compare.py` (20: per-operator values vs pandas, NULL semantics, expression forms, mutation safety, DuckDB/PostgreSQL/ClickHouse backend config).
 - **Comparison docs**: `docs/api/comparison.md` (predicate vs query forms, type routing, result-column table, errors, caching) + sidebar nav + README link.
 
@@ -194,7 +194,7 @@ to [Semantic Versioning](https://semver.org/).
 ## [0.11.0] - 2026-09-24
 
 ### Added
-- **GroupBy (new domain)**: group-by aggregations via `ContextManager` — direct `agg(group_cols, agg_dict)`/`aagg` and a fluent builder (`groupby("region").sum("sales")`, all 14 stats + `a`-prefixed async forms) plus grouped `event_rate` — backed by backend-native SQL across DuckDB, PostgreSQL, and ClickHouse. Each call writes a `<table>__op_<n>` transient table; the source table is never mutated.
+- **GroupBy (new domain)**: group-by aggregations via `ContextManager` — direct `agg(group_cols, agg_dict)`/`aagg` and a fluent builder (`groupby("region").sum("sales")`, all 14 stats + `a`-prefixed async forms) plus grouped `event_rate` — backed by backend-native SQL across DuckDB, PostgreSQL, and ClickHouse. Each call writes a `<table>__op_<n>` cache table; the source table is never mutated.
 - **GroupBy `map_feature`**: opt-in `map_feature=True` LEFT JOINs the new `<column>_<stat>` feature columns back onto the original table under the same name (DuckDB `CREATE OR REPLACE`, PostgreSQL create-swap-rename, ClickHouse atomic `EXCHANGE TABLES`). Identical re-runs drop and re-add their own columns (tracked by `groupby_map` marker rows); foreign name collisions fail with an error. Only the group table is recorded by `@record_call`.
 - **GroupBy tests**: `tests/unit/test_groupby_stats_response.py` (24: values, builder/direct, error shape, event rate, map/rerun/collision, multicolumn, stacked specs) + `tests/unit/test_groupby_stats_sql_fingerprint.py` (7 scenarios × 3 backends); `tests/integration/ops/test_groupby_stats.py` (21 × backends incl. multi-column agg dicts, multicolumn group-by, `map_feature` single/multi, `Decimal`-tolerant compares for PostgreSQL).
 - **GroupBy docs**: `docs/api/groupby/groupby_stats.md` (Public API, per-stat semantics, event rate, map-back, backend behavior, mkdocstrings reference); memFrame nav is now flat per-page sections with no dropdown.
@@ -226,7 +226,7 @@ to [Semantic Versioning](https://semver.org/).
 ## [0.10.0] - 2026-09-21
 
 ### Added
-- **Window (new domain)**: rolling, expanding, and exponentially-weighted ops via `ContextManager` — direct calls (`rolling`/`arolling`, `expanding`/`aexpanding`, `ewm`/`aewm`) and a fluent builder (`on(column).rolling(n).mean(...)`, `.expanding(...)`, `.ewm(...)`) — backed by backend-native SQL across DuckDB, PostgreSQL, and ClickHouse. `WindowOps` is a single backend-branching engine (no factory split); the orchestrator detects the column dtype (numeric / datetime / categorical) and maps each requested function to the dtype-appropriate engine method, chaining multi-function requests into one transient table. Datetime rolling supports `min`/`max`/`mean`/`median`/`mode` (epoch conversion); EWM is numeric-only with `com`/`span`/`halflife`/`alpha`, `adjust`, `ignore_na`, and `min_periods`.
+- **Window (new domain)**: rolling, expanding, and exponentially-weighted ops via `ContextManager` — direct calls (`rolling`/`arolling`, `expanding`/`aexpanding`, `ewm`/`aewm`) and a fluent builder (`on(column).rolling(n).mean(...)`, `.expanding(...)`, `.ewm(...)`) — backed by backend-native SQL across DuckDB, PostgreSQL, and ClickHouse. `WindowOps` is a single backend-branching engine (no factory split); the orchestrator detects the column dtype (numeric / datetime / categorical) and maps each requested function to the dtype-appropriate engine method, chaining multi-function requests into one cache table. Datetime rolling supports `min`/`max`/`mean`/`median`/`mode` (epoch conversion); EWM is numeric-only with `com`/`span`/`halflife`/`alpha`, `adjust`, `ignore_na`, and `min_periods`.
 - **Window tests**: `tests/unit/test_window_response.py` (10: values, multi-func chaining, dtype/error shapes, datetime rolling, EWM, fluent builder) + `tests/unit/test_window_sql_fingerprint.py` (21 scenarios × 3 backends, fixture `window_sql_fingerprint.json`); `tests/integration/ops/test_window.py` (31 tests × 3 backends: shuffled unordered fixture, no-`order_by` cases, multi-func, null handling, datetime rolling, a `min`/`max`/`count`/`mean`/`sum`/`std`/`sem`/`rank`/`nunique`/`first`/`last` sweep, and edge windows `w=1` / `w>frame`).
 - **Window docs**: `docs/api/window.md` (Public API, dtype support matrix, per-op semantics, fluent builder, backend behavior, mkdocstrings reference) + nav entry after `Cumulative`.
 - **Wrapper type stubs**: `window.pyi` and `merging.pyi`.
@@ -266,11 +266,11 @@ to [Semantic Versioning](https://semver.org/).
 ## [0.7.1] - 2026-09-15
 
 ### Changed
-- **Merge/join/concat return a live `ContextManager`** on the new output table instead of a `DataFrame` snapshot. Outputs are persisted as transient tables and are chainable (`merged.head()`, `merged.merge(...)`, or usable as the `right_ops` of another merge); deep-cache replays return a context too. `chunk_size` no longer changes the public return type. Docs updated.
+- **Merge/join/concat return a live `ContextManager`** on the new output table instead of a `DataFrame` snapshot. Outputs are persisted as cache tables and are chainable (`merged.head()`, `merged.merge(...)`, or usable as the `right_ops` of another merge); deep-cache replays return a context too. `chunk_size` no longer changes the public return type. Docs updated.
 - **Library logging is silent by default** — memFrame no longer installs `StreamHandler`s or sets `INFO` at import, so notebooks (Colab/Kaggle) stop printing per-operation lines to stderr; the plot renderer's `print()` calls became `logger.debug`. Opt in with `memframe.enable_logging()`.
 
 ### Fixed
-- **Merging across schemas**: each side is qualified with its own schema, so a merged output (transient schema) can be chained with an upload-schema dataset.
+- **Merging across schemas**: each side is qualified with its own schema, so a merged output (cache schema) can be chained with an upload-schema dataset.
 
 ## [0.7.0] - 2026-09-14
 
@@ -290,10 +290,10 @@ to [Semantic Versioning](https://semver.org/).
 - **Reshape tests**: `tests/unit/test_reshape_response.py` (18: happy/error/chunked/public API) + `test_reshape_sql_fingerprint.py` (11 scenarios × 3 backends, fixture `reshape_sql_fingerprint.json`) + `tests/integration/ops/test_reshape.py` (8 ops × 3 backends, 8/8 on DuckDB/Postgres/ClickHouse).
 
 ### Fixed
-- `ReshapingOps._generate_transient_table_name`: `fetch_val` → `fetchval` (all 8 ops previously errored with `'DuckDBBackend' has no attribute 'fetch_val'`).
+- `ReshapingOps._generate_cache_table_name`: `fetch_val` → `fetchval` (all 8 ops previously errored with `'DuckDBBackend' has no attribute 'fetch_val'`).
 - `crosstab` `margins` SQL: col-name parse `rstrip` → `strip().rstrip` (trailing newline left `"), SUM("` syntax error).
 - `transpose` integration: order-insensitive `sort_values("column_name")` + `astype(str)` for ClickHouse `Nullable(String)`; `explode` fixture bracketed strings (uploader cannot ingest real `list<>` columns).
-- `_fetch_in_chunks`: transient-schema fallback (`memframe_transient` on `deep_cache` move) — 8 call sites now pass `backend=` (mirrors `sorting`).
+- `_fetch_in_chunks`: cache-schema fallback (`memframe_cache` on `deep_cache` move) — 8 call sites now pass `backend=` (mirrors `sorting`).
 
 ### Changed
 - **Reshape core split** into `base` plus per-backend modules (`duckdb`/`postgres`/`clickhouse` + factory) via `make_reshaping_ops`, mirroring `sorting`/`selection`; SQL fingerprints prove byte-identical output. Hooks: `_safe_numeric_expr`, `_get_table_columns`, `_build_explode_sql`, `_count_all_expr`/`_filtered_agg_expr`/`_normalize_ratio_expr`, `_transpose_unpivot_source`, `_pct_rank_expr`.
@@ -386,7 +386,7 @@ to [Semantic Versioning](https://semver.org/).
 ## [0.3.0rc3] - 2026-08-26
 
 ### Changed
-- **Schema/table rename**: the three auto-created namespaces and their inner tables are now prefixed `memframe_` to avoid collisions in shared databases — `upload` → `memframe_upload`, `transient` → `memframe_transient`, `registry` → `memframe_csv_registry`; inner tables `csv_registry` → `memframe_csv_registry` and `transient_registry` → `memframe_transient_registry` (the transient-registry table lives in `memframe_csv_registry` — a schema on DuckDB/PostgreSQL, a database on ClickHouse). Existing databases are not auto-migrated; fresh databases pick up the new names.
+- **Schema/table rename**: the three auto-created namespaces and their inner tables are now prefixed `memframe_` to avoid collisions in shared databases — `upload` → `memframe_upload`, `cache` → `memframe_cache`, `registry` → `memframe_csv_registry`; inner tables `csv_registry` → `memframe_csv_registry` and `cache_registry` → `memframe_cache_registry` (the cache-registry table lives in `memframe_csv_registry` — a schema on DuckDB/PostgreSQL, a database on ClickHouse). Existing databases are not auto-migrated; fresh databases pick up the new names.
 - `aset_active`/`set_active` now return the dataset `ContextManager` (instead of the bare `data_id` string), so activation flows straight into operations: `ctx = mf.set_active(data_id); ctx.select_dtypes(...)`. `get_active_table()` still returns the active `data_id`.
 
 ### Performance

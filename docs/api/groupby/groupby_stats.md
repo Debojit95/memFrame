@@ -7,7 +7,7 @@ through a `ContextManager`. It provides pandas-`groupby().agg()`-like
 analytics: pick grouping column(s), map value columns to lists of statistics,
 and get one row per group. Every operation compiles to backend-native SQL and
 runs in-engine across DuckDB, PostgreSQL, and ClickHouse; each call writes a
-new transient table (`<table>__op_<n>`) and the source upload table is never
+new cache table (`<table>__op_<n>`) and the source upload table is never
 mutated in place.
 
 Users normally call group-by methods directly on a dataset context returned
@@ -239,7 +239,7 @@ inspecting the raw envelope, check `is_error` / `error_message` instead.
 ## Generated Tables
 
 Every group-by operation is non-destructive to the source upload table. It
-creates a new transient table holding one row per group, then returns a
+creates a new cache table holding one row per group, then returns a
 preview of it:
 
 - **PostgreSQL / DuckDB:** `CREATE TABLE … AS SELECT <groups>,
@@ -247,10 +247,10 @@ preview of it:
 - **ClickHouse:** `CREATE TABLE … ENGINE = MergeTree() ORDER BY tuple() AS
   SELECT … GROUP BY …`.
 
-Output names chain via the transient registry (`<table>__op_<n>`); an
+Output names chain via the cache registry (`<table>__op_<n>`); an
 explicit `new_table` is sanitized and deduplicated with a numeric suffix on
 collision. Operations apply `@record_call`, so repeat calls are recorded in
-the transient registry.
+the cache registry.
 
 ## Backend Behavior
 

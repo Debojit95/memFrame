@@ -5,7 +5,7 @@ Source: `src/memframe/wrappers/analytix/filter.py`
 `FilteringWrapper` is the public filtering interface exposed through a
 `ContextManager`. It filters *rows*: a string expression is parsed into a
 predicate tree, compiled to a SQL `WHERE` clause, and the matching rows are
-written to a freshly created transient table — the source table is never
+written to a freshly created cache table — the source table is never
 mutated. Unlike comparison, which adds a boolean column, filtering returns
 only the rows that satisfy the expression.
 
@@ -93,7 +93,7 @@ async for chunk in response["iterator"]:
     process(chunk)
 ```
 
-The iterator reads the transient table lazily, so streaming requires
+The iterator reads the cache table lazily, so streaming requires
 `deep_cache=True` on the `MemFrame` — in default signature-only mode the table
 is dropped when the call returns and the first pull fails.
 
@@ -135,7 +135,7 @@ Rules:
 
 ## Caching
 
-`filter` applies `@record_call`, so calls are recorded in the transient
+`filter` applies `@record_call`, so calls are recorded in the cache
 registry like every other orchestrated operation. With `deep_cache=True` the
 result table persists and repeat calls replay it; otherwise the call is
 signature-logged only.

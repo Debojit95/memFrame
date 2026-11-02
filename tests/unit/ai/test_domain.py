@@ -65,7 +65,7 @@ def test_domain_context_reflects_advance_table(session):
     asyncio.run(session.ensure())
     adapter = session.adapter
     asyncio.run(adapter.execute(
-        'CREATE TABLE "memframe_transient"."other_tbl" (num BIGINT, cat VARCHAR)'
+        'CREATE TABLE "memframe_cache"."other_tbl" (num BIGINT, cat VARCHAR)'
     ))
     asyncio.run(session.advance_table("other_tbl"))
     after = asyncio.run(session.domain_context(force_refresh=True))
@@ -80,7 +80,7 @@ def test_advance_table_invalidates_cached_context(session):
     asyncio.run(session.ensure())
     adapter = session.adapter
     asyncio.run(adapter.execute(
-        'CREATE TABLE "memframe_transient"."fresh_tbl" (num BIGINT)'
+        'CREATE TABLE "memframe_cache"."fresh_tbl" (num BIGINT)'
     ))
     asyncio.run(session.advance_table("fresh_tbl"))
     after = asyncio.run(session.domain_context())  # no force_refresh

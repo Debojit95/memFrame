@@ -7,7 +7,7 @@ through a `ContextManager`. It provides sklearn/pandas-style numeric scaling,
 binning, polynomial expansion, interaction terms, categorical encoding,
 quantile/power transforms, and cyclical datetime features, compiled to
 backend-native SQL across DuckDB, PostgreSQL, and ClickHouse. Every call
-creates a new transient table (`<table>__op_<n>` via `deep_cache`) and
+creates a new cache table (`<table>__op_<n>` via `deep_cache`) and
 returns a sample DataFrame; the source table is never mutated in place.
 
 Users normally call transform directly on a dataset context returned by an
@@ -109,7 +109,7 @@ robust = await dataset.arobust_scale(column="salary", quantile_range=(10, 90))
 logd = await dataset.alog_transform(column="price", base="10", epsilon=0)
 ```
 
-Most transform methods materialize a new transient table (`<table>__op_<n>`) internally. The public return is the sample DataFrame; `new_table`, `involved_cols`, `generated_cols` remain internal to cache/AI.
+Most transform methods materialize a new cache table (`<table>__op_<n>`) internally. The public return is the sample DataFrame; `new_table`, `involved_cols`, `generated_cols` remain internal to cache/AI.
 
 ## Numeric Scaling
 
@@ -571,7 +571,7 @@ Envelope always keeps `result` key (`None` on error) so `is_operation_response`/
 
 Every transform operation is non-destructive to the source upload table. Each operation:
 
-1. Clones the source table into a new transient table (`<table>__op_<n>`, `deep_cache` via `transient_registry` `MAX(opidx)+1` or timestamp fallback), or `CREATE TABLE … AS SELECT *` for ClickHouse `MergeTree()`.
+1. Clones the source table into a new cache table (`<table>__op_<n>`, `deep_cache` via `cache_registry` `MAX(opidx)+1` or timestamp fallback), or `CREATE TABLE … AS SELECT *` for ClickHouse `MergeTree()`.
 2. Adds result column(s) `transformed_*` (`ADD COLUMN IF NOT EXISTS <col> DOUBLE PRECISION/INTEGER/TEXT` on PG/DuckDB, CTAS `MergeTree() ORDER BY tuple()` on CH).
 3. Populates via `UPDATE … FROM stats` (PG/DuckDB) or `SELECT … CASE` (CH) — single `UPDATE` for scalers, `CASE` per `bin` quantile, `POWER` loop for `poly`, `LEFT JOIN` + `_ch_join_key` alias for `label`/`frequency`/`target`/`ordinal` on CH.
 4. Returns sample DataFrame (`_fetch_sample` 10 rows, `involved_cols` + `generated_cols`); `new_table` name is in the envelope (`result` unwrapped hides it, use `CacheManager` or `?` to inspect).

@@ -79,7 +79,7 @@ Delete by original filename:
 mf.delete_table(filename="customers.csv")
 ```
 
-Deletion drops the dataset's generated transient tables, drops its upload
+Deletion drops the dataset's generated cache tables, drops its upload
 table, removes its registry records, and clears the active dataset when
 necessary.
 

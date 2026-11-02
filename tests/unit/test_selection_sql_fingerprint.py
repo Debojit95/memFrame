@@ -87,8 +87,8 @@ class RecordingAdapter:
 
 
 STUB_BACKEND = SimpleNamespace(
-    transient_schema="memframe_transient",
-    transient_registry_table="memframe_transient.memframe_transient_registry",
+    cache_schema="memframe_cache",
+    cache_registry_table="memframe_cache.memframe_cache_registry",
     placeholder=lambda i=1: "$1",
     fetchval=None,  # replaced with an async fn below
 )
@@ -129,9 +129,9 @@ def _scenarios():
     add("iloc_multistmt", lambda ops: ops.iloc("t", "s", row_indexer="num > 10; DROP TABLE x"))
     add("iloc_tuple", lambda ops: ops.iloc("t", "s", row_indexer=(slice(0, 4), slice(0, 2))))
     add("iloc_cols_positions", lambda ops: ops.iloc("t", "s", row_indexer=slice(0, 3), col_indexer=[0, 1]))
-    add("iloc_transient", lambda ops: ops.iloc(
+    add("iloc_cache", lambda ops: ops.iloc(
         "t", "s", row_indexer="num > 10", backend=STUB_BACKEND, data_id="d1"))
-    add("select_dtypes_transient", lambda ops: ops.select_dtypes(
+    add("select_dtypes_cache", lambda ops: ops.select_dtypes(
         "t", "s", include=["numeric"], backend=STUB_BACKEND, data_id="d1"))
     return s
 

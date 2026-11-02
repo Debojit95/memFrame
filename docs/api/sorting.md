@@ -61,7 +61,7 @@ async for chunk in iterator:
     process(chunk)
 ```
 
-Sorting materializes a new transient table (`<table>__op_<n>`) that is a sorted
+Sorting materializes a new cache table (`<table>__op_<n>`) that is a sorted
 clone of the source table. The public return is a sample `DataFrame` (or an
 async iterator when `chunk_size` is set); `new_table` metadata remains available
 to the cache layer.
@@ -118,8 +118,8 @@ async for chunk in iterator:
     print(chunk.head())
 ```
 
-The iterator transparently handles the cache's transient-table move (upload
-schema → `memframe_transient`) that happens between table creation and
+The iterator transparently handles the cache's cache-table move (upload
+schema → `memframe_cache`) that happens between table creation and
 consumption.
 
 ## Generated Tables
@@ -127,7 +127,7 @@ consumption.
 Every `sort_values` is non-destructive to the source upload table:
 
 1. Resolves `column_types` for `by` and `columns`.
-2. Generates a transient name `<table>__op_<n>` via the registry.
+2. Generates a cache name `<table>__op_<n>` via the registry.
 3. `CREATE TABLE <new> AS SELECT <select_clause> FROM <source> ORDER BY <order_sql>` (`ENGINE = MergeTree() ORDER BY tuple()` + `ORDER BY` inside the `SELECT` on ClickHouse).
 4. Non-chunked: sample via `SELECT *` from the new table; chunked: `LIMIT/OFFSET` pages.
 5. `deep_cache=True` persists the sorted clone for replay.

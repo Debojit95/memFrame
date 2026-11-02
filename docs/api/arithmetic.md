@@ -276,7 +276,7 @@ Invalid operations raise `OperationError`.
 Every arithmetic operation is non-destructive to the source upload table. Each
 operation:
 
-1. Clones the source table into a new transient table.
+1. Clones the source table into a new cache table.
 2. Adds a result column (e.g. `total_income`, `log_salary`, `sin_angle`).
 3. Populates the result column using a SQL `UPDATE`.
 4. Returns the sample DataFrame directly; table metadata remains internal.

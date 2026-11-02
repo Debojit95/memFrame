@@ -30,7 +30,7 @@ COLUMNS = [
 
 
 class _StubBackend:
-    transient_registry_table = "transient_registry"
+    cache_registry_table = "cache_registry"
 
     def __init__(self, placeholder):
         self._placeholder = placeholder

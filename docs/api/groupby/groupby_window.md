@@ -55,7 +55,7 @@ The lower-level files are implementation details:
 - `src/memframe/core/orchestrator/analytix/groupby_window.py` resolves
   the active dataset context, detects the column dtype, maps requested
   functions to dtype-appropriate engine methods, chains multi-function
-  requests into one transient table, and applies `@record_call`.
+  requests into one cache table, and applies `@record_call`.
 - `src/memframe/wrappers/analytix/groupby_window.py` exposes the
   synchronous and asynchronous builder methods plus the direct API.
 - `src/memframe/wrappers/analytix/groupby.py` is the unified `GroupBy`
@@ -180,7 +180,7 @@ result = dataset.arolling(
 ```
 
 Multi-aggregation (`func` as a list, or builder `.agg(column, funcs)`)
-chains every requested function into **one** transient table, each
+chains every requested function into **one** cache table, each
 reading the previous call's output:
 
 ```python
@@ -303,7 +303,7 @@ involved and generated columns. The deep cache stores that narrow table:
   from the output.
 
 Operations apply `@record_call`, so repeat calls are recorded in the
-transient registry.
+cache registry.
 
 ## Backend Behavior
 

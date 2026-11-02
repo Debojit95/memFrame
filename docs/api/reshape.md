@@ -73,7 +73,7 @@ async for chunk in iterator:
     process(chunk)
 ```
 
-Every reshape materializes a new transient table (`<table>__op_<n>`) and leaves
+Every reshape materializes a new cache table (`<table>__op_<n>`) and leaves
 the source upload table untouched. The public return is a sample `DataFrame`
 (or an async iterator when `chunk_size` is set); `new_table` metadata remains
 available to the cache layer.
@@ -161,15 +161,15 @@ async for chunk in iterator:
     print(chunk.head())
 ```
 
-The iterator transparently handles the cache's transient-table move (upload
-schema → `memframe_transient`) that happens between table creation and
+The iterator transparently handles the cache's cache-table move (upload
+schema → `memframe_cache`) that happens between table creation and
 consumption.
 
 ## Generated Tables
 
 Every reshape is non-destructive to the source upload table:
 
-1. Generates a transient name `<table>__op_<n>` via the registry.
+1. Generates a cache name `<table>__op_<n>` via the registry.
 2. `CREATE TABLE <new> AS <reshape SELECT>` (per-op SQL below).
 3. Non-chunked: sample via `SELECT *` from the new table; chunked: `LIMIT/OFFSET` pages.
 4. `deep_cache=True` persists the reshaped clone for replay.

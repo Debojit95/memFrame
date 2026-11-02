@@ -13,7 +13,7 @@ class ClickHouseBackend(DatabaseBackend):
     def __init__(self, conn_params: dict):
         super().__init__(conn_params)
         self.upload_schema = "memframe_upload"
-        self.transient_schema = "memframe_transient"
+        self.cache_schema = "memframe_cache"
         self.registry_schema = "memframe_csv_registry"
 
     @property
@@ -71,11 +71,43 @@ class ClickHouseBackend(DatabaseBackend):
         return identifier.strip('"`')
 
     async def _setup_database(self) -> None:
-        for schema in (self.upload_schema, self.transient_schema, self.registry_schema):
+        # Migrate legacy "transient" names to "cache" (best-effort).
+        try:
+            n = await self.fetchval(
+                "SELECT count() FROM system.databases WHERE name = 'memframe_transient'"
+            )
+            if n:
+                t = await self.fetchval(
+                    "SELECT count() FROM system.databases WHERE name = 'memframe_cache'"
+                )
+                if not t:
+                    await self.execute("RENAME DATABASE memframe_transient TO memframe_cache")
+        except Exception:
+            pass
+        try:
+            n = await self.fetchval(
+                "SELECT count() FROM system.tables "
+                "WHERE database = 'memframe_csv_registry' "
+                "AND name = 'memframe_transient_registry'"
+            )
+            if n:
+                t = await self.fetchval(
+                    "SELECT count() FROM system.tables "
+                    "WHERE database = 'memframe_csv_registry' "
+                    "AND name = 'memframe_cache_registry'"
+                )
+                if not t:
+                    await self.execute(
+                        "RENAME TABLE memframe_csv_registry.memframe_transient_registry "
+                        "TO memframe_csv_registry.memframe_cache_registry"
+                    )
+        except Exception:
+            pass
+        for schema in (self.upload_schema, self.cache_schema, self.registry_schema):
             await self.execute(f"CREATE DATABASE IF NOT EXISTS `{schema}`")
         await self._create_registry_tables()
 
-    async def _create_transient_schema(self) -> None:
+    async def _create_cache_schema(self) -> None:
         pass
 
     async def _create_registry_tables(self) -> None:
@@ -92,7 +124,7 @@ class ClickHouseBackend(DatabaseBackend):
             ORDER BY data_id
         """)
         await self.execute(f"""
-            CREATE TABLE IF NOT EXISTS {self.registry_schema}.memframe_transient_registry (
+            CREATE TABLE IF NOT EXISTS {self.registry_schema}.memframe_cache_registry (
                 data_id String,
                 opidx Int32,
                 generated_table_name Nullable(String),
@@ -107,7 +139,7 @@ class ClickHouseBackend(DatabaseBackend):
             ) ENGINE = MergeTree()
             ORDER BY (data_id, opidx)
         """)
-        await self._migrate_transient_registry_schema()
+        await self._migrate_cache_registry_schema()
         await self._migrate_csv_registry_schema()
         # ponytail: index registry writes use a plain lightweight UPDATE,
         # which CH MergeTree only allows once block-number/offset columns
@@ -124,12 +156,12 @@ class ClickHouseBackend(DatabaseBackend):
     def get_upload_table_name(self, data_id: str) -> str:
         return self._clickhouse_qualified_table_name(data_id)
 
-    def get_transient_table_name(self, data_id: str, opidx: int) -> str:
-        return f"`{self.transient_schema}`.`{data_id}_{opidx}`"
+    def get_cache_table_name(self, data_id: str, opidx: int) -> str:
+        return f"`{self.cache_schema}`.`{data_id}_{opidx}`"
 
     @property
-    def transient_registry_table(self) -> str:
-        return f"`{self.registry_schema}`.memframe_transient_registry"
+    def cache_registry_table(self) -> str:
+        return f"`{self.registry_schema}`.memframe_cache_registry"
 
     @property
     def csv_registry_table(self) -> str:
@@ -142,7 +174,7 @@ class ClickHouseBackend(DatabaseBackend):
         )
         # ponytail: exclude ClickHouse's preset/system databases (case-insensitive)
         # plus memFrame's own bookkeeping databases so only user tables sync.
-        excluded = {"system", "information_schema", "default", "memframe_upload", "memframe_transient", "memframe_csv_registry"}
+        excluded = {"system", "information_schema", "default", "memframe_upload", "memframe_cache", "memframe_csv_registry"}
         result: Dict[str, List[str]] = {}
         for database, name in rows:
             if database.lower() in excluded:

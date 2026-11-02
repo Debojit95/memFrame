@@ -33,13 +33,13 @@ key is immutable in place.
 ## Cross-cutting subsystems
 
 - **Connection** — `ConnectorManager` owns the lifecycle: connection pool, the
-  `DatabaseBackend` (creates `memframe_csv_registry` / `memframe_transient_registry` — schemas on
+  `DatabaseBackend` (creates `memframe_csv_registry` / `memframe_cache_registry` — schemas on
   DuckDB/PostgreSQL, databases on ClickHouse — and runs migrations), and the uploader.
 - **Ingestion** — upload strategies for CSV / Parquet / pandas DataFrame plus a
   `DatatypeDetector` (encoding, delimiter, type inference).
 - **Cache** — `record_call` is a `CacheManager` decorator. L1 (`deep_cache=False`,
   default) records call signatures as a lineage/audit log only; L2
-  (`deep_cache=True`) persists result DataFrames as typed transient tables and
+  (`deep_cache=True`) persists result DataFrames as typed cache tables and
   replays them on a hit.
 
 ## Optional AI layer (`memframe_ai`)

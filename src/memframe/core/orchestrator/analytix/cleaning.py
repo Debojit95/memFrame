@@ -207,7 +207,7 @@ class CleaningOrchestrator:
         takes pandas' scalar/list/dict/nested-dict/pattern forms; ``value``
         the replacement (None writes NULL). ``regex`` enables pattern
         matching on text columns. Result is ``cleaned_<c>_replaced`` columns
-        plus a transient table; the source table is never rewritten.
+        plus a cache table; the source table is never rewritten.
         """
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
@@ -471,7 +471,7 @@ class CleaningOrchestrator:
         """Flag duplicate rows with a `duplicated` boolean column.
 
         Same subset/keep semantics as :meth:`drop_duplicates`, minus the
-        delete — the transient clone keeps every row plus the mask.
+        delete — the cache clone keeps every row plus the mask.
         """
         ops = await self._ensure_ops()
 

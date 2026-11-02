@@ -36,7 +36,7 @@ def tools(session):
         return await normalize(await w.aget(keys=keys, default=default), session)
 
     async def select_columns(columns: list[str]) -> dict:
-        """Create a transient table containing only the named columns."""
+        """Create a cache table containing only the named columns."""
         return await normalize(
             await w.ailoc(row_indexer=slice(None), columns=columns), session
         )

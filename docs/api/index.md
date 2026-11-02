@@ -13,7 +13,7 @@ ctx.drop_index("idx_month")
 
 Every method has an asynchronous twin: `acreate_index`, `adrop_index`,
 `alist_indexes`. Index operations are **not cached** and do not create
-transient tables. Dropping a dataset/table drops its indexes with it; synced
+cache tables. Dropping a dataset/table drops its indexes with it; synced
 external tables keep their indexes.
 
 ## Public API

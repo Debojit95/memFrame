@@ -3,7 +3,7 @@
   "clickhouse": [
    [
     "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMtransient_registryWHEREdata_id=$1",
+    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
     [
      "d1"
     ]
@@ -22,7 +22,7 @@
   "duckdb": [
    [
     "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMtransient_registryWHEREdata_id=$1",
+    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
     [
      "d1"
     ]
@@ -41,7 +41,7 @@
   "postgres": [
    [
     "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMtransient_registryWHEREdata_id=$1",
+    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
     [
      "d1"
     ]
@@ -62,7 +62,7 @@
   "clickhouse": [
    [
     "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMtransient_registryWHEREdata_id=$1",
+    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
     [
      "d1"
     ]
@@ -81,7 +81,7 @@
   "duckdb": [
    [
     "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMtransient_registryWHEREdata_id=$1",
+    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
     [
      "d1"
     ]
@@ -100,7 +100,7 @@
   "postgres": [
    [
     "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMtransient_registryWHEREdata_id=$1",
+    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
     [
      "d1"
     ]
@@ -121,7 +121,7 @@
   "clickhouse": [
    [
     "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMtransient_registryWHEREdata_id=$1",
+    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
     [
      "d1"
     ]
@@ -140,7 +140,7 @@
   "duckdb": [
    [
     "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMtransient_registryWHEREdata_id=$1",
+    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
     [
      "d1"
     ]
@@ -159,7 +159,7 @@
   "postgres": [
    [
     "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMtransient_registryWHEREdata_id=$1",
+    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
     [
      "d1"
     ]
@@ -180,7 +180,7 @@
   "clickhouse": [
    [
     "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMtransient_registryWHEREdata_id=$1",
+    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
     [
      "d1"
     ]
@@ -199,7 +199,7 @@
   "duckdb": [
    [
     "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMtransient_registryWHEREdata_id=$1",
+    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
     [
      "d1"
     ]
@@ -218,7 +218,7 @@
   "postgres": [
    [
     "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMtransient_registryWHEREdata_id=$1",
+    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
     [
      "d1"
     ]
@@ -239,7 +239,7 @@
   "clickhouse": [
    [
     "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMtransient_registryWHEREdata_id=$1",
+    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
     [
      "d1"
     ]
@@ -258,7 +258,7 @@
   "duckdb": [
    [
     "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMtransient_registryWHEREdata_id=$1",
+    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
     [
      "d1"
     ]
@@ -277,7 +277,7 @@
   "postgres": [
    [
     "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMtransient_registryWHEREdata_id=$1",
+    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
     [
      "d1"
     ]
@@ -298,7 +298,7 @@
   "clickhouse": [
    [
     "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMtransient_registryWHEREdata_id=$1",
+    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
     [
      "d1"
     ]
@@ -317,7 +317,7 @@
   "duckdb": [
    [
     "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMtransient_registryWHEREdata_id=$1",
+    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
     [
      "d1"
     ]
@@ -336,7 +336,7 @@
   "postgres": [
    [
     "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMtransient_registryWHEREdata_id=$1",
+    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
     [
      "d1"
     ]
@@ -357,7 +357,7 @@
   "clickhouse": [
    [
     "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMtransient_registryWHEREdata_id=$1",
+    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
     [
      "d1"
     ]
@@ -376,7 +376,7 @@
   "duckdb": [
    [
     "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMtransient_registryWHEREdata_id=$1",
+    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
     [
      "d1"
     ]
@@ -395,7 +395,7 @@
   "postgres": [
    [
     "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMtransient_registryWHEREdata_id=$1",
+    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
     [
      "d1"
     ]
@@ -416,7 +416,7 @@
   "clickhouse": [
    [
     "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMtransient_registryWHEREdata_id=$1",
+    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
     [
      "d1"
     ]
@@ -435,7 +435,7 @@
   "duckdb": [
    [
     "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMtransient_registryWHEREdata_id=$1",
+    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
     [
      "d1"
     ]
@@ -454,7 +454,7 @@
   "postgres": [
    [
     "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMtransient_registryWHEREdata_id=$1",
+    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
     [
      "d1"
     ]
@@ -475,7 +475,7 @@
   "clickhouse": [
    [
     "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMtransient_registryWHEREdata_id=$1",
+    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
     [
      "d1"
     ]
@@ -507,14 +507,14 @@
    ],
    [
     "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMtransient_registryWHEREdata_id=$1",
+    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
     [
      "d1"
     ]
    ],
    [
     "exec",
-    "INSERTINTOtransient_registry(data_id,opidx,operation_type,class_name,method_name,args,kwargs,generated_table_name,is_deep_cache,schema)VALUES($1,$2,'groupby_cum_map','GroupbyCumulativeOps','map_feature',$3,$4,$5,$6,$7)",
+    "INSERTINTOcache_registry(data_id,opidx,operation_type,class_name,method_name,args,kwargs,generated_table_name,is_deep_cache,schema)VALUES($1,$2,'groupby_cum_map','GroupbyCumulativeOps','map_feature',$3,$4,$5,$6,$7)",
     [
      "d1",
      "1",
@@ -534,7 +534,7 @@
   "duckdb": [
    [
     "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMtransient_registryWHEREdata_id=$1",
+    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
     [
      "d1"
     ]
@@ -551,14 +551,14 @@
    ],
    [
     "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMtransient_registryWHEREdata_id=$1",
+    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
     [
      "d1"
     ]
    ],
    [
     "exec",
-    "INSERTINTOtransient_registry(data_id,opidx,operation_type,class_name,method_name,args,kwargs,generated_table_name,is_deep_cache,schema)VALUES($1,$2,'groupby_cum_map','GroupbyCumulativeOps','map_feature',$3,$4,$5,$6,$7)",
+    "INSERTINTOcache_registry(data_id,opidx,operation_type,class_name,method_name,args,kwargs,generated_table_name,is_deep_cache,schema)VALUES($1,$2,'groupby_cum_map','GroupbyCumulativeOps','map_feature',$3,$4,$5,$6,$7)",
     [
      "d1",
      "1",
@@ -578,7 +578,7 @@
   "postgres": [
    [
     "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMtransient_registryWHEREdata_id=$1",
+    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
     [
      "d1"
     ]
@@ -610,14 +610,14 @@
    ],
    [
     "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMtransient_registryWHEREdata_id=$1",
+    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
     [
      "d1"
     ]
    ],
    [
     "exec",
-    "INSERTINTOtransient_registry(data_id,opidx,operation_type,class_name,method_name,args,kwargs,generated_table_name,is_deep_cache,schema)VALUES($1,$2,'groupby_cum_map','GroupbyCumulativeOps','map_feature',$3,$4,$5,$6,$7)",
+    "INSERTINTOcache_registry(data_id,opidx,operation_type,class_name,method_name,args,kwargs,generated_table_name,is_deep_cache,schema)VALUES($1,$2,'groupby_cum_map','GroupbyCumulativeOps','map_feature',$3,$4,$5,$6,$7)",
     [
      "d1",
      "1",
@@ -639,7 +639,7 @@
   "clickhouse": [
    [
     "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMtransient_registryWHEREdata_id=$1",
+    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
     [
      "d1"
     ]
@@ -658,7 +658,7 @@
   "duckdb": [
    [
     "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMtransient_registryWHEREdata_id=$1",
+    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
     [
      "d1"
     ]
@@ -677,7 +677,7 @@
   "postgres": [
    [
     "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMtransient_registryWHEREdata_id=$1",
+    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
     [
      "d1"
     ]
@@ -698,7 +698,7 @@
   "clickhouse": [
    [
     "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMtransient_registryWHEREdata_id=$1",
+    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
     [
      "d1"
     ]
@@ -717,7 +717,7 @@
   "duckdb": [
    [
     "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMtransient_registryWHEREdata_id=$1",
+    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
     [
      "d1"
     ]
@@ -736,7 +736,7 @@
   "postgres": [
    [
     "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMtransient_registryWHEREdata_id=$1",
+    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
     [
      "d1"
     ]

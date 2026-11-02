@@ -359,7 +359,7 @@ Parameters:
 Return behavior:
 
 - The method returns a pandas DataFrame correlation matrix directly.
-- The transient table name remains internal when persistence context is
+- The cache table name remains internal when persistence context is
   available.
 - The generated backend table stores the matrix in long format with
   `column1`, `column2`, and `value`.
@@ -438,7 +438,7 @@ Parameters:
 | --- | --- | --- |
 | `column` | `str` | Datetime column to analyze. |
 | `target_col` | `str` or `None` | Name for the diff column. Defaults to `{column}__diff_seconds`. |
-| `new_table` | `str` or `None` | Name for the result table; a transient table is created when omitted. |
+| `new_table` | `str` or `None` | Name for the result table; a cache table is created when omitted. |
 
 The method returns a DataFrame (the result table) containing the new diff column.
 

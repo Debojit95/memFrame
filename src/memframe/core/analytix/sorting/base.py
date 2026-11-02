@@ -65,12 +65,12 @@ class DataSortingOps:
         backend=None,
     ):
         # ponytail: iterator may be consumed after cache has moved the
-        # transient table from the upload schema to the transient schema.
-        # Try the original location first, fall back to transient on miss.
+        # cache table from the upload schema to the cache schema.
+        # Try the original location first, fall back to cache on miss.
         def _quals():
             yield self._qualified_table(table, schema)
             if backend is not None:
-                t_schema = getattr(backend, "transient_schema", None)
+                t_schema = getattr(backend, "cache_schema", None)
                 if t_schema and t_schema != schema:
                     yield self._qualified_table(table, t_schema)
 
@@ -111,7 +111,7 @@ class DataSortingOps:
             yield df
             offset += chunk_size
 
-    async def _generate_transient_table_name(
+    async def _generate_cache_table_name(
         self,
         base_table: str,
         backend,
@@ -120,7 +120,7 @@ class DataSortingOps:
         max_op = await backend.fetchval(
             f"""
             SELECT COALESCE(MAX(opidx), 0)
-            FROM {backend.transient_registry_table}
+            FROM {backend.cache_registry_table}
             WHERE data_id = {backend.placeholder(1)}
             """,
             data_id,
@@ -223,14 +223,14 @@ class DataSortingOps:
             order_sql = ", ".join(order_clauses)
 
             # ──────────────────────────────────────────────────────────
-            #  Generate transient table name  (same for all backends)
+            #  Generate cache table name  (same for all backends)
             # ──────────────────────────────────────────────────────────
             qualified = self._qualified_table(table, schema)
 
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
 
-            new_table = await self._generate_transient_table_name(
+            new_table = await self._generate_cache_table_name(
                 table, backend, data_id,
             )
             new_table_safe = SQLIdentifierSanitizer.sanitize(new_table)

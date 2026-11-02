@@ -1,7 +1,7 @@
 """
 Core Transform operations executed directly on the database.
 Supports PostgreSQL, DuckDB, and ClickHouse backends via DatabaseAdapter.
-Every public method now creates a new transient table, operates on it,
+Every public method now creates a new cache table, operates on it,
 and returns a standardized response with the new table name.
 """
 
@@ -135,19 +135,19 @@ class TransformOps:
         return str(v)
 
     # ------------------------------------------------------------------
-    # Transient table helpers (mirroring other core classes)
+    # Cache table helpers (mirroring other core classes)
     # ------------------------------------------------------------------
     async def _backend_fetch_val(self, backend, sql: str, *args):
         if hasattr(backend, "fetch_val"):
             return await backend.fetch_val(sql, *args)
         return await backend.fetchval(sql, *args)
 
-    async def _generate_transient_table_name(self, base_table: str, backend, data_id: str) -> str:
+    async def _generate_cache_table_name(self, base_table: str, backend, data_id: str) -> str:
         max_op = await self._backend_fetch_val(
             backend,
             f"""
             SELECT COALESCE(MAX(opidx), 0)
-            FROM {backend.transient_registry_table}
+            FROM {backend.cache_registry_table}
             WHERE data_id = {backend.placeholder(1)}
             """,
             data_id,
@@ -170,7 +170,7 @@ class TransformOps:
         if new_table:
             candidate = SQLIdentifierSanitizer.sanitize(new_table)
         elif backend is not None and data_id:
-            candidate = await self._generate_transient_table_name(safe_table, backend, data_id)
+            candidate = await self._generate_cache_table_name(safe_table, backend, data_id)
         else:
             candidate = f"{safe_table}__op_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}"
 

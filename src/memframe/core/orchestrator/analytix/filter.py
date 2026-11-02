@@ -38,7 +38,7 @@ class FilteringOrchestrator:
         create_flag: bool = False,
     ):
         """
-        Apply a filter and create a new transient table.
+        Apply a filter and create a new cache table.
 
         Parameters
         ----------

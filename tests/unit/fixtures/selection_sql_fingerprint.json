@@ -650,7 +650,7 @@
    ]
   ]
  },
- "iloc_transient": {
+ "iloc_cache": {
   "clickhouse": [
    [
     "fetch",
@@ -671,12 +671,12 @@
    ],
    [
     "exec",
-    "CREATETABLE\"memframe_transient\".\"iloc_sel__op_1\"ASSELECT\"num\",\"txt\",\"ts\"FROM\"s\".\"t\"WHEREnum>10",
+    "CREATETABLE\"memframe_cache\".\"iloc_sel__op_1\"ASSELECT\"num\",\"txt\",\"ts\"FROM\"s\".\"t\"WHEREnum>10",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"txt\",\"ts\"FROM\"memframe_transient\".\"iloc_sel__op_1\"",
+    "SELECT\"num\",\"txt\",\"ts\"FROM\"memframe_cache\".\"iloc_sel__op_1\"",
     []
    ]
   ],
@@ -910,7 +910,7 @@
    ]
   ]
  },
- "select_dtypes_transient": {
+ "select_dtypes_cache": {
   "clickhouse": [
    [
     "fetch",

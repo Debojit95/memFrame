@@ -88,7 +88,7 @@ def tools(session):
         """Iterate rows as named tuples; pass index=False to drop the index."""
         return await normalize(await w.aitertuples(index=index), session, advance=False)
 
-    # ----- write ops (create a new transient table) -----
+    # ----- write ops (create a new cache table) -----
     async def astype(
         columns: list[str] | None = None,
         dtypes: list[str] | None = None,

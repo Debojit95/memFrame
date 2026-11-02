@@ -26,7 +26,7 @@ DT_FIELD_MAP = {
 class DatetimeOps:
     """
     Core datetime operations executed directly on the database.
-    Every public method creates a new transient table, adds a result
+    Every public method creates a new cache table, adds a result
     column there, and returns a standardised response with the new table
     name (identical pattern to DataCleaningOps, ArithmeticOps, etc.).
 
@@ -95,12 +95,12 @@ class DatetimeOps:
             return await backend.fetch_val(sql, *args)
         return await backend.fetchval(sql, *args)
 
-    async def _generate_transient_table_name(self, base_table: str, backend, data_id: str) -> str:
+    async def _generate_cache_table_name(self, base_table: str, backend, data_id: str) -> str:
         max_op = await self._backend_fetch_val(
             backend,
             f"""
             SELECT COALESCE(MAX(opidx), 0)
-            FROM {backend.transient_registry_table}
+            FROM {backend.cache_registry_table}
             WHERE data_id = {backend.placeholder(1)}
             """,
             data_id,
@@ -123,7 +123,7 @@ class DatetimeOps:
         if new_table:
             candidate = SQLIdentifierSanitizer.sanitize(new_table)
         elif backend is not None and data_id:
-            candidate = await self._generate_transient_table_name(safe_table, backend, data_id)
+            candidate = await self._generate_cache_table_name(safe_table, backend, data_id)
         else:
             candidate = f"{safe_table}__op_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}"
 

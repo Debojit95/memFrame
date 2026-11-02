@@ -27,7 +27,7 @@ def uploaded(mf):
 
 def _ops_count(mf, data_id):
     return asyncio.run(mf._backend.fetchval(
-        f"SELECT COUNT(*) FROM {mf._backend.transient_registry_table} "
+        f"SELECT COUNT(*) FROM {mf._backend.cache_registry_table} "
         f"WHERE data_id = {mf._placeholder(1)}",
         data_id,
     ))
@@ -55,11 +55,11 @@ class TestCacheKeys:
         assert ContextManager(object(), data_id="abc123").cache_key() == ["abc123", None]
         assert ContextManager(object(), data_id="abc123", _table_override="ov").cache_key() == ["abc123", "ov"]
 
-    def test_transient_registry_has_validity_columns(self, mf):
+    def test_cache_registry_has_validity_columns(self, mf):
         rows = asyncio.run(mf._backend.fetch(
             "SELECT column_name FROM information_schema.columns "
             "WHERE table_schema = 'memframe_csv_registry' "
-            "AND table_name = 'memframe_transient_registry'"
+            "AND table_name = 'memframe_cache_registry'"
         ))
         assert {"base_fingerprint", "table_scope"} <= {r[0] for r in rows}
 
@@ -223,10 +223,10 @@ class TestOverrideScope:
 
         data_id = uploaded._data_id
         asyncio.run(mf._backend.execute(
-            "CREATE TABLE memframe_transient.ov1 (x INTEGER); INSERT INTO memframe_transient.ov1 VALUES (1)"
+            "CREATE TABLE memframe_cache.ov1 (x INTEGER); INSERT INTO memframe_cache.ov1 VALUES (1)"
         ))
         asyncio.run(mf._backend.execute(
-            "CREATE TABLE memframe_transient.ov2 (x INTEGER); INSERT INTO memframe_transient.ov2 VALUES (2)"
+            "CREATE TABLE memframe_cache.ov2 (x INTEGER); INSERT INTO memframe_cache.ov2 VALUES (2)"
         ))
         ops1 = ScopeOps(mf, ContextManager(mf, data_id=data_id, _table_override="ov1"))
         ops2 = ScopeOps(mf, ContextManager(mf, data_id=data_id, _table_override="ov2"))

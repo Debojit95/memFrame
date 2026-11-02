@@ -240,7 +240,7 @@ involved and generated columns. The deep cache stores that narrow table:
   output.
 
 Operations apply `@record_call`, so repeat calls are recorded in the
-transient registry.
+cache registry.
 
 ## Backend Behavior
 

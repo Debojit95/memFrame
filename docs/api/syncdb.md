@@ -31,7 +31,7 @@ registered = await mf.aregister_tables()
 
 - Enumerates every schema → table (database → table on ClickHouse) via the backend's `list_user_tables`,
   **skipping system schemas/databases** (e.g. `pg_catalog` and `INFORMATION_SCHEMA` schemas, the
-  ClickHouse `system` database, and memFrame's own namespaces — `memframe_upload` / `memframe_transient` /
+  ClickHouse `system` database, and memFrame's own namespaces — `memframe_upload` / `memframe_cache` /
   `memframe_csv_registry`, which are schemas on DuckDB/PostgreSQL and databases on ClickHouse).
 - Skips tables that are already registered or empty.
 - Assigns a fresh 6-char `data_id` per table and returns only what was

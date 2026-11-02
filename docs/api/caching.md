@@ -2,7 +2,7 @@
 
 Source: `src/cache/cache_manager.py`
 
-memFrame caches analytical method calls in a per-backend **transient registry**
+memFrame caches analytical method calls in a per-backend **cache registry**
 so repeat work is either recorded (cheap signature logging) or fully reused
 (deep cache reloads a saved result table without re-executing the method).
 
@@ -11,8 +11,8 @@ so repeat work is either recorded (cheap signature logging) or fully reused
 `record_call` is a `CacheManager` instance (`from memframe.cache import
 record_call, CacheManager`). Every analytics orchestrator method (`selection`,
 `inspection`, `cleaning`, `stats`, `arithmetic`) is decorated with it. The
-decorator wraps the method, records the call into the `memframe_transient_registry`
-table, and — for deep cache — persists the returned DataFrame as a transient
+decorator wraps the method, records the call into the `memframe_cache_registry`
+table, and — for deep cache — persists the returned DataFrame as a cache
 table.
 
 ```python
@@ -39,7 +39,7 @@ requests and disables deep caching for the whole session. The same applies to
 
 ### Level 1 — signature-only (default)
 
-Every call records its identity into `memframe_transient_registry`:
+Every call records its identity into `memframe_cache_registry`:
 
 - `data_id` — the dataset the call ran on
 - `opidx` — monotonically increasing operation index per dataset
@@ -55,11 +55,11 @@ the method created is dropped — signature-only mode never persists results.
 ### Level 2 — deep cache
 
 When deep caching is active, a successful result (a dict with `result` holding a
-DataFrame) is written to a **typed** transient table (column types are inferred
+DataFrame) is written to a **typed** cache table (column types are inferred
 from the DataFrame's Arrow schema, so cached results keep their dtypes):
 
 ```
-{transient_schema}.{data_id}_{opidx}
+{cache_schema}.{data_id}_{opidx}
 ```
 
 On a repeat call with identical arguments, the registry lookup finds the saved
@@ -87,35 +87,35 @@ method**:
 
 Methods that generate a table (e.g. a cleaned dataset) normally produce it in
 the memframe_upload schema (DuckDB/PostgreSQL) or database (ClickHouse). With deep
-caching, that table is moved into `transient_schema` (the transient schema on
+caching, that table is moved into `cache_schema` (the cache schema on
 DuckDB/PostgreSQL, database on ClickHouse) so it can be reloaded on later calls and cleaned up with
 `aclear_cache`. The relocation mechanism is backend-specific:
 
-- DuckDB — `CREATE TABLE memframe_transient AS SELECT * FROM memframe_upload...` then `DROP`.
-- PostgreSQL — `ALTER TABLE memframe_upload... SET SCHEMA memframe_transient`.
-- ClickHouse — `RENAME TABLE memframe_upload... TO memframe_transient...`.
+- DuckDB — `CREATE TABLE memframe_cache AS SELECT * FROM memframe_upload...` then `DROP`.
+- PostgreSQL — `ALTER TABLE memframe_upload... SET SCHEMA memframe_cache`.
+- ClickHouse — `RENAME TABLE memframe_upload... TO memframe_cache...`.
 
 ### Cache invalidation
 
-`aclear_cache(data_id)` drops every transient table recorded for a dataset and
+`aclear_cache(data_id)` drops every cache table recorded for a dataset and
 clears its registry rows. The original uploaded table is left untouched.
 
 ## Backend registry
 
-The transient registry lives in the backend `memframe_csv_registry` schema (DuckDB/PostgreSQL) or database (ClickHouse):
+The cache registry lives in the backend `memframe_csv_registry` schema (DuckDB/PostgreSQL) or database (ClickHouse):
 
-| Backend | Registry table | Transient schema/database |
+| Backend | Registry table | Cache schema/database |
 | --- | --- | --- |
-| DuckDB | `memframe_csv_registry.memframe_transient_registry` | `memframe_transient` |
-| PostgreSQL | `memframe_csv_registry.memframe_transient_registry` | `memframe_transient` |
-| ClickHouse | `memframe_csv_registry.memframe_transient_registry` | `memframe_transient` |
+| DuckDB | `memframe_csv_registry.memframe_cache_registry` | `memframe_cache` |
+| PostgreSQL | `memframe_csv_registry.memframe_cache_registry` | `memframe_cache` |
+| ClickHouse | `memframe_csv_registry.memframe_cache_registry` | `memframe_cache` |
 
-Registry and transient schemas/databases are fixed: `memframe_csv_registry`, `memframe_transient`, and
+Registry and cache schemas/databases are fixed: `memframe_csv_registry`, `memframe_cache`, and
 `memframe_upload`.
 
 ## Cache-key and registry index
 
-Lookups filter `memframe_transient_registry` by `data_id`, `class_name`, `method_name`,
+Lookups filter `memframe_cache_registry` by `data_id`, `class_name`, `method_name`,
 `args`, `kwargs`. DuckDB and PostgreSQL backends install an index on
 `(data_id, class_name, method_name)` so repeated lookups do not scan the whole
 registry.
@@ -126,7 +126,7 @@ The cache logs every lookup through the `memFrame.cache` logger:
 
 ```
 [cache] MISS ArithmeticWrapper.mul data_id=HW4dev — no matching registry row
-[cache] STORE ArithmeticWrapper.mul data_id=HW4dev → transient.HW4dev__op_... (deep)
+[cache] STORE ArithmeticWrapper.mul data_id=HW4dev → cache.HW4dev__op_... (deep)
 [cache] HIT  ArithmeticWrapper.mul data_id=HW4dev → HW4dev__op_... (3 rows, lookup+reload 0.013s)
 ```
 
@@ -140,7 +140,7 @@ The cache logs every lookup through the `memFrame.cache` logger:
   table could not be reloaded (warning level; the underlying error is logged).
 - `HIT ...` — a saved table was reloaded; the timing includes the registry
   lookup plus the table fetch.
-- `STORE ... (deep)` — a result was persisted to a transient table.
+- `STORE ... (deep)` — a result was persisted to a cache table.
 - `STORE ... (signature-only)` — L1 mode recorded the call only.
 
 The `result_metadata.from_cache` flag on the returned dict also reports hit vs

@@ -55,7 +55,7 @@ class ContextManager:
             data_id = getattr(memframe_instance, "_active_id", None)
         self._data_id = data_id
         # ponytail: bare output-table name for merge/join/concat results, which
-        # live as transient tables under the parent data_id without minting a
+        # live as cache tables under the parent data_id without minting a
         # registry dataset. None for regular dataset contexts.
         self._table_override = _table_override
         self._adapter: Optional[DatabaseAdapter] = None
@@ -371,16 +371,16 @@ class ContextManager:
         """Stable cache identity: dataset plus override table for merge outputs."""
         return [self._data_id, self._table_override]
 
-    async def _resolve_override_context(self):        # ponytail: exact registry lookup first (bare transient names can repeat
+    async def _resolve_override_context(self):        # ponytail: exact registry lookup first (bare cache names can repeat
         # across datasets), then an existence probe, so a deep-cache move from
-        # the upload schema to the transient schema resolves either way.
+        # the upload schema to the cache schema resolves either way.
         data_id = self._data_id or self.memframe._active_id
         if not data_id:
             raise DataNotFound("No active dataset and no explicit data_id provided.")
         backend = self.memframe._backend
         table = self._table_override
         rows = await backend.fetch(
-            f"SELECT schema FROM {backend.transient_registry_table} "
+            f"SELECT schema FROM {backend.cache_registry_table} "
             f"WHERE data_id = {backend.placeholder(1)} "
             f"AND generated_table_name = {backend.placeholder(2)} "
             f"ORDER BY opidx DESC LIMIT 1",
@@ -389,7 +389,7 @@ class ContextManager:
         )
         if rows and rows[0][0]:
             return table, rows[0][0]
-        for schema in (backend.upload_schema, backend.transient_schema):
+        for schema in (backend.upload_schema, backend.cache_schema):
             if getattr(backend, "backend", None) == Backend.CLICKHOUSE:
                 qualified = f"`{schema}`.`{table}`"
             else:
@@ -397,7 +397,7 @@ class ContextManager:
             if await backend.table_exists(qualified):
                 return table, schema
         raise DataNotFound(
-            f"Merged table '{table}' no longer exists. Merge outputs are transient: "
+            f"Merged table '{table}' no longer exists. Merge outputs are cache: "
             "they are dropped when the parent dataset is deleted, and are never "
             "persisted when deep_cache=False."
         )

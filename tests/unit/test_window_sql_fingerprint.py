@@ -92,8 +92,8 @@ class _FakeBackend:
         self._rec = rec
 
     @property
-    def transient_registry_table(self):
-        return "memframe_csv_registry.memframe_transient_registry"
+    def cache_registry_table(self):
+        return "memframe_csv_registry.memframe_cache_registry"
 
     def placeholder(self, index=1):
         return self._rec.placeholder(index)

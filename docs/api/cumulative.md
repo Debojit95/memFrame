@@ -213,7 +213,7 @@ Invalid operations raise `OperationError`. A negative column passed to
 ## Generated Tables
 
 Every cumulative operation is non-destructive to the source upload table.
-Each operation creates a new transient table (`<table>__op_<n>`) holding the
+Each operation creates a new cache table (`<table>__op_<n>`) holding the
 source rows plus the result column, then returns a sample of it:
 
 - **PostgreSQL / DuckDB:** clone via `CREATE TABLE … AS SELECT *`, `ADD
@@ -224,7 +224,7 @@ source rows plus the result column, then returns a sample of it:
   inline because asynchronous `UPDATE` mutations can return stale data.
 
 Operations are recorded with `deep_cache=True`, so repeat calls replay the
-persisted transient table instead of recomputing.
+persisted cache table instead of recomputing.
 
 ## Backend Behavior
 

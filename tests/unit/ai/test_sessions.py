@@ -34,7 +34,7 @@ def test_create_and_resolve_active_table(uploaded):
         store.drop("s1")
 
 
-def test_advance_table_to_transient(uploaded):
+def test_advance_table_to_cache(uploaded):
     ops, settings = uploaded
     session = store.create("s2", ops=ops, settings=settings)
     try:

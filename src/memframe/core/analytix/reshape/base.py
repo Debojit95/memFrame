@@ -63,12 +63,12 @@ class ReshapingOps:
 
     async def _fetch_in_chunks(self, table, schema, chunk_size, columns="*", backend=None):
         # ponytail: iterator may be consumed after cache has moved the
-        # transient table from the upload schema to the transient schema.
-        # Try the original location first, fall back to transient on miss.
+        # cache table from the upload schema to the cache schema.
+        # Try the original location first, fall back to cache on miss.
         def _quals():
             yield self._qualified_table(table, schema)
             if backend is not None:
-                t_schema = getattr(backend, "transient_schema", None)
+                t_schema = getattr(backend, "cache_schema", None)
                 if t_schema and t_schema != schema:
                     yield self._qualified_table(table, t_schema)
 
@@ -98,11 +98,11 @@ class ReshapingOps:
             yield pd.DataFrame([dict(r) for r in rows])
             offset += chunk_size
 
-    async def _generate_transient_table_name(self, base_table, backend, data_id):
+    async def _generate_cache_table_name(self, base_table, backend, data_id):
         max_op = await backend.fetchval(
             f"""
             SELECT COALESCE(MAX(opidx), 0)
-            FROM {backend.transient_registry_table}
+            FROM {backend.cache_registry_table}
             WHERE data_id = {backend.placeholder(1)}
             """,
             data_id,
@@ -177,7 +177,7 @@ class ReshapingOps:
                       backend, data_id, chunk_size=None):
         try:
             if isinstance(self.db, (PostgresAdapter, DuckDBAdapter, ClickHouseAdapter)):
-                new_table = await self._generate_transient_table_name(
+                new_table = await self._generate_cache_table_name(
                     table, backend, data_id
                 )
 
@@ -247,7 +247,7 @@ class ReshapingOps:
     ):
         try:
             if isinstance(self.db, (PostgresAdapter, DuckDBAdapter, ClickHouseAdapter)):
-                new_table = await self._generate_transient_table_name(
+                new_table = await self._generate_cache_table_name(
                     table, backend, data_id
                 )
 
@@ -347,7 +347,7 @@ class ReshapingOps:
     ):
         try:
             if isinstance(self.db, (PostgresAdapter, DuckDBAdapter, ClickHouseAdapter)):
-                new_table = await self._generate_transient_table_name(
+                new_table = await self._generate_cache_table_name(
                     table, backend, data_id
                 )
 
@@ -470,7 +470,7 @@ class ReshapingOps:
     ):
         try:
             if isinstance(self.db, (PostgresAdapter, DuckDBAdapter, ClickHouseAdapter)):
-                new_table = await self._generate_transient_table_name(
+                new_table = await self._generate_cache_table_name(
                     table, backend, data_id
                 )
 
@@ -622,7 +622,7 @@ class ReshapingOps:
     ):
         try:
             if isinstance(self.db, (PostgresAdapter, DuckDBAdapter, ClickHouseAdapter)):
-                new_table = await self._generate_transient_table_name(
+                new_table = await self._generate_cache_table_name(
                     table, backend, data_id
                 )
 
@@ -820,7 +820,7 @@ class ReshapingOps:
     ):
         try:
             if isinstance(self.db, (PostgresAdapter, DuckDBAdapter, ClickHouseAdapter)):
-                new_table = await self._generate_transient_table_name(
+                new_table = await self._generate_cache_table_name(
                     table, backend, data_id
                 )
 
@@ -912,7 +912,7 @@ class ReshapingOps:
     ):
         try:
             if isinstance(self.db, (PostgresAdapter, DuckDBAdapter, ClickHouseAdapter)):
-                new_table = await self._generate_transient_table_name(
+                new_table = await self._generate_cache_table_name(
                     table, backend, data_id
                 )
 
@@ -1038,7 +1038,7 @@ class ReshapingOps:
     ):
         try:
             if isinstance(self.db, (PostgresAdapter, DuckDBAdapter, ClickHouseAdapter)):
-                new_table = await self._generate_transient_table_name(
+                new_table = await self._generate_cache_table_name(
                     table, backend, data_id
                 )
 

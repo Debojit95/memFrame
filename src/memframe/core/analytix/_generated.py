@@ -122,7 +122,7 @@ async def _known_generated_columns(
     ops, table: str, op_type: str, backend, data_id: str,
 ) -> set:
     rows = await ops.db.fetch(
-        f"""SELECT kwargs FROM {backend.transient_registry_table}
+        f"""SELECT kwargs FROM {backend.cache_registry_table}
             WHERE data_id = {backend.placeholder(1)}
               AND operation_type = {backend.placeholder(2)}
               AND generated_table_name = {backend.placeholder(3)}""",
@@ -171,13 +171,13 @@ async def record_marker(
     max_op = await ops._backend_fetch_val(
         backend,
         f"""SELECT COALESCE(MAX(opidx), 0)
-            FROM {backend.transient_registry_table}
+            FROM {backend.cache_registry_table}
             WHERE data_id = {backend.placeholder(1)}""",
         data_id,
     )
     opidx = (max_op or 0) + 1
     await ops.db.execute(
-        f"""INSERT INTO {backend.transient_registry_table}
+        f"""INSERT INTO {backend.cache_registry_table}
             (data_id, opidx, operation_type, class_name, method_name,
              args, kwargs, generated_table_name, is_deep_cache, schema)
             VALUES ({backend.placeholder(1)}, {backend.placeholder(2)},

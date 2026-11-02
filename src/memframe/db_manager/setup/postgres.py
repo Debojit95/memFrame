@@ -12,7 +12,7 @@ class PostgresBackend(DatabaseBackend):
     def __init__(self, conn_params: dict):
         super().__init__(conn_params)
         self.upload_schema = "memframe_upload"
-        self.transient_schema = "memframe_transient"
+        self.cache_schema = "memframe_cache"
         self.registry_schema = "memframe_csv_registry"
 
     @property
@@ -20,11 +20,45 @@ class PostgresBackend(DatabaseBackend):
         return lambda i: f"${i}"
 
     async def _setup_database(self) -> None:
-        for schema in (self.upload_schema, self.transient_schema, self.registry_schema):
+        # Migrate legacy "transient" names to "cache" (best-effort).
+        try:
+            n = await self.fetchval(
+                "SELECT count(*) FROM information_schema.schemata "
+                "WHERE schema_name = 'memframe_transient'"
+            )
+            if n:
+                t = await self.fetchval(
+                    "SELECT count(*) FROM information_schema.schemata "
+                    "WHERE schema_name = 'memframe_cache'"
+                )
+                if not t:
+                    await self.execute("ALTER SCHEMA memframe_transient RENAME TO memframe_cache")
+        except Exception:
+            pass
+        try:
+            n = await self.fetchval(
+                "SELECT count(*) FROM information_schema.tables "
+                "WHERE table_schema = 'memframe_csv_registry' "
+                "AND table_name = 'memframe_transient_registry'"
+            )
+            if n:
+                t = await self.fetchval(
+                    "SELECT count(*) FROM information_schema.tables "
+                    "WHERE table_schema = 'memframe_csv_registry' "
+                    "AND table_name = 'memframe_cache_registry'"
+                )
+                if not t:
+                    await self.execute(
+                        "ALTER TABLE memframe_csv_registry.memframe_transient_registry "
+                        "RENAME TO memframe_cache_registry"
+                    )
+        except Exception:
+            pass
+        for schema in (self.upload_schema, self.cache_schema, self.registry_schema):
             await self.execute(f"CREATE SCHEMA IF NOT EXISTS {schema}")
         await self._create_registry_tables()
 
-    async def _create_transient_schema(self) -> None:
+    async def _create_cache_schema(self) -> None:
         pass
 
     async def _create_registry_tables(self) -> None:
@@ -40,7 +74,7 @@ class PostgresBackend(DatabaseBackend):
             )
         """)
         await self.execute(f"""
-            CREATE TABLE IF NOT EXISTS {self.registry_schema}.memframe_transient_registry (
+            CREATE TABLE IF NOT EXISTS {self.registry_schema}.memframe_cache_registry (
                 data_id CHAR(6) NOT NULL,
                 opidx INTEGER NOT NULL,
                 generated_table_name TEXT,
@@ -53,22 +87,22 @@ class PostgresBackend(DatabaseBackend):
                 PRIMARY KEY (data_id, opidx)
             )
         """)
-        await self._migrate_transient_registry_schema()
+        await self._migrate_cache_registry_schema()
         await self._migrate_csv_registry_schema()
         await self.execute(
-            f"CREATE INDEX IF NOT EXISTS idx_transient_registry_lookup "
-            f"ON {self.registry_schema}.memframe_transient_registry (data_id, class_name, method_name)"
+            f"CREATE INDEX IF NOT EXISTS idx_cache_registry_lookup "
+            f"ON {self.registry_schema}.memframe_cache_registry (data_id, class_name, method_name)"
         )
 
     def get_upload_table_name(self, data_id: str) -> str:
         return data_id
 
-    def get_transient_table_name(self, data_id: str, opidx: int) -> str:
-        return f'{self.transient_schema}."{data_id}_{opidx}"'
+    def get_cache_table_name(self, data_id: str, opidx: int) -> str:
+        return f'{self.cache_schema}."{data_id}_{opidx}"'
 
     @property
-    def transient_registry_table(self) -> str:
-        return f"{self.registry_schema}.memframe_transient_registry"
+    def cache_registry_table(self) -> str:
+        return f"{self.registry_schema}.memframe_cache_registry"
 
     @property
     def csv_registry_table(self) -> str:
@@ -79,7 +113,7 @@ class PostgresBackend(DatabaseBackend):
             "SELECT table_schema, table_name FROM information_schema.tables "
             "WHERE table_type = 'BASE TABLE' ORDER BY table_schema, table_name"
         )
-        excluded = {"information_schema", "pg_catalog", "memframe_upload", "memframe_transient", "memframe_csv_registry"}
+        excluded = {"information_schema", "pg_catalog", "memframe_upload", "memframe_cache", "memframe_csv_registry"}
         result: Dict[str, List[str]] = {}
         for schema, table in rows:
             if schema in excluded or schema.startswith("pg_"):

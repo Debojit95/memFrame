@@ -362,7 +362,7 @@ Both forms → `[10, 20, 30, 40, 50]`.
 ### Multiple functions
 
 Passing a list chains each function onto the table produced by the previous
-one, so all result columns land in a single transient table:
+one, so all result columns land in a single cache table:
 
 ```python
 result = dataset.rolling(
@@ -781,7 +781,7 @@ already exists from a foreign source, the call fails and the source is left
 unchanged.
 
 Window operations apply `@record_call`, so repeat calls are recorded in the
-transient registry (L1). With `deep_cache=True` (via `mf.connect(deep_cache=True)`
+cache registry (L1). With `deep_cache=True` (via `mf.connect(deep_cache=True)`
 or `MemFrame(deep_cache=True)`) the narrow result tables are persisted and
 replayed on a hit (L2). With `deep_cache=False` the source is still mutated;
 only the narrow table is dropped.
