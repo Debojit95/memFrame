@@ -23,14 +23,14 @@ two equivalent entry points:
   order_by="month").mean("sales")`.
 
 ```python
-dataset = mf.upload_df(frame)
+dataset = mf.DataFrame(frame)
 
 result = dataset.groupby("region").rolling(3, order_by="month").mean("sales")
 result = dataset.groupby("region").expanding(order_by="month").sum("sales")
 ```
 
 ```python
-dataset = await mf.aupload_df(frame)
+dataset = await mf.aDataFrame(frame)
 
 result = await dataset.groupby("region").arolling(
     column="sales", window=3, func="mean",
@@ -103,7 +103,7 @@ form (`mean` / `amean`, …):
 ## Usage Overview
 
 ```python
-dataset = mf.upload_df(frame)
+dataset = mf.DataFrame(frame)
 
 sample = dataset.groupby("region").rolling(3, order_by="month").mean("sales")
 sample = dataset.groupby("region").expanding(order_by="month").sum("sales")
@@ -111,7 +111,7 @@ sample = dataset.groupby("region").rolling(3, order_by="month").agg("sales", ["s
 ```
 
 ```python
-dataset = await mf.aupload_df(frame)
+dataset = await mf.aDataFrame(frame)
 
 sample = await dataset.groupby("region").arolling(
     column="sales", window=3, func="mean",

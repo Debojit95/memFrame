@@ -25,7 +25,7 @@ examples, see the Plotly documentation:
 ## Usage Overview
 
 ```python
-dataset = mf.upload_df(frame)
+dataset = mf.DataFrame(frame)
 
 fig = dataset.bar_polar(theta="category")
 fig.show()

@@ -11,7 +11,7 @@ Users normally call selection methods directly on a dataset context returned by
 an upload operation:
 
 ```python
-dataset = mf.upload_df(frame)
+dataset = mf.DataFrame(frame)
 result = dataset.iloc(row_indexer="0:5", col_indexer="0:3")
 ```
 

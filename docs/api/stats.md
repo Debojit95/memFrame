@@ -11,7 +11,7 @@ Users normally call stats methods directly on a dataset context returned by an
 upload operation:
 
 ```python
-dataset = mf.upload_df(frame)
+dataset = mf.DataFrame(frame)
 result = dataset.mean(column="salary")
 ```
 

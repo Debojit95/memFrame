@@ -10,7 +10,7 @@ mutated. Unlike comparison, which adds a boolean column, filtering returns
 only the rows that satisfy the expression.
 
 ```python
-dataset = mf.upload_df(frame)
+dataset = mf.DataFrame(frame)
 result = dataset.filter("salary >= 50000 && status == 'active'")
 ```
 

@@ -12,7 +12,7 @@ Users normally call inspect methods directly on a dataset context returned by
 an upload operation:
 
 ```python
-dataset = mf.upload_df(frame)
+dataset = mf.DataFrame(frame)
 result = dataset.head(n=5)
 ```
 

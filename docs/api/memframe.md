@@ -3,8 +3,10 @@
 The `memFrame` API is the pandas-style surface you call on a dataset context
 returned by an upload (or by `register_tables` / `set_active`). Every method
 compiles to backend-native SQL and runs in-engine across DuckDB, PostgreSQL,
-and ClickHouse — your data never leaves the database — and each call writes a
-new cache table (`<table>__op_<n>`) without mutating the source upload.
+and ClickHouse — your data never leaves the database. Each call is recorded in
+the cache registry: feature-generating row-preserving ops add their generated
+columns to the active source table, while standalone results are stored as
+actual payloads (see [Caching](caching.md)).
 
 Every operation has a synchronous and an asynchronous twin: drop the `a`
 prefix for sync (`head`) and use `await dataset.ahead(...)` for async. Methods
@@ -12,7 +14,7 @@ are dispatched lazily through the `ContextManager`, so you call them directly
 on the dataset context:
 
 ```python
-dataset = mf.upload_df(frame)
+dataset = mf.DataFrame(frame)
 
 preview = dataset.head()
 filled = dataset.fillna("score", method="mean")
@@ -21,7 +23,7 @@ rolling = dataset.rolling(column="sales", window=7, func="mean", order_by="date"
 ```
 
 ```python
-dataset = await mf.aupload_df(frame)
+dataset = await mf.aDataFrame(frame)
 
 preview = await dataset.ahead()
 filled = await dataset.afillna("score", method="mean")

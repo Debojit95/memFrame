@@ -25,7 +25,7 @@ the bar plotting wrapper.
 ## Usage Overview
 
 ```python
-dataset = mf.upload_df(frame)
+dataset = mf.DataFrame(frame)
 
 fig = dataset.bar(x="category")
 fig.show()

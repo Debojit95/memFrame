@@ -17,7 +17,7 @@ upload operation. There are two equivalent entry points:
 - a pandas-style fluent builder — `dataset.on("sales").rolling(7).mean(...)`.
 
 ```python
-dataset = mf.upload_df(frame)
+dataset = mf.DataFrame(frame)
 
 rolling = dataset.rolling(column="sales", window=7, func="mean", order_by="date")
 expanding = dataset.expanding(column="sales", func="sum", order_by="date")
@@ -26,7 +26,7 @@ fluent = dataset.on("sales").rolling(7).mean(order_by="date")
 ```
 
 ```python
-dataset = await mf.aupload_df(frame)
+dataset = await mf.aDataFrame(frame)
 
 rolling = await dataset.arolling(column="sales", window=7, func="mean", order_by="date")
 expanding = await dataset.aexpanding(column="sales", func="sum", order_by="date")
@@ -114,7 +114,7 @@ Exponentially-weighted operations are numeric-only and support four functions.
 ## Usage Overview
 
 ```python
-dataset = mf.upload_df(frame)
+dataset = mf.DataFrame(frame)
 
 sample = dataset.rolling(column="sales", window=7, func="mean", order_by="date")
 sample = dataset.rolling(column="sales", window=7, func=["sum", "mean"], order_by="date")
@@ -124,7 +124,7 @@ sample = dataset.on("sales").rolling(7).mean(order_by="date")
 ```
 
 ```python
-dataset = await mf.aupload_df(frame)
+dataset = await mf.aDataFrame(frame)
 
 sample = await dataset.arolling(column="sales", window=7, func="mean", order_by="date")
 sample = await dataset.aexpanding(column="sales", func="sum", order_by="date", min_periods=3)

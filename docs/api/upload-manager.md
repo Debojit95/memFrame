@@ -61,17 +61,18 @@ Arrow table.
 ### Upload a pandas DataFrame
 
 ```python
-import pandas as pd
-
-frame = pd.DataFrame(
+dataset = mf.DataFrame(
     {
         "customer_id": [1, 2],
         "segment": ["retail", "enterprise"],
-    }
+    },
+    filename="customers.csv",
 )
-
-dataset = mf.upload_df(frame, filename="customers.csv")
 ```
+
+`mf.DataFrame(...)` is the pandas-style constructor and the preferred way to
+upload in-memory data. If you already have a pandas DataFrame, the explicit
+upload form is `mf.upload_df(frame, filename="customers.csv")`.
 
 The DataFrame path writes a temporary CSV, passes it through CSV ingestion, and
 then updates the registry with the requested filename. The temporary file is

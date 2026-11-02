@@ -87,13 +87,11 @@ await mf.aenable_agent(
 After enabling, every dataset context has `.achat()` and `.chat()`:
 
 ```python
-ds = await mf.aupload_df(
-    pd.DataFrame(
-        {
-            "name": ["Alice", "Bob", "Charlie"],
-            "score": [95.5, 82.0, None],
-        }
-    ),
+ds = await mf.aDataFrame(
+    {
+        "name": ["Alice", "Bob", "Charlie"],
+        "score": [95.5, 82.0, None],
+    },
     filename="customers",
 )
 

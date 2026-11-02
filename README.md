@@ -54,7 +54,6 @@ uv build
 
 ```python
 import asyncio
-import pandas as pd
 
 import memframe as mf
 
@@ -65,15 +64,13 @@ async def main():
         connection_params={"db_path": "memFrame.duckdb"},
     )
 
-    customers = await mf.aupload_df(
-        pd.DataFrame(
-            {
-                "id": [101, 102, 103],
-                "name": ["Alice", "Bob", "Charlie"],
-                "score": [95.5, 82.0, None],
-                "active": [True, False, True],
-            }
-        ),
+    customers = await mf.aDataFrame(
+        {
+            "id": [101, 102, 103],
+            "name": ["Alice", "Bob", "Charlie"],
+            "score": [95.5, 82.0, None],
+            "active": [True, False, True],
+        },
         filename="customers",
     )
 
@@ -144,7 +141,6 @@ queries that decompose into specialist tools and return typed response blocks.
 
 ```python
 import asyncio
-import pandas as pd
 
 import memframe as mf
 
@@ -161,13 +157,11 @@ async def main():
         api_key="sk-...",
     )
 
-    ds = await mf.aupload_df(
-        pd.DataFrame(
-            {
-                "name": ["Alice", "Bob", "Charlie"],
-                "score": [95.5, 82.0, None],
-            }
-        ),
+    ds = await mf.aDataFrame(
+        {
+            "name": ["Alice", "Bob", "Charlie"],
+            "score": [95.5, 82.0, None],
+        },
         filename="customers",
     )
 

@@ -13,14 +13,14 @@ Users normally call group-by cumulative methods through the unified
 `groupby` builder on a dataset context returned by an upload operation:
 
 ```python
-dataset = mf.upload_df(frame)
+dataset = mf.DataFrame(frame)
 
 result = dataset.groupby("region").cumsum("revenue", order_col="month")
 result = dataset.groupby("region").cummean("score")
 ```
 
 ```python
-dataset = await mf.aupload_df(frame)
+dataset = await mf.aDataFrame(frame)
 
 result = await dataset.groupby("region").acumsum("revenue", order_col="month")
 ```
@@ -69,7 +69,7 @@ Values below). Invalid operations surface `is_error` envelopes (or raise
 ## Usage Overview
 
 ```python
-dataset = mf.upload_df(frame)
+dataset = mf.DataFrame(frame)
 
 sample = dataset.groupby("region").cumsum("revenue", order_col="month")
 sample = dataset.groupby("region").cummean("score", target_col="running_avg")
@@ -77,7 +77,7 @@ sample = dataset.groupby("region", "month").cumcount("user_id")
 ```
 
 ```python
-dataset = await mf.aupload_df(frame)
+dataset = await mf.aDataFrame(frame)
 
 sample = await dataset.groupby("region").acumsum("revenue", order_col="month")
 sample = await dataset.groupby("region").acummean("score")

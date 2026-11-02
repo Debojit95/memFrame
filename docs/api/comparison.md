@@ -11,7 +11,7 @@ Users normally call comparison methods directly on a dataset context returned by
 an upload operation:
 
 ```python
-dataset = mf.upload_df(frame)
+dataset = mf.DataFrame(frame)
 result = dataset.compare("salary >= bonus")
 ```
 
@@ -43,13 +43,13 @@ Pass a single string expression — a predicate of the form `<column> <operator>
 <column>`:
 
 ```python
-dataset = mf.upload_df(frame)
+dataset = mf.DataFrame(frame)
 
 sample = dataset.compare("salary >= bonus")
 ```
 
 ```python
-dataset = await mf.aupload_df(frame)
+dataset = await mf.aDataFrame(frame)
 
 sample = await dataset.acompare("status == expected_status")
 ```
@@ -62,13 +62,13 @@ Column names containing spaces can be quoted (`"\"total income\" >= bonus"`).
 Pass the two columns and the operator as three separate arguments:
 
 ```python
-dataset = mf.upload_df(frame)
+dataset = mf.DataFrame(frame)
 
 sample = dataset.compare("salary", "bonus", ">=")
 ```
 
 ```python
-dataset = await mf.aupload_df(frame)
+dataset = await mf.aDataFrame(frame)
 
 sample = await dataset.acompare("hired_at", "review_at", "<")
 ```

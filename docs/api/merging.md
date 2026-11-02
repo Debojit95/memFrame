@@ -14,8 +14,8 @@ Users normally call merging directly on a dataset context returned by an upload
 operation:
 
 ```python
-left = mf.upload_df(left_frame, filename="left")
-right = mf.upload_df(right_frame, filename="right")
+left = mf.DataFrame(left_frame, filename="left")
+right = mf.DataFrame(right_frame, filename="right")
 
 merged = left.merge(right, on="id")
 ```
@@ -23,8 +23,8 @@ merged = left.merge(right, on="id")
 The same methods are available asynchronously:
 
 ```python
-left = await mf.aupload_df(left_frame, filename="left")
-right = await mf.aupload_df(right_frame, filename="right")
+left = await mf.aDataFrame(left_frame, filename="left")
+right = await mf.aDataFrame(right_frame, filename="right")
 
 merged = await left.amerge(right, on="id")
 ```
@@ -59,8 +59,8 @@ merged = left(right, on="id")           # __call__ shorthand
 ## Usage Overview
 
 ```python
-left = mf.upload_df(left_frame, filename="left")
-right = mf.upload_df(right_frame, filename="right")
+left = mf.DataFrame(left_frame, filename="left")
+right = mf.DataFrame(right_frame, filename="right")
 
 # Inner merge on a shared key
 merged = left.merge(right, on="id")
@@ -87,8 +87,8 @@ side_by_side = left.concat([right], axis=1, join="outer")
 Async and chained forms (every call returns a live context):
 
 ```python
-left = await mf.aupload_df(left_frame, filename="left")
-right = await mf.aupload_df(right_frame, filename="right")
+left = await mf.aDataFrame(left_frame, filename="left")
+right = await mf.aDataFrame(right_frame, filename="right")
 
 merged = await left.amerge(right, on="id")
 merged.head()

@@ -18,12 +18,12 @@ Users normally call datetime methods via the `dt` accessor on a dataset context
 returned by an upload operation:
 
 ```python
-dataset = mf.upload_df(frame)
+dataset = mf.DataFrame(frame)
 result = dataset.dt.year("event_time")
 ```
 
 ```python
-dataset = await mf.aupload_df(frame)
+dataset = await mf.aDataFrame(frame)
 result = await dataset.dt.ayear("event_time")
 ```
 
@@ -101,7 +101,7 @@ raise `OperationError`.
 ## Usage Overview
 
 ```python
-dataset = mf.upload_df(frame)
+dataset = mf.DataFrame(frame)
 
 sample = dataset.dt.year("event_time")
 sample = dataset.dt.floor("event_time", "day")
@@ -112,7 +112,7 @@ sample = dataset.dt.between("event_time", "2026-01-01", "2026-01-31")
 ```
 
 ```python
-dataset = await mf.aupload_df(frame)
+dataset = await mf.aDataFrame(frame)
 
 sample = await dataset.dt.ayear("event_time")
 sample = await dataset.dt.afloor("event_time", "month")

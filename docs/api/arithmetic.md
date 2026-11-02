@@ -12,7 +12,7 @@ Users normally call arithmetic methods directly on a dataset context returned by
 an upload operation:
 
 ```python
-dataset = mf.upload_df(frame)
+dataset = mf.DataFrame(frame)
 result = dataset.add("salary", "bonus", "total_income")
 ```
 
@@ -66,13 +66,13 @@ raise `OperationError`.
 ## Usage Overview
 
 ```python
-dataset = mf.upload_df(frame)
+dataset = mf.DataFrame(frame)
 
 sample = dataset.add("salary", "bonus", "total_income")
 ```
 
 ```python
-dataset = await mf.aupload_df(frame)
+dataset = await mf.aDataFrame(frame)
 
 normalized_sample = await dataset.anormalize_range("salary", "normalized_salary")
 ```

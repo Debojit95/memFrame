@@ -10,14 +10,14 @@ Users normally call sorting directly on a dataset context returned by an upload
 operation:
 
 ```python
-dataset = mf.upload_df(frame)
+dataset = mf.DataFrame(frame)
 result = dataset.sort_values(by="score")
 ```
 
 The same method is available asynchronously:
 
 ```python
-dataset = await mf.aupload_df(frame)
+dataset = await mf.aDataFrame(frame)
 result = await dataset.asort_values(by="score", ascending=False)
 ```
 
@@ -44,7 +44,7 @@ iterator). Invalid operations raise `OperationError`.
 ## Usage Overview
 
 ```python
-dataset = mf.upload_df(frame)
+dataset = mf.DataFrame(frame)
 
 sample = dataset.sort_values(by="score")
 sample = dataset.sort_values(by=["region", "score"], ascending=[True, False])
@@ -53,7 +53,7 @@ subset = dataset.sort_values(by="score", columns=["name", "score"])
 ```
 
 ```python
-dataset = await mf.aupload_df(frame)
+dataset = await mf.aDataFrame(frame)
 
 sample = await dataset.asort_values(by="score", ascending=False)
 iterator = await dataset.asort_values(by="score", chunk_size=1000)

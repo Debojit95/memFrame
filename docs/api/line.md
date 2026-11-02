@@ -25,7 +25,7 @@ to the line plotting wrapper.
 ## Usage Overview
 
 ```python
-dataset = mf.upload_df(frame)
+dataset = mf.DataFrame(frame)
 
 fig = dataset.line(x="date", y="revenue")
 fig.show()

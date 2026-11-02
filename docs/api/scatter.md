@@ -25,7 +25,7 @@ resolves to the scatter plotting wrapper.
 ## Usage Overview
 
 ```python
-dataset = mf.upload_df(frame)
+dataset = mf.DataFrame(frame)
 
 fig = dataset.scatter(x="score", y="salary")
 fig.show()

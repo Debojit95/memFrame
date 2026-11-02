@@ -26,7 +26,7 @@ resolves to the 3D scatter plotting wrapper. The wrapper also exposes
 ## Usage Overview
 
 ```python
-dataset = mf.upload_df(frame)
+dataset = mf.DataFrame(frame)
 
 fig = dataset.scatter3d(x="score", y="salary", z="count_all")
 fig.show()

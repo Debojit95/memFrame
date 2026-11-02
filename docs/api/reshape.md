@@ -11,14 +11,14 @@ Users normally call reshape directly on a dataset context returned by an upload
 operation:
 
 ```python
-dataset = mf.upload_df(frame)
+dataset = mf.DataFrame(frame)
 result = dataset.melt(id_vars=["id"], value_vars=["score"])
 ```
 
 The same methods are available asynchronously:
 
 ```python
-dataset = await mf.aupload_df(frame)
+dataset = await mf.aDataFrame(frame)
 result = await dataset.amelt(id_vars=["id"], value_vars=["score"])
 ```
 
@@ -52,7 +52,7 @@ iterator). Invalid operations raise `OperationError`.
 ## Usage Overview
 
 ```python
-dataset = mf.upload_df(frame)
+dataset = mf.DataFrame(frame)
 
 exploded = dataset.explode(column="tags")
 long = dataset.melt(id_vars=["id"], value_vars=["score"])
@@ -65,7 +65,7 @@ grouped = dataset.groupby_rank(groupby="region", columns="score")
 ```
 
 ```python
-dataset = await mf.aupload_df(frame)
+dataset = await mf.aDataFrame(frame)
 
 long = await dataset.amelt(id_vars=["id"], value_vars=["score"])
 iterator = await dataset.amelt(id_vars=["id"], value_vars=["score"], chunk_size=1000)

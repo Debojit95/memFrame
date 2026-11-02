@@ -24,25 +24,23 @@ uv build
 
 ```python
 import asyncio
-import pandas as pd
 
 import memframe as mf
 
 
 async def main():
-    frame = pd.DataFrame(
-        {
-            "customer_id": [101, 102, 103],
-            "region": ["east", "west", "east"],
-            "revenue": [1250.0, 980.5, 1430.0],
-        }
-    )
-
     await mf.aconnect(
         connection_type="local",
         connection_params={"db_path": "memframe.duckdb"},
     )
-    dataset = await mf.aupload_df(frame, filename="customers")
+    dataset = await mf.aDataFrame(
+        {
+            "customer_id": [101, 102, 103],
+            "region": ["east", "west", "east"],
+            "revenue": [1250.0, 980.5, 1430.0],
+        },
+        filename="customers",
+    )
 
     preview = await dataset.ahead(n=5)
     average = await dataset.amean(column="revenue")
@@ -159,7 +157,7 @@ finally:
 ```python
 dataset = await mf.aupload_csv("data/customers.csv")
 dataset = await mf.aupload_parquet("data/events.parquet")
-dataset = await mf.aupload_df(frame, filename="customers")
+dataset = await mf.aDataFrame(frame, filename="customers")
 ```
 
 Sync forms are also available:
@@ -167,7 +165,7 @@ Sync forms are also available:
 ```python
 dataset = mf.upload_csv("data/customers.csv")
 dataset = mf.upload_parquet("data/events.parquet")
-dataset = mf.upload_df(frame, filename="customers")
+dataset = mf.DataFrame(frame, filename="customers")
 ```
 
 ### Build from in-memory data

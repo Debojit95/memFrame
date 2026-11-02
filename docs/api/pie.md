@@ -25,7 +25,7 @@ the pie plotting wrapper.
 ## Usage Overview
 
 ```python
-dataset = mf.upload_df(frame)
+dataset = mf.DataFrame(frame)
 
 fig = dataset.pie(names="category")
 fig.show()

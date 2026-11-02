@@ -12,12 +12,12 @@ Users normally call cumulative methods directly on a dataset context returned
 by an upload operation:
 
 ```python
-dataset = mf.upload_df(frame)
+dataset = mf.DataFrame(frame)
 result = dataset.cumsum("revenue", order_col="month")
 ```
 
 ```python
-dataset = await mf.aupload_df(frame)
+dataset = await mf.aDataFrame(frame)
 result = await dataset.acumsum("revenue", order_col="month")
 ```
 
@@ -57,7 +57,7 @@ raise `OperationError`.
 ## Usage Overview
 
 ```python
-dataset = mf.upload_df(frame)
+dataset = mf.DataFrame(frame)
 
 sample = dataset.cumsum("revenue", order_col="month")
 sample = dataset.cummean("score", target_col="running_avg")
@@ -65,7 +65,7 @@ sample = dataset.cumcount("user_id")
 ```
 
 ```python
-dataset = await mf.aupload_df(frame)
+dataset = await mf.aDataFrame(frame)
 
 sample = await dataset.acumsum("revenue", order_col="month")
 sample = await dataset.acummean("score", target_col="running_avg")

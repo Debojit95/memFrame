@@ -18,14 +18,14 @@ by an upload operation. There are two equivalent entry points:
 - a pandas-style fluent builder — `dataset.groupby("region").sum("sales")`.
 
 ```python
-dataset = mf.upload_df(frame)
+dataset = mf.DataFrame(frame)
 
 result = dataset.agg(group_cols=["region"], agg_dict={"sales": ["sum", "mean"]})
 result = dataset.groupby("region").sum("sales")
 ```
 
 ```python
-dataset = await mf.aupload_df(frame)
+dataset = await mf.aDataFrame(frame)
 
 result = await dataset.aagg(group_cols="region", agg_dict={"sales": ["sum"]})
 result = await dataset.groupby("region").aagg({"sales": ["mean"]})
@@ -83,7 +83,7 @@ Each terminal method has a synchronous and asynchronous form:
 ## Usage Overview
 
 ```python
-dataset = mf.upload_df(frame)
+dataset = mf.DataFrame(frame)
 
 sample = dataset.agg(group_cols="region", agg_dict={"sales": ["sum", "mean"]})
 sample = dataset.groupby("region").agg({"sales": ["sum"], "qty": ["max"]})
@@ -91,7 +91,7 @@ sample = dataset.groupby("region").mean("sales")
 ```
 
 ```python
-dataset = await mf.aupload_df(frame)
+dataset = await mf.aDataFrame(frame)
 
 sample = await dataset.aagg(group_cols=["region"], agg_dict={"sales": ["sum"]})
 sample = await dataset.groupby("region").amean("sales")

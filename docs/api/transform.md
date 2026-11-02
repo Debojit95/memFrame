@@ -14,7 +14,7 @@ Users normally call transform directly on a dataset context returned by an
 upload operation:
 
 ```python
-dataset = mf.upload_df(frame)
+dataset = mf.DataFrame(frame)
 scaled = dataset.scale(column="age")
 robust = dataset.robust_scale(column="salary", quantile_range=(25, 75))
 encoded = dataset.onehot(column="city", max_categories=10)
@@ -22,7 +22,7 @@ cyclical = dataset.cyclical_encode(column="event_time", features=["month", "dow"
 ```
 
 ```python
-dataset = await mf.aupload_df(frame)
+dataset = await mf.aDataFrame(frame)
 scaled = await dataset.ascale(column="age")
 robust = await dataset.arobust_scale(column="salary")
 logd = await dataset.alog_transform(column="price", base="e", epsilon=1)
