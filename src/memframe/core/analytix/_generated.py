@@ -239,14 +239,8 @@ async def publish_row_aligned(
             "new_columns": [],
         }
 
-    narrow = await ops._resolve_output_table_name(
-        table, schema, backend=backend, data_id=data_id,
-    )
     await swap_table_into_source(ops.db, backend, schema, table, wide)
     await _drop_columns(ops.db, backend, schema, table, temp_cols)
-    await create_projection(
-        ops.db, backend, schema, table, narrow, involved, generated,
-    )
     marker = json.dumps(
         {"sig": sig, "new_columns": generated}, sort_keys=True,
     )
@@ -255,13 +249,20 @@ async def publish_row_aligned(
         backend, data_id,
     )
 
-    result["new_table"] = narrow
+    cols = _dedupe([*involved, *generated])
+    result["new_table"] = table
     result["mapped_table"] = table
     result["mapped_columns"] = generated
+    result["cache_kind"] = "ref"
+    result["ref_schema"] = schema
+    result["ref_table"] = table
+    result["involved_cols"] = involved
+    result["generated_cols"] = generated
+    result["result_cols"] = cols
+    result["mutates"] = True
 
     # Make the first response match the cached replay order:
     # involved columns first, then generated columns.
-    cols = _dedupe([*involved, *generated])
     df = result.get("result")
     if df is not None and hasattr(df, "columns") and all(c in df.columns for c in cols):
         result["result"] = df[cols].reset_index(drop=True)
