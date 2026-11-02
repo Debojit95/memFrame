@@ -25,9 +25,9 @@ result = await dataset.amelt(id_vars=["id"], value_vars=["score"])
 The lower-level files are implementation details:
 
 - `src/memframe/core/analytix/reshape/` builds and executes backend-specific SQL.
-- `src/memframe/core/orchestrator/analytix/reshape.py` resolves the active dataset
-  context and passes persistence metadata (with `deep_cache` support so reshaped
-  tables are replayable).
+- `src/memframe/core/orchestrator/analytix/reshape.py` resolves the active
+  dataset context, mints the output data_id, and registers the reshaped table
+  as an upload dataset.
 - `src/memframe/wrappers/analytix/reshape.py` exposes synchronous and asynchronous
   public methods.
 
@@ -73,10 +73,15 @@ async for chunk in iterator:
     process(chunk)
 ```
 
-Every reshape materializes a new cache table (`<table>__op_<n>`) and leaves
-the source upload table untouched. The public return is a sample `DataFrame`
-(or an async iterator when `chunk_size` is set); `new_table` metadata remains
-available to the cache layer.
+Every non-chunked reshape creates a **new dataset** in `memframe_upload`,
+registers it in `memframe_csv_registry`, and returns a sample `DataFrame`.
+The raw response also carries `dataset_id` / `new_table` for callers that want
+to bind a context to the persisted dataset. The source upload table is left
+untouched.
+
+Chunked reshape responses return an async iterator over the lazy table and are
+not registered as datasets (the captured iterator would be invalidated by a
+rename).
 
 ## Parameters
 
@@ -165,14 +170,18 @@ The iterator transparently handles the cache's cache-table move (upload
 schema → `memframe_cache`) that happens between table creation and
 consumption.
 
-## Generated Tables
+## Generated Datasets
 
-Every reshape is non-destructive to the source upload table:
+Every non-chunked reshape is non-destructive to the source upload table:
 
-1. Generates a cache name `<table>__op_<n>` via the registry.
-2. `CREATE TABLE <new> AS <reshape SELECT>` (per-op SQL below).
-3. Non-chunked: sample via `SELECT *` from the new table; chunked: `LIMIT/OFFSET` pages.
-4. `deep_cache=True` persists the reshaped clone for replay.
+1. `CREATE TABLE <table>__op_<n> AS <reshape SELECT>` (per-op SQL below).
+2. Non-chunked: the table is renamed to a fresh 6-character data_id in
+   `memframe_upload`, registered in `memframe_csv_registry`, and sampled for
+   the returned DataFrame.
+3. Chunked: `LIMIT/OFFSET` pages stream from the lazy table; no dataset
+   registration.
+4. Reshape outputs are not cached. `clear_cache` ignores them;
+   `delete_table(data_id)` removes them like any uploaded dataset.
 
 ## Backend Behavior
 

@@ -200,21 +200,23 @@ Error messages:
 - `No columns available after join resolution` — `axis=0, join="inner"` with no common columns.
 - `Unsupported database backend for merge operation` — unknown adapter.
 
-## Generated Tables
+## Generated Datasets
 
-Every merge, join, and concat materializes a new cache table
-(`<left_table>__op_<n>`) and leaves the source upload tables untouched:
+Every merge, join, and concat creates a **new dataset** in `memframe_upload`
+and leaves the source upload tables untouched:
 
-1. Resolves the output name via the cache registry (with a dedupe suffix on collision).
-2. `CREATE TABLE <new> AS <join/union SELECT>`.
-3. Persists the table in the cache schema and records it in the cache
-   registry, so the returned context stays live and replays work. Outputs are
-   dropped with the parent dataset (`delete_table`) or on cache clear. Sides may
-   live in different schemas (e.g. a merged cache table plus an upload
-   table) — each side is qualified with its own schema.
-4. `mf.connect(deep_cache=False)` (or `MemFrame(deep_cache=False)` for an
-   explicit instance) disables persistence globally; a merged context created
-   under it raises `DataNotFound` on use because its table was dropped.
+1. Mints a fresh data_id and creates `<memframe_upload>.<data_id>` with the
+   join/union result.
+2. Registers the table in `memframe_csv_registry` under a descriptive filename
+   (`merge_<left>_<right>`, `join_…`, `concat_…`).
+3. Returns a live `ContextManager` bound to the new data_id — no transitive
+   `_table_override`.
+4. The result is not cached. `clear_cache` does not touch it;
+   `delete_table(data_id)` removes it like any uploaded dataset.
+   `deep_cache=False` does not affect merge/join/concat.
+
+Sides may live in different schemas; each side is qualified with its own
+schema. Chunked merge responses stream from the new table.
 
 ## Backend Behavior
 
