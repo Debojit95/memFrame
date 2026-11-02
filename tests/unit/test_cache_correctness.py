@@ -374,6 +374,22 @@ class TestAnnotatedKinds:
         ))
         assert fmt == "parquet"
 
+    def test_stats_scalar_is_actual_payload(self, mf, uploaded):
+        from memframe.wrappers.analytix.stats import StatsWrapper
+
+        stats = StatsWrapper(uploaded)
+        first = asyncio.run(stats.amean("x"))
+        second = asyncio.run(stats.amean("x"))
+
+        assert first["result"] == 2.0
+        assert second["result"] == 2.0
+        assert second["result_metadata"]["cache_kind"] == "actual"
+        fmt = asyncio.run(mf._backend.fetchval(
+            "SELECT format FROM memframe_csv_registry.memframe_cache_payloads "
+            "WHERE opidx = 1"
+        ))
+        assert fmt == "json"
+
     def test_mutation_epoch_invalidates_previous_entries(self, mf, uploaded):
         ops = MutatingActualOps(mf, uploaded._data_id)
         first = asyncio.run(ops.do(1))

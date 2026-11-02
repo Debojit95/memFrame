@@ -167,6 +167,7 @@ class StatsOrchestrator:
             result=combined,
         )
 
+    @record_call(deep_cache=True)
     async def count(self, column: Optional[str] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
@@ -186,6 +187,7 @@ class StatsOrchestrator:
             return await ops.categorical_count(table, schema, column)
         return await ops.numeric_count(table, schema, column)
 
+    @record_call(deep_cache=True)
     async def min(self, column: Optional[str] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
@@ -203,6 +205,7 @@ class StatsOrchestrator:
             return await ops.datetime_min(table, schema, column)
         return await ops.numeric_min(table, schema, column)
 
+    @record_call(deep_cache=True)
     async def max(self, column: Optional[str] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
@@ -220,6 +223,7 @@ class StatsOrchestrator:
             return await ops.datetime_max(table, schema, column)
         return await ops.numeric_max(table, schema, column)
 
+    @record_call(deep_cache=True)
     async def mode(self, column: Optional[str] = None, top_n: int = 1) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
@@ -243,6 +247,7 @@ class StatsOrchestrator:
             return await ops.categorical_mode(table, schema, column, top_n)
         return await ops.numeric_mode(table, schema, column, top_n)
 
+    @record_call(deep_cache=True)
     async def unique(self, column: Optional[str] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
@@ -260,6 +265,7 @@ class StatsOrchestrator:
             return await ops.categorical_unique(table, schema, column)
         return await ops.numeric_unique(table, schema, column)
 
+    @record_call(deep_cache=True)
     async def nunique(self, column: Optional[str] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
@@ -279,6 +285,7 @@ class StatsOrchestrator:
             return await ops.categorical_nunique(table, schema, column)
         return await ops.numeric_nunique(table, schema, column)
 
+    @record_call(deep_cache=True)
     async def value_counts(self, column: Optional[str] = None, top_n: int = 10) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
@@ -309,6 +316,7 @@ class StatsOrchestrator:
             return await ops.categorical_value_counts(table, schema, column, top_n)
         return await ops.numeric_value_counts(table, schema, column, top_n)
 
+    @record_call(deep_cache=True)
     async def mean(self, column: Optional[str] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
@@ -328,6 +336,7 @@ class StatsOrchestrator:
             return await ops.datetime_mean(table, schema, column)
         return await ops.numeric_mean(table, schema, column)
 
+    @record_call(deep_cache=True)
     async def median(self, column: Optional[str] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
@@ -356,6 +365,7 @@ class StatsOrchestrator:
 
         return await self._whole_table(ops, table, schema, op_name, one)
 
+    @record_call(deep_cache=True)
     async def sum(self, column: Optional[str] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
@@ -365,6 +375,7 @@ class StatsOrchestrator:
                 lambda col: ops.numeric_sum(table, schema, col))
         return await ops.numeric_sum(table, schema, column)
 
+    @record_call(deep_cache=True)
     async def std(self, column: Optional[str] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
@@ -374,6 +385,7 @@ class StatsOrchestrator:
                 lambda col: ops.numeric_std(table, schema, col))
         return await ops.numeric_std(table, schema, column)
 
+    @record_call(deep_cache=True)
     async def var(self, column: Optional[str] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
@@ -383,6 +395,7 @@ class StatsOrchestrator:
                 lambda col: ops.numeric_var(table, schema, col))
         return await ops.numeric_var(table, schema, column)
 
+    @record_call(deep_cache=True)
     async def sem(self, column: Optional[str] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
@@ -392,6 +405,7 @@ class StatsOrchestrator:
                 lambda col: ops.numeric_sem(table, schema, col))
         return await ops.numeric_sem(table, schema, column)
 
+    @record_call(deep_cache=True)
     async def mad(self, column: Optional[str] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
@@ -401,6 +415,7 @@ class StatsOrchestrator:
                 lambda col: ops.numeric_mad(table, schema, col))
         return await ops.numeric_mad(table, schema, column)
 
+    @record_call(deep_cache=True)
     async def iqr(self, column: Optional[str] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
@@ -410,6 +425,7 @@ class StatsOrchestrator:
                 lambda col: ops.numeric_iqr(table, schema, col))
         return await ops.numeric_iqr(table, schema, column)
 
+    @record_call(deep_cache=True)
     async def range(self, column: Optional[str] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
@@ -419,6 +435,7 @@ class StatsOrchestrator:
                 lambda col: ops.numeric_range(table, schema, col))
         return await ops.numeric_range(table, schema, column)
 
+    @record_call(deep_cache=True)
     async def skew(self, column: Optional[str] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
@@ -428,6 +445,7 @@ class StatsOrchestrator:
                 lambda col: ops.numeric_skew(table, schema, col))
         return await ops.numeric_skew(table, schema, column)
 
+    @record_call(deep_cache=True)
     async def kurtosis(self, column: Optional[str] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
@@ -437,6 +455,7 @@ class StatsOrchestrator:
                 lambda col: ops.numeric_kurtosis(table, schema, col))
         return await ops.numeric_kurtosis(table, schema, column)
 
+    @record_call(deep_cache=True)
     async def entropy(self, column: Optional[str] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
@@ -446,6 +465,7 @@ class StatsOrchestrator:
                 lambda col: ops.numeric_entropy(table, schema, col))
         return await ops.numeric_entropy(table, schema, column)
 
+    @record_call(deep_cache=True)
     async def quantile(self, column: Optional[str] = None, q: List[float] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
@@ -460,6 +480,7 @@ class StatsOrchestrator:
                 lambda col: ops.numeric_quantile(table, schema, col, quantiles=q))
         return await ops.numeric_quantile(table, schema, column, quantiles=q)
 
+    @record_call(deep_cache=True)
     async def autocorr(self, column: Optional[str] = None, lag: int = 1) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
@@ -473,6 +494,7 @@ class StatsOrchestrator:
                 lambda col: ops.numeric_autocorr(table, schema, col, lag))
         return await ops.numeric_autocorr(table, schema, column, lag)
 
+    @record_call(deep_cache=True)
     async def coefficient_of_variation(self, column: Optional[str] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
@@ -482,6 +504,7 @@ class StatsOrchestrator:
                 lambda col: ops.numeric_coefficient_of_variation(table, schema, col))
         return await ops.numeric_coefficient_of_variation(table, schema, column)
 
+    @record_call(deep_cache=True)
     async def outliers_iqr(self, column: Optional[str] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
@@ -565,6 +588,7 @@ class StatsOrchestrator:
         )
 
     # ── categorical-specific methods ───────────────────────────────────
+    @record_call(deep_cache=True)
     async def proportions(self, column: Optional[str] = None) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
@@ -586,26 +610,31 @@ class StatsOrchestrator:
             new_table=new_table, target_col=target_col,
         )
 
+    @record_call(deep_cache=True)
     async def time_delta_stats(self, column: str) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
         return await ops.datetime_delta_stats(table, schema, column)
 
+    @record_call(deep_cache=True)
     async def event_rate(self, column: str, unit: str = "day") -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
         return await ops.datetime_event_rate(table, schema, column, unit)
 
+    @record_call(deep_cache=True)
     async def time_unit_counts(self, column: str, unit: str = "day") -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
         return await ops.datetime_time_unit_counts(table, schema, column, unit)
 
+    @record_call(deep_cache=True)
     async def weekday_weekend_counts(self, column: str) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
         return await ops.datetime_weekday_weekend_counts(table, schema, column)
 
+    @record_call(deep_cache=True)
     async def holiday_counts(self, column: str) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()

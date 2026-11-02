@@ -505,9 +505,6 @@ class GeneralTableOps:
 
     async def dataframe_info(self, table: str, schema: str, columns: Optional[List[str]] = None, **kwargs) -> Dict[str, Any]:
         try:
-            backend = kwargs.get("backend")
-            data_id = kwargs.get("data_id")
-            requested_new_table = kwargs.get("new_table")
             table = SQLIdentifierSanitizer.sanitize(table)
             qualified = self._qualified_table(table, schema)
 
@@ -539,14 +536,6 @@ class GeneralTableOps:
                 })
 
             df = self._records_to_dataframe(column_details)
-            output_table = await self._save_dataframe_as_table(
-                df=df,
-                schema=schema,
-                base_table=f"{table}_info",
-                backend=backend,
-                data_id=data_id,
-                new_table=requested_new_table,
-            )
 
             msg = f"Table '{table}' info: {table_info['row_count']} rows × {table_info['column_count']} columns"
 
@@ -555,10 +544,8 @@ class GeneralTableOps:
                 generated_cols=list(df.columns),
                 message=msg,
                 result=df,
-                new_table=output_table,
                 result_metadata={
                     "row_count": len(column_details),
-                    "saved_table": output_table,
                     "table_info": table_info,
                     "memory_usage": {
                         "total_size": table_info["total_size"],
@@ -573,9 +560,6 @@ class GeneralTableOps:
 
     async def dataframe_describe(self, table: str, schema: str, columns: Optional[List[str]] = None, **kwargs) -> Dict[str, Any]:
         try:
-            backend = kwargs.get("backend")
-            data_id = kwargs.get("data_id")
-            requested_new_table = kwargs.get("new_table")
             table = SQLIdentifierSanitizer.sanitize(table)
             qualified = self._qualified_table(table, schema)
 
@@ -661,24 +645,14 @@ class GeneralTableOps:
                 records.append(row)
 
             df = self._records_to_dataframe(records)
-            output_table = await self._save_dataframe_as_table(
-                df=df,
-                schema=schema,
-                base_table=f"{table}_describe",
-                backend=backend,
-                data_id=data_id,
-                new_table=requested_new_table,
-            )
 
             return self._success_response(
                 involved_cols=columns,
                 generated_cols=list(df.columns),
                 message=f"Descriptive statistics for {len(columns)} numeric columns in '{table}'",
                 result=df,
-                new_table=output_table,
                 result_metadata={
                     "row_count": len(records),
-                    "saved_table": output_table,
                     "columns": ["statistic"] + sanitized,
                     "numeric_columns_analyzed": columns,
                 },
@@ -690,9 +664,6 @@ class GeneralTableOps:
 
     async def dataframe_null_analysis(self, table: str, schema: str, columns: Optional[List[str]] = None, **kwargs) -> Dict[str, Any]:
         try:
-            backend = kwargs.get("backend")
-            data_id = kwargs.get("data_id")
-            requested_new_table = kwargs.get("new_table")
             table = SQLIdentifierSanitizer.sanitize(table)
             qualified = self._qualified_table(table, schema)
 
@@ -735,15 +706,6 @@ class GeneralTableOps:
             if not df.empty:
                 df = df.set_index("column_name")
 
-            output_table = await self._save_dataframe_as_table(
-                df=df,
-                schema=schema,
-                base_table=f"{table}_null_analysis",
-                backend=backend,
-                data_id=data_id,
-                new_table=requested_new_table,
-            )
-
             cols_with_nulls = df[df["contains_null"]] if not df.empty else []
             max_pct = df["percent_missing"].max() if not df.empty else 0
             avg_pct = df["percent_missing"].mean() if not df.empty else 0
@@ -753,10 +715,8 @@ class GeneralTableOps:
                 generated_cols=list(df.columns),
                 message=f"Null analysis for '{table}' ({len(target_columns)} columns analyzed)",
                 result=df,
-                new_table=output_table,
                 result_metadata={
                     "row_count": len(df),
-                    "saved_table": output_table,
                     "summary": {
                         "total_rows_analyzed": total_rows,
                         "columns_analyzed": len(target_columns),

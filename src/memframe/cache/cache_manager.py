@@ -948,15 +948,26 @@ class CacheManager:
                                         generated_table_name = bare_table
                                         schema = backend.cache_schema
                                 elif "result" in result:
-                                    df = result["result"]
-                                    if isinstance(df, pd.DataFrame) and not df.empty and backend:
-                                        qualified = await manager._create_deep_cache_table(
-                                            mf, backend, data_id, df
+                                    # No table holds this result → actual payload.
+                                    try:
+                                        actual_format, actual_payload = manager._encode_actual(
+                                            result.get("result")
                                         )
-                                        if qualified:
-                                            _sch, _bare = backend._split_qualified_table_name(qualified)
-                                            generated_table_name = _bare
-                                            schema = _sch
+                                        cache_kind = "actual"
+                                        involved_cols = json.dumps(
+                                            result.get("involved_cols") or []
+                                        )
+                                        generated_cols = json.dumps(
+                                            result.get("generated_cols")
+                                            or result.get("new_columns")
+                                            or []
+                                        )
+                                        result_cols = json.dumps(manager._ref_columns(result))
+                                    except Exception as exc:
+                                        logger.warning(
+                                            "[cache] actual encode failed for %s: %s",
+                                            payload["method_name"], exc,
+                                        )
                         elif (
                             not is_deep
                             and not is_error
