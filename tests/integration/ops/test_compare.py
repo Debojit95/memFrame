@@ -712,13 +712,12 @@ class TestCompareOperations:
     # Mutation safety
     # ------------------------------------------------------------------
     def test_mutation_safety(self, uploaded_ctx, sample_df, backend_config):
-        # Original table should not contain the new comparison column
         original = get_result_df(uploaded_ctx.head(n=len(sample_df)))
         assert "cmp_val_a_ge_val_b" not in original.columns
 
         result = uploaded_ctx.compare("val_a >= val_b")
         res_df = get_result_df(result)
         assert "cmp_val_a_ge_val_b" in res_df.columns
-        # Original unchanged
+        # Out_2: the comparison column is written to the source table.
         after = get_result_df(uploaded_ctx.head(n=len(sample_df)))
-        assert "cmp_val_a_ge_val_b" not in after.columns
+        assert "cmp_val_a_ge_val_b" in after.columns

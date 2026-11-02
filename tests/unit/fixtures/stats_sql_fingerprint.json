@@ -259,13 +259,8 @@
     []
    ],
    [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"ts\",\"ts__diff_seconds\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
     "fetch",
-    "SELECT\"ts\",\"ts__diff_seconds\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"ts\",\"ts__diff_seconds\"FROM\"s\".\"t\"",
     []
    ]
   ],
@@ -281,13 +276,8 @@
     []
    ],
    [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"ts\",\"ts__diff_seconds\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
     "fetch",
-    "SELECT\"ts\",\"ts__diff_seconds\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"ts\",\"ts__diff_seconds\"FROM\"s\".\"t\"",
     []
    ]
   ],
@@ -303,13 +293,8 @@
     []
    ],
    [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"ts\",\"ts__diff_seconds\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
     "fetch",
-    "SELECT\"ts\",\"ts__diff_seconds\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"ts\",\"ts__diff_seconds\"FROM\"s\".\"t\"",
     []
    ]
   ]

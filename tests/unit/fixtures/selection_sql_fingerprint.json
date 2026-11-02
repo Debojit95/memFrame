@@ -436,6 +436,44 @@
    ]
   ]
  },
+ "iloc_cache": {
+  "clickhouse": [
+   [
+    "fetch",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetch",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"",
+    []
+   ],
+   [
+    "fetch",
+    "PRAGMAtable_info(\"s\".\"t\")",
+    []
+   ],
+   [
+    "exec",
+    "CREATETABLE\"memframe_cache\".\"iloc_sel__op_1\"ASSELECT\"num\",\"txt\",\"ts\"FROM\"s\".\"t\"WHEREnum>10",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT\"num\",\"txt\",\"ts\"FROM\"memframe_cache\".\"iloc_sel__op_1\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetch",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"",
+    []
+   ]
+  ]
+ },
  "iloc_cols_positions": {
   "clickhouse": [
    [
@@ -650,44 +688,6 @@
    ]
   ]
  },
- "iloc_cache": {
-  "clickhouse": [
-   [
-    "fetch",
-    "SELECTCOUNT(*)FROM\"s\".\"t\"",
-    []
-   ]
-  ],
-  "duckdb": [
-   [
-    "fetch",
-    "SELECTCOUNT(*)FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "fetch",
-    "PRAGMAtable_info(\"s\".\"t\")",
-    []
-   ],
-   [
-    "exec",
-    "CREATETABLE\"memframe_cache\".\"iloc_sel__op_1\"ASSELECT\"num\",\"txt\",\"ts\"FROM\"s\".\"t\"WHEREnum>10",
-    []
-   ],
-   [
-    "fetch",
-    "SELECT\"num\",\"txt\",\"ts\"FROM\"memframe_cache\".\"iloc_sel__op_1\"",
-    []
-   ]
-  ],
-  "postgres": [
-   [
-    "fetch",
-    "SELECTCOUNT(*)FROM\"s\".\"t\"",
-    []
-   ]
-  ]
- },
  "iloc_tuple": {
   "clickhouse": [
    [
@@ -775,6 +775,50 @@
      "s",
      "t"
     ]
+   ]
+  ]
+ },
+ "select_dtypes_cache": {
+  "clickhouse": [
+   [
+    "fetch",
+    "SELECTname,typeFROMsystem.columnsWHEREdatabase=$1ANDtable=$2",
+    [
+     "s",
+     "t"
+    ]
+   ],
+   [
+    "fetch",
+    "SELECT\"num\"FROM\"s\".\"t\"",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetch",
+    "PRAGMAtable_info(\"s\".\"t\")",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT\"num\"FROM\"s\".\"t\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetch",
+    "SELECTcolumn_name,data_typeFROMinformation_schema.columnsWHEREtable_schema=$1ANDtable_name=$2",
+    [
+     "s",
+     "t"
+    ]
+   ],
+   [
+    "fetch",
+    "SELECT\"num\"FROM\"s\".\"t\"",
+    []
    ]
   ]
  },
@@ -906,65 +950,6 @@
    [
     "fetch",
     "SELECT\"num\",\"ts\"FROM\"s\".\"t\"",
-    []
-   ]
-  ]
- },
- "select_dtypes_cache": {
-  "clickhouse": [
-   [
-    "fetch",
-    "SELECTname,typeFROMsystem.columnsWHEREdatabase=$1ANDtable=$2",
-    [
-     "s",
-     "t"
-    ]
-   ],
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_1\"ASSELECT\"num\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "fetch",
-    "SELECT\"num\"FROM\"s\".\"t__op_1\"",
-    []
-   ]
-  ],
-  "duckdb": [
-   [
-    "fetch",
-    "PRAGMAtable_info(\"s\".\"t\")",
-    []
-   ],
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_1\"ASSELECT\"num\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "fetch",
-    "SELECT\"num\"FROM\"s\".\"t__op_1\"",
-    []
-   ]
-  ],
-  "postgres": [
-   [
-    "fetch",
-    "SELECTcolumn_name,data_typeFROMinformation_schema.columnsWHEREtable_schema=$1ANDtable_name=$2",
-    [
-     "s",
-     "t"
-    ]
-   ],
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_1\"ASSELECT\"num\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "fetch",
-    "SELECT\"num\"FROM\"s\".\"t__op_1\"",
     []
    ]
   ]

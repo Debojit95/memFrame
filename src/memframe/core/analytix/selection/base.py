@@ -490,21 +490,15 @@ class DataSelectionOps:
 
             new_table = None
             if backend is not None and data_id is not None:
-                new_table = await self._generate_cache_table_name(table, backend, data_id)
-                full_new = f"{self.db.quote_identifier(schema)}.{self._quote(new_table)}"
-                create_sql = f"""
-                    CREATE TABLE {full_new} AS
-                    SELECT {quoted_cols}
-                    FROM {self._qualified_table(table, schema)}
-                """
-                await self._exec(create_sql)
+                # Out_2 projection: the source already holds these columns.
+                new_table = table
 
                 if chunk_size is None:
-                    sample = await self._fetch_sample(new_table, schema, columns=selected_sorted)
+                    sample = await self._fetch_sample(table, schema, columns=selected_sorted)
                 else:
                     async def iterator():
                         async for chunk in self._fetch_in_chunks(
-                            new_table, schema, chunk_size, columns=selected_sorted
+                            table, schema, chunk_size, columns=selected_sorted
                         ):
                             yield chunk
                     return self._success_response(

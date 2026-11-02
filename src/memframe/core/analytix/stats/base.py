@@ -714,14 +714,12 @@ class DataStatsOps:
                 await self._ensure_datetime_diff_column(
                     table, schema, c, tgt, backend=backend, data_id=data_id,
                 )
-            q = self._qualified_table(table, schema)
-            out = await self._materialize_query_as_table(
-                f'SELECT "{c}", "{tgt}" FROM {q}',
-                table, schema, backend=backend, data_id=data_id, new_table=new_table,
-            )
-            sample = await self._fetch_data(out, schema, [c, tgt])
+            # Out_2: the diff column lives on the source; no narrow copy.
+            sample = await self._fetch_data(table, schema, [c, tgt])
             msg = f"Time differences for '{column}' → '{tgt}'"
-            return self._success_response(msg, [column], [tgt], sample, new_table=out)
+            return self._success_response(
+                msg, [column], [tgt], sample, new_table=table,
+            )
         except Exception as e:
             return self._error_response(str(e), [column])
 

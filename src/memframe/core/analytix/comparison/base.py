@@ -184,7 +184,7 @@ class ComparisonOps:
         qualified = self._qualified_table(table, schema)
         safe_col = SQLIdentifierSanitizer.sanitize(col_name)
         await self._exec(
-            f'ALTER TABLE {qualified} ADD COLUMN {self.db.quote_identifier(safe_col)} {col_type}'
+            f'ALTER TABLE {qualified} ADD COLUMN IF NOT EXISTS {self.db.quote_identifier(safe_col)} {col_type}'
         )
 
     def _success_response(
@@ -247,12 +247,8 @@ class ComparisonOps:
             new_col = self._generate_cleaned_column_name(col1, operator, col2)
             safe_new = SQLIdentifierSanitizer.sanitize(new_col)
 
-            # ──────────────────────────────────────────────────────────
-            # PostgreSQL / DuckDB: Clone → Add Column → UPDATE
-            # ──────────────────────────────────────────────────────────
-            working_table = await self._prepare_operation_table(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
-            )
+            # Out_2: write the comparison column into the source table.
+            working_table = table
 
             await self._add_new_column(working_table, schema, new_col, "BOOLEAN")
 
