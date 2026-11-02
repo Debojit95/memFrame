@@ -1,12 +1,17 @@
 import asyncio
+import base64
+import datetime as _dt
+import decimal
 import hashlib
 import inspect
+import io
 import json
 import logging
+import math
 import time
 from contextlib import asynccontextmanager
 from functools import wraps
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -98,6 +103,201 @@ class CacheManager:
 
     def _signature(self, value: Any) -> str:
         return json.dumps(value, sort_keys=True, default=self._json_default)
+
+    # ── actual payloads ────────────────────────────────────────────
+    @classmethod
+    def _encode_value(cls, value: Any) -> Any:
+        """Typed JSON-safe encoding for dict/list/scalar actual results."""
+        if value is None or isinstance(value, (bool, str, int)):
+            return value
+        if isinstance(value, float):
+            if math.isfinite(value):
+                return value
+            return {"__type__": "float", "value": repr(value)}
+        if isinstance(value, np.generic):
+            return cls._encode_value(value.item())
+        if isinstance(value, np.ndarray):
+            return {"__type__": "list", "items": [cls._encode_value(v) for v in value.tolist()]}
+        if isinstance(value, pd.Timestamp):
+            return {"__type__": "datetime", "value": value.isoformat()}
+        if isinstance(value, pd.Timedelta):
+            return {"__type__": "timedelta", "value": value.total_seconds()}
+        if isinstance(value, _dt.datetime):
+            return {"__type__": "datetime", "value": value.isoformat()}
+        if isinstance(value, _dt.date):
+            return {"__type__": "date", "value": value.isoformat()}
+        if isinstance(value, _dt.time):
+            return {"__type__": "time", "value": value.isoformat()}
+        if isinstance(value, decimal.Decimal):
+            return {"__type__": "decimal", "value": str(value)}
+        if isinstance(value, (bytes, bytearray, memoryview)):
+            return {
+                "__type__": "bytes",
+                "value": base64.b64encode(bytes(value)).decode("ascii"),
+            }
+        if isinstance(value, dict):
+            return {
+                "__type__": "dict",
+                "items": [
+                    [cls._encode_value(k), cls._encode_value(v)]
+                    for k, v in value.items()
+                ],
+            }
+        if isinstance(value, (list, tuple, set)):
+            return {
+                "__type__": "list",
+                "items": [cls._encode_value(v) for v in value],
+            }
+        if isinstance(value, pd.Series):
+            return {
+                "__type__": "series",
+                "name": str(value.name) if value.name is not None else None,
+                "items": [cls._encode_value(v) for v in value.tolist()],
+            }
+        try:
+            return {"__type__": "repr", "value": repr(value)}
+        except Exception:
+            return {"__type__": "repr", "value": f"<{type(value).__name__}>"}
+
+    @classmethod
+    def _decode_value(cls, node: Any) -> Any:
+        if not isinstance(node, dict) or "__type__" not in node:
+            return node
+        kind = node["__type__"]
+        if kind == "float":
+            return float(node["value"])
+        if kind == "datetime":
+            return _dt.datetime.fromisoformat(node["value"])
+        if kind == "date":
+            return _dt.date.fromisoformat(node["value"])
+        if kind == "time":
+            return _dt.time.fromisoformat(node["value"])
+        if kind == "timedelta":
+            return _dt.timedelta(seconds=float(node["value"]))
+        if kind == "decimal":
+            return decimal.Decimal(node["value"])
+        if kind == "bytes":
+            return base64.b64decode(node["value"])
+        if kind == "dict":
+            return {
+                cls._decode_value(k): cls._decode_value(v)
+                for k, v in node.get("items", [])
+            }
+        if kind == "list":
+            return [cls._decode_value(v) for v in node.get("items", [])]
+        if kind == "series":
+            return pd.Series(
+                [cls._decode_value(v) for v in node.get("items", [])],
+                name=node.get("name"),
+            )
+        return node.get("value")
+
+    @classmethod
+    def _encode_actual(cls, value: Any) -> tuple[str, bytes]:
+        if isinstance(value, pd.DataFrame):
+            buf = io.BytesIO()
+            value.to_parquet(buf, index=True)
+            return "parquet", buf.getvalue()
+        return "json", json.dumps(cls._encode_value(value)).encode("utf-8")
+
+    @classmethod
+    def _decode_actual(cls, fmt: str, data: bytes) -> Any:
+        if fmt == "parquet":
+            return pd.read_parquet(io.BytesIO(data))
+        return cls._decode_value(json.loads(data.decode("utf-8")))
+
+    @staticmethod
+    def _payload_for_backend(data: bytes, backend) -> Any:
+        if getattr(backend, "backend", None) == Backend.CLICKHOUSE:
+            return base64.b64encode(data).decode("ascii")
+        return data
+
+    @staticmethod
+    def _payload_from_backend(data: Any, backend) -> bytes:
+        if isinstance(data, memoryview):
+            data = data.tobytes()
+        if getattr(backend, "backend", None) == Backend.CLICKHOUSE:
+            if isinstance(data, str):
+                data = data.encode("ascii")
+            return base64.b64decode(data)
+        return bytes(data)
+
+    @staticmethod
+    def _as_list(value: Any) -> List[Any]:
+        if value is None:
+            return []
+        if isinstance(value, list):
+            return value
+        try:
+            parsed = json.loads(value)
+            return parsed if isinstance(parsed, list) else []
+        except Exception:
+            return []
+
+    @staticmethod
+    def _quote_col(name: str, backend) -> str:
+        safe = str(name).replace('"', '""').replace("`", "``")
+        if getattr(backend, "backend", None) == Backend.CLICKHOUSE:
+            return f"`{safe}`"
+        return f'"{safe}"'
+
+    # ── validity epoch ─────────────────────────────────────────────
+    async def _current_epoch(self, backend, data_id: str) -> int:
+        try:
+            val = await backend.fetchval(
+                f"SELECT cache_epoch FROM {backend.csv_registry_table} "
+                f"WHERE data_id = {backend.placeholder(1)}",
+                data_id,
+            )
+            return int(val or 0)
+        except Exception:
+            return 0
+
+    async def _bump_epoch(self, backend, data_id: str) -> int:
+        try:
+            await backend.execute(
+                f"UPDATE {backend.csv_registry_table} "
+                f"SET cache_epoch = COALESCE(cache_epoch, 0) + 1 "
+                f"WHERE data_id = {backend.placeholder(1)}",
+                data_id,
+            )
+        except Exception as exc:
+            logger.warning("[cache] epoch bump failed for data_id=%s: %s", data_id, exc)
+        return await self._current_epoch(backend, data_id)
+
+    # ── ref results ────────────────────────────────────────────────
+    def _ref_columns(self, result: Dict[str, Any]) -> List[str]:
+        cols = result.get("result_cols")
+        if isinstance(cols, list) and cols:
+            return cols
+        involved = result.get("involved_cols") or []
+        generated = result.get("generated_cols") or result.get("new_columns") or []
+        if isinstance(involved, str):
+            involved = [involved]
+        if isinstance(generated, str):
+            generated = [generated]
+        ordered: List[str] = []
+        for col in list(involved) + list(generated):
+            if col not in ordered:
+                ordered.append(col)
+        return ordered
+
+    async def _load_ref_table(
+        self, backend, schema: str, table: str, columns: List[str]
+    ) -> Optional[pd.DataFrame]:
+        if not columns:
+            return None
+        qualified = self._qualify(schema, table, backend)
+        cols = ", ".join(self._quote_col(c, backend) for c in columns)
+        try:
+            rows = await backend.fetch(f"SELECT {cols} FROM {qualified}")
+            records = [dict(r) if hasattr(r, "keys") else r for r in rows]
+            if records and isinstance(records[0], dict):
+                return pd.DataFrame(records, columns=columns)
+            return pd.DataFrame(rows, columns=columns)
+        except Exception as exc:
+            logger.warning("[cache] ref reload failed for %s: %s", qualified, exc)
+            return None
 
     @staticmethod
     def _op_lock_for(backend, data_id: str):
@@ -234,11 +434,10 @@ class CacheManager:
             return qualified
 
     def _make_hit_response(
-        self, payload: Dict[str, Any], cached: pd.DataFrame,
-        bare_name: str, schema: str, envelope: Optional[str] = None,
+        self, payload: Dict[str, Any], cached: Any,
+        bare_name: Optional[str] = None, schema: Optional[str] = None,
+        envelope: Optional[str] = None, kind: str = "ref",
     ) -> Dict[str, Any]:
-        qualified = self._qualify(schema, bare_name, payload.get("_backend"))
-
         stored: Dict[str, Any] = {}
         if envelope:
             try:
@@ -251,7 +450,47 @@ class CacheManager:
         generated = stored.get("new_columns")
         if not isinstance(generated, list) or not generated:
             single = stored.get("new_column")
-            generated = [single] if single else list(cached.columns)
+            generated = [single] if single else []
+
+        row_count = None
+        column_count = None
+        if isinstance(cached, pd.DataFrame):
+            row_count = len(cached)
+            column_count = len(cached.columns)
+        else:
+            try:
+                row_count = len(cached)
+            except Exception:
+                row_count = None
+
+        if kind == "actual":
+            response = {
+                "is_error": False,
+                "message": (
+                    f"Cache hit for {payload['class_name']}."
+                    f"{payload['method_name']}; replayed actual result"
+                ),
+                "error_message": None,
+                **stored,
+                "result": cached,
+            }
+            response.setdefault("involved_cols", [])
+            response["generated_cols"] = list(
+                stored.get("generated_cols") or generated
+            )
+            response.setdefault("new_columns", generated)
+            response["result_metadata"] = {
+                "from_cache": True,
+                "cache_kind": "actual",
+                "row_count": row_count,
+                "column_count": column_count,
+                "strict_args_kwargs_match": True,
+            }
+            return response
+
+        qualified = self._qualify(schema, bare_name, payload.get("_backend"))
+        if not generated:
+            generated = list(cached.columns) if isinstance(cached, pd.DataFrame) else []
 
         response = {
             "is_error": False,
@@ -270,9 +509,10 @@ class CacheManager:
         response["generated_cols"] = list(generated)
         response["result_metadata"] = {
             "from_cache": True,
+            "cache_kind": "ref",
             "saved_table": qualified,
-            "row_count": len(cached),
-            "column_count": len(cached.columns),
+            "row_count": row_count,
+            "column_count": column_count,
             "strict_args_kwargs_match": True,
         }
         return response
@@ -285,8 +525,11 @@ class CacheManager:
 
     def _make_writer(self, mf):
         async def writer(payload, data_id, generated_table_name=None, is_deep_cache=False, schema=None,
-                         table_scope=None, base_fingerprint=None, result_envelope=None):
-            await mf._arecord_method_call(
+                         table_scope=None, base_fingerprint=None, result_envelope=None,
+                         cache_kind=None, ref_schema=None, ref_table=None,
+                         involved_cols=None, generated_cols=None, result_cols=None,
+                         owns_table=False, epoch=0, input_refs=None):
+            return await mf._arecord_method_call(
                 data_id=data_id,
                 class_name=payload["class_name"],
                 method_name=payload["method_name"],
@@ -298,6 +541,15 @@ class CacheManager:
                 table_scope=table_scope,
                 base_fingerprint=base_fingerprint,
                 result_envelope=result_envelope,
+                cache_kind=cache_kind,
+                ref_schema=ref_schema,
+                ref_table=ref_table,
+                involved_cols=involved_cols,
+                generated_cols=generated_cols,
+                result_cols=result_cols,
+                owns_table=owns_table,
+                epoch=epoch,
+                input_refs=input_refs,
             )
         return writer
 
@@ -372,7 +624,7 @@ class CacheManager:
                     # the key by override table or different results contaminate.
                     ops_parent = getattr(self, "_ops_parent", None)
                     scope = getattr(ops_parent, "_table_override", None) if ops_parent is not None else None
-                    # --- Lookup: only for deep cache entries ---
+                    # --- Lookup: only for cached entries ---
                     if is_deep and backend:
                         method = f"{payload['class_name']}.{payload['method_name']}"
                         logger.debug(
@@ -380,9 +632,17 @@ class CacheManager:
                             method, data_id, payload["args_sig"], payload["kwargs_sig"],
                         )
                         lookup_start = time.perf_counter()
+                        deep_cond = (
+                            "CAST(is_deep_cache AS UInt8) = 1"
+                            if backend.backend == "clickhouse"
+                            else "is_deep_cache = TRUE"
+                        )
                         row = await backend.fetch_row(
                             f"""
-                            SELECT generated_table_name, schema, base_fingerprint, opidx, result_envelope
+                            SELECT generated_table_name, schema, base_fingerprint, opidx,
+                                   result_envelope, cache_kind, ref_schema, ref_table,
+                                   involved_cols, generated_cols, result_cols, epoch,
+                                   owns_table
                             FROM {backend.cache_registry_table}
                             WHERE data_id = {backend.placeholder(1)}
                               AND operation_type = 'method_call'
@@ -391,8 +651,7 @@ class CacheManager:
                               AND args = {backend.placeholder(4)}
                               AND kwargs = {backend.placeholder(5)}
                               AND COALESCE(table_scope, '') = {backend.placeholder(6)}
-                               AND {backend.backend == "clickhouse" and "CAST(is_deep_cache AS UInt8) = 1" or "is_deep_cache = TRUE"}
-                               AND generated_table_name IS NOT NULL
+                              AND ({deep_cond} OR cache_kind IS NOT NULL)
                             ORDER BY opidx DESC LIMIT 1
                             """,
                             data_id,
@@ -405,15 +664,30 @@ class CacheManager:
                         if row:
                             bare, sch, stored_fp, opidx = row[0], row[1], row[2], row[3]
                             stored_envelope = row[4] if len(row) > 4 else None
+                            stored_kind = row[5] if len(row) > 5 else None
+                            ref_schema = row[6] if len(row) > 6 else None
+                            ref_table = row[7] if len(row) > 7 else None
+                            involved = manager._as_list(row[8] if len(row) > 8 else None)
+                            generated = manager._as_list(row[9] if len(row) > 9 else None)
+                            result_cols = manager._as_list(row[10] if len(row) > 10 else None)
+                            stored_epoch = row[11] if len(row) > 11 else None
+                            owns_table = bool(row[12]) if len(row) > 12 else False
                             sch = sch or backend.cache_schema
                             current_fp = await manager._read_fingerprint(backend, data_id, ops_parent)
+                            stale = False
                             if current_fp is None:
                                 logger.info(
                                     "[cache] MISS %s data_id=%s — base unmeasurable",
                                     method, data_id,
                                 )
                                 row = None
-                            elif stored_fp != current_fp:
+                            elif stored_fp is not None and stored_fp != current_fp:
+                                stale = True
+                            elif stored_epoch is not None:
+                                current_epoch = await manager._current_epoch(backend, data_id)
+                                if current_epoch > int(stored_epoch):
+                                    stale = True
+                            if stale:
                                 logger.info(
                                     "[cache] STALE %s data_id=%s — base changed; dropping entry",
                                     method, data_id,
@@ -424,27 +698,104 @@ class CacheManager:
                                     f"AND opidx = {backend.placeholder(2)}",
                                     data_id, opidx,
                                 )
-                                try:
-                                    await backend.drop_table(manager._qualify(sch, bare, backend))
-                                except Exception as exc:
-                                    logger.warning("[cache] stale table drop failed for %s: %s", bare, exc)
+                                await backend.execute(
+                                    f"DELETE FROM {backend.cache_payloads_table} "
+                                    f"WHERE data_id = {backend.placeholder(1)} "
+                                    f"AND opidx = {backend.placeholder(2)}",
+                                    data_id, opidx,
+                                )
+                                if stored_kind == "ref" and owns_table:
+                                    try:
+                                        await backend.drop_table(
+                                            manager._qualify(
+                                                ref_schema or sch, ref_table or bare, backend
+                                            )
+                                        )
+                                    except Exception as exc:
+                                        logger.warning(
+                                            "[cache] stale table drop failed for %s: %s",
+                                            ref_table or bare, exc,
+                                        )
+                                elif stored_kind is None and bare:
+                                    try:
+                                        await backend.drop_table(
+                                            manager._qualify(sch, bare, backend)
+                                        )
+                                    except Exception as exc:
+                                        logger.warning(
+                                            "[cache] stale table drop failed for %s: %s",
+                                            bare, exc,
+                                        )
                                 row = None
                         if row:
-                            bare, sch = row[0], row[1]
-                            sch = sch or backend.cache_schema
-                            cached = await manager._load_generated_table(backend, manager._qualify(sch, bare, backend))
-                            if cached is not None:
-                                logger.info(
-                                    "[cache] HIT %s data_id=%s → %s (%d rows, lookup+reload %.3fs)",
-                                    method, data_id, bare, len(cached),
-                                    time.perf_counter() - lookup_start,
+                            if stored_kind == "actual":
+                                prow = await backend.fetch_row(
+                                    f"SELECT format, payload FROM {backend.cache_payloads_table} "
+                                    f"WHERE data_id = {backend.placeholder(1)} "
+                                    f"AND opidx = {backend.placeholder(2)}",
+                                    data_id, opidx,
                                 )
-                                return manager._make_hit_response(
-                                    payload, cached, bare, sch, stored_envelope,
+                                if prow:
+                                    try:
+                                        cached = manager._decode_actual(
+                                            prow[0],
+                                            manager._payload_from_backend(prow[1], backend),
+                                        )
+                                    except Exception as exc:
+                                        logger.warning(
+                                            "[cache] actual payload decode failed for %s: %s",
+                                            method, exc,
+                                        )
+                                        cached = None
+                                    if cached is not None:
+                                        logger.info(
+                                            "[cache] HIT %s data_id=%s → actual payload (%.3fs)",
+                                            method, data_id, time.perf_counter() - lookup_start,
+                                        )
+                                        return manager._make_hit_response(
+                                            payload, cached, envelope=stored_envelope,
+                                            kind="actual",
+                                        )
+                            elif stored_kind == "ref":
+                                cols = result_cols or manager._ref_columns(
+                                    {
+                                        "involved_cols": involved,
+                                        "generated_cols": generated,
+                                    }
                                 )
+                                target_schema = ref_schema or sch
+                                target_table = ref_table or bare
+                                cached = await manager._load_ref_table(
+                                    backend, target_schema, target_table, cols,
+                                )
+                                if cached is not None:
+                                    logger.info(
+                                        "[cache] HIT %s data_id=%s → %s.%s (%d rows, %.3fs)",
+                                        method, data_id, target_schema, target_table,
+                                        len(cached), time.perf_counter() - lookup_start,
+                                    )
+                                    return manager._make_hit_response(
+                                        payload, cached, target_table, target_schema,
+                                        stored_envelope, kind="ref",
+                                    )
+                            else:
+                                bare, sch = row[0], row[1]
+                                sch = sch or backend.cache_schema
+                                cached = await manager._load_generated_table(
+                                    backend, manager._qualify(sch, bare, backend)
+                                )
+                                if cached is not None:
+                                    logger.info(
+                                        "[cache] HIT %s data_id=%s → %s (%d rows, lookup+reload %.3fs)",
+                                        method, data_id, bare, len(cached),
+                                        time.perf_counter() - lookup_start,
+                                    )
+                                    return manager._make_hit_response(
+                                        payload, cached, bare, sch, stored_envelope,
+                                    )
                             logger.info(
-                                "[cache] MISS %s data_id=%s — registry row found but reload failed for %s",
-                                method, data_id, bare,
+                                "[cache] MISS %s data_id=%s — registry row found but reload failed",
+                                method, data_id,
                             )
                         else:
                             logger.info(
@@ -456,50 +807,127 @@ class CacheManager:
                     result = await func(self, *args, **kwargs)
                     generated_table_name = None
                     schema = None
+                    cache_kind = None
+                    ref_schema = None
+                    ref_table = None
+                    involved_cols = None
+                    generated_cols = None
+                    result_cols = None
+                    owns_table = False
+                    actual_format = None
+                    actual_payload = None
+                    epoch = 0
+                    store_deep = is_deep
 
-                    # ponytail: one transaction — the stored table (created or moved
-                    # here) and its registry row commit together, so a crash can't
-                    # leave one without the other.
+                    is_error = isinstance(result, dict) and result.get("is_error", False)
+                    annotated_kind = (
+                        result.get("cache_kind") if isinstance(result, dict) else None
+                    )
+                    mutates = (
+                        bool(result.get("mutates", False))
+                        if isinstance(result, dict)
+                        else False
+                    )
+
+                    # ponytail: one transaction — the stored table/payload and its
+                    # registry row commit together, so a crash can't leave one
+                    # without the other.
                     async with manager._txn_for(backend):
-                        if is_deep and isinstance(result, dict) and not result.get("is_error", False):
-                            bare_table = result.get("new_table") or result.get("generated_table_name")
-                            if bare_table and backend:
-                                if await backend.table_exists(manager._qualify(backend.cache_schema, bare_table, backend)):
-                                    generated_table_name = bare_table
-                                    schema = backend.cache_schema
-                                elif await backend.table_exists(manager._qualify(backend.upload_schema, bare_table, backend)):
-                                    be = getattr(backend, "backend", None)
-                                    if be == Backend.CLICKHOUSE:
-                                        await backend.execute(
-                                            f"RENAME TABLE {manager._qualify(backend.upload_schema, bare_table, backend)} "
-                                            f"TO {manager._qualify(backend.cache_schema, bare_table, backend)}"
-                                        )
-                                    elif be == Backend.DUCKDB:
-                                        await backend.execute(
-                                            f"CREATE TABLE {manager._qualify(backend.cache_schema, bare_table, backend)} "
-                                            f"AS SELECT * FROM {manager._qualify(backend.upload_schema, bare_table, backend)}"
-                                        )
-                                        await backend.execute(
-                                            f"DROP TABLE {manager._qualify(backend.upload_schema, bare_table, backend)}"
-                                        )
-                                    else:
-                                        await backend.execute(
-                                            f"ALTER TABLE {manager._qualify(backend.upload_schema, bare_table, backend)} "
-                                            f"SET SCHEMA {backend.cache_schema}"
-                                        )
-                                    generated_table_name = bare_table
-                                    schema = backend.cache_schema
-                            elif "result" in result:
-                                df = result["result"]
-                                if isinstance(df, pd.DataFrame) and not df.empty and backend:
-                                    qualified = await manager._create_deep_cache_table(
-                                        mf, backend, data_id, df
+                        if backend:
+                            if not is_error and annotated_kind is not None and mutates:
+                                epoch = await manager._bump_epoch(backend, data_id)
+                            else:
+                                epoch = await manager._current_epoch(backend, data_id)
+
+                        if is_deep and not is_error and isinstance(result, dict):
+                            if annotated_kind == "actual":
+                                try:
+                                    actual_format, actual_payload = manager._encode_actual(
+                                        result.get("result")
                                     )
-                                    if qualified:
-                                        _sch, _bare = backend._split_qualified_table_name(qualified)
-                                        generated_table_name = _bare
-                                        schema = _sch
-                        elif not is_deep and isinstance(result, dict) and not result.get("is_error", False):
+                                    cache_kind = "actual"
+                                except Exception as exc:
+                                    logger.warning(
+                                        "[cache] actual encode failed for %s: %s",
+                                        payload["method_name"], exc,
+                                    )
+                                    store_deep = False
+                                involved_cols = json.dumps(result.get("involved_cols") or [])
+                                generated_cols = json.dumps(
+                                    result.get("generated_cols")
+                                    or result.get("new_columns")
+                                    or []
+                                )
+                                result_cols = json.dumps(manager._ref_columns(result))
+                            elif annotated_kind == "ref":
+                                ref_schema = result.get("ref_schema")
+                                ref_table = result.get("ref_table") or result.get("new_table")
+                                if ref_table and backend:
+                                    if not ref_schema:
+                                        for cand in (backend.cache_schema, backend.upload_schema):
+                                            if await backend.table_exists(
+                                                manager._qualify(cand, ref_table, backend)
+                                            ):
+                                                ref_schema = cand
+                                                break
+                                    if ref_schema:
+                                        cache_kind = "ref"
+                                        involved_cols = json.dumps(
+                                            result.get("involved_cols") or []
+                                        )
+                                        generated_cols = json.dumps(
+                                            result.get("generated_cols")
+                                            or result.get("new_columns")
+                                            or []
+                                        )
+                                        result_cols = json.dumps(manager._ref_columns(result))
+                                        owns_table = bool(result.get("owns_table", False))
+                            else:
+                                # Legacy unannotated path (removed once every op
+                                # declares cache_kind).
+                                bare_table = result.get("new_table") or result.get("generated_table_name")
+                                if bare_table and backend:
+                                    if await backend.table_exists(manager._qualify(backend.cache_schema, bare_table, backend)):
+                                        generated_table_name = bare_table
+                                        schema = backend.cache_schema
+                                    elif await backend.table_exists(manager._qualify(backend.upload_schema, bare_table, backend)):
+                                        be = getattr(backend, "backend", None)
+                                        if be == Backend.CLICKHOUSE:
+                                            await backend.execute(
+                                                f"RENAME TABLE {manager._qualify(backend.upload_schema, bare_table, backend)} "
+                                                f"TO {manager._qualify(backend.cache_schema, bare_table, backend)}"
+                                            )
+                                        elif be == Backend.DUCKDB:
+                                            await backend.execute(
+                                                f"CREATE TABLE {manager._qualify(backend.cache_schema, bare_table, backend)} "
+                                                f"AS SELECT * FROM {manager._qualify(backend.upload_schema, bare_table, backend)}"
+                                            )
+                                            await backend.execute(
+                                                f"DROP TABLE {manager._qualify(backend.upload_schema, bare_table, backend)}"
+                                            )
+                                        else:
+                                            await backend.execute(
+                                                f"ALTER TABLE {manager._qualify(backend.upload_schema, bare_table, backend)} "
+                                                f"SET SCHEMA {backend.cache_schema}"
+                                            )
+                                        generated_table_name = bare_table
+                                        schema = backend.cache_schema
+                                elif "result" in result:
+                                    df = result["result"]
+                                    if isinstance(df, pd.DataFrame) and not df.empty and backend:
+                                        qualified = await manager._create_deep_cache_table(
+                                            mf, backend, data_id, df
+                                        )
+                                        if qualified:
+                                            _sch, _bare = backend._split_qualified_table_name(qualified)
+                                            generated_table_name = _bare
+                                            schema = _sch
+                        elif (
+                            not is_deep
+                            and not is_error
+                            and isinstance(result, dict)
+                            and annotated_kind is None
+                        ):
                             # ponytail: drop any table the method created — deep_cache=False means no tables
                             bare_table = result.get("new_table") or result.get("generated_table_name")
                             if bare_table and backend:
@@ -509,14 +937,14 @@ class CacheManager:
                                         await backend.drop_table(q)
                                         break
 
-                        # ponytail: stamp the post-execute base state — a mutating op's
+                    # ponytail: stamp the post-execute base state — a mutating op's
                     # repeat must see the mutated base, not the pre-state.
                     store_fp = None
                     if is_deep and backend:
                         store_fp = await manager._read_fingerprint(backend, data_id, ops_parent)
 
                     result_envelope = None
-                    if is_deep and isinstance(result, dict) and not result.get("is_error", False):
+                    if is_deep and not is_error and isinstance(result, dict):
                         try:
                             result_envelope = json.dumps(
                                 {
@@ -524,6 +952,8 @@ class CacheManager:
                                     if k not in (
                                         "result", "new_table", "result_metadata",
                                         "is_error", "message", "error_message",
+                                        "cache_kind", "ref_schema", "ref_table",
+                                        "owns_table", "result_cols",
                                     )
                                 },
                                 default=manager._json_default,
@@ -531,16 +961,50 @@ class CacheManager:
                         except Exception:
                             result_envelope = None
 
-                    await writer(payload, data_id, generated_table_name, is_deep_cache=is_deep, schema=schema,
-                                 table_scope=scope, base_fingerprint=store_fp,
-                                 result_envelope=result_envelope)
-                if is_deep and generated_table_name:
+                    opidx = await writer(
+                        payload, data_id, generated_table_name,
+                        is_deep_cache=store_deep, schema=schema,
+                        table_scope=scope, base_fingerprint=store_fp,
+                        result_envelope=result_envelope,
+                        cache_kind=cache_kind, ref_schema=ref_schema,
+                        ref_table=ref_table, involved_cols=involved_cols,
+                        generated_cols=generated_cols, result_cols=result_cols,
+                        owns_table=owns_table, epoch=epoch,
+                    )
+                    if cache_kind == "actual" and actual_payload is not None and backend:
+                        try:
+                            await backend.execute(
+                                f"INSERT INTO {backend.cache_payloads_table} "
+                                f"(data_id, opidx, format, payload) "
+                                f"VALUES ({backend.placeholder(1)}, {backend.placeholder(2)}, "
+                                f"{backend.placeholder(3)}, {backend.placeholder(4)})",
+                                data_id, opidx, actual_format,
+                                manager._payload_for_backend(actual_payload, backend),
+                            )
+                        except Exception as exc:
+                            logger.warning(
+                                "[cache] actual payload store failed for %s data_id=%s opidx=%s: %s",
+                                payload["method_name"], data_id, opidx, exc,
+                            )
+
+                if store_deep and cache_kind == "actual":
+                    logger.info(
+                        "[cache] STORE %s.%s data_id=%s (actual payload)",
+                        payload["class_name"], payload["method_name"], data_id,
+                    )
+                elif store_deep and cache_kind == "ref":
+                    logger.info(
+                        "[cache] STORE %s.%s data_id=%s → %s.%s (ref)",
+                        payload["class_name"], payload["method_name"],
+                        data_id, ref_schema, ref_table,
+                    )
+                elif store_deep and generated_table_name:
                     logger.info(
                         "[cache] STORE %s.%s data_id=%s → %s.%s (deep)",
                         payload["class_name"], payload["method_name"],
                         data_id, schema, generated_table_name,
                     )
-                elif not is_deep:
+                elif not store_deep:
                     logger.debug(
                         "[cache] STORE %s.%s data_id=%s (signature-only)",
                         payload["class_name"], payload["method_name"], data_id,

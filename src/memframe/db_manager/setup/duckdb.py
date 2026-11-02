@@ -66,7 +66,8 @@ class DuckDBBackend(DatabaseBackend):
                 is_upload_success BOOLEAN DEFAULT TRUE,
                 table_name TEXT NOT NULL,
                 row_count BIGINT,
-                schema TEXT
+                schema TEXT,
+                cache_epoch BIGINT DEFAULT 0
             )
         """)
         await self.execute(f"""

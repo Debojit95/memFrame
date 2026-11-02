@@ -119,7 +119,8 @@ class ClickHouseBackend(DatabaseBackend):
                 is_upload_success UInt8 DEFAULT 1,
                 table_name String,
                 row_count Int64,
-                schema Nullable(String)
+                schema Nullable(String),
+                cache_epoch Int64 DEFAULT 0
             ) ENGINE = MergeTree()
             ORDER BY data_id
         """)

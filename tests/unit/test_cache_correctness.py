@@ -267,6 +267,126 @@ class TestOverrideScope:
         assert r2b["result_metadata"]["from_cache"] is True
 
 
+class RefOps:
+    """Annotated Out_2 ref: the source table already holds the columns."""
+
+    def __init__(self, mf, data_id):
+        self._memframe = mf
+        self._data_id = data_id
+
+    @record_call(deep_cache=True)
+    async def do(self, column):
+        rows = await self._memframe._backend.fetch(
+            f'SELECT "{column}" FROM memframe_upload."{self._data_id}"'
+        )
+        return {
+            "is_error": False,
+            "cache_kind": "ref",
+            "ref_schema": "memframe_upload",
+            "ref_table": self._data_id,
+            "involved_cols": [column],
+            "generated_cols": [],
+            "result_cols": [column],
+            "result": pd.DataFrame(rows, columns=[column]),
+        }
+
+
+class ActualOps:
+    def __init__(self, mf, data_id):
+        self._memframe = mf
+        self._data_id = data_id
+
+    @record_call(deep_cache=True)
+    async def do(self):
+        return {
+            "is_error": False,
+            "cache_kind": "actual",
+            "result": {"a": 1, "b": [1, 2], "when": pd.Timestamp("2024-01-01")},
+        }
+
+
+class ActualFrameOps:
+    def __init__(self, mf, data_id):
+        self._memframe = mf
+        self._data_id = data_id
+
+    @record_call(deep_cache=True)
+    async def do(self):
+        df = pd.DataFrame({"x": [1.0, 2.0]}, index=pd.Index(["a", "b"], name="label"))
+        return {"is_error": False, "cache_kind": "actual", "result": df}
+
+
+class MutatingActualOps:
+    def __init__(self, mf, data_id):
+        self._memframe = mf
+        self._data_id = data_id
+
+    @record_call(deep_cache=True)
+    async def do(self, i):
+        return {
+            "is_error": False,
+            "cache_kind": "actual",
+            "mutates": True,
+            "result": {"i": i},
+        }
+
+
+class TestAnnotatedKinds:
+    def test_ref_hit_reads_source_columns(self, mf, uploaded):
+        ops = RefOps(mf, uploaded._data_id)
+        first = asyncio.run(ops.do("x"))
+        second = asyncio.run(ops.do("x"))
+
+        assert first["result"]["x"].tolist() == [1, 2, 3]
+        assert second["result"]["x"].tolist() == [1, 2, 3]
+        assert second["result_metadata"]["cache_kind"] == "ref"
+        # The ref must not create a cache-schema copy.
+        rows = asyncio.run(mf._backend.fetch(
+            "SELECT table_name FROM information_schema.tables "
+            "WHERE table_schema = 'memframe_cache'"
+        ))
+        assert rows == []
+
+    def test_actual_dict_round_trips(self, mf, uploaded):
+        ops = ActualOps(mf, uploaded._data_id)
+        first = asyncio.run(ops.do())
+        second = asyncio.run(ops.do())
+
+        assert first["result"]["a"] == 1
+        assert second["result"]["a"] == 1
+        assert second["result"]["b"] == [1, 2]
+        assert second["result"]["when"] == pd.Timestamp("2024-01-01")
+        assert second["result_metadata"]["cache_kind"] == "actual"
+        fmt = asyncio.run(mf._backend.fetchval(
+            "SELECT format FROM memframe_csv_registry.memframe_cache_payloads"
+        ))
+        assert fmt == "json"
+
+    def test_actual_dataframe_preserves_index(self, mf, uploaded):
+        ops = ActualFrameOps(mf, uploaded._data_id)
+        first = asyncio.run(ops.do())
+        second = asyncio.run(ops.do())
+
+        assert second["result"].equals(first["result"])
+        assert list(second["result"].index) == ["a", "b"]
+        fmt = asyncio.run(mf._backend.fetchval(
+            "SELECT format FROM memframe_csv_registry.memframe_cache_payloads"
+        ))
+        assert fmt == "parquet"
+
+    def test_mutation_epoch_invalidates_previous_entries(self, mf, uploaded):
+        ops = MutatingActualOps(mf, uploaded._data_id)
+        first = asyncio.run(ops.do(1))
+        assert "result_metadata" not in first
+        assert asyncio.run(ops.do(1))["result_metadata"]["from_cache"] is True
+
+        # A different mutating call bumps the dataset epoch.
+        asyncio.run(ops.do(2))
+        third = asyncio.run(ops.do(1))
+        assert "result_metadata" not in third
+        assert third["result"]["i"] == 1
+
+
 class TestInstanceStateKey:
     def test_groupby_group_cols_do_not_share_cache(self, mf):
         ctx = mf.upload_df(

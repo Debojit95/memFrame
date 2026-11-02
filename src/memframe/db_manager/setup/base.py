@@ -244,6 +244,16 @@ class DatabaseBackend(ABC):
                     f"ALTER TABLE {fq_table_name} ADD COLUMN is_external BOOLEAN DEFAULT FALSE"
                 )
 
+        if not await self._column_exists(schema_name, table_name, "cache_epoch"):
+            if self.backend == "clickhouse":
+                await self.execute(
+                    f"ALTER TABLE {fq_table_name} ADD COLUMN IF NOT EXISTS cache_epoch Int64 DEFAULT 0"
+                )
+            else:
+                await self.execute(
+                    f"ALTER TABLE {fq_table_name} ADD COLUMN cache_epoch BIGINT DEFAULT 0"
+                )
+
         # The old metadata-only logical index stored key columns here. Indexes
         # are now database-native, so drop the legacy column when present.
         if await self._column_exists(schema_name, table_name, "index_cols"):

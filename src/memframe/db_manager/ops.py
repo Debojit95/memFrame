@@ -226,6 +226,15 @@ class OpsMixin:
         is_deep_cache: bool = False, schema: Optional[str] = None,
         table_scope: Optional[str] = None, base_fingerprint: Optional[str] = None,
         result_envelope: Optional[str] = None,
+        cache_kind: Optional[str] = None,
+        ref_schema: Optional[str] = None,
+        ref_table: Optional[str] = None,
+        involved_cols: Optional[str] = None,
+        generated_cols: Optional[str] = None,
+        result_cols: Optional[str] = None,
+        owns_table: bool = False,
+        epoch: int = 0,
+        input_refs: Optional[str] = None,
     ) -> int:
         if not self._backend:
             raise ConnectionNotReady("Not connected.")
@@ -240,15 +249,21 @@ class OpsMixin:
                 f"INSERT INTO {self._backend.cache_registry_table} "
                 f"(data_id, opidx, operation_type, class_name, method_name, args, kwargs, "
                 f"generated_table_name, is_deep_cache, schema, table_scope, base_fingerprint, "
-                f"result_envelope) "
+                f"result_envelope, cache_kind, ref_schema, ref_table, involved_cols, "
+                f"generated_cols, result_cols, owns_table, epoch, input_refs) "
                 f"VALUES ({self._placeholder(1)}, {self._placeholder(2)}, {self._placeholder(3)}, "
                 f"{self._placeholder(4)}, {self._placeholder(5)}, {self._placeholder(6)}, "
                 f"{self._placeholder(7)}, {self._placeholder(8)}, {self._placeholder(9)}, {self._placeholder(10)}, "
-                f"{self._placeholder(11)}, {self._placeholder(12)}, {self._placeholder(13)})",
+                f"{self._placeholder(11)}, {self._placeholder(12)}, {self._placeholder(13)}, "
+                f"{self._placeholder(14)}, {self._placeholder(15)}, {self._placeholder(16)}, "
+                f"{self._placeholder(17)}, {self._placeholder(18)}, {self._placeholder(19)}, "
+                f"{self._placeholder(20)}, {self._placeholder(21)}, {self._placeholder(22)})",
                 data_id, opidx, "method_call", class_name, method_name,
                 args_sig, kwargs_sig,
                 generated_table_name, is_deep_cache, schema,
                 table_scope, base_fingerprint, result_envelope,
+                cache_kind, ref_schema, ref_table, involved_cols,
+                generated_cols, result_cols, owns_table, epoch, input_refs,
             )
             return opidx
 
