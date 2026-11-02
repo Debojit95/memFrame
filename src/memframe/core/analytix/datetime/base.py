@@ -90,6 +90,12 @@ class DatetimeOps:
         safe_col = SQLIdentifierSanitizer.sanitize(col_name)
         await self._exec(f'ALTER TABLE {qualified} ADD COLUMN "{safe_col}" {col_type}')
 
+    async def _add_new_column_if_not_exists(self, table: str, schema: str, col_name: str, col_type: str):
+        safe_col = SQLIdentifierSanitizer.sanitize(col_name)
+        types = await self.db.get_column_types(table, schema)
+        if safe_col not in types:
+            await self._add_new_column(table, schema, col_name, col_type)
+
     async def _backend_fetch_val(self, backend, sql: str, *args):
         if hasattr(backend, "fetch_val"):
             return await backend.fetch_val(sql, *args)
@@ -344,13 +350,11 @@ class DatetimeOps:
             if field not in DT_FIELD_MAP:
                 return self._error_response(f"Unsupported datetime field: {field}", [column], [])
 
-            working_table = await self._prepare_operation_table(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
-            )
+            working_table = table
 
             sql_field = DT_FIELD_MAP[field]
             new_col = self._generate_cleaned_column_name(column, field)
-            await self._add_new_column(working_table, schema, new_col, "INTEGER")
+            await self._add_new_column_if_not_exists(working_table, schema, new_col, "INTEGER")
 
             qualified = self._qualified_table(working_table, schema)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
@@ -384,12 +388,10 @@ class DatetimeOps:
             if unit not in interval_map:
                 return self._error_response(f"Unsupported ceil unit: {unit}", [column], [])
 
-            working_table = await self._prepare_operation_table(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
-            )
+            working_table = table
 
             new_col = self._generate_cleaned_column_name(column, f"ceil_{unit}")
-            await self._add_new_column(working_table, schema, new_col, "TIMESTAMP")
+            await self._add_new_column_if_not_exists(working_table, schema, new_col, "TIMESTAMP")
 
             qualified = self._qualified_table(working_table, schema)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
@@ -426,12 +428,10 @@ class DatetimeOps:
             if unit not in half_interval_map:
                 return self._error_response(f"Unsupported round unit: {unit}", [column], [])
 
-            working_table = await self._prepare_operation_table(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
-            )
+            working_table = table
 
             new_col = self._generate_cleaned_column_name(column, f"round_{unit}")
-            await self._add_new_column(working_table, schema, new_col, "TIMESTAMP")
+            await self._add_new_column_if_not_exists(working_table, schema, new_col, "TIMESTAMP")
 
             qualified = self._qualified_table(working_table, schema)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
@@ -463,12 +463,10 @@ class DatetimeOps:
             if unit not in valid_units:
                 return self._error_response(f"Unsupported floor unit: {unit}", [column], [])
 
-            working_table = await self._prepare_operation_table(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
-            )
+            working_table = table
 
             new_col = self._generate_cleaned_column_name(column, f"floor_{unit}")
-            await self._add_new_column(working_table, schema, new_col, "TIMESTAMP")
+            await self._add_new_column_if_not_exists(working_table, schema, new_col, "TIMESTAMP")
 
             qualified = self._qualified_table(working_table, schema)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
@@ -494,12 +492,10 @@ class DatetimeOps:
                           ambiguous: str = "raise", nonexistent: str = "raise",
                           backend=None, data_id=None, new_table=None) -> Dict[str, Any]:
         try:
-            working_table = await self._prepare_operation_table(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
-            )
+            working_table = table
 
             new_col = self._generate_cleaned_column_name(column, f"tz_{tz or 'naive'}")
-            await self._add_new_column(working_table, schema, new_col, "TIMESTAMP")
+            await self._add_new_column_if_not_exists(working_table, schema, new_col, "TIMESTAMP")
 
             qualified = self._qualified_table(working_table, schema)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
@@ -534,12 +530,10 @@ class DatetimeOps:
     async def tz_convert(self, table: str, schema: str, column: str, tz: str | None,
                          backend=None, data_id=None, new_table=None) -> Dict[str, Any]:
         try:
-            working_table = await self._prepare_operation_table(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
-            )
+            working_table = table
 
             new_col = self._generate_cleaned_column_name(column, f"tzconvert_{tz or 'naive'}")
-            await self._add_new_column(working_table, schema, new_col, "TIMESTAMP")
+            await self._add_new_column_if_not_exists(working_table, schema, new_col, "TIMESTAMP")
 
             qualified = self._qualified_table(working_table, schema)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
@@ -582,11 +576,9 @@ class DatetimeOps:
     async def is_month_start(self, table: str, schema: str, column: str,
                              backend=None, data_id=None, new_table=None) -> Dict[str, Any]:
         try:
-            working_table = await self._prepare_operation_table(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
-            )
+            working_table = table
             new_col = self._generate_cleaned_column_name(column, "is_month_start")
-            await self._add_new_column(working_table, schema, new_col, "BOOLEAN")
+            await self._add_new_column_if_not_exists(working_table, schema, new_col, "BOOLEAN")
 
             q = self._qualified_table(working_table, schema)
             c = SQLIdentifierSanitizer.sanitize(column)
@@ -603,11 +595,9 @@ class DatetimeOps:
     async def is_month_end(self, table: str, schema: str, column: str,
                            backend=None, data_id=None, new_table=None) -> Dict[str, Any]:
         try:
-            working_table = await self._prepare_operation_table(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
-            )
+            working_table = table
             new_col = self._generate_cleaned_column_name(column, "is_month_end")
-            await self._add_new_column(working_table, schema, new_col, "BOOLEAN")
+            await self._add_new_column_if_not_exists(working_table, schema, new_col, "BOOLEAN")
 
             q = self._qualified_table(working_table, schema)
             c = SQLIdentifierSanitizer.sanitize(column)
@@ -629,11 +619,9 @@ class DatetimeOps:
     async def is_year_start(self, table: str, schema: str, column: str,
                             backend=None, data_id=None, new_table=None) -> Dict[str, Any]:
         try:
-            working_table = await self._prepare_operation_table(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
-            )
+            working_table = table
             new_col = self._generate_cleaned_column_name(column, "is_year_start")
-            await self._add_new_column(working_table, schema, new_col, "BOOLEAN")
+            await self._add_new_column_if_not_exists(working_table, schema, new_col, "BOOLEAN")
 
             q = self._qualified_table(working_table, schema)
             c = SQLIdentifierSanitizer.sanitize(column)
@@ -655,11 +643,9 @@ class DatetimeOps:
     async def is_year_end(self, table: str, schema: str, column: str,
                           backend=None, data_id=None, new_table=None) -> Dict[str, Any]:
         try:
-            working_table = await self._prepare_operation_table(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
-            )
+            working_table = table
             new_col = self._generate_cleaned_column_name(column, "is_year_end")
-            await self._add_new_column(working_table, schema, new_col, "BOOLEAN")
+            await self._add_new_column_if_not_exists(working_table, schema, new_col, "BOOLEAN")
 
             q = self._qualified_table(working_table, schema)
             c = SQLIdentifierSanitizer.sanitize(column)
@@ -681,11 +667,9 @@ class DatetimeOps:
     async def is_quarter_start(self, table: str, schema: str, column: str,
                                backend=None, data_id=None, new_table=None) -> Dict[str, Any]:
         try:
-            working_table = await self._prepare_operation_table(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
-            )
+            working_table = table
             new_col = self._generate_cleaned_column_name(column, "is_quarter_start")
-            await self._add_new_column(working_table, schema, new_col, "BOOLEAN")
+            await self._add_new_column_if_not_exists(working_table, schema, new_col, "BOOLEAN")
 
             q = self._qualified_table(working_table, schema)
             c = SQLIdentifierSanitizer.sanitize(column)
@@ -706,11 +690,9 @@ class DatetimeOps:
     async def is_quarter_end(self, table: str, schema: str, column: str,
                              backend=None, data_id=None, new_table=None) -> Dict[str, Any]:
         try:
-            working_table = await self._prepare_operation_table(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
-            )
+            working_table = table
             new_col = self._generate_cleaned_column_name(column, "is_quarter_end")
-            await self._add_new_column(working_table, schema, new_col, "BOOLEAN")
+            await self._add_new_column_if_not_exists(working_table, schema, new_col, "BOOLEAN")
 
             q = self._qualified_table(working_table, schema)
             c = SQLIdentifierSanitizer.sanitize(column)
@@ -732,11 +714,9 @@ class DatetimeOps:
     async def is_weekend(self, table: str, schema: str, column: str,
                          backend=None, data_id=None, new_table=None) -> Dict[str, Any]:
         try:
-            working_table = await self._prepare_operation_table(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
-            )
+            working_table = table
             new_col = self._generate_cleaned_column_name(column, "is_weekend")
-            await self._add_new_column(working_table, schema, new_col, "BOOLEAN")
+            await self._add_new_column_if_not_exists(working_table, schema, new_col, "BOOLEAN")
 
             q = self._qualified_table(working_table, schema)
             c = SQLIdentifierSanitizer.sanitize(column)
@@ -756,11 +736,9 @@ class DatetimeOps:
     async def is_weekday(self, table: str, schema: str, column: str,
                          backend=None, data_id=None, new_table=None) -> Dict[str, Any]:
         try:
-            working_table = await self._prepare_operation_table(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
-            )
+            working_table = table
             new_col = self._generate_cleaned_column_name(column, "is_weekday")
-            await self._add_new_column(working_table, schema, new_col, "BOOLEAN")
+            await self._add_new_column_if_not_exists(working_table, schema, new_col, "BOOLEAN")
 
             q = self._qualified_table(working_table, schema)
             c = SQLIdentifierSanitizer.sanitize(column)
@@ -780,11 +758,9 @@ class DatetimeOps:
     async def is_business_day(self, table: str, schema: str, column: str,
                               backend=None, data_id=None, new_table=None) -> Dict[str, Any]:
         try:
-            working_table = await self._prepare_operation_table(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
-            )
+            working_table = table
             new_col = self._generate_cleaned_column_name(column, "is_business_day")
-            await self._add_new_column(working_table, schema, new_col, "BOOLEAN")
+            await self._add_new_column_if_not_exists(working_table, schema, new_col, "BOOLEAN")
 
             q = self._qualified_table(working_table, schema)
             c = SQLIdentifierSanitizer.sanitize(column)
@@ -804,11 +780,9 @@ class DatetimeOps:
     async def days_in_month(self, table: str, schema: str, column: str,
                             backend=None, data_id=None, new_table=None) -> Dict[str, Any]:
         try:
-            working_table = await self._prepare_operation_table(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
-            )
+            working_table = table
             new_col = self._generate_cleaned_column_name(column, "days_in_month")
-            await self._add_new_column(working_table, schema, new_col, "INTEGER")
+            await self._add_new_column_if_not_exists(working_table, schema, new_col, "INTEGER")
 
             q = self._qualified_table(working_table, schema)
             c = SQLIdentifierSanitizer.sanitize(column)
@@ -829,11 +803,9 @@ class DatetimeOps:
     async def week_of_month(self, table: str, schema: str, column: str,
                             backend=None, data_id=None, new_table=None) -> Dict[str, Any]:
         try:
-            working_table = await self._prepare_operation_table(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
-            )
+            working_table = table
             new_col = self._generate_cleaned_column_name(column, "week_of_month")
-            await self._add_new_column(working_table, schema, new_col, "INTEGER")
+            await self._add_new_column_if_not_exists(working_table, schema, new_col, "INTEGER")
 
             q = self._qualified_table(working_table, schema)
             c = SQLIdentifierSanitizer.sanitize(column)
@@ -859,11 +831,9 @@ class DatetimeOps:
     async def day_name(self, table: str, schema: str, column: str,
                        backend=None, data_id=None, new_table=None) -> Dict[str, Any]:
         try:
-            working_table = await self._prepare_operation_table(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
-            )
+            working_table = table
             new_col = self._generate_cleaned_column_name(column, "day_name")
-            await self._add_new_column(working_table, schema, new_col, "TEXT")
+            await self._add_new_column_if_not_exists(working_table, schema, new_col, "TEXT")
 
             qualified = self._qualified_table(working_table, schema)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
@@ -887,11 +857,9 @@ class DatetimeOps:
     async def month_name(self, table: str, schema: str, column: str,
                          backend=None, data_id=None, new_table=None) -> Dict[str, Any]:
         try:
-            working_table = await self._prepare_operation_table(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
-            )
+            working_table = table
             new_col = self._generate_cleaned_column_name(column, "month_name")
-            await self._add_new_column(working_table, schema, new_col, "TEXT")
+            await self._add_new_column_if_not_exists(working_table, schema, new_col, "TEXT")
 
             qualified = self._qualified_table(working_table, schema)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
@@ -920,11 +888,9 @@ class DatetimeOps:
             if unit not in self._DIFF_DIVISORS:
                 return self._error_response(f"Unsupported diff unit: {unit}", [col1, col2], [])
 
-            working_table = await self._prepare_operation_table(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
-            )
+            working_table = table
             new_col = SQLIdentifierSanitizer.sanitize(target_col) if target_col else self._generate_cleaned_column_name(f"{col1}_{col2}", f"diff_{unit}")
-            await self._add_new_column(working_table, schema, new_col, "DOUBLE PRECISION")
+            await self._add_new_column_if_not_exists(working_table, schema, new_col, "DOUBLE PRECISION")
 
             qualified = self._qualified_table(working_table, schema)
             safe_c1 = SQLIdentifierSanitizer.sanitize(col1)
@@ -956,11 +922,9 @@ class DatetimeOps:
                 if unit not in ("s", "ms", "us"):
                     return self._error_response(f"Unsupported unit: {unit} (use 's', 'ms' or 'us')", [column], [])
                 divisor = {"s": 1, "ms": 1000, "us": 1000000}[unit]
-                working_table = await self._prepare_operation_table(
-                    table, schema, backend=backend, data_id=data_id, new_table=new_table
-                )
+                working_table = table
                 new_col = self._generate_cleaned_column_name(column, "todatetime")
-                await self._add_new_column(working_table, schema, new_col, "TIMESTAMP")
+                await self._add_new_column_if_not_exists(working_table, schema, new_col, "TIMESTAMP")
 
                 qualified = self._qualified_table(working_table, schema)
                 safe_col = SQLIdentifierSanitizer.sanitize(column)
@@ -975,11 +939,9 @@ class DatetimeOps:
                                               [column], [new_col], sample, unit=unit,
                                               new_table=working_table)
 
-            working_table = await self._prepare_operation_table(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
-            )
+            working_table = table
             new_col = self._generate_cleaned_column_name(column, "todatetime")
-            await self._add_new_column(working_table, schema, new_col, "TIMESTAMP")
+            await self._add_new_column_if_not_exists(working_table, schema, new_col, "TIMESTAMP")
 
             qualified = self._qualified_table(working_table, schema)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
@@ -1008,13 +970,11 @@ class DatetimeOps:
             if column is None and value is None:
                 return self._error_response("Provide either column or value")
 
-            working_table = await self._prepare_operation_table(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
-            )
+            working_table = table
 
             source = f'"{SQLIdentifierSanitizer.sanitize(column)}"' if column else str(value)
             new_col = self._generate_cleaned_column_name(column or "value", "fromtimestamp")
-            await self._add_new_column(working_table, schema, new_col, "TIMESTAMP")
+            await self._add_new_column_if_not_exists(working_table, schema, new_col, "TIMESTAMP")
 
             qualified = self._qualified_table(working_table, schema)
             safe_new = SQLIdentifierSanitizer.sanitize(new_col)
@@ -1046,11 +1006,9 @@ class DatetimeOps:
     async def timestamp(self, table: str, schema: str, column: str,
                         backend=None, data_id=None, new_table=None) -> Dict[str, Any]:
         try:
-            working_table = await self._prepare_operation_table(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
-            )
+            working_table = table
             new_col = self._generate_cleaned_column_name(column, "timestamp")
-            await self._add_new_column(working_table, schema, new_col, "DOUBLE PRECISION")
+            await self._add_new_column_if_not_exists(working_table, schema, new_col, "DOUBLE PRECISION")
 
             qualified = self._qualified_table(working_table, schema)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
@@ -1069,11 +1027,9 @@ class DatetimeOps:
     async def strftime(self, table: str, schema: str, column: str, fmt: str,
                        backend=None, data_id=None, new_table=None) -> Dict[str, Any]:
         try:
-            working_table = await self._prepare_operation_table(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
-            )
+            working_table = table
             new_col = self._generate_cleaned_column_name(column, "strftime")
-            await self._add_new_column(working_table, schema, new_col, "TEXT")
+            await self._add_new_column_if_not_exists(working_table, schema, new_col, "TEXT")
 
             qualified = self._qualified_table(working_table, schema)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
@@ -1099,11 +1055,9 @@ class DatetimeOps:
     async def strptime(self, table: str, schema: str, column: str, fmt: str,
                        backend=None, data_id=None, new_table=None) -> Dict[str, Any]:
         try:
-            working_table = await self._prepare_operation_table(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
-            )
+            working_table = table
             new_col = self._generate_cleaned_column_name(column, "strptime")
-            await self._add_new_column(working_table, schema, new_col, "TIMESTAMP")
+            await self._add_new_column_if_not_exists(working_table, schema, new_col, "TIMESTAMP")
 
             qualified = self._qualified_table(working_table, schema)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
@@ -1123,11 +1077,9 @@ class DatetimeOps:
     async def add_timedelta(self, table: str, schema: str, column: str, interval: str,
                             backend=None, data_id=None, new_table=None) -> Dict[str, Any]:
         try:
-            working_table = await self._prepare_operation_table(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
-            )
+            working_table = table
             new_col = self._generate_cleaned_column_name(column, "add")
-            await self._add_new_column(working_table, schema, new_col, "TIMESTAMP")
+            await self._add_new_column_if_not_exists(working_table, schema, new_col, "TIMESTAMP")
 
             q = self._qualified_table(working_table, schema)
             c = SQLIdentifierSanitizer.sanitize(column)
@@ -1145,11 +1097,9 @@ class DatetimeOps:
     async def sub_timedelta(self, table: str, schema: str, column: str, interval: str,
                             backend=None, data_id=None, new_table=None) -> Dict[str, Any]:
         try:
-            working_table = await self._prepare_operation_table(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
-            )
+            working_table = table
             new_col = self._generate_cleaned_column_name(column, "sub")
-            await self._add_new_column(working_table, schema, new_col, "TIMESTAMP")
+            await self._add_new_column_if_not_exists(working_table, schema, new_col, "TIMESTAMP")
 
             q = self._qualified_table(working_table, schema)
             c = SQLIdentifierSanitizer.sanitize(column)
@@ -1172,11 +1122,9 @@ class DatetimeOps:
                 if k not in allowed:
                     return self._error_response(f"Unsupported field: {k}", [column])
 
-            working_table = await self._prepare_operation_table(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
-            )
+            working_table = table
             new_col = self._generate_cleaned_column_name(column, "replace")
-            await self._add_new_column(working_table, schema, new_col, "TIMESTAMP")
+            await self._add_new_column_if_not_exists(working_table, schema, new_col, "TIMESTAMP")
 
             q = self._qualified_table(working_table, schema)
             c = SQLIdentifierSanitizer.sanitize(column)
@@ -1291,11 +1239,9 @@ class DatetimeOps:
                 return self._error_response(
                     "business_day offsets only combine with 'days'", [column], [])
 
-            working_table = await self._prepare_operation_table(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
-            )
+            working_table = table
             new_col = SQLIdentifierSanitizer.sanitize(target_col) if target_col else self._generate_cleaned_column_name(column, "offset")
-            await self._add_new_column(working_table, schema, new_col, "TIMESTAMP")
+            await self._add_new_column_if_not_exists(working_table, schema, new_col, "TIMESTAMP")
 
             qualified = self._qualified_table(working_table, schema)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
@@ -1346,11 +1292,9 @@ class DatetimeOps:
     async def normalize(self, table: str, schema: str, column: str,
                         backend=None, data_id=None, new_table=None) -> Dict[str, Any]:
         try:
-            working_table = await self._prepare_operation_table(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
-            )
+            working_table = table
             new_col = self._generate_cleaned_column_name(column, "normalize")
-            await self._add_new_column(working_table, schema, new_col, "TIMESTAMP")
+            await self._add_new_column_if_not_exists(working_table, schema, new_col, "TIMESTAMP")
 
             q = self._qualified_table(working_table, schema)
             c = SQLIdentifierSanitizer.sanitize(column)

@@ -268,9 +268,7 @@ class TransformOps:
     ) -> Dict[str, Any]:
         try:
             if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
-                working_table = await self._prepare_operation_table(
-                    table, schema, backend=backend, data_id=data_id, new_table=new_table
-                )
+                working_table = table
                 supplied_new = f"{column}_standardized"
                 new_col = self._generate_cleaned_column_name(supplied_new)
                 await self._add_new_column(working_table, schema, new_col, "DOUBLE PRECISION")
@@ -347,9 +345,7 @@ class TransformOps:
     ) -> Dict[str, Any]:
         try:
             if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
-                working_table = await self._prepare_operation_table(
-                    table, schema, backend=backend, data_id=data_id, new_table=new_table
-                )
+                working_table = table
                 supplied_new = f"{column}_minmax"
                 new_col = self._generate_cleaned_column_name(supplied_new)
                 await self._add_new_column(working_table, schema, new_col, "DOUBLE PRECISION")
@@ -433,9 +429,7 @@ class TransformOps:
     ) -> Dict[str, Any]:
         try:
             if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
-                working_table = await self._prepare_operation_table(
-                    table, schema, backend=backend, data_id=data_id, new_table=new_table
-                )
+                working_table = table
                 supplied_new = f"{column}_binned"
                 new_col = self._generate_cleaned_column_name(supplied_new)
                 await self._add_new_column(working_table, schema, new_col, "TEXT")
@@ -617,9 +611,7 @@ class TransformOps:
     ) -> Dict[str, Any]:
         try:
             if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
-                working_table = await self._prepare_operation_table(
-                    table, schema, backend=backend, data_id=data_id, new_table=new_table
-                )
+                working_table = table
                 generated = []
                 qualified = self._qualified_table(working_table, schema)
                 safe_col = SQLIdentifierSanitizer.sanitize(column)
@@ -696,9 +688,7 @@ class TransformOps:
     ) -> Dict[str, Any]:
         try:
             if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
-                working_table = await self._prepare_operation_table(
-                    table, schema, backend=backend, data_id=data_id, new_table=new_table
-                )
+                working_table = table
                 supplied_new = f"{column1}_{column2}_interaction"
                 new_col = self._generate_cleaned_column_name(supplied_new)
                 await self._add_new_column(working_table, schema, new_col, "DOUBLE PRECISION")
@@ -772,7 +762,7 @@ class TransformOps:
         try:
             q_low, q_high = quantile_range
             if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
-                working_table = await self._prepare_operation_table(table, schema, backend=backend, data_id=data_id, new_table=new_table)
+                working_table = table
                 supplied_new = f"{column}_robust"
                 new_col = self._generate_cleaned_column_name(supplied_new)
                 await self._add_new_column(working_table, schema, new_col, "DOUBLE PRECISION")
@@ -840,7 +830,7 @@ class TransformOps:
     ) -> Dict[str, Any]:
         try:
             if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
-                working_table = await self._prepare_operation_table(table, schema, backend=backend, data_id=data_id, new_table=new_table)
+                working_table = table
                 supplied_new = f"{column}_maxabs"
                 new_col = self._generate_cleaned_column_name(supplied_new)
                 await self._add_new_column(working_table, schema, new_col, "DOUBLE PRECISION")
@@ -887,7 +877,7 @@ class TransformOps:
         try:
             # ponytail: single-col L2 → sign; multi-col deferred
             if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
-                working_table = await self._prepare_operation_table(table, schema, backend=backend, data_id=data_id, new_table=new_table)
+                working_table = table
                 supplied_new = f"{column}_normalized"
                 new_col = self._generate_cleaned_column_name(supplied_new)
                 await self._add_new_column(working_table, schema, new_col, "DOUBLE PRECISION")
@@ -929,7 +919,7 @@ class TransformOps:
     ) -> Dict[str, Any]:
         try:
             if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
-                working_table = await self._prepare_operation_table(table, schema, backend=backend, data_id=data_id, new_table=new_table)
+                working_table = table
                 supplied_new = f"{column}_log"
                 new_col = self._generate_cleaned_column_name(supplied_new)
                 await self._add_new_column(working_table, schema, new_col, "DOUBLE PRECISION")
@@ -979,7 +969,7 @@ class TransformOps:
     ) -> Dict[str, Any]:
         try:
             if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
-                working_table = await self._prepare_operation_table(table, schema, backend=backend, data_id=data_id, new_table=new_table)
+                working_table = table
                 supplied_new = f"{column}_quantile"
                 new_col = self._generate_cleaned_column_name(supplied_new)
                 await self._add_new_column(working_table, schema, new_col, "DOUBLE PRECISION")
@@ -1031,7 +1021,7 @@ class TransformOps:
     ) -> Dict[str, Any]:
         try:
             if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
-                working_table = await self._prepare_operation_table(table, schema, backend=backend, data_id=data_id, new_table=new_table)
+                working_table = table
                 supplied_new = f"{column}_power"
                 new_col = self._generate_cleaned_column_name(supplied_new)
                 await self._add_new_column(working_table, schema, new_col, "DOUBLE PRECISION")
@@ -1082,9 +1072,7 @@ class TransformOps:
     ) -> Dict[str, Any]:
         try:
             if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
-                working_table = await self._prepare_operation_table(
-                    table, schema, backend=backend, data_id=data_id, new_table=new_table
-                )
+                working_table = table
                 qualified = self._qualified_table(working_table, schema)
                 safe_col = SQLIdentifierSanitizer.sanitize(column)
                 col_q = self.db.quote_identifier(safe_col)
@@ -1211,7 +1199,7 @@ class TransformOps:
     ) -> Dict[str, Any]:
         try:
             if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
-                working_table = await self._prepare_operation_table(table, schema, backend=backend, data_id=data_id, new_table=new_table)
+                working_table = table
                 supplied_new = f"{column}_ordinal"
                 new_col = self._generate_cleaned_column_name(supplied_new)
                 await self._add_new_column(working_table, schema, new_col, "INTEGER")
@@ -1264,9 +1252,7 @@ class TransformOps:
     ) -> Dict[str, Any]:
         try:
             if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
-                working_table = await self._prepare_operation_table(
-                    table, schema, backend=backend, data_id=data_id, new_table=new_table
-                )
+                working_table = table
                 supplied_new = f"{column}_label"
                 new_col = self._generate_cleaned_column_name(supplied_new)
                 await self._add_new_column(working_table, schema, new_col, "INTEGER")
@@ -1344,9 +1330,7 @@ class TransformOps:
     ) -> Dict[str, Any]:
         try:
             if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
-                working_table = await self._prepare_operation_table(
-                    table, schema, backend=backend, data_id=data_id, new_table=new_table
-                )
+                working_table = table
                 supplied_new = f"{column}_freq"
                 new_col = self._generate_cleaned_column_name(supplied_new)
                 await self._add_new_column(working_table, schema, new_col, "DOUBLE PRECISION")
@@ -1425,9 +1409,7 @@ class TransformOps:
     ) -> Dict[str, Any]:
         try:
             if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
-                working_table = await self._prepare_operation_table(
-                    table, schema, backend=backend, data_id=data_id, new_table=new_table
-                )
+                working_table = table
                 supplied_new = f"{column}_target"
                 new_col = self._generate_cleaned_column_name(supplied_new)
                 await self._add_new_column(working_table, schema, new_col, "DOUBLE PRECISION")
@@ -1527,9 +1509,7 @@ class TransformOps:
     ) -> Dict[str, Any]:
         try:
             if isinstance(self.db, PostgresAdapter) or isinstance(self.db, DuckDBAdapter):
-                working_table = await self._prepare_operation_table(
-                    table, schema, backend=backend, data_id=data_id, new_table=new_table
-                )
+                working_table = table
                 if value is not None:
                     safe_val = re.sub(r"[^a-zA-Z0-9_]", "_", str(value))
                     supplied_new = f"{column}_is_{safe_val}"
@@ -1633,9 +1613,7 @@ class TransformOps:
                         [],
                     )
 
-                working_table = await self._prepare_operation_table(
-                    table, schema, backend=backend, data_id=data_id, new_table=new_table
-                )
+                working_table = table
                 qualified = self._qualified_table(working_table, schema)
                 safe_col = SQLIdentifierSanitizer.sanitize(column)
                 created_cols = []

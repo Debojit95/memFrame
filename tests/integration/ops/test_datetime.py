@@ -1651,25 +1651,26 @@ class TestDateTimeOperations:
     # Mutation safety and chaining
     # ------------------------------------------------------------------
     def test_mutation_safety(self, uploaded_ctx, sample_df, backend_config):
-        # Capture the state **as stored** in the backend (may have adjusted dtypes)
+        # Out_2 semantics: the generated column is written to the source;
+        # pre-existing columns must remain untouched.
         original_uploaded = get_result_df(uploaded_ctx)
 
-        # Perform any operation
-        uploaded_ctx.dt.year("ts")
+        result = uploaded_ctx.dt.year("ts")
         after_op = get_result_df(uploaded_ctx)
+        out_col = get_generated_col(result, "dt_ts_year")
 
-        # Assert that the uploaded dataset was not changed
+        assert out_col in after_op.columns
         pd.testing.assert_frame_equal(
-            normalize_frame(after_op),
+            normalize_frame(after_op[original_uploaded.columns]),
             normalize_frame(original_uploaded),
             check_dtype=False,
         )
         self._record_result(
             test_name="mutation_safety",
-            method_call='uploaded_ctx.dt.year("ts") → original checked',
-            pandas_call='sample_df  # unchanged by dt.year',
+            method_call='uploaded_ctx.dt.year("ts") → source column added',
+            pandas_call='sample_df.assign(dt_ts_year=...)',
             original_df=sample_df,
-            memframe_df=after_op,
+            memframe_df=result,
             pandas_df=original_uploaded,
             backend=backend_config["connection_type"],
         )

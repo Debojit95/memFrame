@@ -345,6 +345,22 @@ class CacheManager:
             logger.warning("[cache] fingerprint failed for %s.%s: %s", schema, table, exc)
             return None
 
+    async def _active_context(self, backend, data_id: str, ops_parent):
+        """Return (table, schema) of the table this op operates on."""
+        try:
+            if ops_parent is not None and hasattr(ops_parent, "_get_active_context"):
+                return await ops_parent._get_active_context()
+            row = await backend.fetch_row(
+                f"SELECT table_name, schema FROM {backend.csv_registry_table} "
+                f"WHERE data_id = {backend.placeholder(1)}",
+                data_id,
+            )
+            if not row:
+                return None, None
+            return row[0], row[1] or backend.upload_schema
+        except Exception:
+            return None, None
+
     async def _read_fingerprint(self, backend, data_id: str, ops_parent) -> Optional[str]:
         """Fingerprint of the table this op reads (override-aware). None if unresolvable."""
         try:
@@ -883,10 +899,29 @@ class CacheManager:
                                         result_cols = json.dumps(manager._ref_columns(result))
                                         owns_table = bool(result.get("owns_table", False))
                             else:
+                                # Ops (datetime/transform/cumulative/window)
+                                # that write into the active source table but do
+                                # not yet declare cache_kind: infer a source ref.
+                                bare_table = result.get("new_table") or result.get("generated_table_name")
+                                src_table, src_schema = (
+                                    await manager._active_context(backend, data_id, ops_parent)
+                                    if backend else (None, None)
+                                )
+                                if bare_table and src_table and bare_table == src_table:
+                                    cache_kind = "ref"
+                                    ref_schema = src_schema
+                                    ref_table = src_table
+                                    involved_cols = json.dumps(result.get("involved_cols") or [])
+                                    generated_cols = json.dumps(
+                                        result.get("generated_cols")
+                                        or result.get("new_columns")
+                                        or []
+                                    )
+                                    result_cols = json.dumps(manager._ref_columns(result))
+                                    owns_table = False
                                 # Legacy unannotated path (removed once every op
                                 # declares cache_kind).
-                                bare_table = result.get("new_table") or result.get("generated_table_name")
-                                if bare_table and backend:
+                                elif bare_table and backend:
                                     if await backend.table_exists(manager._qualify(backend.cache_schema, bare_table, backend)):
                                         generated_table_name = bare_table
                                         schema = backend.cache_schema
