@@ -1,154 +1,129 @@
 # Caching
 
-Source: `src/cache/cache_manager.py`
+Source: `src/memframe/cache/cache_manager.py`
 
-memFrame caches analytical method calls in a per-backend **cache registry**
-so repeat work is either recorded (cheap signature logging) or fully reused
-(deep cache reloads a saved result table without re-executing the method).
+memFrame records analytical method calls in a per-backend **cache registry**
+and replays them when the same call is repeated with the same arguments and
+the source data is unchanged. Results fall into two kinds:
+
+| Kind | What it is | Stored as |
+| --- | --- | --- |
+| `ref` | A feature/projection that lives in a table (row-preserving generated columns, selected columns, grouped results) | Pointer: `ref_schema`, `ref_table`, `involved_cols`, `generated_cols`, `result_cols` |
+| `actual` | A standalone result that has no table (scalar, dict, list, correlation matrix, describe report) | Payload in `memframe_cache_payloads` |
+
+A call is one kind or the other; the registry row carries `cache_kind`.
 
 ## The `record_call` decorator
 
 `record_call` is a `CacheManager` instance (`from memframe.cache import
-record_call, CacheManager`). Every analytics orchestrator method (`selection`,
-`inspection`, `cleaning`, `stats`, `arithmetic`) is decorated with it. The
-decorator wraps the method, records the call into the `memframe_cache_registry`
-table, and — for deep cache — persists the returned DataFrame as a cache
-table.
+record_call, CacheManager`). Orchestrator methods that return reusable results
+are decorated with it:
 
 ```python
-@record_call                    # signature-only logging (default)
-@record_call()                  # same as above
-@record_call(deep_cache=False)  # explicit signature-only
-@record_call(deep_cache=True)   # persist result table + reload on repeat call
+@record_call(deep_cache=True)   # record and replay
+@record_call(deep_cache=False)  # record only (no replay)
+@record_call                    # decorator default, then MemFrame setting
 ```
 
-## How caching works
+Resolution order:
 
-### Resolution order
+1. Decorator argument, e.g. `@record_call(deep_cache=True)`.
+2. `mf.connect(deep_cache=...)` / `MemFrame(deep_cache=...)`.
+3. `False`.
 
-The effective cache mode for a call is decided in this order:
+`deep_cache=False` disables replay for that call. It does not change the
+operation's data semantics.
 
-1. The decorator argument, e.g. `@record_call(deep_cache=True)`.
-2. `mf.connect(deep_cache=...)` (or `MemFrame(deep_cache=...)` for an explicit
-   instance) when the decorator does not specify one.
-3. `False` (signature-only) as the default.
+## Ref results — no second table
 
-`mf.connect(deep_cache=False)` is the master switch: it overrides decorator
-requests and disables deep caching for the whole session. The same applies to
-`MemFrame(deep_cache=False)` on an explicit instance.
+For an Out_2 operation (arithmetic, cleaning, datetime, transform, cumulative,
+window, grouped cumulative/window, comparison, `select_dtypes`,
+`datetime_diff`), the generated columns are written into the active source
+table. The cache row stores only a pointer:
 
-### Level 1 — signature-only (default)
-
-Every call records its identity into `memframe_cache_registry`:
-
-- `data_id` — the dataset the call ran on
-- `opidx` — monotonically increasing operation index per dataset
-- `class_name` / `method_name` — the decorated method
-- `args` / `kwargs` — canonical JSON-serialized call arguments (keys sorted,
-  numpy/pandas scalars coerced), so argument order in kwargs does not affect
-  cache-key equality
-- `generated_table_name`, `schema`, `is_deep_cache`
-
-On a repeat call with identical arguments, the method **re-executes**. Any table
-the method created is dropped — signature-only mode never persists results.
-
-### Level 2 — deep cache
-
-When deep caching is active, a successful result (a dict with `result` holding a
-DataFrame) is written to a **typed** cache table (column types are inferred
-from the DataFrame's Arrow schema, so cached results keep their dtypes):
-
-```
-{cache_schema}.{data_id}_{opidx}
+```text
+cache_kind = 'ref'
+ref_schema = 'memframe_upload'
+ref_table  = '<source table>'
+involved_cols = '["salary"]'
+generated_cols = '["cleaned_salary_mean_filled"]'
+result_cols = '["salary","cleaned_salary_mean_filled"]'
 ```
 
-On a repeat call with identical arguments, the registry lookup finds the saved
-table and the decorator returns a cache-hit response **without executing the
-method**:
+A hit selects `result_cols` from `ref_table`. No cache copy is created and no
+working table is relocated. Row-aligned window/grouped ops use
+`publish_row_aligned`, which swaps the wide result into the source and then
+records the same source ref.
 
-```python
-{
-    "is_error": False,
-    "message": "Cache hit for SelectionOrchestrator.where; reused generated table '...'",
-    "generated_cols": [...],
-    "result": <DataFrame from saved table>,
-    "new_table": "<saved table name>",
-    "result_metadata": {
-        "from_cache": True,
-        "saved_table": "<saved table name>",
-        "row_count": N,
-        "column_count": M,
-        "strict_args_kwargs_match": True,
-    },
-}
+`owns_table` is `false` for source refs. Cache clear/delete never drops a
+source table.
+
+## Actual results — payload table
+
+Results that are not tied to a table are serialized into
+`memframe_cache_payloads`:
+
+```text
+data_id, opidx, format, payload, created_at
 ```
 
-### Table relocation
+- DataFrame → `format='parquet'` (the index is preserved; correlation matrices
+  keep their row/column labels).
+- dict / list / scalar → `format='json'` with a typed envelope that preserves
+  datetimes, dates, timedeltas, decimals, bytes, non-string dict keys, and NaN.
 
-Methods that generate a table (e.g. a cleaned dataset) normally produce it in
-the memframe_upload schema (DuckDB/PostgreSQL) or database (ClickHouse). With deep
-caching, that table is moved into `cache_schema` (the cache schema on
-DuckDB/PostgreSQL, database on ClickHouse) so it can be reloaded on later calls and cleaned up with
-`aclear_cache`. The relocation mechanism is backend-specific:
+A hit deserializes the payload and returns the original type. `describe`,
+`info`, `null_analysis`, `corr`, `cov`, and all scalar/dict/list stats use
+this path.
 
-- DuckDB — `CREATE TABLE memframe_cache AS SELECT * FROM memframe_upload...` then `DROP`.
-- PostgreSQL — `ALTER TABLE memframe_upload... SET SCHEMA memframe_cache`.
-- ClickHouse — `RENAME TABLE memframe_upload... TO memframe_cache...`.
+## Validity
 
-### Cache invalidation
+Each row stores:
 
-`aclear_cache(data_id)` drops every cache table recorded for a dataset and
-clears its registry rows. The original uploaded table is left untouched.
+- `base_fingerprint` — row count + column set of the source table.
+- `epoch` — the dataset's `cache_epoch` at store time.
+- `input_refs` — optional cross-table dependencies.
 
-## Backend registry
+Every executed mutating operation bumps `memframe_csv_registry.cache_epoch`.
+A lookup is a hit only when the fingerprint matches and the stored epoch is
+the current epoch. Actual results use the same rules.
 
-The cache registry lives in the backend `memframe_csv_registry` schema (DuckDB/PostgreSQL) or database (ClickHouse):
+## Registry
 
-| Backend | Registry table | Cache schema/database |
-| --- | --- | --- |
-| DuckDB | `memframe_csv_registry.memframe_cache_registry` | `memframe_cache` |
-| PostgreSQL | `memframe_csv_registry.memframe_cache_registry` | `memframe_cache` |
-| ClickHouse | `memframe_csv_registry.memframe_cache_registry` | `memframe_cache` |
+The registry lives in the backend `memframe_csv_registry` schema
+(DuckDB/PostgreSQL) or database (ClickHouse):
 
-Registry rows carry the result kind (`cache_kind` = `actual` or `ref`), the ref
-target (`ref_schema`, `ref_table`, `involved_cols`, `generated_cols`,
-`result_cols`) and validity stamps (`epoch`, `input_refs`, `owns_table`).
-Actual payloads live in `memframe_csv_registry.memframe_cache_payloads`
-(`data_id`, `opidx`, `format`, `payload`); DataFrames use Parquet bytes and
-dict/list/scalar results use typed JSON.
+| Backend | Registry table | Payload table | Cache schema/database |
+| --- | --- | --- | --- |
+| DuckDB | `memframe_csv_registry.memframe_cache_registry` | `memframe_csv_registry.memframe_cache_payloads` | `memframe_cache` |
+| PostgreSQL | `memframe_csv_registry.memframe_cache_registry` | `memframe_csv_registry.memframe_cache_payloads` | `memframe_cache` |
+| ClickHouse | `memframe_csv_registry.memframe_cache_registry` | `memframe_csv_registry.memframe_cache_payloads` | `memframe_cache` |
 
-Registry and cache schemas/databases are fixed: `memframe_csv_registry`, `memframe_cache`, and
-`memframe_upload`.
+The fixed schemas/databases are `memframe_csv_registry`, `memframe_cache`, and
+`memframe_upload`. ClickHouse payloads are stored base64-encoded in a `String`.
 
-## Cache-key and registry index
+## Clearing
 
-Lookups filter `memframe_cache_registry` by `data_id`, `class_name`, `method_name`,
-`args`, `kwargs`. DuckDB and PostgreSQL backends install an index on
-`(data_id, class_name, method_name)` so repeated lookups do not scan the whole
-registry.
+`aclear_cache(data_id)`:
+
+1. Drops tables the cache owns (`owns_table = true`, legacy cache copies).
+2. Never drops a `ref_table` that is the user's source table.
+3. Deletes the dataset's actual payload rows.
+4. Deletes its registry rows.
+
+`adelete_table(data_id)` performs the same cache cleanup and then removes the
+dataset itself.
 
 ## Debugging hit/miss
 
-The cache logs every lookup through the `memFrame.cache` logger:
+The cache logs through the `memFrame.cache` logger:
 
+```text
+[cache] MISS ArithmeticWrapper.mul data_id=HW4dev — no usable registry row
+[cache] STORE ArithmeticWrapper.mul data_id=HW4dev → memframe_upload.HW4dev (ref)
+[cache] HIT  StatsWrapper.mean data_id=HW4dev → actual payload (0.002s)
+[cache] STALE StatsWrapper.mean data_id=HW4dev — base changed; dropping entry
 ```
-[cache] MISS ArithmeticWrapper.mul data_id=HW4dev — no matching registry row
-[cache] STORE ArithmeticWrapper.mul data_id=HW4dev → cache.HW4dev__op_... (deep)
-[cache] HIT  ArithmeticWrapper.mul data_id=HW4dev → HW4dev__op_... (3 rows, lookup+reload 0.013s)
-```
 
-- `MISS ... no matching registry row` — deep lookup found nothing (different
-  args, or deep caching off for this call). If this happens on a repeat call
-  that just logged `STORE ... (deep)`, the registry filter is the problem:
-  ClickHouse stores `is_deep_cache` as `Bool`, which stringifies to
-  `'true'`/`'false'`, so the lookup must compare it as `CAST(is_deep_cache AS
-  UInt8) = 1`, not `= '1'`.
-- `MISS ... reload failed for <table>` — registry row existed but the saved
-  table could not be reloaded (warning level; the underlying error is logged).
-- `HIT ...` — a saved table was reloaded; the timing includes the registry
-  lookup plus the table fetch.
-- `STORE ... (deep)` — a result was persisted to a cache table.
-- `STORE ... (signature-only)` — L1 mode recorded the call only.
-
-The `result_metadata.from_cache` flag on the returned dict also reports hit vs
-miss programmatically.
+`result_metadata` on the returned envelope reports `from_cache` and
+`cache_kind` (`"ref"` or `"actual"`).
