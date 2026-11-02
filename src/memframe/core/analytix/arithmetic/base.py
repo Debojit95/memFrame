@@ -288,31 +288,30 @@ class ArithmeticOps:
 
     async def _apply_expression(self, table, schema, involved_cols, expression, target_col,
                                 operation_name, backend=None, data_id=None, new_table=None, **extra):
-        working_table = await self._prepare_operation_table(
-            table, schema, backend=backend, data_id=data_id, new_table=new_table
-        )
+        # Out_2: write the generated column into the active source table; the
+        # result is a narrow projection of that table (no cache copy).
         tgt_safe = SQLIdentifierSanitizer.sanitize(target_col)
-        await self._add_column_if_not_exists(working_table, schema, tgt_safe)
-        qualified = self._qualified_table(working_table, schema)
+        await self._add_column_if_not_exists(table, schema, tgt_safe)
+        qualified = self._qualified_table(table, schema)
         await self._exec(
             self._update_stmt(qualified, f'{self.db.quote_identifier(tgt_safe)} = {expression}')
-        )
-        await self._add_column_if_not_exists(table, schema, tgt_safe)
-        original_qualified = self._qualified_table(table, schema)
-        await self._exec(
-            self._update_stmt(original_qualified, f'{self.db.quote_identifier(tgt_safe)} = {expression}')
         )
         # ponytail: sorted() — set ordering was hash-seed dependent, making the
         # sample SELECT nondeterministic run to run
         cols_to_fetch = sorted(set(involved_cols)) + [target_col]
-        sample = await self._fetch_data(working_table, schema, cols_to_fetch)
+        sample = await self._fetch_data(table, schema, cols_to_fetch)
         return ok(
             f"{operation_name}: {expression} → {tgt_safe}",
             involved_cols,
             [tgt_safe],
             sample,
             expression=expression,
-            new_table=working_table,
+            new_table=table,
+            cache_kind="ref",
+            ref_schema=schema,
+            ref_table=table,
+            result_cols=cols_to_fetch,
+            mutates=True,
             **extra,
         )
 

@@ -338,6 +338,24 @@ class DataCleaningOps:
         if safe_col not in types:
             await self._add_new_column(table, schema, col_name, col_type)
 
+    @staticmethod
+    def _mark_ref(resp, table, schema, involved, generated, result_cols=None):
+        """Annotate an Out_2 cleaning response as a source-table ref."""
+        if not isinstance(resp, dict) or resp.get("is_error"):
+            return resp
+        cols = []
+        for col in list(result_cols or []) or list(involved) + list(generated):
+            if col not in cols:
+                cols.append(col)
+        resp["cache_kind"] = "ref"
+        resp["ref_schema"] = schema
+        resp["ref_table"] = table
+        resp["involved_cols"] = list(involved)
+        resp["generated_cols"] = list(generated)
+        resp["result_cols"] = cols
+        resp["mutates"] = True
+        return resp
+
     async def _detect_numeric_target(self, qualified: str, cleaned_expr: str) -> str:
         """Pick a per-backend numeric SQL type from the cleaned column sample.
 
@@ -859,10 +877,6 @@ class DataCleaningOps:
         new_table: Optional[str] = None,
     ) -> Dict[str, Any]:
         try:
-            original = table
-            table = await self._prepare_column_operation_table(
-                table, schema, [column], backend=backend, data_id=data_id, new_table=new_table,
-            )
             mode = mode.upper()
 
             suffix_map = {
@@ -886,7 +900,7 @@ class DataCleaningOps:
 
             new_col = self._generate_cleaned_column_name(column, suffix_map[mode])
             col_type = await self._get_column_type(table, schema, column)
-            await self._add_new_column(table, schema, new_col, col_type)
+            await self._add_new_column_if_not_exists(table, schema, new_col, col_type)
 
             qualified = self._qualified_table(table, schema)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
@@ -984,9 +998,6 @@ class DataCleaningOps:
 
             fill_value = await _apply(qualified)
 
-            await self._add_new_column_if_not_exists(original, schema, new_col, col_type)
-            await _apply(self._qualified_table(original, schema))
-
             null_count = await self._fetchval(
                 f'SELECT COUNT(*) FROM {qualified} WHERE "{safe_col}" IS NULL'
             ) or 0
@@ -994,8 +1005,12 @@ class DataCleaningOps:
             sample = await self._fetch_data(table, schema, columns=[safe_col, safe_new])
             msg = f"Filled {null_count} null values in '{column}' using {mode} ({fill_value})"
 
-            return ok(
-                msg, [column], [new_col], sample, fill_mode=mode, fill_value=fill_value, new_table=table,
+            return self._mark_ref(
+                ok(
+                    msg, [column], [new_col], sample, fill_mode=mode,
+                    fill_value=fill_value, new_table=table,
+                ),
+                table, schema, [column], [new_col], [safe_col, safe_new],
             )
 
         except Exception as e:
@@ -1156,9 +1171,7 @@ class DataCleaningOps:
         new_table: Optional[str] = None,
     ) -> Dict[str, Any]:
         try:
-            original = table
-            # ponytail: validate before preparing — bad input must not mint
-            # junk cache tables.
+            # ponytail: validate before touching the source table.
             col_type = await self._get_column_type(table, schema, column)
             try:
                 direction, area, order_cols = self._validate_interpolate(
@@ -1171,15 +1184,10 @@ class DataCleaningOps:
                 missing = [c for c in order_cols if SQLIdentifierSanitizer.sanitize(c) not in available]
                 if missing:
                     return fail(f"Order-by column(s) not found: {missing}", [column], [])
-            table = await self._prepare_column_operation_table(
-                # ponytail: the order keys must travel into the op table —
-                # it otherwise carries only the target column.
-                table, schema, [column, *order_cols], backend=backend, data_id=data_id, new_table=new_table,
-            )
 
             new_col = self._generate_cleaned_column_name(column, "interpolated")
             float_type = self._numeric_target_for("FLOAT")
-            await self._add_new_column(table, schema, new_col, float_type)
+            await self._add_new_column_if_not_exists(table, schema, new_col, float_type)
 
             qualified = self._qualified_table(table, schema)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
@@ -1218,9 +1226,6 @@ class DataCleaningOps:
 
             fill_value, sample = await _apply(qualified, want_sample=True)
 
-            await self._add_new_column_if_not_exists(original, schema, new_col, float_type)
-            await _apply(self._qualified_table(original, schema))
-
             null_count = await self._fetchval(
                 f'SELECT COUNT(*) FROM {qualified} WHERE "{safe_col}" IS NULL'
             ) or 0
@@ -1229,9 +1234,14 @@ class DataCleaningOps:
             if order_cols:
                 msg += f" ordered by {order_cols}"
 
-            return ok(
-                msg, [column, *order_cols], [new_col], sample, fill_mode="LINEAR", fill_value=fill_value,
-                new_table=table, order_by=order_cols or None,
+            return self._mark_ref(
+                ok(
+                    msg, [column, *order_cols], [new_col], sample,
+                    fill_mode="LINEAR", fill_value=fill_value,
+                    new_table=table, order_by=order_cols or None,
+                ),
+                table, schema, [column, *order_cols], [new_col],
+                [safe_col, safe_new],
             )
 
         except Exception as e:
@@ -1325,7 +1335,6 @@ class DataCleaningOps:
         new_table: Optional[str] = None,
     ) -> Dict[str, Any]:
         try:
-            original = table
             all_types = await self.db.get_column_types(table, schema)
             explicit_columns = columns is not None
             if columns is None:
@@ -1368,11 +1377,6 @@ class DataCleaningOps:
             if not rules:
                 return fail("Nothing to replace — no rule applies to any column", targets, [])
             involved = list(rules)
-            table = await self._prepare_column_operation_table(
-                # ponytail: involved columns only — a full clone would carry a
-                # previous run's cleaned_ column and collide on ADD.
-                table, schema, involved, backend=backend, data_id=data_id, new_table=new_table,
-            )
 
             new_cols: Dict[str, str] = {}
             for col in rules:
@@ -1395,18 +1399,15 @@ class DataCleaningOps:
 
             await _apply(qualified)
 
-            for col in rules:
-                await self._add_new_column_if_not_exists(original, schema, new_cols[col], all_types[col])
-            await _apply(self._qualified_table(original, schema))
-
             generated = [new_cols[c] for c in involved]
             sample_cols = [c for pair in zip(involved, generated) for c in pair]
             sample = await self._fetch_data(table, schema, columns=sample_cols)
             n_rules = sum(len(a) for a in rules.values())
             msg = f"Replaced {n_rules} rule(s) across {involved}"
 
-            return ok(
-                msg, involved, generated, sample, new_table=table,
+            return self._mark_ref(
+                ok(msg, involved, generated, sample, new_table=table),
+                table, schema, involved, generated, sample_cols,
             )
 
         except Exception as e:
@@ -1427,13 +1428,9 @@ class DataCleaningOps:
         new_table: Optional[str] = None,
     ) -> Dict[str, Any]:
         try:
-            original = table
-            table = await self._prepare_operation_table(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table,
-            )
             new_col = self._generate_cleaned_column_name(column, f"range_{min_value}_{max_value}")
             col_type = await self._get_column_type(table, schema, column)
-            await self._add_new_column(table, schema, new_col, col_type)
+            await self._add_new_column_if_not_exists(table, schema, new_col, col_type)
 
             qualified = self._qualified_table(table, schema)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
@@ -1451,9 +1448,6 @@ class DataCleaningOps:
 
             await _apply(qualified)
 
-            await self._add_new_column_if_not_exists(original, schema, new_col, col_type)
-            await _apply(self._qualified_table(original, schema))
-
             affected = 0
             if min_value is not None or max_value is not None:
                 cond = []
@@ -1468,7 +1462,10 @@ class DataCleaningOps:
 
             sample = await self._fetch_data(table, schema, columns=[safe_col, safe_new])
             msg = f"Enforced range on '{column}': {affected} values set to NULL"
-            return ok(msg, [column], [new_col], sample, new_table=table)
+            return self._mark_ref(
+                ok(msg, [column], [new_col], sample, new_table=table),
+                table, schema, [column], [new_col], [safe_col, safe_new],
+            )
 
         except Exception as e:
             return fail(f"numeric_enforce_range error: {str(e)}\n{traceback.format_exc()}")
@@ -1484,13 +1481,9 @@ class DataCleaningOps:
         new_table: Optional[str] = None,
     ) -> Dict[str, Any]:
         try:
-            original = table
-            table = await self._prepare_operation_table(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table,
-            )
             new_col = self._generate_cleaned_column_name(column, f"zscore_filtered_{z_thresh}")
             col_type = await self._get_column_type(table, schema, column)
-            await self._add_new_column(table, schema, new_col, col_type)
+            await self._add_new_column_if_not_exists(table, schema, new_col, col_type)
 
             qualified = self._qualified_table(table, schema)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
@@ -1513,9 +1506,6 @@ class DataCleaningOps:
 
             await _apply(qualified)
 
-            await self._add_new_column_if_not_exists(original, schema, new_col, col_type)
-            await _apply(self._qualified_table(original, schema))
-
             outlier_count = await self._fetchval(f"""
                 WITH stats AS (
                     SELECT AVG("{safe_col}") AS mean, STDDEV_POP("{safe_col}") AS sd
@@ -1530,7 +1520,10 @@ class DataCleaningOps:
 
             sample = await self._fetch_data(table, schema, columns=[safe_col, safe_new])
             msg = f"Removed {outlier_count} outliers from '{column}' using Z-score (threshold={z_thresh})"
-            return ok(msg, [column], [new_col], sample, new_table=table)
+            return self._mark_ref(
+                ok(msg, [column], [new_col], sample, new_table=table),
+                table, schema, [column], [new_col], [safe_col, safe_new],
+            )
 
         except Exception as e:
             return fail(f"numeric_drop_outliers_zscore error: {str(e)}\n{traceback.format_exc()}")
@@ -1545,22 +1538,17 @@ class DataCleaningOps:
         new_table: Optional[str] = None,
     ) -> Dict[str, Any]:
         try:
-            original = table
-            table = await self._prepare_operation_table(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table,
-            )
-
             qualified = self._qualified_table(table, schema)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
+            col_type = await self._get_column_type(table, schema, column)
 
-            cleaned_expr = f"""NULLIF(REGEXP_REPLACE({self._text_expr(safe_col)}, '[^0-9.+-]', '', 'g'), '')"""
-            numeric_check = self._regex_match(cleaned_expr, '^[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)$')
-
-            target_type = await self._detect_numeric_target(qualified, cleaned_expr)
-
-            async def _apply(tq):
+            # Idempotent: a repeat after a cache clear leaves the column numeric.
+            if self._is_text_type(col_type):
+                cleaned_expr = f"""NULLIF(REGEXP_REPLACE({self._text_expr(safe_col)}, '[^0-9.+-]', '', 'g'), '')"""
+                numeric_check = self._regex_match(cleaned_expr, '^[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)$')
+                target_type = await self._detect_numeric_target(qualified, cleaned_expr)
                 await self._exec(f"""
-                    ALTER TABLE {tq}
+                    ALTER TABLE {qualified}
                     ALTER COLUMN "{safe_col}" TYPE {target_type}
                     USING (CASE
                         WHEN {numeric_check}
@@ -1569,17 +1557,16 @@ class DataCleaningOps:
                     END)
                 """)
 
-            await _apply(qualified)
-
-            await _apply(self._qualified_table(original, schema))
-
             converted = await self._fetchval(
                 f'SELECT COUNT(*) FROM {qualified} WHERE "{safe_col}" IS NOT NULL'
             ) or 0
 
             sample = await self._fetch_data(table, schema, columns=[safe_col])
             msg = f"Converted {converted} text values in '{column}' to numeric"
-            return ok(msg, [column], [], sample, new_table=table)
+            return self._mark_ref(
+                ok(msg, [column], [], sample, new_table=table),
+                table, schema, [column], [], [safe_col],
+            )
 
         except Exception as e:
             return fail(f"numeric_convert_text error: {str(e)}\n{traceback.format_exc()}")
@@ -1597,10 +1584,6 @@ class DataCleaningOps:
         new_table: Optional[str] = None,
     ) -> Dict[str, Any]:
         try:
-            original = table
-            table = await self._prepare_column_operation_table(
-                table, schema, [column], backend=backend, data_id=data_id, new_table=new_table,
-            )
             mode = mode.upper()
 
             valid_modes = {"CONSTANT", "MODE", "MAP", "BFILL", "FFILL"}
@@ -1617,7 +1600,7 @@ class DataCleaningOps:
 
             new_col = self._generate_cleaned_column_name(column, suffix_map[mode])
             col_type = await self._get_column_type(table, schema, column)
-            await self._add_new_column(table, schema, new_col, col_type)
+            await self._add_new_column_if_not_exists(table, schema, new_col, col_type)
 
             qualified = self._qualified_table(table, schema)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
@@ -1727,9 +1710,6 @@ class DataCleaningOps:
 
             fill_value = await _apply(qualified)
 
-            await self._add_new_column_if_not_exists(original, schema, new_col, col_type)
-            await _apply(self._qualified_table(original, schema))
-
             null_count = await self._fetchval(
                 f'SELECT COUNT(*) FROM {qualified} WHERE "{safe_col}" IS NULL'
             ) or 0
@@ -1737,8 +1717,12 @@ class DataCleaningOps:
             sample = await self._fetch_data(table, schema, columns=[safe_col, safe_new])
             msg = f"Processed '{column}' using {mode} (fill={fill_value}), affected {null_count} nulls"
 
-            return ok(
-                msg, [column], [new_col], sample, fill_mode=mode, fill_value=fill_value, new_table=table,
+            return self._mark_ref(
+                ok(
+                    msg, [column], [new_col], sample, fill_mode=mode,
+                    fill_value=fill_value, new_table=table,
+                ),
+                table, schema, [column], [new_col], [safe_col, safe_new],
             )
 
         except Exception as e:
@@ -1757,16 +1741,12 @@ class DataCleaningOps:
         new_table: Optional[str] = None,
     ) -> Dict[str, Any]:
         try:
-            original = table
-            table = await self._prepare_operation_table(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table,
-            )
             if not mapping:
                 return fail("No mapping provided")
 
             new_col = self._generate_cleaned_column_name(column, f"mapped_{'_'.join(list(mapping.keys()))}")
             col_type = await self._get_column_type(table, schema, column)
-            await self._add_new_column(table, schema, new_col, col_type)
+            await self._add_new_column_if_not_exists(table, schema, new_col, col_type)
 
             qualified = self._qualified_table(table, schema)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
@@ -1784,12 +1764,12 @@ class DataCleaningOps:
 
             await _apply(qualified)
 
-            await self._add_new_column_if_not_exists(original, schema, new_col, col_type)
-            await _apply(self._qualified_table(original, schema))
-
             sample = await self._fetch_data(table, schema, columns=[safe_col, safe_new])
             msg = f"Mapped {len(mapping)} value categories in '{column}'"
-            return ok(msg, [column], [new_col], sample, new_table=table)
+            return self._mark_ref(
+                ok(msg, [column], [new_col], sample, new_table=table),
+                table, schema, [column], [new_col], [safe_col, safe_new],
+            )
 
         except Exception as e:
             return fail(f"categorical_map_values error: {str(e)}\n{traceback.format_exc()}")
@@ -1805,16 +1785,12 @@ class DataCleaningOps:
         new_table: Optional[str] = None,
     ) -> Dict[str, Any]:
         try:
-            original = table
-            table = await self._prepare_operation_table(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table,
-            )
             if not valid_values:
                 return fail("No valid_values provided")
 
             new_col = self._generate_cleaned_column_name(column, f"valid_values_{'_'.join(valid_values)}")
             col_type = await self._get_column_type(table, schema, column)
-            await self._add_new_column(table, schema, new_col, col_type)
+            await self._add_new_column_if_not_exists(table, schema, new_col, col_type)
 
             qualified = self._qualified_table(table, schema)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
@@ -1830,9 +1806,6 @@ class DataCleaningOps:
 
             await _apply(qualified)
 
-            await self._add_new_column_if_not_exists(original, schema, new_col, col_type)
-            await _apply(self._qualified_table(original, schema))
-
             invalid = await self._fetchval(f"""
                 SELECT COUNT(*) FROM {qualified}
                 WHERE "{safe_col}" IS NOT NULL AND "{safe_col}" NOT IN ({in_list})
@@ -1840,7 +1813,10 @@ class DataCleaningOps:
 
             sample = await self._fetch_data(table, schema, columns=[safe_col, safe_new])
             msg = f"Set {invalid} invalid values in '{column}' to NULL. Valid values: {valid_values[:10]}..."
-            return ok(msg, [column], [new_col], sample, new_table=table)
+            return self._mark_ref(
+                ok(msg, [column], [new_col], sample, new_table=table),
+                table, schema, [column], [new_col], [safe_col, safe_new],
+            )
 
         except Exception as e:
             return fail(f"categorical_filter_invalid error: {str(e)}\n{traceback.format_exc()}")
@@ -1857,13 +1833,9 @@ class DataCleaningOps:
         new_table: Optional[str] = None,
     ) -> Dict[str, Any]:
         try:
-            original = table
-            table = await self._prepare_operation_table(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table,
-            )
             new_col = self._generate_cleaned_column_name(column, f"compressed_{min_count}_{other_label}")
             col_type = await self._get_column_type(table, schema, column)
-            await self._add_new_column(table, schema, new_col, col_type)
+            await self._add_new_column_if_not_exists(table, schema, new_col, col_type)
 
             qualified = self._qualified_table(table, schema)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
@@ -1890,9 +1862,6 @@ class DataCleaningOps:
 
             await _apply(qualified)
 
-            await self._add_new_column_if_not_exists(original, schema, new_col, col_type)
-            await _apply(self._qualified_table(original, schema))
-
             rare_rows = await self._fetch(f"""
                 SELECT DISTINCT "{safe_col}"
                 FROM {qualified}
@@ -1904,7 +1873,10 @@ class DataCleaningOps:
 
             sample = await self._fetch_data(table, schema, columns=[safe_col, safe_new])
             msg = f"Compressed {rare_count} rare categories in '{column}' to '{other_label}' (min_count={min_count})"
-            return ok(msg, [column], [new_col], sample, new_table=table)
+            return self._mark_ref(
+                ok(msg, [column], [new_col], sample, new_table=table),
+                table, schema, [column], [new_col], [safe_col, safe_new],
+            )
 
         except Exception as e:
             return fail(f"categorical_compress_rare error: {str(e)}\n{traceback.format_exc()}")
@@ -1921,10 +1893,6 @@ class DataCleaningOps:
         new_table: Optional[str] = None,
     ) -> Dict[str, Any]:
         try:
-            original = table
-            table = await self._prepare_column_operation_table(
-                table, schema, [column], backend=backend, data_id=data_id, new_table=new_table,
-            )
             mode = mode.upper()
 
             valid_modes = {"CONSTANT", "MIN", "MAX", "MEAN", "MEDIAN", "MODE", "NOW", "FFILL", "BFILL"}
@@ -1944,7 +1912,7 @@ class DataCleaningOps:
             }
 
             new_col = self._generate_cleaned_column_name(column, suffix_map[mode])
-            await self._add_new_column(table, schema, new_col, "TIMESTAMP")
+            await self._add_new_column_if_not_exists(table, schema, new_col, "TIMESTAMP")
 
             qualified = self._qualified_table(table, schema)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
@@ -2038,9 +2006,6 @@ class DataCleaningOps:
 
             fill_value = await _apply(qualified)
 
-            await self._add_new_column_if_not_exists(original, schema, new_col, "TIMESTAMP")
-            await _apply(self._qualified_table(original, schema))
-
             null_count = await self._fetchval(
                 f'SELECT COUNT(*) FROM {qualified} WHERE "{safe_col}" IS NULL'
             ) or 0
@@ -2048,8 +2013,12 @@ class DataCleaningOps:
             sample = await self._fetch_data(table, schema, columns=[safe_col, safe_new])
             msg = f"Filled {null_count} null values in '{column}' using {mode} ({fill_value})"
 
-            return ok(
-                msg, [column], [new_col], sample, fill_mode=mode, fill_value=fill_value, new_table=table,
+            return self._mark_ref(
+                ok(
+                    msg, [column], [new_col], sample, fill_mode=mode,
+                    fill_value=fill_value, new_table=table,
+                ),
+                table, schema, [column], [new_col], [safe_col, safe_new],
             )
 
         except Exception as e:
@@ -2067,12 +2036,8 @@ class DataCleaningOps:
         new_table: Optional[str] = None,
     ) -> Dict[str, Any]:
         try:
-            original = table
-            table = await self._prepare_operation_table(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table,
-            )
             new_col = self._generate_cleaned_column_name(column, "fixed")
-            await self._add_new_column(table, schema, new_col, "DATE")
+            await self._add_new_column_if_not_exists(table, schema, new_col, "DATE")
 
             qualified = self._qualified_table(table, schema)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
@@ -2087,16 +2052,16 @@ class DataCleaningOps:
 
             await _apply(qualified)
 
-            await self._add_new_column_if_not_exists(original, schema, new_col, "DATE")
-            await _apply(self._qualified_table(original, schema))
-
             invalid = await self._fetchval(
                 f"SELECT COUNT(*) FROM {qualified} WHERE {text_expr} = '0000-00-00'"
             ) or 0
 
             sample = await self._fetch_data(table, schema, columns=[safe_col, safe_new])
             msg = f"Fixed {invalid} invalid dates in '{column}'"
-            return ok(msg, [column], [new_col], sample, new_table=table)
+            return self._mark_ref(
+                ok(msg, [column], [new_col], sample, new_table=table),
+                table, schema, [column], [new_col], [safe_col, safe_new],
+            )
 
         except Exception as e:
             return fail(f"datetime_fix_invalid error: {str(e)}\n{traceback.format_exc()}")
@@ -2113,13 +2078,9 @@ class DataCleaningOps:
         new_table: Optional[str] = None,
     ) -> Dict[str, Any]:
         try:
-            original = table
-            table = await self._prepare_operation_table(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table,
-            )
             new_col = self._generate_cleaned_column_name(column, "range_filtered")
             new_col_type = "DATE"
-            await self._add_new_column(table, schema, new_col, new_col_type)
+            await self._add_new_column_if_not_exists(table, schema, new_col, new_col_type)
 
             if min_dt is None and max_dt is None:
                 min_dt, max_dt = "1900-01-01", "2100-01-01"
@@ -2140,9 +2101,6 @@ class DataCleaningOps:
 
             await _apply(qualified)
 
-            await self._add_new_column_if_not_exists(original, schema, new_col, new_col_type)
-            await _apply(self._qualified_table(original, schema))
-
             affected = 0
             if case_parts:
                 cond = []
@@ -2157,7 +2115,10 @@ class DataCleaningOps:
 
             sample = await self._fetch_data(table, schema, columns=[safe_col, safe_new])
             msg = f"Set {affected} out-of-range dates in '{column}' to NULL"
-            return ok(msg, [column], [new_col], sample, new_table=table)
+            return self._mark_ref(
+                ok(msg, [column], [new_col], sample, new_table=table),
+                table, schema, [column], [new_col], [safe_col, safe_new],
+            )
 
         except Exception as e:
             return fail(f"datetime_remove_out_of_range error: {str(e)}\n{traceback.format_exc()}")

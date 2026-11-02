@@ -3,21 +3,6 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_abs\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"num_abs\"=abs(\"num\")WHERE1",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"num_abs\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -28,28 +13,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_abs\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_abs\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_abs\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_abs\"=ABS(\"num\")",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"num_abs\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -60,28 +30,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_abs\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_abs\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_abs\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_abs\"=ABS(\"num\")",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"num_abs\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -92,28 +47,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_abs\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_abs\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "absolute_textcast": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"txt_abs\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"txt_abs\"=abs(toFloat64OrNull(TRIM(\"txt\")))WHERE1",
-    []
-   ],
    [
     "exec",
     "SELECT\"txt_abs\"FROM\"s\".\"t\"LIMIT1",
@@ -126,26 +66,11 @@
    ],
    [
     "fetch",
-    "SELECT\"txt\",\"txt_abs\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"txt\",\"txt_abs\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"txt_abs\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_abs\"=ABS(TRY_CAST(\"txt\"ASDOUBLE))",
-    []
-   ],
    [
     "exec",
     "SELECT\"txt_abs\"FROM\"s\".\"t\"LIMIT1",
@@ -158,26 +83,11 @@
    ],
    [
     "fetch",
-    "SELECT\"txt\",\"txt_abs\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"txt\",\"txt_abs\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"txt_abs\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_abs\"=ABS(CAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION))",
-    []
-   ],
    [
     "exec",
     "SELECT\"txt_abs\"FROM\"s\".\"t\"LIMIT1",
@@ -190,28 +100,13 @@
    ],
    [
     "fetch",
-    "SELECT\"txt\",\"txt_abs\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"txt\",\"txt_abs\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "acos": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_acos\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"num_acos\"=acos(\"num\")WHERE1",
-    []
-   ],
    [
     "exec",
     "SELECT\"num_acos\"FROM\"s\".\"t\"LIMIT1",
@@ -224,28 +119,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_acos\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_acos\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_acos\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_acos\"=ACOS(\"num\")",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"num_acos\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -256,28 +136,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_acos\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_acos\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_acos\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_acos\"=ACOS(\"num\")",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"num_acos\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -288,28 +153,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_acos\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_acos\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "acos_textcast": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"txt_acos\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"txt_acos\"=acos(toFloat64OrNull(TRIM(\"txt\")))WHERE1",
-    []
-   ],
    [
     "exec",
     "SELECT\"txt_acos\"FROM\"s\".\"t\"LIMIT1",
@@ -322,26 +172,11 @@
    ],
    [
     "fetch",
-    "SELECT\"txt\",\"txt_acos\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"txt\",\"txt_acos\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"txt_acos\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_acos\"=ACOS(TRY_CAST(\"txt\"ASDOUBLE))",
-    []
-   ],
    [
     "exec",
     "SELECT\"txt_acos\"FROM\"s\".\"t\"LIMIT1",
@@ -354,26 +189,11 @@
    ],
    [
     "fetch",
-    "SELECT\"txt\",\"txt_acos\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"txt\",\"txt_acos\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"txt_acos\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_acos\"=ACOS(CAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION))",
-    []
-   ],
    [
     "exec",
     "SELECT\"txt_acos\"FROM\"s\".\"t\"LIMIT1",
@@ -386,28 +206,13 @@
    ],
    [
     "fetch",
-    "SELECT\"txt\",\"txt_acos\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"txt\",\"txt_acos\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "add_col_col": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_add_n2\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"num_add_n2\"=\"num\"+\"n2\"WHERE1",
-    []
-   ],
    [
     "exec",
     "SELECT\"num_add_n2\"FROM\"s\".\"t\"LIMIT1",
@@ -420,28 +225,13 @@
    ],
    [
     "fetch",
-    "SELECT\"n2\",\"num\",\"num_add_n2\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"n2\",\"num\",\"num_add_n2\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_add_n2\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_add_n2\"=\"num\"+\"n2\"",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"num_add_n2\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -452,28 +242,13 @@
    ],
    [
     "fetch",
-    "SELECT\"n2\",\"num\",\"num_add_n2\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"n2\",\"num\",\"num_add_n2\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_add_n2\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_add_n2\"=\"num\"+\"n2\"",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"num_add_n2\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -484,28 +259,13 @@
    ],
    [
     "fetch",
-    "SELECT\"n2\",\"num\",\"num_add_n2\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"n2\",\"num\",\"num_add_n2\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "add_col_scalar": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_add__2.5\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"num_add__2.5\"=\"num\"+(2.5)WHERE1",
-    []
-   ],
    [
     "exec",
     "SELECT\"num_add__2.5\"FROM\"s\".\"t\"LIMIT1",
@@ -518,28 +278,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_add__2_5\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_add__2_5\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_add__2.5\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_add__2.5\"=\"num\"+(2.5)",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"num_add__2.5\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -550,28 +295,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_add__2_5\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_add__2_5\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_add__2.5\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_add__2.5\"=\"num\"+(2.5)",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"num_add__2.5\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -582,28 +312,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_add__2_5\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_add__2_5\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "add_scalar_col": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"_3_add_num\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"_3_add_num\"=(3)+\"num\"WHERE1",
-    []
-   ],
    [
     "exec",
     "SELECT\"_3_add_num\"FROM\"s\".\"t\"LIMIT1",
@@ -616,28 +331,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"_3_add_num\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"_3_add_num\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"_3_add_num\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"_3_add_num\"=(3)+\"num\"",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"_3_add_num\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -648,28 +348,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"_3_add_num\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"_3_add_num\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"_3_add_num\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"_3_add_num\"=(3)+\"num\"",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"_3_add_num\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -680,28 +365,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"_3_add_num\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"_3_add_num\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "asin": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_asin\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"num_asin\"=asin(\"num\")WHERE1",
-    []
-   ],
    [
     "exec",
     "SELECT\"num_asin\"FROM\"s\".\"t\"LIMIT1",
@@ -714,28 +384,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_asin\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_asin\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_asin\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_asin\"=ASIN(\"num\")",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"num_asin\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -746,28 +401,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_asin\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_asin\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_asin\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_asin\"=ASIN(\"num\")",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"num_asin\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -778,28 +418,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_asin\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_asin\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "asin_textcast": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"txt_asin\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"txt_asin\"=asin(toFloat64OrNull(TRIM(\"txt\")))WHERE1",
-    []
-   ],
    [
     "exec",
     "SELECT\"txt_asin\"FROM\"s\".\"t\"LIMIT1",
@@ -812,26 +437,11 @@
    ],
    [
     "fetch",
-    "SELECT\"txt\",\"txt_asin\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"txt\",\"txt_asin\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"txt_asin\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_asin\"=ASIN(TRY_CAST(\"txt\"ASDOUBLE))",
-    []
-   ],
    [
     "exec",
     "SELECT\"txt_asin\"FROM\"s\".\"t\"LIMIT1",
@@ -844,26 +454,11 @@
    ],
    [
     "fetch",
-    "SELECT\"txt\",\"txt_asin\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"txt\",\"txt_asin\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"txt_asin\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_asin\"=ASIN(CAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION))",
-    []
-   ],
    [
     "exec",
     "SELECT\"txt_asin\"FROM\"s\".\"t\"LIMIT1",
@@ -876,28 +471,13 @@
    ],
    [
     "fetch",
-    "SELECT\"txt\",\"txt_asin\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"txt\",\"txt_asin\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "atan": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_atan\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"num_atan\"=atan(\"num\")WHERE1",
-    []
-   ],
    [
     "exec",
     "SELECT\"num_atan\"FROM\"s\".\"t\"LIMIT1",
@@ -910,28 +490,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_atan\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_atan\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_atan\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_atan\"=ATAN(\"num\")",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"num_atan\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -942,28 +507,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_atan\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_atan\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_atan\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_atan\"=ATAN(\"num\")",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"num_atan\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -974,28 +524,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_atan\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_atan\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "atan2_col_col": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_atan2_n2\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"num_atan2_n2\"=atan2(\"num\",\"n2\")WHERE1",
-    []
-   ],
    [
     "exec",
     "SELECT\"num_atan2_n2\"FROM\"s\".\"t\"LIMIT1",
@@ -1008,28 +543,13 @@
    ],
    [
     "fetch",
-    "SELECT\"n2\",\"num\",\"num_atan2_n2\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"n2\",\"num\",\"num_atan2_n2\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_atan2_n2\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_atan2_n2\"=ATAN2(\"num\",\"n2\")",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"num_atan2_n2\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -1040,28 +560,13 @@
    ],
    [
     "fetch",
-    "SELECT\"n2\",\"num\",\"num_atan2_n2\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"n2\",\"num\",\"num_atan2_n2\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_atan2_n2\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_atan2_n2\"=ATAN2(\"num\",\"n2\")",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"num_atan2_n2\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -1072,28 +577,13 @@
    ],
    [
     "fetch",
-    "SELECT\"n2\",\"num\",\"num_atan2_n2\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"n2\",\"num\",\"num_atan2_n2\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "atan2_col_scalar": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_atan2__2.5\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"num_atan2__2.5\"=atan2(\"num\",2.5)WHERE1",
-    []
-   ],
    [
     "exec",
     "SELECT\"num_atan2__2.5\"FROM\"s\".\"t\"LIMIT1",
@@ -1106,28 +596,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_atan2__2_5\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_atan2__2_5\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_atan2__2.5\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_atan2__2.5\"=ATAN2(\"num\",2.5)",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"num_atan2__2.5\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -1138,28 +613,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_atan2__2_5\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_atan2__2_5\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_atan2__2.5\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_atan2__2.5\"=ATAN2(\"num\",2.5)",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"num_atan2__2.5\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -1170,28 +630,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_atan2__2_5\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_atan2__2_5\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "atan2_scalar_col": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"_3_atan2_num\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"_3_atan2_num\"=atan2(3,\"num\")WHERE1",
-    []
-   ],
    [
     "exec",
     "SELECT\"_3_atan2_num\"FROM\"s\".\"t\"LIMIT1",
@@ -1204,28 +649,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"_3_atan2_num\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"_3_atan2_num\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"_3_atan2_num\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"_3_atan2_num\"=ATAN2(3,\"num\")",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"_3_atan2_num\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -1236,28 +666,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"_3_atan2_num\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"_3_atan2_num\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"_3_atan2_num\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"_3_atan2_num\"=ATAN2(3,\"num\")",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"_3_atan2_num\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -1268,28 +683,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"_3_atan2_num\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"_3_atan2_num\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "atan_textcast": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"txt_atan\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"txt_atan\"=atan(toFloat64OrNull(TRIM(\"txt\")))WHERE1",
-    []
-   ],
    [
     "exec",
     "SELECT\"txt_atan\"FROM\"s\".\"t\"LIMIT1",
@@ -1302,26 +702,11 @@
    ],
    [
     "fetch",
-    "SELECT\"txt\",\"txt_atan\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"txt\",\"txt_atan\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"txt_atan\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_atan\"=ATAN(TRY_CAST(\"txt\"ASDOUBLE))",
-    []
-   ],
    [
     "exec",
     "SELECT\"txt_atan\"FROM\"s\".\"t\"LIMIT1",
@@ -1334,26 +719,11 @@
    ],
    [
     "fetch",
-    "SELECT\"txt\",\"txt_atan\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"txt\",\"txt_atan\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"txt_atan\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_atan\"=ATAN(CAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION))",
-    []
-   ],
    [
     "exec",
     "SELECT\"txt_atan\"FROM\"s\".\"t\"LIMIT1",
@@ -1366,28 +736,13 @@
    ],
    [
     "fetch",
-    "SELECT\"txt\",\"txt_atan\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"txt\",\"txt_atan\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "ceil": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_ceil\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"num_ceil\"=ceil(\"num\")WHERE1",
-    []
-   ],
    [
     "exec",
     "SELECT\"num_ceil\"FROM\"s\".\"t\"LIMIT1",
@@ -1400,28 +755,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_ceil\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_ceil\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_ceil\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_ceil\"=CEIL(\"num\")",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"num_ceil\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -1432,28 +772,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_ceil\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_ceil\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_ceil\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_ceil\"=CEIL(\"num\")",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"num_ceil\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -1464,28 +789,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_ceil\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_ceil\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "ceil_textcast": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"txt_ceil\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"txt_ceil\"=ceil(toFloat64OrNull(TRIM(\"txt\")))WHERE1",
-    []
-   ],
    [
     "exec",
     "SELECT\"txt_ceil\"FROM\"s\".\"t\"LIMIT1",
@@ -1498,26 +808,11 @@
    ],
    [
     "fetch",
-    "SELECT\"txt\",\"txt_ceil\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"txt\",\"txt_ceil\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"txt_ceil\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_ceil\"=CEIL(TRY_CAST(\"txt\"ASDOUBLE))",
-    []
-   ],
    [
     "exec",
     "SELECT\"txt_ceil\"FROM\"s\".\"t\"LIMIT1",
@@ -1530,26 +825,11 @@
    ],
    [
     "fetch",
-    "SELECT\"txt\",\"txt_ceil\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"txt\",\"txt_ceil\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"txt_ceil\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_ceil\"=CEIL(CAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION))",
-    []
-   ],
    [
     "exec",
     "SELECT\"txt_ceil\"FROM\"s\".\"t\"LIMIT1",
@@ -1562,28 +842,13 @@
    ],
    [
     "fetch",
-    "SELECT\"txt\",\"txt_ceil\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"txt\",\"txt_ceil\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "cos": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_cos\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"num_cos\"=cos(\"num\")WHERE1",
-    []
-   ],
    [
     "exec",
     "SELECT\"num_cos\"FROM\"s\".\"t\"LIMIT1",
@@ -1596,28 +861,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_cos\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_cos\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_cos\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_cos\"=COS(\"num\")",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"num_cos\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -1628,28 +878,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_cos\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_cos\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_cos\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_cos\"=COS(\"num\")",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"num_cos\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -1660,28 +895,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_cos\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_cos\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "cos_textcast": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"txt_cos\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"txt_cos\"=cos(toFloat64OrNull(TRIM(\"txt\")))WHERE1",
-    []
-   ],
    [
     "exec",
     "SELECT\"txt_cos\"FROM\"s\".\"t\"LIMIT1",
@@ -1694,26 +914,11 @@
    ],
    [
     "fetch",
-    "SELECT\"txt\",\"txt_cos\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"txt\",\"txt_cos\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"txt_cos\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_cos\"=COS(TRY_CAST(\"txt\"ASDOUBLE))",
-    []
-   ],
    [
     "exec",
     "SELECT\"txt_cos\"FROM\"s\".\"t\"LIMIT1",
@@ -1726,26 +931,11 @@
    ],
    [
     "fetch",
-    "SELECT\"txt\",\"txt_cos\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"txt\",\"txt_cos\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"txt_cos\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_cos\"=COS(CAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION))",
-    []
-   ],
    [
     "exec",
     "SELECT\"txt_cos\"FROM\"s\".\"t\"LIMIT1",
@@ -1758,28 +948,13 @@
    ],
    [
     "fetch",
-    "SELECT\"txt\",\"txt_cos\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"txt\",\"txt_cos\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "divide_col_col": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_div_n2\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"num_div_n2\"=\"num\"/NULLIF(\"n2\",0)WHERE1",
-    []
-   ],
    [
     "exec",
     "SELECT\"num_div_n2\"FROM\"s\".\"t\"LIMIT1",
@@ -1792,28 +967,13 @@
    ],
    [
     "fetch",
-    "SELECT\"n2\",\"num\",\"num_div_n2\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"n2\",\"num\",\"num_div_n2\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_div_n2\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_div_n2\"=\"num\"/NULLIF(\"n2\",0)",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"num_div_n2\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -1824,28 +984,13 @@
    ],
    [
     "fetch",
-    "SELECT\"n2\",\"num\",\"num_div_n2\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"n2\",\"num\",\"num_div_n2\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_div_n2\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_div_n2\"=\"num\"/NULLIF(\"n2\",0)",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"num_div_n2\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -1856,28 +1001,13 @@
    ],
    [
     "fetch",
-    "SELECT\"n2\",\"num\",\"num_div_n2\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"n2\",\"num\",\"num_div_n2\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "divide_col_scalar": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_div__2.5\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"num_div__2.5\"=\"num\"/NULLIF((2.5),0)WHERE1",
-    []
-   ],
    [
     "exec",
     "SELECT\"num_div__2.5\"FROM\"s\".\"t\"LIMIT1",
@@ -1890,28 +1020,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_div__2_5\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_div__2_5\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_div__2.5\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_div__2.5\"=\"num\"/NULLIF((2.5),0)",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"num_div__2.5\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -1922,28 +1037,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_div__2_5\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_div__2_5\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_div__2.5\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_div__2.5\"=\"num\"/NULLIF((2.5),0)",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"num_div__2.5\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -1954,28 +1054,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_div__2_5\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_div__2_5\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "divide_scalar_col": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"_3_div_num\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"_3_div_num\"=(3)/NULLIF(\"num\",0)WHERE1",
-    []
-   ],
    [
     "exec",
     "SELECT\"_3_div_num\"FROM\"s\".\"t\"LIMIT1",
@@ -1988,28 +1073,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"_3_div_num\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"_3_div_num\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"_3_div_num\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"_3_div_num\"=(3)/NULLIF(\"num\",0)",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"_3_div_num\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -2020,28 +1090,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"_3_div_num\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"_3_div_num\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"_3_div_num\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"_3_div_num\"=(3)/NULLIF(\"num\",0)",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"_3_div_num\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -2052,28 +1107,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"_3_div_num\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"_3_div_num\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "exp": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_exp\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"num_exp\"=exp(\"num\")WHERE1",
-    []
-   ],
    [
     "exec",
     "SELECT\"num_exp\"FROM\"s\".\"t\"LIMIT1",
@@ -2086,28 +1126,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_exp\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_exp\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_exp\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_exp\"=EXP(\"num\")",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"num_exp\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -2118,28 +1143,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_exp\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_exp\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_exp\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_exp\"=EXP(\"num\")",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"num_exp\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -2150,28 +1160,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_exp\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_exp\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "exp_textcast": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"txt_exp\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"txt_exp\"=exp(toFloat64OrNull(TRIM(\"txt\")))WHERE1",
-    []
-   ],
    [
     "exec",
     "SELECT\"txt_exp\"FROM\"s\".\"t\"LIMIT1",
@@ -2184,26 +1179,11 @@
    ],
    [
     "fetch",
-    "SELECT\"txt\",\"txt_exp\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"txt\",\"txt_exp\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"txt_exp\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_exp\"=EXP(TRY_CAST(\"txt\"ASDOUBLE))",
-    []
-   ],
    [
     "exec",
     "SELECT\"txt_exp\"FROM\"s\".\"t\"LIMIT1",
@@ -2216,26 +1196,11 @@
    ],
    [
     "fetch",
-    "SELECT\"txt\",\"txt_exp\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"txt\",\"txt_exp\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"txt_exp\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_exp\"=EXP(CAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION))",
-    []
-   ],
    [
     "exec",
     "SELECT\"txt_exp\"FROM\"s\".\"t\"LIMIT1",
@@ -2248,28 +1213,13 @@
    ],
    [
     "fetch",
-    "SELECT\"txt\",\"txt_exp\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"txt\",\"txt_exp\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "floor": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_floor\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"num_floor\"=floor(\"num\")WHERE1",
-    []
-   ],
    [
     "exec",
     "SELECT\"num_floor\"FROM\"s\".\"t\"LIMIT1",
@@ -2282,28 +1232,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_floor\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_floor\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_floor\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_floor\"=FLOOR(\"num\")",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"num_floor\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -2314,28 +1249,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_floor\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_floor\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_floor\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_floor\"=FLOOR(\"num\")",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"num_floor\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -2346,28 +1266,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_floor\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_floor\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "floor_textcast": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"txt_floor\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"txt_floor\"=floor(toFloat64OrNull(TRIM(\"txt\")))WHERE1",
-    []
-   ],
    [
     "exec",
     "SELECT\"txt_floor\"FROM\"s\".\"t\"LIMIT1",
@@ -2380,26 +1285,11 @@
    ],
    [
     "fetch",
-    "SELECT\"txt\",\"txt_floor\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"txt\",\"txt_floor\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"txt_floor\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_floor\"=FLOOR(TRY_CAST(\"txt\"ASDOUBLE))",
-    []
-   ],
    [
     "exec",
     "SELECT\"txt_floor\"FROM\"s\".\"t\"LIMIT1",
@@ -2412,26 +1302,11 @@
    ],
    [
     "fetch",
-    "SELECT\"txt\",\"txt_floor\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"txt\",\"txt_floor\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"txt_floor\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_floor\"=FLOOR(CAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION))",
-    []
-   ],
    [
     "exec",
     "SELECT\"txt_floor\"FROM\"s\".\"t\"LIMIT1",
@@ -2444,28 +1319,13 @@
    ],
    [
     "fetch",
-    "SELECT\"txt\",\"txt_floor\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"txt\",\"txt_floor\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "log": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_ln\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"num_ln\"=CASEWHEN\"num\">0THENlog(\"num\")ELSENULLENDWHERE1",
-    []
-   ],
    [
     "exec",
     "SELECT\"num_ln\"FROM\"s\".\"t\"LIMIT1",
@@ -2478,28 +1338,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_ln\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_ln\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_ln\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_ln\"=CASEWHEN\"num\">0THENLN(\"num\")ELSENULLEND",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"num_ln\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -2510,28 +1355,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_ln\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_ln\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_ln\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_ln\"=CASEWHEN\"num\">0THENLN(\"num\")ELSENULLEND",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"num_ln\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -2542,28 +1372,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_ln\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_ln\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "log10": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_log10\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"num_log10\"=CASEWHEN\"num\">0THENlog10(\"num\")ELSENULLENDWHERE1",
-    []
-   ],
    [
     "exec",
     "SELECT\"num_log10\"FROM\"s\".\"t\"LIMIT1",
@@ -2576,26 +1391,11 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_log10\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_log10\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_log10\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_log10\"=CASEWHEN\"num\">0THENLOG10(\"num\")ELSENULLEND",
-    []
-   ],
    [
     "exec",
     "SELECT\"num_log10\"FROM\"s\".\"t\"LIMIT1",
@@ -2608,26 +1408,11 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_log10\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_log10\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_log10\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_log10\"=CASEWHEN\"num\">0THENLOG(\"num\")ELSENULLEND",
-    []
-   ],
    [
     "exec",
     "SELECT\"num_log10\"FROM\"s\".\"t\"LIMIT1",
@@ -2640,28 +1425,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_log10\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_log10\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "log10_textcast": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"txt_log10\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"txt_log10\"=CASEWHENtoFloat64OrNull(TRIM(\"txt\"))>0THENlog10(toFloat64OrNull(TRIM(\"txt\")))ELSENULLENDWHERE1",
-    []
-   ],
    [
     "exec",
     "SELECT\"txt_log10\"FROM\"s\".\"t\"LIMIT1",
@@ -2674,26 +1444,11 @@
    ],
    [
     "fetch",
-    "SELECT\"txt\",\"txt_log10\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"txt\",\"txt_log10\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"txt_log10\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_log10\"=CASEWHENTRY_CAST(\"txt\"ASDOUBLE)>0THENLOG10(TRY_CAST(\"txt\"ASDOUBLE))ELSENULLEND",
-    []
-   ],
    [
     "exec",
     "SELECT\"txt_log10\"FROM\"s\".\"t\"LIMIT1",
@@ -2706,26 +1461,11 @@
    ],
    [
     "fetch",
-    "SELECT\"txt\",\"txt_log10\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"txt\",\"txt_log10\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"txt_log10\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_log10\"=CASEWHENCAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION)>0THENLOG(CAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION))ELSENULLEND",
-    []
-   ],
    [
     "exec",
     "SELECT\"txt_log10\"FROM\"s\".\"t\"LIMIT1",
@@ -2738,28 +1478,13 @@
    ],
    [
     "fetch",
-    "SELECT\"txt\",\"txt_log10\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"txt\",\"txt_log10\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "log_textcast": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"txt_ln\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"txt_ln\"=CASEWHENtoFloat64OrNull(TRIM(\"txt\"))>0THENlog(toFloat64OrNull(TRIM(\"txt\")))ELSENULLENDWHERE1",
-    []
-   ],
    [
     "exec",
     "SELECT\"txt_ln\"FROM\"s\".\"t\"LIMIT1",
@@ -2772,26 +1497,11 @@
    ],
    [
     "fetch",
-    "SELECT\"txt\",\"txt_ln\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"txt\",\"txt_ln\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"txt_ln\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_ln\"=CASEWHENTRY_CAST(\"txt\"ASDOUBLE)>0THENLN(TRY_CAST(\"txt\"ASDOUBLE))ELSENULLEND",
-    []
-   ],
    [
     "exec",
     "SELECT\"txt_ln\"FROM\"s\".\"t\"LIMIT1",
@@ -2804,26 +1514,11 @@
    ],
    [
     "fetch",
-    "SELECT\"txt\",\"txt_ln\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"txt\",\"txt_ln\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"txt_ln\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_ln\"=CASEWHENCAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION)>0THENLN(CAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION))ELSENULLEND",
-    []
-   ],
    [
     "exec",
     "SELECT\"txt_ln\"FROM\"s\".\"t\"LIMIT1",
@@ -2836,28 +1531,13 @@
    ],
    [
     "fetch",
-    "SELECT\"txt\",\"txt_ln\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"txt\",\"txt_ln\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "modulo_col_col": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_mod_n2\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"num_mod_n2\"=modulo(\"num\",\"n2\")WHERE1",
-    []
-   ],
    [
     "exec",
     "SELECT\"num_mod_n2\"FROM\"s\".\"t\"LIMIT1",
@@ -2870,28 +1550,13 @@
    ],
    [
     "fetch",
-    "SELECT\"n2\",\"num\",\"num_mod_n2\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"n2\",\"num\",\"num_mod_n2\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_mod_n2\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_mod_n2\"=MOD(\"num\",\"n2\")",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"num_mod_n2\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -2902,28 +1567,13 @@
    ],
    [
     "fetch",
-    "SELECT\"n2\",\"num\",\"num_mod_n2\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"n2\",\"num\",\"num_mod_n2\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_mod_n2\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_mod_n2\"=MOD(\"num\",\"n2\")",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"num_mod_n2\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -2934,28 +1584,13 @@
    ],
    [
     "fetch",
-    "SELECT\"n2\",\"num\",\"num_mod_n2\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"n2\",\"num\",\"num_mod_n2\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "modulo_col_scalar": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_mod__2.5\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"num_mod__2.5\"=modulo(\"num\",2.5)WHERE1",
-    []
-   ],
    [
     "exec",
     "SELECT\"num_mod__2.5\"FROM\"s\".\"t\"LIMIT1",
@@ -2968,28 +1603,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_mod__2_5\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_mod__2_5\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_mod__2.5\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_mod__2.5\"=MOD(\"num\",2.5)",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"num_mod__2.5\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -3000,28 +1620,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_mod__2_5\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_mod__2_5\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_mod__2.5\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_mod__2.5\"=MOD(\"num\",2.5)",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"num_mod__2.5\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -3032,28 +1637,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_mod__2_5\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_mod__2_5\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "modulo_scalar_col": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"_3_mod_num\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"_3_mod_num\"=modulo(3,\"num\")WHERE1",
-    []
-   ],
    [
     "exec",
     "SELECT\"_3_mod_num\"FROM\"s\".\"t\"LIMIT1",
@@ -3066,28 +1656,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"_3_mod_num\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"_3_mod_num\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"_3_mod_num\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"_3_mod_num\"=MOD(3,\"num\")",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"_3_mod_num\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -3098,28 +1673,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"_3_mod_num\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"_3_mod_num\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"_3_mod_num\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"_3_mod_num\"=MOD(3,\"num\")",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"_3_mod_num\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -3130,28 +1690,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"_3_mod_num\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"_3_mod_num\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "multiply_col_col": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_mul_n2\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"num_mul_n2\"=\"num\"*\"n2\"WHERE1",
-    []
-   ],
    [
     "exec",
     "SELECT\"num_mul_n2\"FROM\"s\".\"t\"LIMIT1",
@@ -3164,28 +1709,13 @@
    ],
    [
     "fetch",
-    "SELECT\"n2\",\"num\",\"num_mul_n2\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"n2\",\"num\",\"num_mul_n2\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_mul_n2\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_mul_n2\"=\"num\"*\"n2\"",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"num_mul_n2\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -3196,28 +1726,13 @@
    ],
    [
     "fetch",
-    "SELECT\"n2\",\"num\",\"num_mul_n2\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"n2\",\"num\",\"num_mul_n2\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_mul_n2\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_mul_n2\"=\"num\"*\"n2\"",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"num_mul_n2\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -3228,28 +1743,13 @@
    ],
    [
     "fetch",
-    "SELECT\"n2\",\"num\",\"num_mul_n2\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"n2\",\"num\",\"num_mul_n2\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "multiply_col_scalar": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_mul__2.5\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"num_mul__2.5\"=\"num\"*(2.5)WHERE1",
-    []
-   ],
    [
     "exec",
     "SELECT\"num_mul__2.5\"FROM\"s\".\"t\"LIMIT1",
@@ -3262,28 +1762,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_mul__2_5\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_mul__2_5\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_mul__2.5\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_mul__2.5\"=\"num\"*(2.5)",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"num_mul__2.5\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -3294,28 +1779,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_mul__2_5\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_mul__2_5\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_mul__2.5\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_mul__2.5\"=\"num\"*(2.5)",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"num_mul__2.5\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -3326,28 +1796,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_mul__2_5\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_mul__2_5\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "multiply_scalar_col": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"_3_mul_num\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"_3_mul_num\"=(3)*\"num\"WHERE1",
-    []
-   ],
    [
     "exec",
     "SELECT\"_3_mul_num\"FROM\"s\".\"t\"LIMIT1",
@@ -3360,28 +1815,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"_3_mul_num\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"_3_mul_num\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"_3_mul_num\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"_3_mul_num\"=(3)*\"num\"",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"_3_mul_num\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -3392,28 +1832,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"_3_mul_num\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"_3_mul_num\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"_3_mul_num\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"_3_mul_num\"=(3)*\"num\"",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"_3_mul_num\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -3424,28 +1849,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"_3_mul_num\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"_3_mul_num\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "negate": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_neg\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"num_neg\"=-(\"num\")WHERE1",
-    []
-   ],
    [
     "exec",
     "SELECT\"num_neg\"FROM\"s\".\"t\"LIMIT1",
@@ -3458,28 +1868,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_neg\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_neg\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_neg\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_neg\"=-(\"num\")",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"num_neg\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -3490,28 +1885,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_neg\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_neg\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_neg\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_neg\"=-(\"num\")",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"num_neg\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -3522,28 +1902,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_neg\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_neg\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "negate_textcast": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"txt_neg\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"txt_neg\"=-(toFloat64OrNull(TRIM(\"txt\")))WHERE1",
-    []
-   ],
    [
     "exec",
     "SELECT\"txt_neg\"FROM\"s\".\"t\"LIMIT1",
@@ -3556,26 +1921,11 @@
    ],
    [
     "fetch",
-    "SELECT\"txt\",\"txt_neg\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"txt\",\"txt_neg\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"txt_neg\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_neg\"=-(TRY_CAST(\"txt\"ASDOUBLE))",
-    []
-   ],
    [
     "exec",
     "SELECT\"txt_neg\"FROM\"s\".\"t\"LIMIT1",
@@ -3588,26 +1938,11 @@
    ],
    [
     "fetch",
-    "SELECT\"txt\",\"txt_neg\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"txt\",\"txt_neg\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"txt_neg\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_neg\"=-(CAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION))",
-    []
-   ],
    [
     "exec",
     "SELECT\"txt_neg\"FROM\"s\".\"t\"LIMIT1",
@@ -3620,7 +1955,7 @@
    ],
    [
     "fetch",
-    "SELECT\"txt\",\"txt_neg\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"txt\",\"txt_neg\"FROM\"s\".\"t\"",
     []
    ]
   ]
@@ -3639,21 +1974,6 @@
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_norm\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"num_norm\"=(1.0*\"num\"-0)/NULLIF((0-0),0)WHERE1",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"num_norm\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -3664,7 +1984,7 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_norm\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_norm\"FROM\"s\".\"t\"",
     []
    ]
   ],
@@ -3681,21 +2001,6 @@
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_norm\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_norm\"=(1.0*\"num\"-0)/NULLIF((0-0),0)",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"num_norm\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -3706,7 +2011,7 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_norm\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_norm\"FROM\"s\".\"t\"",
     []
    ]
   ],
@@ -3723,21 +2028,6 @@
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_norm\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_norm\"=(1.0*\"num\"-0)/NULLIF((0-0),0)",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"num_norm\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -3748,7 +2038,7 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_norm\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_norm\"FROM\"s\".\"t\"",
     []
    ]
   ]
@@ -3767,21 +2057,6 @@
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"txt_norm\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"txt_norm\"=(1.0*toFloat64OrNull(TRIM(\"txt\"))-0)/NULLIF((0-0),0)WHERE1",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"txt_norm\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -3792,7 +2067,7 @@
    ],
    [
     "fetch",
-    "SELECT\"txt\",\"txt_norm\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"txt\",\"txt_norm\"FROM\"s\".\"t\"",
     []
    ]
   ],
@@ -3809,21 +2084,6 @@
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"txt_norm\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_norm\"=(1.0*TRY_CAST(\"txt\"ASDOUBLE)-0)/NULLIF((0-0),0)",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"txt_norm\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -3834,7 +2094,7 @@
    ],
    [
     "fetch",
-    "SELECT\"txt\",\"txt_norm\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"txt\",\"txt_norm\"FROM\"s\".\"t\"",
     []
    ]
   ],
@@ -3851,21 +2111,6 @@
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"txt_norm\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_norm\"=(1.0*CAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION)-0)/NULLIF((0-0),0)",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"txt_norm\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -3876,28 +2121,13 @@
    ],
    [
     "fetch",
-    "SELECT\"txt\",\"txt_norm\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"txt\",\"txt_norm\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "percentage_change": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"n2_pctch_num\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"n2_pctch_num\"=((1.0*\"n2\"-1.0*\"num\")/NULLIF(ABS(1.0*\"num\"),0))*100WHERE1",
-    []
-   ],
    [
     "exec",
     "SELECT\"n2_pctch_num\"FROM\"s\".\"t\"LIMIT1",
@@ -3910,28 +2140,13 @@
    ],
    [
     "fetch",
-    "SELECT\"n2\",\"num\",\"n2_pctch_num\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"n2\",\"num\",\"n2_pctch_num\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"n2_pctch_num\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"n2_pctch_num\"=((1.0*\"n2\"-1.0*\"num\")/NULLIF(ABS(1.0*\"num\"),0))*100",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"n2_pctch_num\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -3942,28 +2157,13 @@
    ],
    [
     "fetch",
-    "SELECT\"n2\",\"num\",\"n2_pctch_num\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"n2\",\"num\",\"n2_pctch_num\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"n2_pctch_num\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"n2_pctch_num\"=((1.0*\"n2\"-1.0*\"num\")/NULLIF(ABS(1.0*\"num\"),0))*100",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"n2_pctch_num\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -3974,28 +2174,13 @@
    ],
    [
     "fetch",
-    "SELECT\"n2\",\"num\",\"n2_pctch_num\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"n2\",\"num\",\"n2_pctch_num\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "percentage_change_textcast": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"n2_pctch_txt\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"n2_pctch_txt\"=((1.0*\"n2\"-1.0*toFloat64OrNull(TRIM(\"txt\")))/NULLIF(ABS(1.0*toFloat64OrNull(TRIM(\"txt\"))),0))*100WHERE1",
-    []
-   ],
    [
     "exec",
     "SELECT\"n2_pctch_txt\"FROM\"s\".\"t\"LIMIT1",
@@ -4008,26 +2193,11 @@
    ],
    [
     "fetch",
-    "SELECT\"n2\",\"txt\",\"n2_pctch_txt\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"n2\",\"txt\",\"n2_pctch_txt\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"n2_pctch_txt\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"n2_pctch_txt\"=((1.0*\"n2\"-1.0*TRY_CAST(\"txt\"ASDOUBLE))/NULLIF(ABS(1.0*TRY_CAST(\"txt\"ASDOUBLE)),0))*100",
-    []
-   ],
    [
     "exec",
     "SELECT\"n2_pctch_txt\"FROM\"s\".\"t\"LIMIT1",
@@ -4040,26 +2210,11 @@
    ],
    [
     "fetch",
-    "SELECT\"n2\",\"txt\",\"n2_pctch_txt\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"n2\",\"txt\",\"n2_pctch_txt\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"n2_pctch_txt\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"n2_pctch_txt\"=((1.0*\"n2\"-1.0*CAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION))/NULLIF(ABS(1.0*CAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION)),0))*100",
-    []
-   ],
    [
     "exec",
     "SELECT\"n2_pctch_txt\"FROM\"s\".\"t\"LIMIT1",
@@ -4072,28 +2227,13 @@
    ],
    [
     "fetch",
-    "SELECT\"n2\",\"txt\",\"n2_pctch_txt\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"n2\",\"txt\",\"n2_pctch_txt\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "power_col_col": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_pow_n2\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"num_pow_n2\"=pow(\"num\",\"n2\")WHERE1",
-    []
-   ],
    [
     "exec",
     "SELECT\"num_pow_n2\"FROM\"s\".\"t\"LIMIT1",
@@ -4106,28 +2246,13 @@
    ],
    [
     "fetch",
-    "SELECT\"n2\",\"num\",\"num_pow_n2\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"n2\",\"num\",\"num_pow_n2\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_pow_n2\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_pow_n2\"=POWER(\"num\",\"n2\")",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"num_pow_n2\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -4138,28 +2263,13 @@
    ],
    [
     "fetch",
-    "SELECT\"n2\",\"num\",\"num_pow_n2\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"n2\",\"num\",\"num_pow_n2\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_pow_n2\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_pow_n2\"=POWER(\"num\",\"n2\")",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"num_pow_n2\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -4170,28 +2280,13 @@
    ],
    [
     "fetch",
-    "SELECT\"n2\",\"num\",\"num_pow_n2\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"n2\",\"num\",\"num_pow_n2\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "power_col_scalar": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_pow__2.5\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"num_pow__2.5\"=pow(\"num\",2.5)WHERE1",
-    []
-   ],
    [
     "exec",
     "SELECT\"num_pow__2.5\"FROM\"s\".\"t\"LIMIT1",
@@ -4204,28 +2299,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_pow__2_5\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_pow__2_5\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_pow__2.5\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_pow__2.5\"=POWER(\"num\",2.5)",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"num_pow__2.5\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -4236,28 +2316,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_pow__2_5\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_pow__2_5\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_pow__2.5\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_pow__2.5\"=POWER(\"num\",2.5)",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"num_pow__2.5\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -4268,28 +2333,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_pow__2_5\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_pow__2_5\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "power_scalar_col": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"_3_pow_num\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"_3_pow_num\"=pow(3,\"num\")WHERE1",
-    []
-   ],
    [
     "exec",
     "SELECT\"_3_pow_num\"FROM\"s\".\"t\"LIMIT1",
@@ -4302,28 +2352,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"_3_pow_num\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"_3_pow_num\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"_3_pow_num\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"_3_pow_num\"=POWER(3,\"num\")",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"_3_pow_num\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -4334,28 +2369,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"_3_pow_num\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"_3_pow_num\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"_3_pow_num\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"_3_pow_num\"=POWER(3,\"num\")",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"_3_pow_num\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -4366,28 +2386,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"_3_pow_num\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"_3_pow_num\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "round": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_round2\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"num_round2\"=ROUND(\"num\",2)WHERE1",
-    []
-   ],
    [
     "exec",
     "SELECT\"num_round2\"FROM\"s\".\"t\"LIMIT1",
@@ -4400,26 +2405,11 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_round2\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_round2\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_round2\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_round2\"=ROUND(\"num\",2)",
-    []
-   ],
    [
     "exec",
     "SELECT\"num_round2\"FROM\"s\".\"t\"LIMIT1",
@@ -4432,26 +2422,11 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_round2\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_round2\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_round2\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_round2\"=ROUND(CAST(\"num\"ASNUMERIC),2)",
-    []
-   ],
    [
     "exec",
     "SELECT\"num_round2\"FROM\"s\".\"t\"LIMIT1",
@@ -4464,28 +2439,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_round2\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_round2\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "round_textcast": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"txt_round2\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"txt_round2\"=ROUND(toFloat64OrNull(TRIM(\"txt\")),2)WHERE1",
-    []
-   ],
    [
     "exec",
     "SELECT\"txt_round2\"FROM\"s\".\"t\"LIMIT1",
@@ -4498,26 +2458,11 @@
    ],
    [
     "fetch",
-    "SELECT\"txt\",\"txt_round2\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"txt\",\"txt_round2\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"txt_round2\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_round2\"=ROUND(TRY_CAST(\"txt\"ASDOUBLE),2)",
-    []
-   ],
    [
     "exec",
     "SELECT\"txt_round2\"FROM\"s\".\"t\"LIMIT1",
@@ -4530,26 +2475,11 @@
    ],
    [
     "fetch",
-    "SELECT\"txt\",\"txt_round2\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"txt\",\"txt_round2\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"txt_round2\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_round2\"=ROUND(CAST(CAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION)ASNUMERIC),2)",
-    []
-   ],
    [
     "exec",
     "SELECT\"txt_round2\"FROM\"s\".\"t\"LIMIT1",
@@ -4562,28 +2492,13 @@
    ],
    [
     "fetch",
-    "SELECT\"txt\",\"txt_round2\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"txt\",\"txt_round2\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "sin": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_sin\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"num_sin\"=sin(\"num\")WHERE1",
-    []
-   ],
    [
     "exec",
     "SELECT\"num_sin\"FROM\"s\".\"t\"LIMIT1",
@@ -4596,28 +2511,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_sin\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_sin\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_sin\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_sin\"=SIN(\"num\")",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"num_sin\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -4628,28 +2528,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_sin\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_sin\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_sin\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_sin\"=SIN(\"num\")",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"num_sin\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -4660,28 +2545,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_sin\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_sin\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "sin_textcast": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"txt_sin\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"txt_sin\"=sin(toFloat64OrNull(TRIM(\"txt\")))WHERE1",
-    []
-   ],
    [
     "exec",
     "SELECT\"txt_sin\"FROM\"s\".\"t\"LIMIT1",
@@ -4694,26 +2564,11 @@
    ],
    [
     "fetch",
-    "SELECT\"txt\",\"txt_sin\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"txt\",\"txt_sin\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"txt_sin\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_sin\"=SIN(TRY_CAST(\"txt\"ASDOUBLE))",
-    []
-   ],
    [
     "exec",
     "SELECT\"txt_sin\"FROM\"s\".\"t\"LIMIT1",
@@ -4726,26 +2581,11 @@
    ],
    [
     "fetch",
-    "SELECT\"txt\",\"txt_sin\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"txt\",\"txt_sin\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"txt_sin\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_sin\"=SIN(CAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION))",
-    []
-   ],
    [
     "exec",
     "SELECT\"txt_sin\"FROM\"s\".\"t\"LIMIT1",
@@ -4758,28 +2598,13 @@
    ],
    [
     "fetch",
-    "SELECT\"txt\",\"txt_sin\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"txt\",\"txt_sin\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "sqrt": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_sqrt\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"num_sqrt\"=CASEWHEN\"num\">=0THENsqrt(\"num\")ELSENULLENDWHERE1",
-    []
-   ],
    [
     "exec",
     "SELECT\"num_sqrt\"FROM\"s\".\"t\"LIMIT1",
@@ -4792,28 +2617,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_sqrt\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_sqrt\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_sqrt\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_sqrt\"=CASEWHEN\"num\">=0THENSQRT(\"num\")ELSENULLEND",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"num_sqrt\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -4824,28 +2634,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_sqrt\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_sqrt\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_sqrt\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_sqrt\"=CASEWHEN\"num\">=0THENSQRT(\"num\")ELSENULLEND",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"num_sqrt\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -4856,28 +2651,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_sqrt\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_sqrt\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "sqrt_textcast": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"txt_sqrt\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"txt_sqrt\"=CASEWHENtoFloat64OrNull(TRIM(\"txt\"))>=0THENsqrt(toFloat64OrNull(TRIM(\"txt\")))ELSENULLENDWHERE1",
-    []
-   ],
    [
     "exec",
     "SELECT\"txt_sqrt\"FROM\"s\".\"t\"LIMIT1",
@@ -4890,26 +2670,11 @@
    ],
    [
     "fetch",
-    "SELECT\"txt\",\"txt_sqrt\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"txt\",\"txt_sqrt\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"txt_sqrt\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_sqrt\"=CASEWHENTRY_CAST(\"txt\"ASDOUBLE)>=0THENSQRT(TRY_CAST(\"txt\"ASDOUBLE))ELSENULLEND",
-    []
-   ],
    [
     "exec",
     "SELECT\"txt_sqrt\"FROM\"s\".\"t\"LIMIT1",
@@ -4922,26 +2687,11 @@
    ],
    [
     "fetch",
-    "SELECT\"txt\",\"txt_sqrt\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"txt\",\"txt_sqrt\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"txt_sqrt\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_sqrt\"=CASEWHENCAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION)>=0THENSQRT(CAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION))ELSENULLEND",
-    []
-   ],
    [
     "exec",
     "SELECT\"txt_sqrt\"FROM\"s\".\"t\"LIMIT1",
@@ -4954,28 +2704,13 @@
    ],
    [
     "fetch",
-    "SELECT\"txt\",\"txt_sqrt\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"txt\",\"txt_sqrt\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "subtract_col_col": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_sub_n2\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"num_sub_n2\"=\"num\"-\"n2\"WHERE1",
-    []
-   ],
    [
     "exec",
     "SELECT\"num_sub_n2\"FROM\"s\".\"t\"LIMIT1",
@@ -4988,28 +2723,13 @@
    ],
    [
     "fetch",
-    "SELECT\"n2\",\"num\",\"num_sub_n2\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"n2\",\"num\",\"num_sub_n2\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_sub_n2\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_sub_n2\"=\"num\"-\"n2\"",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"num_sub_n2\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -5020,28 +2740,13 @@
    ],
    [
     "fetch",
-    "SELECT\"n2\",\"num\",\"num_sub_n2\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"n2\",\"num\",\"num_sub_n2\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_sub_n2\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_sub_n2\"=\"num\"-\"n2\"",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"num_sub_n2\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -5052,28 +2757,13 @@
    ],
    [
     "fetch",
-    "SELECT\"n2\",\"num\",\"num_sub_n2\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"n2\",\"num\",\"num_sub_n2\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "subtract_col_scalar": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_sub__2.5\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"num_sub__2.5\"=\"num\"-(2.5)WHERE1",
-    []
-   ],
    [
     "exec",
     "SELECT\"num_sub__2.5\"FROM\"s\".\"t\"LIMIT1",
@@ -5086,28 +2776,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_sub__2_5\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_sub__2_5\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_sub__2.5\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_sub__2.5\"=\"num\"-(2.5)",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"num_sub__2.5\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -5118,28 +2793,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_sub__2_5\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_sub__2_5\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_sub__2.5\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_sub__2.5\"=\"num\"-(2.5)",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"num_sub__2.5\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -5150,28 +2810,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_sub__2_5\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_sub__2_5\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "subtract_scalar_col": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"_3_sub_num\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"_3_sub_num\"=(3)-\"num\"WHERE1",
-    []
-   ],
    [
     "exec",
     "SELECT\"_3_sub_num\"FROM\"s\".\"t\"LIMIT1",
@@ -5184,28 +2829,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"_3_sub_num\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"_3_sub_num\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"_3_sub_num\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"_3_sub_num\"=(3)-\"num\"",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"_3_sub_num\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -5216,28 +2846,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"_3_sub_num\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"_3_sub_num\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"_3_sub_num\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"_3_sub_num\"=(3)-\"num\"",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"_3_sub_num\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -5248,28 +2863,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"_3_sub_num\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"_3_sub_num\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "tan": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_tan\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"num_tan\"=tan(\"num\")WHERE1",
-    []
-   ],
    [
     "exec",
     "SELECT\"num_tan\"FROM\"s\".\"t\"LIMIT1",
@@ -5282,28 +2882,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_tan\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_tan\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_tan\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_tan\"=TAN(\"num\")",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"num_tan\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -5314,28 +2899,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_tan\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_tan\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_tan\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_tan\"=TAN(\"num\")",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"num_tan\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -5346,28 +2916,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_tan\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_tan\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "tan_textcast": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"txt_tan\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"txt_tan\"=tan(toFloat64OrNull(TRIM(\"txt\")))WHERE1",
-    []
-   ],
    [
     "exec",
     "SELECT\"txt_tan\"FROM\"s\".\"t\"LIMIT1",
@@ -5380,26 +2935,11 @@
    ],
    [
     "fetch",
-    "SELECT\"txt\",\"txt_tan\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"txt\",\"txt_tan\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"txt_tan\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_tan\"=TAN(TRY_CAST(\"txt\"ASDOUBLE))",
-    []
-   ],
    [
     "exec",
     "SELECT\"txt_tan\"FROM\"s\".\"t\"LIMIT1",
@@ -5412,26 +2952,11 @@
    ],
    [
     "fetch",
-    "SELECT\"txt\",\"txt_tan\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"txt\",\"txt_tan\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"txt_tan\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_tan\"=TAN(CAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION))",
-    []
-   ],
    [
     "exec",
     "SELECT\"txt_tan\"FROM\"s\".\"t\"LIMIT1",
@@ -5444,28 +2969,13 @@
    ],
    [
     "fetch",
-    "SELECT\"txt\",\"txt_tan\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"txt\",\"txt_tan\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "truncate": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_trunc2\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"num_trunc2\"=truncate(\"num\",2)WHERE1",
-    []
-   ],
    [
     "exec",
     "SELECT\"num_trunc2\"FROM\"s\".\"t\"LIMIT1",
@@ -5478,26 +2988,11 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_trunc2\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_trunc2\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_trunc2\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_trunc2\"=TRUNC(\"num\",2)",
-    []
-   ],
    [
     "exec",
     "SELECT\"num_trunc2\"FROM\"s\".\"t\"LIMIT1",
@@ -5510,26 +3005,11 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_trunc2\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_trunc2\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_trunc2\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_trunc2\"=TRUNC(CAST(\"num\"ASNUMERIC),2)",
-    []
-   ],
    [
     "exec",
     "SELECT\"num_trunc2\"FROM\"s\".\"t\"LIMIT1",
@@ -5542,28 +3022,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_trunc2\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_trunc2\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "truncate_textcast": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"txt_trunc2\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"txt_trunc2\"=truncate(toFloat64OrNull(TRIM(\"txt\")),2)WHERE1",
-    []
-   ],
    [
     "exec",
     "SELECT\"txt_trunc2\"FROM\"s\".\"t\"LIMIT1",
@@ -5576,26 +3041,11 @@
    ],
    [
     "fetch",
-    "SELECT\"txt\",\"txt_trunc2\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"txt\",\"txt_trunc2\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"txt_trunc2\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_trunc2\"=TRUNC(TRY_CAST(\"txt\"ASDOUBLE),2)",
-    []
-   ],
    [
     "exec",
     "SELECT\"txt_trunc2\"FROM\"s\".\"t\"LIMIT1",
@@ -5608,26 +3058,11 @@
    ],
    [
     "fetch",
-    "SELECT\"txt\",\"txt_trunc2\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"txt\",\"txt_trunc2\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"txt_trunc2\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"txt_trunc2\"=TRUNC(CAST(CAST(CASEWHENTRIM((\"txt\")::TEXT)~'^[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)([eE][+-]?[0-9]+)?$'THENTRIM((\"txt\")::TEXT)ENDASDOUBLEPRECISION)ASNUMERIC),2)",
-    []
-   ],
    [
     "exec",
     "SELECT\"txt_trunc2\"FROM\"s\".\"t\"LIMIT1",
@@ -5640,28 +3075,13 @@
    ],
    [
     "fetch",
-    "SELECT\"txt\",\"txt_trunc2\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"txt\",\"txt_trunc2\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "weighted_average_col_col": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_wavg_n2\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"num_wavg_n2\"=((\"num\"*1)+(\"n2\"*1))/NULLIF((1+1),0)WHERE1",
-    []
-   ],
    [
     "exec",
     "SELECT\"num_wavg_n2\"FROM\"s\".\"t\"LIMIT1",
@@ -5674,28 +3094,13 @@
    ],
    [
     "fetch",
-    "SELECT\"n2\",\"num\",\"num_wavg_n2\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"n2\",\"num\",\"num_wavg_n2\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_wavg_n2\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_wavg_n2\"=((\"num\"*1)+(\"n2\"*1))/NULLIF((1+1),0)",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"num_wavg_n2\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -5706,28 +3111,13 @@
    ],
    [
     "fetch",
-    "SELECT\"n2\",\"num\",\"num_wavg_n2\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"n2\",\"num\",\"num_wavg_n2\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_wavg_n2\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_wavg_n2\"=((\"num\"*1)+(\"n2\"*1))/NULLIF((1+1),0)",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"num_wavg_n2\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -5738,28 +3128,13 @@
    ],
    [
     "fetch",
-    "SELECT\"n2\",\"num\",\"num_wavg_n2\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"n2\",\"num\",\"num_wavg_n2\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "weighted_average_col_scalar": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_wavg__2.5\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"num_wavg__2.5\"=((\"num\"*1)+(2.5*1))/NULLIF((1+1),0)WHERE1",
-    []
-   ],
    [
     "exec",
     "SELECT\"num_wavg__2.5\"FROM\"s\".\"t\"LIMIT1",
@@ -5772,28 +3147,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_wavg__2_5\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_wavg__2_5\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_wavg__2.5\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_wavg__2.5\"=((\"num\"*1)+(2.5*1))/NULLIF((1+1),0)",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"num_wavg__2.5\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -5804,28 +3164,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_wavg__2_5\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_wavg__2_5\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"num_wavg__2.5\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"num_wavg__2.5\"=((\"num\"*1)+(2.5*1))/NULLIF((1+1),0)",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"num_wavg__2.5\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -5836,28 +3181,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"num_wavg__2_5\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"num_wavg__2_5\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "weighted_average_scalar_col": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"_3_wavg_num\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"_3_wavg_num\"=((3*1)+(\"num\"*1))/NULLIF((1+1),0)WHERE1",
-    []
-   ],
    [
     "exec",
     "SELECT\"_3_wavg_num\"FROM\"s\".\"t\"LIMIT1",
@@ -5870,28 +3200,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"_3_wavg_num\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"_3_wavg_num\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"_3_wavg_num\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"_3_wavg_num\"=((3*1)+(\"num\"*1))/NULLIF((1+1),0)",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"_3_wavg_num\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -5902,28 +3217,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"_3_wavg_num\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"_3_wavg_num\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "SELECT\"_3_wavg_num\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"_3_wavg_num\"=((3*1)+(\"num\"*1))/NULLIF((1+1),0)",
-    []
-   ],
-   [
-    "exec",
     "SELECT\"_3_wavg_num\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
@@ -5934,7 +3234,7 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"_3_wavg_num\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"_3_wavg_num\"FROM\"s\".\"t\"",
     []
    ]
   ]

@@ -80,21 +80,6 @@
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_cat_compressed_5_other\"VARCHAR",
-    []
-   ],
-   [
-    "exec",
-    "WITHfreqAS(SELECT\"cat\",COUNT(*)AScntFROM\"s\".\"t__op_20240101000000000000\"WHERE\"cat\"ISNOTNULLGROUPBY\"cat\")UPDATE\"s\".\"t__op_20240101000000000000\"AStgtSET\"cleaned_cat_compressed_5_other\"=CASEWHENfreq.cnt<5THEN'other'ELSEtgt.\"cat\"ENDFROMfreqWHEREtgt.\"cat\"=freq.\"cat\"",
-    []
-   ],
-   [
-    "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_cat_compressed_5_other\"VARCHAR",
     []
    ],
@@ -105,33 +90,18 @@
    ],
    [
     "fetch",
-    "SELECTDISTINCT\"cat\"FROM\"s\".\"t__op_20240101000000000000\"WHERE\"cat\"ISNOTNULLGROUPBY\"cat\"HAVINGCOUNT(*)<5",
+    "SELECTDISTINCT\"cat\"FROM\"s\".\"t\"WHERE\"cat\"ISNOTNULLGROUPBY\"cat\"HAVINGCOUNT(*)<5",
     []
    ],
    [
     "fetch",
-    "SELECT\"cat\",\"cleaned_cat_compressed_5_other\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"cat\",\"cleaned_cat_compressed_5_other\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_cat_compressed_5_other\"VARCHAR",
-    []
-   ],
-   [
-    "exec",
-    "WITHfreqAS(SELECT\"cat\",COUNT(*)AScntFROM\"s\".\"t__op_20240101000000000000\"WHERE\"cat\"ISNOTNULLGROUPBY\"cat\")UPDATE\"s\".\"t__op_20240101000000000000\"AStgtSET\"cleaned_cat_compressed_5_other\"=CASEWHENfreq.cnt<5THEN'other'ELSEtgt.\"cat\"ENDFROMfreqWHEREtgt.\"cat\"=freq.\"cat\"",
-    []
-   ],
-   [
-    "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_cat_compressed_5_other\"VARCHAR",
     []
    ],
@@ -142,12 +112,12 @@
    ],
    [
     "fetch",
-    "SELECTDISTINCT\"cat\"FROM\"s\".\"t__op_20240101000000000000\"WHERE\"cat\"ISNOTNULLGROUPBY\"cat\"HAVINGCOUNT(*)<5",
+    "SELECTDISTINCT\"cat\"FROM\"s\".\"t\"WHERE\"cat\"ISNOTNULLGROUPBY\"cat\"HAVINGCOUNT(*)<5",
     []
    ],
    [
     "fetch",
-    "SELECT\"cat\",\"cleaned_cat_compressed_5_other\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"cat\",\"cleaned_cat_compressed_5_other\"FROM\"s\".\"t\"",
     []
    ]
   ]
@@ -193,21 +163,6 @@
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"cat\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_cat_constant_filled\"VARCHAR",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"cleaned_cat_constant_filled\"=COALESCE(\"cat\",'x')",
-    []
-   ],
-   [
-    "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_cat_constant_filled\"VARCHAR",
     []
    ],
@@ -218,33 +173,18 @@
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"cat\"ISNULL",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"cat\"ISNULL",
     []
    ],
    [
     "fetch",
-    "SELECT\"cat\",\"cleaned_cat_constant_filled\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"cat\",\"cleaned_cat_constant_filled\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"cat\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_cat_constant_filled\"VARCHAR",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"cleaned_cat_constant_filled\"=COALESCE(\"cat\",'x')",
-    []
-   ],
-   [
-    "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_cat_constant_filled\"VARCHAR",
     []
    ],
@@ -255,12 +195,12 @@
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"cat\"ISNULL",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"cat\"ISNULL",
     []
    ],
    [
     "fetch",
-    "SELECT\"cat\",\"cleaned_cat_constant_filled\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"cat\",\"cleaned_cat_constant_filled\"FROM\"s\".\"t\"",
     []
    ]
   ]
@@ -281,21 +221,6 @@
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"cat\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_cat_ffill_filled\"VARCHAR",
-    []
-   ],
-   [
-    "exec",
-    "WITHbaseAS(SELECT*,ROW_NUMBER()OVER()AS__idx,rowidAS__ridFROM\"s\".\"t__op_20240101000000000000\"),filledAS(SELECT*,LAST_VALUE(\"cat\"IGNORENULLS)OVER(ORDERBY__idxROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASfilled_valFROMbase)UPDATE\"s\".\"t__op_20240101000000000000\"tSET\"cleaned_cat_ffill_filled\"=COALESCE(t.\"cat\",f.filled_val)FROMfilledfWHEREt.rowid=f.__rid",
-    []
-   ],
-   [
-    "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_cat_ffill_filled\"VARCHAR",
     []
    ],
@@ -306,31 +231,16 @@
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"cat\"ISNULL",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"cat\"ISNULL",
     []
    ],
    [
     "fetch",
-    "SELECT\"cat\",\"cleaned_cat_ffill_filled\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"cat\",\"cleaned_cat_ffill_filled\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"cat\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_cat_ffill_filled\"VARCHAR",
-    []
-   ],
-   [
-    "exec",
-    "WITHbaseAS(SELECT*,ROW_NUMBER()OVER()AS__idx,ctidAS__ridFROM\"s\".\"t__op_20240101000000000000\"),filledAS(SELECT*,MAX(\"cat\")OVER(ORDERBY__idxROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASfilled_valFROMbase)UPDATE\"s\".\"t__op_20240101000000000000\"tSET\"cleaned_cat_ffill_filled\"=COALESCE(t.\"cat\",f.filled_val)FROMfilledfWHEREt.ctid=f.__rid",
-    []
-   ],
    [
     "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_cat_ffill_filled\"VARCHAR",
@@ -343,12 +253,12 @@
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"cat\"ISNULL",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"cat\"ISNULL",
     []
    ],
    [
     "fetch",
-    "SELECT\"cat\",\"cleaned_cat_ffill_filled\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"cat\",\"cleaned_cat_ffill_filled\"FROM\"s\".\"t\"",
     []
    ]
   ]
@@ -635,21 +545,6 @@
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"cat\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_cat_mapped\"VARCHAR",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"cleaned_cat_mapped\"=COALESCE(CASEWHEN\"cat\"='a'THEN'b'ELSE\"cat\"END,\"cat\")",
-    []
-   ],
-   [
-    "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_cat_mapped\"VARCHAR",
     []
    ],
@@ -660,33 +555,18 @@
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"cat\"ISNULL",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"cat\"ISNULL",
     []
    ],
    [
     "fetch",
-    "SELECT\"cat\",\"cleaned_cat_mapped\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"cat\",\"cleaned_cat_mapped\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"cat\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_cat_mapped\"VARCHAR",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"cleaned_cat_mapped\"=COALESCE(CASEWHEN\"cat\"='a'THEN'b'ELSE\"cat\"END,\"cat\")",
-    []
-   ],
-   [
-    "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_cat_mapped\"VARCHAR",
     []
    ],
@@ -697,12 +577,12 @@
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"cat\"ISNULL",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"cat\"ISNULL",
     []
    ],
    [
     "fetch",
-    "SELECT\"cat\",\"cleaned_cat_mapped\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"cat\",\"cleaned_cat_mapped\"FROM\"s\".\"t\"",
     []
    ]
   ]
@@ -758,26 +638,6 @@
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"cat\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_cat_mode_filled\"VARCHAR",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"cleaned_cat_mode_filled\"=COALESCE(\"cat\",(SELECT\"cat\"FROM\"s\".\"t__op_20240101000000000000\"WHERE\"cat\"ISNOTNULLGROUPBY\"cat\"ORDERBYCOUNT(*)DESCLIMIT1))",
-    []
-   ],
-   [
-    "fetchval",
-    "SELECT\"cat\"ASmode_valueFROM\"s\".\"t__op_20240101000000000000\"WHERE\"cat\"ISNOTNULLGROUPBY\"cat\"ORDERBYCOUNT(*)DESCLIMIT1",
-    []
-   ],
-   [
-    "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_cat_mode_filled\"VARCHAR",
     []
    ],
@@ -793,38 +653,18 @@
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"cat\"ISNULL",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"cat\"ISNULL",
     []
    ],
    [
     "fetch",
-    "SELECT\"cat\",\"cleaned_cat_mode_filled\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"cat\",\"cleaned_cat_mode_filled\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"cat\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_cat_mode_filled\"VARCHAR",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"cleaned_cat_mode_filled\"=COALESCE(\"cat\",(SELECT\"cat\"FROM\"s\".\"t__op_20240101000000000000\"WHERE\"cat\"ISNOTNULLGROUPBY\"cat\"ORDERBYCOUNT(*)DESCLIMIT1))",
-    []
-   ],
-   [
-    "fetchval",
-    "SELECT\"cat\"ASmode_valueFROM\"s\".\"t__op_20240101000000000000\"WHERE\"cat\"ISNOTNULLGROUPBY\"cat\"ORDERBYCOUNT(*)DESCLIMIT1",
-    []
-   ],
-   [
-    "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_cat_mode_filled\"VARCHAR",
     []
    ],
@@ -840,33 +680,18 @@
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"cat\"ISNULL",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"cat\"ISNULL",
     []
    ],
    [
     "fetch",
-    "SELECT\"cat\",\"cleaned_cat_mode_filled\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"cat\",\"cleaned_cat_mode_filled\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "categorical_filter_invalid": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_cat_valid_values_a_b\"VARCHAR",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"cleaned_cat_valid_values_a_b\"=CASEWHEN\"cat\"IN('a','b')THEN\"cat\"ELSENULLENDWHERE1",
-    []
-   ],
    [
     "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_cat_valid_values_a_b\"VARCHAR",
@@ -879,33 +704,18 @@
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"cat\"ISNOTNULLAND\"cat\"NOTIN('a','b')",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"cat\"ISNOTNULLAND\"cat\"NOTIN('a','b')",
     []
    ],
    [
     "fetch",
-    "SELECT\"cat\",\"cleaned_cat_valid_values_a_b\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"cat\",\"cleaned_cat_valid_values_a_b\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_cat_valid_values_a_b\"VARCHAR",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"cleaned_cat_valid_values_a_b\"=CASEWHEN\"cat\"IN('a','b')THEN\"cat\"ELSENULLEND",
-    []
-   ],
-   [
-    "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_cat_valid_values_a_b\"VARCHAR",
     []
    ],
@@ -916,33 +726,18 @@
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"cat\"ISNOTNULLAND\"cat\"NOTIN('a','b')",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"cat\"ISNOTNULLAND\"cat\"NOTIN('a','b')",
     []
    ],
    [
     "fetch",
-    "SELECT\"cat\",\"cleaned_cat_valid_values_a_b\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"cat\",\"cleaned_cat_valid_values_a_b\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_cat_valid_values_a_b\"VARCHAR",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"cleaned_cat_valid_values_a_b\"=CASEWHEN\"cat\"IN('a','b')THEN\"cat\"ELSENULLEND",
-    []
-   ],
-   [
-    "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_cat_valid_values_a_b\"VARCHAR",
     []
    ],
@@ -953,33 +748,18 @@
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"cat\"ISNOTNULLAND\"cat\"NOTIN('a','b')",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"cat\"ISNOTNULLAND\"cat\"NOTIN('a','b')",
     []
    ],
    [
     "fetch",
-    "SELECT\"cat\",\"cleaned_cat_valid_values_a_b\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"cat\",\"cleaned_cat_valid_values_a_b\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "categorical_map_values": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_cat_mapped_a\"VARCHAR",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"cleaned_cat_mapped_a\"=CASEWHEN\"cat\"='a'THEN'b'ELSE\"cat\"ENDWHERE1",
-    []
-   ],
    [
     "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_cat_mapped_a\"VARCHAR",
@@ -992,28 +772,13 @@
    ],
    [
     "fetch",
-    "SELECT\"cat\",\"cleaned_cat_mapped_a\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"cat\",\"cleaned_cat_mapped_a\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_cat_mapped_a\"VARCHAR",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"cleaned_cat_mapped_a\"=CASEWHEN\"cat\"='a'THEN'b'ELSE\"cat\"END",
-    []
-   ],
-   [
-    "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_cat_mapped_a\"VARCHAR",
     []
    ],
@@ -1024,28 +789,13 @@
    ],
    [
     "fetch",
-    "SELECT\"cat\",\"cleaned_cat_mapped_a\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"cat\",\"cleaned_cat_mapped_a\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_cat_mapped_a\"VARCHAR",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"cleaned_cat_mapped_a\"=CASEWHEN\"cat\"='a'THEN'b'ELSE\"cat\"END",
-    []
-   ],
-   [
-    "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_cat_mapped_a\"VARCHAR",
     []
    ],
@@ -1056,7 +806,7 @@
    ],
    [
     "fetch",
-    "SELECT\"cat\",\"cleaned_cat_mapped_a\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"cat\",\"cleaned_cat_mapped_a\"FROM\"s\".\"t\"",
     []
    ]
   ]
@@ -1221,21 +971,6 @@
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"ts\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_ts_constant_filled\"TIMESTAMP",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"cleaned_ts_constant_filled\"=COALESCE(\"ts\",CAST('2024-01-01'ASTIMESTAMP))",
-    []
-   ],
-   [
-    "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_ts_constant_filled\"TIMESTAMP",
     []
    ],
@@ -1246,12 +981,12 @@
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"ts\"ISNULL",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"ts\"ISNULL",
     []
    ],
    [
     "fetch",
-    "SELECT\"ts\",\"cleaned_ts_constant_filled\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"ts\",\"cleaned_ts_constant_filled\"FROM\"s\".\"t\"",
     []
    ]
   ],
@@ -1313,21 +1048,6 @@
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"ts\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_ts_ffill_filled\"TIMESTAMP",
-    []
-   ],
-   [
-    "exec",
-    "WITHbaseAS(SELECT*,ROW_NUMBER()OVER()AS__idx,rowidAS__ridFROM\"s\".\"t__op_20240101000000000000\"),filledAS(SELECT*,LAST_VALUE(\"ts\"IGNORENULLS)OVER(ORDERBY__idxROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASfilled_valFROMbase)UPDATE\"s\".\"t__op_20240101000000000000\"tSET\"cleaned_ts_ffill_filled\"=COALESCE(t.\"ts\",f.filled_val)FROMfilledfWHEREt.rowid=f.__rid",
-    []
-   ],
-   [
-    "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_ts_ffill_filled\"TIMESTAMP",
     []
    ],
@@ -1338,12 +1058,12 @@
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"ts\"ISNULL",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"ts\"ISNULL",
     []
    ],
    [
     "fetch",
-    "SELECT\"ts\",\"cleaned_ts_ffill_filled\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"ts\",\"cleaned_ts_ffill_filled\"FROM\"s\".\"t\"",
     []
    ]
   ],
@@ -1802,26 +1522,6 @@
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"ts\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_ts_mean_filled\"TIMESTAMP",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"cleaned_ts_mean_filled\"=COALESCE(\"ts\",(TO_TIMESTAMP(AVG(EPOCH(\"ts\")))))",
-    []
-   ],
-   [
-    "fetchval",
-    "SELECTTO_TIMESTAMP(AVG(EPOCH(\"ts\")))FROM\"s\".\"t__op_20240101000000000000\"WHERE\"ts\"ISNOTNULL",
-    []
-   ],
-   [
-    "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_ts_mean_filled\"TIMESTAMP",
     []
    ],
@@ -1837,12 +1537,12 @@
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"ts\"ISNULL",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"ts\"ISNULL",
     []
    ],
    [
     "fetch",
-    "SELECT\"ts\",\"cleaned_ts_mean_filled\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"ts\",\"cleaned_ts_mean_filled\"FROM\"s\".\"t\"",
     []
    ]
   ],
@@ -1935,21 +1635,6 @@
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"ts\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_ts_now_filled\"TIMESTAMP",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"cleaned_ts_now_filled\"=COALESCE(\"ts\",CURRENT_TIMESTAMP)",
-    []
-   ],
-   [
-    "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_ts_now_filled\"TIMESTAMP",
     []
    ],
@@ -1960,12 +1645,12 @@
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"ts\"ISNULL",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"ts\"ISNULL",
     []
    ],
    [
     "fetch",
-    "SELECT\"ts\",\"cleaned_ts_now_filled\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"ts\",\"cleaned_ts_now_filled\"FROM\"s\".\"t\"",
     []
    ]
   ],
@@ -2011,21 +1696,6 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_ts_fixed\"DATE",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"cleaned_ts_fixed\"=CASEWHENtoString(\"ts\")='0000-00-00'THENNULLELSE\"ts\"ENDWHERE1",
-    []
-   ],
-   [
-    "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_ts_fixed\"DATE",
     []
    ],
@@ -2036,31 +1706,16 @@
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHEREtoString(\"ts\")='0000-00-00'",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHEREtoString(\"ts\")='0000-00-00'",
     []
    ],
    [
     "fetch",
-    "SELECT\"ts\",\"cleaned_ts_fixed\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"ts\",\"cleaned_ts_fixed\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_ts_fixed\"DATE",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"cleaned_ts_fixed\"=CASEWHENCAST(\"ts\"ASVARCHAR)='0000-00-00'THENNULLELSE\"ts\"END",
-    []
-   ],
    [
     "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_ts_fixed\"DATE",
@@ -2073,31 +1728,16 @@
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERECAST(\"ts\"ASVARCHAR)='0000-00-00'",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERECAST(\"ts\"ASVARCHAR)='0000-00-00'",
     []
    ],
    [
     "fetch",
-    "SELECT\"ts\",\"cleaned_ts_fixed\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"ts\",\"cleaned_ts_fixed\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_ts_fixed\"DATE",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"cleaned_ts_fixed\"=CASEWHEN\"ts\"::TEXT='0000-00-00'THENNULLELSE\"ts\"END",
-    []
-   ],
    [
     "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_ts_fixed\"DATE",
@@ -2110,12 +1750,12 @@
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"ts\"::TEXT='0000-00-00'",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"ts\"::TEXT='0000-00-00'",
     []
    ],
    [
     "fetch",
-    "SELECT\"ts\",\"cleaned_ts_fixed\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"ts\",\"cleaned_ts_fixed\"FROM\"s\".\"t\"",
     []
    ]
   ]
@@ -2161,21 +1801,6 @@
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_ts_range_filtered\"DATE",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"cleaned_ts_range_filtered\"=CASEWHEN\"ts\"<'2020-01-01'::DATETHENNULLWHEN\"ts\">'2030-01-01'::DATETHENNULLELSE\"ts\"END",
-    []
-   ],
-   [
-    "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_ts_range_filtered\"DATE",
     []
    ],
@@ -2186,33 +1811,18 @@
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"ts\"<'2020-01-01'::DATEOR\"ts\">'2030-01-01'::DATE",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"ts\"<'2020-01-01'::DATEOR\"ts\">'2030-01-01'::DATE",
     []
    ],
    [
     "fetch",
-    "SELECT\"ts\",\"cleaned_ts_range_filtered\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"ts\",\"cleaned_ts_range_filtered\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_ts_range_filtered\"DATE",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"cleaned_ts_range_filtered\"=CASEWHEN\"ts\"<'2020-01-01'::DATETHENNULLWHEN\"ts\">'2030-01-01'::DATETHENNULLELSE\"ts\"END",
-    []
-   ],
-   [
-    "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_ts_range_filtered\"DATE",
     []
    ],
@@ -2223,12 +1833,12 @@
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"ts\"<'2020-01-01'::DATEOR\"ts\">'2030-01-01'::DATE",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"ts\"<'2020-01-01'::DATEOR\"ts\">'2030-01-01'::DATE",
     []
    ],
    [
     "fetch",
-    "SELECT\"ts\",\"cleaned_ts_range_filtered\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"ts\",\"cleaned_ts_range_filtered\"FROM\"s\".\"t\"",
     []
    ]
   ]
@@ -2298,65 +1908,25 @@
   ],
   "duckdb": [
    [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "fetch",
-    "SELECTNULLIF(REGEXP_REPLACE(CAST(\"num\"ASVARCHAR),'[^0-9.+-]','','g'),'')ASvFROM\"s\".\"t__op_20240101000000000000\"WHERENULLIF(REGEXP_REPLACE(CAST(\"num\"ASVARCHAR),'[^0-9.+-]','','g'),'')ISNOTNULLLIMIT5000",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ALTERCOLUMN\"num\"TYPENUMERICUSING(CASEWHENREGEXP_MATCHES(NULLIF(REGEXP_REPLACE(CAST(\"num\"ASVARCHAR),'[^0-9.+-]','','g'),''),'^[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)$')THENCAST(NULLIF(REGEXP_REPLACE(CAST(\"num\"ASVARCHAR),'[^0-9.+-]','','g'),'')ASNUMERIC)ELSENULLEND)",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t\"ALTERCOLUMN\"num\"TYPENUMERICUSING(CASEWHENREGEXP_MATCHES(NULLIF(REGEXP_REPLACE(CAST(\"num\"ASVARCHAR),'[^0-9.+-]','','g'),''),'^[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)$')THENCAST(NULLIF(REGEXP_REPLACE(CAST(\"num\"ASVARCHAR),'[^0-9.+-]','','g'),'')ASNUMERIC)ELSENULLEND)",
-    []
-   ],
-   [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"num\"ISNOTNULL",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "fetch",
-    "SELECTNULLIF(REGEXP_REPLACE(\"num\"::TEXT,'[^0-9.+-]','','g'),'')ASvFROM\"s\".\"t__op_20240101000000000000\"WHERENULLIF(REGEXP_REPLACE(\"num\"::TEXT,'[^0-9.+-]','','g'),'')ISNOTNULLLIMIT5000",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ALTERCOLUMN\"num\"TYPENUMERICUSING(CASEWHENNULLIF(REGEXP_REPLACE(\"num\"::TEXT,'[^0-9.+-]','','g'),'')~'^[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)$'THENCAST(NULLIF(REGEXP_REPLACE(\"num\"::TEXT,'[^0-9.+-]','','g'),'')ASNUMERIC)ELSENULLEND)",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t\"ALTERCOLUMN\"num\"TYPENUMERICUSING(CASEWHENNULLIF(REGEXP_REPLACE(\"num\"::TEXT,'[^0-9.+-]','','g'),'')~'^[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)$'THENCAST(NULLIF(REGEXP_REPLACE(\"num\"::TEXT,'[^0-9.+-]','','g'),'')ASNUMERIC)ELSENULLEND)",
-    []
-   ],
-   [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"num\"ISNOTNULL",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\"FROM\"s\".\"t\"",
     []
    ]
   ]
@@ -2402,21 +1972,6 @@
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_num_zscore_filtered_2_5\"INTEGER",
-    []
-   ],
-   [
-    "exec",
-    "WITHstatsAS(SELECTAVG(\"num\")ASmean,STDDEV_POP(\"num\")ASsdFROM\"s\".\"t__op_20240101000000000000\"WHERE\"num\"ISNOTNULL)UPDATE\"s\".\"t__op_20240101000000000000\"SET\"cleaned_num_zscore_filtered_2_5\"=CASEWHENABS((\"num\"-stats.mean)/NULLIF(stats.sd,0))>2.5THENNULLELSE\"num\"ENDFROMstats",
-    []
-   ],
-   [
-    "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_num_zscore_filtered_2_5\"INTEGER",
     []
    ],
@@ -2427,33 +1982,18 @@
    ],
    [
     "fetchval",
-    "WITHstatsAS(SELECTAVG(\"num\")ASmean,STDDEV_POP(\"num\")ASsdFROM\"s\".\"t__op_20240101000000000000\"WHERE\"num\"ISNOTNULL)SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\",statsWHERE\"num\"ISNOTNULLANDABS((\"num\"-stats.mean)/NULLIF(stats.sd,0))>2.5",
+    "WITHstatsAS(SELECTAVG(\"num\")ASmean,STDDEV_POP(\"num\")ASsdFROM\"s\".\"t\"WHERE\"num\"ISNOTNULL)SELECTCOUNT(*)FROM\"s\".\"t\",statsWHERE\"num\"ISNOTNULLANDABS((\"num\"-stats.mean)/NULLIF(stats.sd,0))>2.5",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"cleaned_num_zscore_filtered_2_5\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"cleaned_num_zscore_filtered_2_5\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_num_zscore_filtered_2_5\"INTEGER",
-    []
-   ],
-   [
-    "exec",
-    "WITHstatsAS(SELECTAVG(\"num\")ASmean,STDDEV_POP(\"num\")ASsdFROM\"s\".\"t__op_20240101000000000000\"WHERE\"num\"ISNOTNULL)UPDATE\"s\".\"t__op_20240101000000000000\"SET\"cleaned_num_zscore_filtered_2_5\"=CASEWHENABS((\"num\"-stats.mean)/NULLIF(stats.sd,0))>2.5THENNULLELSE\"num\"ENDFROMstats",
-    []
-   ],
-   [
-    "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_num_zscore_filtered_2_5\"INTEGER",
     []
    ],
@@ -2464,33 +2004,18 @@
    ],
    [
     "fetchval",
-    "WITHstatsAS(SELECTAVG(\"num\")ASmean,STDDEV_POP(\"num\")ASsdFROM\"s\".\"t__op_20240101000000000000\"WHERE\"num\"ISNOTNULL)SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\",statsWHERE\"num\"ISNOTNULLANDABS((\"num\"-stats.mean)/NULLIF(stats.sd,0))>2.5",
+    "WITHstatsAS(SELECTAVG(\"num\")ASmean,STDDEV_POP(\"num\")ASsdFROM\"s\".\"t\"WHERE\"num\"ISNOTNULL)SELECTCOUNT(*)FROM\"s\".\"t\",statsWHERE\"num\"ISNOTNULLANDABS((\"num\"-stats.mean)/NULLIF(stats.sd,0))>2.5",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"cleaned_num_zscore_filtered_2_5\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"cleaned_num_zscore_filtered_2_5\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "numeric_enforce_range": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_num_range_2_8\"INTEGER",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"cleaned_num_range_2_8\"=CASEWHEN\"num\"<2THENNULLWHEN\"num\">8THENNULLELSE\"num\"ENDWHERE1",
-    []
-   ],
    [
     "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_num_range_2_8\"INTEGER",
@@ -2503,33 +2028,18 @@
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"num\"<2OR\"num\">8",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"num\"<2OR\"num\">8",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"cleaned_num_range_2_8\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"cleaned_num_range_2_8\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_num_range_2_8\"INTEGER",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"cleaned_num_range_2_8\"=CASEWHEN\"num\"<2THENNULLWHEN\"num\">8THENNULLELSE\"num\"END",
-    []
-   ],
-   [
-    "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_num_range_2_8\"INTEGER",
     []
    ],
@@ -2540,33 +2050,18 @@
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"num\"<2OR\"num\">8",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"num\"<2OR\"num\">8",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"cleaned_num_range_2_8\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"cleaned_num_range_2_8\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_num_range_2_8\"INTEGER",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"cleaned_num_range_2_8\"=CASEWHEN\"num\"<2THENNULLWHEN\"num\">8THENNULLELSE\"num\"END",
-    []
-   ],
-   [
-    "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_num_range_2_8\"INTEGER",
     []
    ],
@@ -2577,12 +2072,12 @@
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"num\"<2OR\"num\">8",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"num\"<2OR\"num\">8",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"cleaned_num_range_2_8\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"cleaned_num_range_2_8\"FROM\"s\".\"t\"",
     []
    ]
   ]
@@ -2628,21 +2123,6 @@
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"num\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_num_constant_filled_5\"INTEGER",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"cleaned_num_constant_filled_5\"=COALESCE(\"num\",5)",
-    []
-   ],
-   [
-    "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_num_constant_filled_5\"INTEGER",
     []
    ],
@@ -2653,33 +2133,18 @@
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"num\"ISNULL",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"num\"ISNULL",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"cleaned_num_constant_filled_5\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"cleaned_num_constant_filled_5\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"num\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_num_constant_filled_5\"INTEGER",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"cleaned_num_constant_filled_5\"=COALESCE(\"num\",5)",
-    []
-   ],
-   [
-    "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_num_constant_filled_5\"INTEGER",
     []
    ],
@@ -2690,12 +2155,12 @@
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"num\"ISNULL",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"num\"ISNULL",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"cleaned_num_constant_filled_5\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"cleaned_num_constant_filled_5\"FROM\"s\".\"t\"",
     []
    ]
   ]
@@ -2716,21 +2181,6 @@
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"num\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_num_ffill_filled\"INTEGER",
-    []
-   ],
-   [
-    "exec",
-    "WITHbaseAS(SELECT*,ROW_NUMBER()OVER()AS__idx,rowidAS__ridFROM\"s\".\"t__op_20240101000000000000\"),filledAS(SELECT*,LAST_VALUE(\"num\"IGNORENULLS)OVER(ORDERBY__idxROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASfilled_valFROMbase)UPDATE\"s\".\"t__op_20240101000000000000\"tSET\"cleaned_num_ffill_filled\"=COALESCE(t.\"num\",f.filled_val)FROMfilledfWHEREt.rowid=f.__rid",
-    []
-   ],
-   [
-    "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_num_ffill_filled\"INTEGER",
     []
    ],
@@ -2741,31 +2191,16 @@
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"num\"ISNULL",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"num\"ISNULL",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"cleaned_num_ffill_filled\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"cleaned_num_ffill_filled\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"num\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_num_ffill_filled\"INTEGER",
-    []
-   ],
-   [
-    "exec",
-    "WITHbaseAS(SELECT*,ROW_NUMBER()OVER()AS__idx,ctidAS__ridFROM\"s\".\"t__op_20240101000000000000\"),filledAS(SELECT*,MAX(\"num\")OVER(ORDERBY__idxROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASfilled_valFROMbase)UPDATE\"s\".\"t__op_20240101000000000000\"tSET\"cleaned_num_ffill_filled\"=COALESCE(t.\"num\",f.filled_val)FROMfilledfWHEREt.ctid=f.__rid",
-    []
-   ],
    [
     "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_num_ffill_filled\"INTEGER",
@@ -2778,12 +2213,12 @@
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"num\"ISNULL",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"num\"ISNULL",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"cleaned_num_ffill_filled\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"cleaned_num_ffill_filled\"FROM\"s\".\"t\"",
     []
    ]
   ]
@@ -3193,26 +2628,6 @@
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"num\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_num_mean_filled\"INTEGER",
-    []
-   ],
-   [
-    "exec",
-    "WITHstat_valAS(SELECTCOALESCE(AVG(\"num\"),0)ASvalFROM\"s\".\"t__op_20240101000000000000\"WHERE\"num\"ISNOTNULL)UPDATE\"s\".\"t__op_20240101000000000000\"SET\"cleaned_num_mean_filled\"=COALESCE(\"num\",(SELECTvalFROMstat_val))",
-    []
-   ],
-   [
-    "fetchval",
-    "SELECTAVG(\"num\")FROM\"s\".\"t__op_20240101000000000000\"WHERE\"num\"ISNOTNULL",
-    []
-   ],
-   [
-    "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_num_mean_filled\"INTEGER",
     []
    ],
@@ -3228,38 +2643,18 @@
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"num\"ISNULL",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"num\"ISNULL",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"cleaned_num_mean_filled\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"cleaned_num_mean_filled\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"num\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_num_mean_filled\"INTEGER",
-    []
-   ],
-   [
-    "exec",
-    "WITHstat_valAS(SELECTCOALESCE(AVG(\"num\"),0)ASvalFROM\"s\".\"t__op_20240101000000000000\"WHERE\"num\"ISNOTNULL)UPDATE\"s\".\"t__op_20240101000000000000\"SET\"cleaned_num_mean_filled\"=COALESCE(\"num\",(SELECTvalFROMstat_val))",
-    []
-   ],
-   [
-    "fetchval",
-    "SELECTAVG(\"num\")FROM\"s\".\"t__op_20240101000000000000\"WHERE\"num\"ISNOTNULL",
-    []
-   ],
-   [
-    "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_num_mean_filled\"INTEGER",
     []
    ],
@@ -3275,12 +2670,12 @@
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"num\"ISNULL",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"num\"ISNULL",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"cleaned_num_mean_filled\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"cleaned_num_mean_filled\"FROM\"s\".\"t\"",
     []
    ]
   ]
@@ -3336,26 +2731,6 @@
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"num\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_num_median_filled\"INTEGER",
-    []
-   ],
-   [
-    "exec",
-    "WITHstat_valAS(SELECTCOALESCE(PERCENTILE_CONT(0.5)WITHINGROUP(ORDERBY\"num\"),0)ASvalFROM\"s\".\"t__op_20240101000000000000\"WHERE\"num\"ISNOTNULL)UPDATE\"s\".\"t__op_20240101000000000000\"SET\"cleaned_num_median_filled\"=COALESCE(\"num\",(SELECTvalFROMstat_val))",
-    []
-   ],
-   [
-    "fetchval",
-    "SELECTPERCENTILE_CONT(0.5)WITHINGROUP(ORDERBY\"num\")FROM\"s\".\"t__op_20240101000000000000\"WHERE\"num\"ISNOTNULL",
-    []
-   ],
-   [
-    "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_num_median_filled\"INTEGER",
     []
    ],
@@ -3371,38 +2746,18 @@
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"num\"ISNULL",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"num\"ISNULL",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"cleaned_num_median_filled\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"cleaned_num_median_filled\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"num\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_num_median_filled\"INTEGER",
-    []
-   ],
-   [
-    "exec",
-    "WITHstat_valAS(SELECTCOALESCE(PERCENTILE_CONT(0.5)WITHINGROUP(ORDERBY\"num\"),0)ASvalFROM\"s\".\"t__op_20240101000000000000\"WHERE\"num\"ISNOTNULL)UPDATE\"s\".\"t__op_20240101000000000000\"SET\"cleaned_num_median_filled\"=COALESCE(\"num\",(SELECTvalFROMstat_val))",
-    []
-   ],
-   [
-    "fetchval",
-    "SELECTPERCENTILE_CONT(0.5)WITHINGROUP(ORDERBY\"num\")FROM\"s\".\"t__op_20240101000000000000\"WHERE\"num\"ISNOTNULL",
-    []
-   ],
-   [
-    "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_num_median_filled\"INTEGER",
     []
    ],
@@ -3418,12 +2773,12 @@
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"num\"ISNULL",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"num\"ISNULL",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"cleaned_num_median_filled\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"cleaned_num_median_filled\"FROM\"s\".\"t\"",
     []
    ]
   ]
@@ -3494,27 +2849,12 @@
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"num\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_num_interpolated\"DOUBLE",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_num_interpolated\"DOUBLE",
     []
    ],
    [
     "fetch",
-    "WITHbaseAS(SELECT*,ROW_NUMBER()OVER()AS__idxFROM(SELECT*,rowidAS__rid,ROW_NUMBER()OVER()AS__pordFROM\"s\".\"t__op_20240101000000000000\")_phys),islAS(SELECTb.*,COUNT(b.\"num\")OVER(ORDERBYb.__idxROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS_isl_f,COUNT(b.\"num\")OVER(ORDERBYb.__idxDESCROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS_isl_bFROMbaseb),anchAS(SELECTs.*,FIRST_VALUE(s.\"num\")OVER(PARTITIONBYs._isl_fORDERBYs.__idx)AS_pv,FIRST_VALUE(s.__idx)OVER(PARTITIONBYs._isl_fORDERBYs.__idx)AS_pp,FIRST_VALUE(s.\"num\")OVER(PARTITIONBYs._isl_bORDERBYs.__idxDESC)AS_nv,FIRST_VALUE(s.__idx)OVER(PARTITIONBYs._isl_bORDERBYs.__idxDESC)AS_npFROMisls),filledAS(SELECT*,CASEWHEN\"num\"ISNOTNULLTHEN\"num\"WHEN\"num\"ISNULLAND_pvISNOTNULLAND_nvISNOTNULLAND((_np-__idx)<=2)THENCAST(_pvASDOUBLE)+(CAST(_nvASDOUBLE)-CAST(_pvASDOUBLE))*(__idx-_pp)*1.0/(_np-_pp)ELSENULLENDASfilled_valFROManch)SELECT\"num\",filled_valAS\"cleaned_num_interpolated\"FROMfilledORDERBY__pord",
-    []
-   ],
-   [
-    "exec",
-    "WITHbaseAS(SELECT*,ROW_NUMBER()OVER()AS__idxFROM(SELECT*,rowidAS__rid,ROW_NUMBER()OVER()AS__pordFROM\"s\".\"t__op_20240101000000000000\")_phys),islAS(SELECTb.*,COUNT(b.\"num\")OVER(ORDERBYb.__idxROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS_isl_f,COUNT(b.\"num\")OVER(ORDERBYb.__idxDESCROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS_isl_bFROMbaseb),anchAS(SELECTs.*,FIRST_VALUE(s.\"num\")OVER(PARTITIONBYs._isl_fORDERBYs.__idx)AS_pv,FIRST_VALUE(s.__idx)OVER(PARTITIONBYs._isl_fORDERBYs.__idx)AS_pp,FIRST_VALUE(s.\"num\")OVER(PARTITIONBYs._isl_bORDERBYs.__idxDESC)AS_nv,FIRST_VALUE(s.__idx)OVER(PARTITIONBYs._isl_bORDERBYs.__idxDESC)AS_npFROMisls),filledAS(SELECT*,CASEWHEN\"num\"ISNOTNULLTHEN\"num\"WHEN\"num\"ISNULLAND_pvISNOTNULLAND_nvISNOTNULLAND((_np-__idx)<=2)THENCAST(_pvASDOUBLE)+(CAST(_nvASDOUBLE)-CAST(_pvASDOUBLE))*(__idx-_pp)*1.0/(_np-_pp)ELSENULLENDASfilled_valFROManch)UPDATE\"s\".\"t__op_20240101000000000000\"tSET\"cleaned_num_interpolated\"=f.filled_valFROMfilledfWHEREt.rowid=f.__rid",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_num_interpolated\"DOUBLE",
+    "WITHbaseAS(SELECT*,ROW_NUMBER()OVER()AS__idxFROM(SELECT*,rowidAS__rid,ROW_NUMBER()OVER()AS__pordFROM\"s\".\"t\")_phys),islAS(SELECTb.*,COUNT(b.\"num\")OVER(ORDERBYb.__idxROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS_isl_f,COUNT(b.\"num\")OVER(ORDERBYb.__idxDESCROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS_isl_bFROMbaseb),anchAS(SELECTs.*,FIRST_VALUE(s.\"num\")OVER(PARTITIONBYs._isl_fORDERBYs.__idx)AS_pv,FIRST_VALUE(s.__idx)OVER(PARTITIONBYs._isl_fORDERBYs.__idx)AS_pp,FIRST_VALUE(s.\"num\")OVER(PARTITIONBYs._isl_bORDERBYs.__idxDESC)AS_nv,FIRST_VALUE(s.__idx)OVER(PARTITIONBYs._isl_bORDERBYs.__idxDESC)AS_npFROMisls),filledAS(SELECT*,CASEWHEN\"num\"ISNOTNULLTHEN\"num\"WHEN\"num\"ISNULLAND_pvISNOTNULLAND_nvISNOTNULLAND((_np-__idx)<=2)THENCAST(_pvASDOUBLE)+(CAST(_nvASDOUBLE)-CAST(_pvASDOUBLE))*(__idx-_pp)*1.0/(_np-_pp)ELSENULLENDASfilled_valFROManch)SELECT\"num\",filled_valAS\"cleaned_num_interpolated\"FROMfilledORDERBY__pord",
     []
    ],
    [
@@ -3524,34 +2864,19 @@
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"num\"ISNULL",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"num\"ISNULL",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"num\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_num_interpolated\"DOUBLEPRECISION",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_num_interpolated\"DOUBLEPRECISION",
     []
    ],
    [
     "fetch",
-    "WITHbaseAS(SELECT*,ROW_NUMBER()OVER()AS__idxFROM(SELECT*,ctidAS__rid,ROW_NUMBER()OVER()AS__pordFROM\"s\".\"t__op_20240101000000000000\")_phys),islAS(SELECTb.*,COUNT(b.\"num\")OVER(ORDERBYb.__idxROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS_isl_f,COUNT(b.\"num\")OVER(ORDERBYb.__idxDESCROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS_isl_bFROMbaseb),anchAS(SELECTs.*,FIRST_VALUE(s.\"num\")OVER(PARTITIONBYs._isl_fORDERBYs.__idx)AS_pv,FIRST_VALUE(s.__idx)OVER(PARTITIONBYs._isl_fORDERBYs.__idx)AS_pp,FIRST_VALUE(s.\"num\")OVER(PARTITIONBYs._isl_bORDERBYs.__idxDESC)AS_nv,FIRST_VALUE(s.__idx)OVER(PARTITIONBYs._isl_bORDERBYs.__idxDESC)AS_npFROMisls),filledAS(SELECT*,CASEWHEN\"num\"ISNOTNULLTHEN\"num\"WHEN\"num\"ISNULLAND_pvISNOTNULLAND_nvISNOTNULLAND((_np-__idx)<=2)THENCAST(_pvASDOUBLEPRECISION)+(CAST(_nvASDOUBLEPRECISION)-CAST(_pvASDOUBLEPRECISION))*(__idx-_pp)*1.0/(_np-_pp)ELSENULLENDASfilled_valFROManch)SELECT\"num\",filled_valAS\"cleaned_num_interpolated\"FROMfilledORDERBY__pord",
-    []
-   ],
-   [
-    "exec",
-    "WITHbaseAS(SELECT*,ROW_NUMBER()OVER()AS__idxFROM(SELECT*,ctidAS__rid,ROW_NUMBER()OVER()AS__pordFROM\"s\".\"t__op_20240101000000000000\")_phys),islAS(SELECTb.*,COUNT(b.\"num\")OVER(ORDERBYb.__idxROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS_isl_f,COUNT(b.\"num\")OVER(ORDERBYb.__idxDESCROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS_isl_bFROMbaseb),anchAS(SELECTs.*,FIRST_VALUE(s.\"num\")OVER(PARTITIONBYs._isl_fORDERBYs.__idx)AS_pv,FIRST_VALUE(s.__idx)OVER(PARTITIONBYs._isl_fORDERBYs.__idx)AS_pp,FIRST_VALUE(s.\"num\")OVER(PARTITIONBYs._isl_bORDERBYs.__idxDESC)AS_nv,FIRST_VALUE(s.__idx)OVER(PARTITIONBYs._isl_bORDERBYs.__idxDESC)AS_npFROMisls),filledAS(SELECT*,CASEWHEN\"num\"ISNOTNULLTHEN\"num\"WHEN\"num\"ISNULLAND_pvISNOTNULLAND_nvISNOTNULLAND((_np-__idx)<=2)THENCAST(_pvASDOUBLEPRECISION)+(CAST(_nvASDOUBLEPRECISION)-CAST(_pvASDOUBLEPRECISION))*(__idx-_pp)*1.0/(_np-_pp)ELSENULLENDASfilled_valFROManch)UPDATE\"s\".\"t__op_20240101000000000000\"tSET\"cleaned_num_interpolated\"=f.filled_valFROMfilledfWHEREt.ctid=f.__rid",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_num_interpolated\"DOUBLEPRECISION",
+    "WITHbaseAS(SELECT*,ROW_NUMBER()OVER()AS__idxFROM(SELECT*,ctidAS__rid,ROW_NUMBER()OVER()AS__pordFROM\"s\".\"t\")_phys),islAS(SELECTb.*,COUNT(b.\"num\")OVER(ORDERBYb.__idxROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS_isl_f,COUNT(b.\"num\")OVER(ORDERBYb.__idxDESCROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS_isl_bFROMbaseb),anchAS(SELECTs.*,FIRST_VALUE(s.\"num\")OVER(PARTITIONBYs._isl_fORDERBYs.__idx)AS_pv,FIRST_VALUE(s.__idx)OVER(PARTITIONBYs._isl_fORDERBYs.__idx)AS_pp,FIRST_VALUE(s.\"num\")OVER(PARTITIONBYs._isl_bORDERBYs.__idxDESC)AS_nv,FIRST_VALUE(s.__idx)OVER(PARTITIONBYs._isl_bORDERBYs.__idxDESC)AS_npFROMisls),filledAS(SELECT*,CASEWHEN\"num\"ISNOTNULLTHEN\"num\"WHEN\"num\"ISNULLAND_pvISNOTNULLAND_nvISNOTNULLAND((_np-__idx)<=2)THENCAST(_pvASDOUBLEPRECISION)+(CAST(_nvASDOUBLEPRECISION)-CAST(_pvASDOUBLEPRECISION))*(__idx-_pp)*1.0/(_np-_pp)ELSENULLENDASfilled_valFROManch)SELECT\"num\",filled_valAS\"cleaned_num_interpolated\"FROMfilledORDERBY__pord",
     []
    ],
    [
@@ -3561,7 +2886,7 @@
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"num\"ISNULL",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"num\"ISNULL",
     []
    ]
   ]
@@ -3627,27 +2952,12 @@
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"num\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_num_interpolated\"DOUBLE",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_num_interpolated\"DOUBLE",
     []
    ],
    [
     "fetch",
-    "WITHbaseAS(SELECT*,ROW_NUMBER()OVER()AS__idxFROM(SELECT*,rowidAS__rid,ROW_NUMBER()OVER()AS__pordFROM\"s\".\"t__op_20240101000000000000\")_phys),islAS(SELECTb.*,COUNT(b.\"num\")OVER(ORDERBYb.__idxROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS_isl_f,COUNT(b.\"num\")OVER(ORDERBYb.__idxDESCROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS_isl_bFROMbaseb),anchAS(SELECTs.*,FIRST_VALUE(s.\"num\")OVER(PARTITIONBYs._isl_fORDERBYs.__idx)AS_pv,FIRST_VALUE(s.__idx)OVER(PARTITIONBYs._isl_fORDERBYs.__idx)AS_pp,FIRST_VALUE(s.\"num\")OVER(PARTITIONBYs._isl_bORDERBYs.__idxDESC)AS_nv,FIRST_VALUE(s.__idx)OVER(PARTITIONBYs._isl_bORDERBYs.__idxDESC)AS_npFROMisls),filledAS(SELECT*,CASEWHEN\"num\"ISNOTNULLTHEN\"num\"WHEN\"num\"ISNULLAND_pvISNOTNULLAND_nvISNOTNULLANDTRUETHENCAST(_pvASDOUBLE)+(CAST(_nvASDOUBLE)-CAST(_pvASDOUBLE))*(__idx-_pp)*1.0/(_np-_pp)WHEN\"num\"ISNULLAND_pvISNOTNULLAND_nvISNULLANDTRUETHEN_pvELSENULLENDASfilled_valFROManch)SELECT\"num\",filled_valAS\"cleaned_num_interpolated\"FROMfilledORDERBY__pord",
-    []
-   ],
-   [
-    "exec",
-    "WITHbaseAS(SELECT*,ROW_NUMBER()OVER()AS__idxFROM(SELECT*,rowidAS__rid,ROW_NUMBER()OVER()AS__pordFROM\"s\".\"t__op_20240101000000000000\")_phys),islAS(SELECTb.*,COUNT(b.\"num\")OVER(ORDERBYb.__idxROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS_isl_f,COUNT(b.\"num\")OVER(ORDERBYb.__idxDESCROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS_isl_bFROMbaseb),anchAS(SELECTs.*,FIRST_VALUE(s.\"num\")OVER(PARTITIONBYs._isl_fORDERBYs.__idx)AS_pv,FIRST_VALUE(s.__idx)OVER(PARTITIONBYs._isl_fORDERBYs.__idx)AS_pp,FIRST_VALUE(s.\"num\")OVER(PARTITIONBYs._isl_bORDERBYs.__idxDESC)AS_nv,FIRST_VALUE(s.__idx)OVER(PARTITIONBYs._isl_bORDERBYs.__idxDESC)AS_npFROMisls),filledAS(SELECT*,CASEWHEN\"num\"ISNOTNULLTHEN\"num\"WHEN\"num\"ISNULLAND_pvISNOTNULLAND_nvISNOTNULLANDTRUETHENCAST(_pvASDOUBLE)+(CAST(_nvASDOUBLE)-CAST(_pvASDOUBLE))*(__idx-_pp)*1.0/(_np-_pp)WHEN\"num\"ISNULLAND_pvISNOTNULLAND_nvISNULLANDTRUETHEN_pvELSENULLENDASfilled_valFROManch)UPDATE\"s\".\"t__op_20240101000000000000\"tSET\"cleaned_num_interpolated\"=f.filled_valFROMfilledfWHEREt.rowid=f.__rid",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_num_interpolated\"DOUBLE",
+    "WITHbaseAS(SELECT*,ROW_NUMBER()OVER()AS__idxFROM(SELECT*,rowidAS__rid,ROW_NUMBER()OVER()AS__pordFROM\"s\".\"t\")_phys),islAS(SELECTb.*,COUNT(b.\"num\")OVER(ORDERBYb.__idxROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS_isl_f,COUNT(b.\"num\")OVER(ORDERBYb.__idxDESCROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS_isl_bFROMbaseb),anchAS(SELECTs.*,FIRST_VALUE(s.\"num\")OVER(PARTITIONBYs._isl_fORDERBYs.__idx)AS_pv,FIRST_VALUE(s.__idx)OVER(PARTITIONBYs._isl_fORDERBYs.__idx)AS_pp,FIRST_VALUE(s.\"num\")OVER(PARTITIONBYs._isl_bORDERBYs.__idxDESC)AS_nv,FIRST_VALUE(s.__idx)OVER(PARTITIONBYs._isl_bORDERBYs.__idxDESC)AS_npFROMisls),filledAS(SELECT*,CASEWHEN\"num\"ISNOTNULLTHEN\"num\"WHEN\"num\"ISNULLAND_pvISNOTNULLAND_nvISNOTNULLANDTRUETHENCAST(_pvASDOUBLE)+(CAST(_nvASDOUBLE)-CAST(_pvASDOUBLE))*(__idx-_pp)*1.0/(_np-_pp)WHEN\"num\"ISNULLAND_pvISNOTNULLAND_nvISNULLANDTRUETHEN_pvELSENULLENDASfilled_valFROManch)SELECT\"num\",filled_valAS\"cleaned_num_interpolated\"FROMfilledORDERBY__pord",
     []
    ],
    [
@@ -3657,34 +2967,19 @@
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"num\"ISNULL",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"num\"ISNULL",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"num\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_num_interpolated\"DOUBLEPRECISION",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_num_interpolated\"DOUBLEPRECISION",
     []
    ],
    [
     "fetch",
-    "WITHbaseAS(SELECT*,ROW_NUMBER()OVER()AS__idxFROM(SELECT*,ctidAS__rid,ROW_NUMBER()OVER()AS__pordFROM\"s\".\"t__op_20240101000000000000\")_phys),islAS(SELECTb.*,COUNT(b.\"num\")OVER(ORDERBYb.__idxROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS_isl_f,COUNT(b.\"num\")OVER(ORDERBYb.__idxDESCROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS_isl_bFROMbaseb),anchAS(SELECTs.*,FIRST_VALUE(s.\"num\")OVER(PARTITIONBYs._isl_fORDERBYs.__idx)AS_pv,FIRST_VALUE(s.__idx)OVER(PARTITIONBYs._isl_fORDERBYs.__idx)AS_pp,FIRST_VALUE(s.\"num\")OVER(PARTITIONBYs._isl_bORDERBYs.__idxDESC)AS_nv,FIRST_VALUE(s.__idx)OVER(PARTITIONBYs._isl_bORDERBYs.__idxDESC)AS_npFROMisls),filledAS(SELECT*,CASEWHEN\"num\"ISNOTNULLTHEN\"num\"WHEN\"num\"ISNULLAND_pvISNOTNULLAND_nvISNOTNULLANDTRUETHENCAST(_pvASDOUBLEPRECISION)+(CAST(_nvASDOUBLEPRECISION)-CAST(_pvASDOUBLEPRECISION))*(__idx-_pp)*1.0/(_np-_pp)WHEN\"num\"ISNULLAND_pvISNOTNULLAND_nvISNULLANDTRUETHEN_pvELSENULLENDASfilled_valFROManch)SELECT\"num\",filled_valAS\"cleaned_num_interpolated\"FROMfilledORDERBY__pord",
-    []
-   ],
-   [
-    "exec",
-    "WITHbaseAS(SELECT*,ROW_NUMBER()OVER()AS__idxFROM(SELECT*,ctidAS__rid,ROW_NUMBER()OVER()AS__pordFROM\"s\".\"t__op_20240101000000000000\")_phys),islAS(SELECTb.*,COUNT(b.\"num\")OVER(ORDERBYb.__idxROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS_isl_f,COUNT(b.\"num\")OVER(ORDERBYb.__idxDESCROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS_isl_bFROMbaseb),anchAS(SELECTs.*,FIRST_VALUE(s.\"num\")OVER(PARTITIONBYs._isl_fORDERBYs.__idx)AS_pv,FIRST_VALUE(s.__idx)OVER(PARTITIONBYs._isl_fORDERBYs.__idx)AS_pp,FIRST_VALUE(s.\"num\")OVER(PARTITIONBYs._isl_bORDERBYs.__idxDESC)AS_nv,FIRST_VALUE(s.__idx)OVER(PARTITIONBYs._isl_bORDERBYs.__idxDESC)AS_npFROMisls),filledAS(SELECT*,CASEWHEN\"num\"ISNOTNULLTHEN\"num\"WHEN\"num\"ISNULLAND_pvISNOTNULLAND_nvISNOTNULLANDTRUETHENCAST(_pvASDOUBLEPRECISION)+(CAST(_nvASDOUBLEPRECISION)-CAST(_pvASDOUBLEPRECISION))*(__idx-_pp)*1.0/(_np-_pp)WHEN\"num\"ISNULLAND_pvISNOTNULLAND_nvISNULLANDTRUETHEN_pvELSENULLENDASfilled_valFROManch)UPDATE\"s\".\"t__op_20240101000000000000\"tSET\"cleaned_num_interpolated\"=f.filled_valFROMfilledfWHEREt.ctid=f.__rid",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_num_interpolated\"DOUBLEPRECISION",
+    "WITHbaseAS(SELECT*,ROW_NUMBER()OVER()AS__idxFROM(SELECT*,ctidAS__rid,ROW_NUMBER()OVER()AS__pordFROM\"s\".\"t\")_phys),islAS(SELECTb.*,COUNT(b.\"num\")OVER(ORDERBYb.__idxROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS_isl_f,COUNT(b.\"num\")OVER(ORDERBYb.__idxDESCROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS_isl_bFROMbaseb),anchAS(SELECTs.*,FIRST_VALUE(s.\"num\")OVER(PARTITIONBYs._isl_fORDERBYs.__idx)AS_pv,FIRST_VALUE(s.__idx)OVER(PARTITIONBYs._isl_fORDERBYs.__idx)AS_pp,FIRST_VALUE(s.\"num\")OVER(PARTITIONBYs._isl_bORDERBYs.__idxDESC)AS_nv,FIRST_VALUE(s.__idx)OVER(PARTITIONBYs._isl_bORDERBYs.__idxDESC)AS_npFROMisls),filledAS(SELECT*,CASEWHEN\"num\"ISNOTNULLTHEN\"num\"WHEN\"num\"ISNULLAND_pvISNOTNULLAND_nvISNOTNULLANDTRUETHENCAST(_pvASDOUBLEPRECISION)+(CAST(_nvASDOUBLEPRECISION)-CAST(_pvASDOUBLEPRECISION))*(__idx-_pp)*1.0/(_np-_pp)WHEN\"num\"ISNULLAND_pvISNOTNULLAND_nvISNULLANDTRUETHEN_pvELSENULLENDASfilled_valFROManch)SELECT\"num\",filled_valAS\"cleaned_num_interpolated\"FROMfilledORDERBY__pord",
     []
    ],
    [
@@ -3694,7 +2989,7 @@
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"num\"ISNULL",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"num\"ISNULL",
     []
    ]
   ]
@@ -3760,27 +3055,12 @@
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"num\",\"g\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_num_interpolated\"DOUBLE",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_num_interpolated\"DOUBLE",
     []
    ],
    [
     "fetch",
-    "WITHbaseAS(SELECT*,ROW_NUMBER()OVER(ORDERBY\"g\"ASC,\"num\"ASC)AS__idxFROM(SELECT*,rowidAS__rid,ROW_NUMBER()OVER()AS__pordFROM\"s\".\"t__op_20240101000000000000\")_phys),islAS(SELECTb.*,COUNT(b.\"num\")OVER(ORDERBYb.__idxROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS_isl_f,COUNT(b.\"num\")OVER(ORDERBYb.__idxDESCROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS_isl_bFROMbaseb),anchAS(SELECTs.*,FIRST_VALUE(s.\"num\")OVER(PARTITIONBYs._isl_fORDERBYs.__idx)AS_pv,FIRST_VALUE(s.__idx)OVER(PARTITIONBYs._isl_fORDERBYs.__idx)AS_pp,FIRST_VALUE(s.\"num\")OVER(PARTITIONBYs._isl_bORDERBYs.__idxDESC)AS_nv,FIRST_VALUE(s.__idx)OVER(PARTITIONBYs._isl_bORDERBYs.__idxDESC)AS_npFROMisls),filledAS(SELECT*,CASEWHEN\"num\"ISNOTNULLTHEN\"num\"WHEN\"num\"ISNULLAND_pvISNOTNULLAND_nvISNOTNULLANDTRUETHENCAST(_pvASDOUBLE)+(CAST(_nvASDOUBLE)-CAST(_pvASDOUBLE))*(__idx-_pp)*1.0/(_np-_pp)WHEN\"num\"ISNULLAND_pvISNOTNULLAND_nvISNULLANDTRUETHEN_pvELSENULLENDASfilled_valFROManch)SELECT\"num\",filled_valAS\"cleaned_num_interpolated\"FROMfilledORDERBY__pord",
-    []
-   ],
-   [
-    "exec",
-    "WITHbaseAS(SELECT*,ROW_NUMBER()OVER(ORDERBY\"g\"ASC,\"num\"ASC)AS__idxFROM(SELECT*,rowidAS__rid,ROW_NUMBER()OVER()AS__pordFROM\"s\".\"t__op_20240101000000000000\")_phys),islAS(SELECTb.*,COUNT(b.\"num\")OVER(ORDERBYb.__idxROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS_isl_f,COUNT(b.\"num\")OVER(ORDERBYb.__idxDESCROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS_isl_bFROMbaseb),anchAS(SELECTs.*,FIRST_VALUE(s.\"num\")OVER(PARTITIONBYs._isl_fORDERBYs.__idx)AS_pv,FIRST_VALUE(s.__idx)OVER(PARTITIONBYs._isl_fORDERBYs.__idx)AS_pp,FIRST_VALUE(s.\"num\")OVER(PARTITIONBYs._isl_bORDERBYs.__idxDESC)AS_nv,FIRST_VALUE(s.__idx)OVER(PARTITIONBYs._isl_bORDERBYs.__idxDESC)AS_npFROMisls),filledAS(SELECT*,CASEWHEN\"num\"ISNOTNULLTHEN\"num\"WHEN\"num\"ISNULLAND_pvISNOTNULLAND_nvISNOTNULLANDTRUETHENCAST(_pvASDOUBLE)+(CAST(_nvASDOUBLE)-CAST(_pvASDOUBLE))*(__idx-_pp)*1.0/(_np-_pp)WHEN\"num\"ISNULLAND_pvISNOTNULLAND_nvISNULLANDTRUETHEN_pvELSENULLENDASfilled_valFROManch)UPDATE\"s\".\"t__op_20240101000000000000\"tSET\"cleaned_num_interpolated\"=f.filled_valFROMfilledfWHEREt.rowid=f.__rid",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_num_interpolated\"DOUBLE",
+    "WITHbaseAS(SELECT*,ROW_NUMBER()OVER(ORDERBY\"g\"ASC,\"num\"ASC)AS__idxFROM(SELECT*,rowidAS__rid,ROW_NUMBER()OVER()AS__pordFROM\"s\".\"t\")_phys),islAS(SELECTb.*,COUNT(b.\"num\")OVER(ORDERBYb.__idxROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS_isl_f,COUNT(b.\"num\")OVER(ORDERBYb.__idxDESCROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS_isl_bFROMbaseb),anchAS(SELECTs.*,FIRST_VALUE(s.\"num\")OVER(PARTITIONBYs._isl_fORDERBYs.__idx)AS_pv,FIRST_VALUE(s.__idx)OVER(PARTITIONBYs._isl_fORDERBYs.__idx)AS_pp,FIRST_VALUE(s.\"num\")OVER(PARTITIONBYs._isl_bORDERBYs.__idxDESC)AS_nv,FIRST_VALUE(s.__idx)OVER(PARTITIONBYs._isl_bORDERBYs.__idxDESC)AS_npFROMisls),filledAS(SELECT*,CASEWHEN\"num\"ISNOTNULLTHEN\"num\"WHEN\"num\"ISNULLAND_pvISNOTNULLAND_nvISNOTNULLANDTRUETHENCAST(_pvASDOUBLE)+(CAST(_nvASDOUBLE)-CAST(_pvASDOUBLE))*(__idx-_pp)*1.0/(_np-_pp)WHEN\"num\"ISNULLAND_pvISNOTNULLAND_nvISNULLANDTRUETHEN_pvELSENULLENDASfilled_valFROManch)SELECT\"num\",filled_valAS\"cleaned_num_interpolated\"FROMfilledORDERBY__pord",
     []
    ],
    [
@@ -3790,34 +3070,19 @@
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"num\"ISNULL",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"num\"ISNULL",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"num\",\"g\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_num_interpolated\"DOUBLEPRECISION",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_num_interpolated\"DOUBLEPRECISION",
     []
    ],
    [
     "fetch",
-    "WITHbaseAS(SELECT*,ROW_NUMBER()OVER(ORDERBY\"g\"ASC,\"num\"ASC)AS__idxFROM(SELECT*,ctidAS__rid,ROW_NUMBER()OVER()AS__pordFROM\"s\".\"t__op_20240101000000000000\")_phys),islAS(SELECTb.*,COUNT(b.\"num\")OVER(ORDERBYb.__idxROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS_isl_f,COUNT(b.\"num\")OVER(ORDERBYb.__idxDESCROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS_isl_bFROMbaseb),anchAS(SELECTs.*,FIRST_VALUE(s.\"num\")OVER(PARTITIONBYs._isl_fORDERBYs.__idx)AS_pv,FIRST_VALUE(s.__idx)OVER(PARTITIONBYs._isl_fORDERBYs.__idx)AS_pp,FIRST_VALUE(s.\"num\")OVER(PARTITIONBYs._isl_bORDERBYs.__idxDESC)AS_nv,FIRST_VALUE(s.__idx)OVER(PARTITIONBYs._isl_bORDERBYs.__idxDESC)AS_npFROMisls),filledAS(SELECT*,CASEWHEN\"num\"ISNOTNULLTHEN\"num\"WHEN\"num\"ISNULLAND_pvISNOTNULLAND_nvISNOTNULLANDTRUETHENCAST(_pvASDOUBLEPRECISION)+(CAST(_nvASDOUBLEPRECISION)-CAST(_pvASDOUBLEPRECISION))*(__idx-_pp)*1.0/(_np-_pp)WHEN\"num\"ISNULLAND_pvISNOTNULLAND_nvISNULLANDTRUETHEN_pvELSENULLENDASfilled_valFROManch)SELECT\"num\",filled_valAS\"cleaned_num_interpolated\"FROMfilledORDERBY__pord",
-    []
-   ],
-   [
-    "exec",
-    "WITHbaseAS(SELECT*,ROW_NUMBER()OVER(ORDERBY\"g\"ASC,\"num\"ASC)AS__idxFROM(SELECT*,ctidAS__rid,ROW_NUMBER()OVER()AS__pordFROM\"s\".\"t__op_20240101000000000000\")_phys),islAS(SELECTb.*,COUNT(b.\"num\")OVER(ORDERBYb.__idxROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS_isl_f,COUNT(b.\"num\")OVER(ORDERBYb.__idxDESCROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS_isl_bFROMbaseb),anchAS(SELECTs.*,FIRST_VALUE(s.\"num\")OVER(PARTITIONBYs._isl_fORDERBYs.__idx)AS_pv,FIRST_VALUE(s.__idx)OVER(PARTITIONBYs._isl_fORDERBYs.__idx)AS_pp,FIRST_VALUE(s.\"num\")OVER(PARTITIONBYs._isl_bORDERBYs.__idxDESC)AS_nv,FIRST_VALUE(s.__idx)OVER(PARTITIONBYs._isl_bORDERBYs.__idxDESC)AS_npFROMisls),filledAS(SELECT*,CASEWHEN\"num\"ISNOTNULLTHEN\"num\"WHEN\"num\"ISNULLAND_pvISNOTNULLAND_nvISNOTNULLANDTRUETHENCAST(_pvASDOUBLEPRECISION)+(CAST(_nvASDOUBLEPRECISION)-CAST(_pvASDOUBLEPRECISION))*(__idx-_pp)*1.0/(_np-_pp)WHEN\"num\"ISNULLAND_pvISNOTNULLAND_nvISNULLANDTRUETHEN_pvELSENULLENDASfilled_valFROManch)UPDATE\"s\".\"t__op_20240101000000000000\"tSET\"cleaned_num_interpolated\"=f.filled_valFROMfilledfWHEREt.ctid=f.__rid",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_num_interpolated\"DOUBLEPRECISION",
+    "WITHbaseAS(SELECT*,ROW_NUMBER()OVER(ORDERBY\"g\"ASC,\"num\"ASC)AS__idxFROM(SELECT*,ctidAS__rid,ROW_NUMBER()OVER()AS__pordFROM\"s\".\"t\")_phys),islAS(SELECTb.*,COUNT(b.\"num\")OVER(ORDERBYb.__idxROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS_isl_f,COUNT(b.\"num\")OVER(ORDERBYb.__idxDESCROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS_isl_bFROMbaseb),anchAS(SELECTs.*,FIRST_VALUE(s.\"num\")OVER(PARTITIONBYs._isl_fORDERBYs.__idx)AS_pv,FIRST_VALUE(s.__idx)OVER(PARTITIONBYs._isl_fORDERBYs.__idx)AS_pp,FIRST_VALUE(s.\"num\")OVER(PARTITIONBYs._isl_bORDERBYs.__idxDESC)AS_nv,FIRST_VALUE(s.__idx)OVER(PARTITIONBYs._isl_bORDERBYs.__idxDESC)AS_npFROMisls),filledAS(SELECT*,CASEWHEN\"num\"ISNOTNULLTHEN\"num\"WHEN\"num\"ISNULLAND_pvISNOTNULLAND_nvISNOTNULLANDTRUETHENCAST(_pvASDOUBLEPRECISION)+(CAST(_nvASDOUBLEPRECISION)-CAST(_pvASDOUBLEPRECISION))*(__idx-_pp)*1.0/(_np-_pp)WHEN\"num\"ISNULLAND_pvISNOTNULLAND_nvISNULLANDTRUETHEN_pvELSENULLENDASfilled_valFROManch)SELECT\"num\",filled_valAS\"cleaned_num_interpolated\"FROMfilledORDERBY__pord",
     []
    ],
    [
@@ -3827,28 +3092,13 @@
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"num\"ISNULL",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"num\"ISNULL",
     []
    ]
   ]
  },
  "replace_all_columns": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"num\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_num_replaced\"INTEGER",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"cleaned_num_replaced\"=CASEWHEN\"num\"=1THENCAST(2ASINTEGER)ELSE\"num\"ENDWHERE1",
-    []
-   ],
    [
     "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_num_replaced\"INTEGER",
@@ -3861,28 +3111,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"cleaned_num_replaced\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"cleaned_num_replaced\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"num\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_num_replaced\"INTEGER",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"cleaned_num_replaced\"=CASEWHEN\"num\"=1THENCAST(2ASINTEGER)ELSE\"num\"END",
-    []
-   ],
-   [
-    "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_num_replaced\"INTEGER",
     []
    ],
@@ -3893,28 +3128,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"cleaned_num_replaced\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"cleaned_num_replaced\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"num\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_num_replaced\"INTEGER",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"cleaned_num_replaced\"=CASEWHEN\"num\"=1THENCAST(2ASINTEGER)ELSE\"num\"END",
-    []
-   ],
-   [
-    "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_num_replaced\"INTEGER",
     []
    ],
@@ -3925,7 +3145,7 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"cleaned_num_replaced\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"cleaned_num_replaced\"FROM\"s\".\"t\"",
     []
    ]
   ]
@@ -3939,21 +3159,6 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"cat\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_cat_replaced\"VARCHAR",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"cleaned_cat_replaced\"=CASEWHEN\"cat\"='a'THENCAST('b'ASVARCHAR)ELSE\"cat\"ENDWHERE1",
-    []
-   ],
-   [
-    "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_cat_replaced\"VARCHAR",
     []
    ],
@@ -3964,28 +3169,13 @@
    ],
    [
     "fetch",
-    "SELECT\"cat\",\"cleaned_cat_replaced\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"cat\",\"cleaned_cat_replaced\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"cat\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_cat_replaced\"VARCHAR",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"cleaned_cat_replaced\"=CASEWHEN\"cat\"='a'THENCAST('b'ASVARCHAR)ELSE\"cat\"END",
-    []
-   ],
-   [
-    "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_cat_replaced\"VARCHAR",
     []
    ],
@@ -3996,28 +3186,13 @@
    ],
    [
     "fetch",
-    "SELECT\"cat\",\"cleaned_cat_replaced\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"cat\",\"cleaned_cat_replaced\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"cat\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_cat_replaced\"VARCHAR",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"cleaned_cat_replaced\"=CASEWHEN\"cat\"='a'THENCAST('b'ASVARCHAR)ELSE\"cat\"END",
-    []
-   ],
-   [
-    "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_cat_replaced\"VARCHAR",
     []
    ],
@@ -4028,28 +3203,13 @@
    ],
    [
     "fetch",
-    "SELECT\"cat\",\"cleaned_cat_replaced\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"cat\",\"cleaned_cat_replaced\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "replace_list": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"num\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_num_replaced\"INTEGER",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"cleaned_num_replaced\"=CASEWHEN\"num\"=1THENCAST(3ASINTEGER)WHEN\"num\"=2THENCAST(4ASINTEGER)ELSE\"num\"ENDWHERE1",
-    []
-   ],
    [
     "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_num_replaced\"INTEGER",
@@ -4062,28 +3222,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"cleaned_num_replaced\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"cleaned_num_replaced\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"num\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_num_replaced\"INTEGER",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"cleaned_num_replaced\"=CASEWHEN\"num\"=1THENCAST(3ASINTEGER)WHEN\"num\"=2THENCAST(4ASINTEGER)ELSE\"num\"END",
-    []
-   ],
-   [
-    "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_num_replaced\"INTEGER",
     []
    ],
@@ -4094,28 +3239,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"cleaned_num_replaced\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"cleaned_num_replaced\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"num\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_num_replaced\"INTEGER",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"cleaned_num_replaced\"=CASEWHEN\"num\"=1THENCAST(3ASINTEGER)WHEN\"num\"=2THENCAST(4ASINTEGER)ELSE\"num\"END",
-    []
-   ],
-   [
-    "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_num_replaced\"INTEGER",
     []
    ],
@@ -4126,28 +3256,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"cleaned_num_replaced\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"cleaned_num_replaced\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "replace_nested": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"num\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_num_replaced\"INTEGER",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"cleaned_num_replaced\"=CASEWHEN\"num\"=1THENCAST(2ASINTEGER)ELSE\"num\"ENDWHERE1",
-    []
-   ],
    [
     "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_num_replaced\"INTEGER",
@@ -4160,28 +3275,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"cleaned_num_replaced\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"cleaned_num_replaced\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"num\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_num_replaced\"INTEGER",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"cleaned_num_replaced\"=CASEWHEN\"num\"=1THENCAST(2ASINTEGER)ELSE\"num\"END",
-    []
-   ],
-   [
-    "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_num_replaced\"INTEGER",
     []
    ],
@@ -4192,28 +3292,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"cleaned_num_replaced\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"cleaned_num_replaced\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"num\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_num_replaced\"INTEGER",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"cleaned_num_replaced\"=CASEWHEN\"num\"=1THENCAST(2ASINTEGER)ELSE\"num\"END",
-    []
-   ],
-   [
-    "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_num_replaced\"INTEGER",
     []
    ],
@@ -4224,28 +3309,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"cleaned_num_replaced\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"cleaned_num_replaced\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "replace_regex": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"cat\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_cat_replaced\"VARCHAR",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"cleaned_cat_replaced\"=CASEWHENmatch(\"cat\",'^a$')THENreplaceRegexpAll(\"cat\",'^a$','z')ELSE\"cat\"ENDWHERE1",
-    []
-   ],
    [
     "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_cat_replaced\"VARCHAR",
@@ -4258,26 +3328,11 @@
    ],
    [
     "fetch",
-    "SELECT\"cat\",\"cleaned_cat_replaced\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"cat\",\"cleaned_cat_replaced\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"cat\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_cat_replaced\"VARCHAR",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"cleaned_cat_replaced\"=CASEWHENREGEXP_MATCHES(\"cat\",'^a$')THENREGEXP_REPLACE(\"cat\",'^a$','z','g')ELSE\"cat\"END",
-    []
-   ],
    [
     "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_cat_replaced\"VARCHAR",
@@ -4290,26 +3345,11 @@
    ],
    [
     "fetch",
-    "SELECT\"cat\",\"cleaned_cat_replaced\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"cat\",\"cleaned_cat_replaced\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"cat\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_cat_replaced\"VARCHAR",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"cleaned_cat_replaced\"=CASEWHEN\"cat\"~'^a$'THENREGEXP_REPLACE(\"cat\",'^a$','z','g')ELSE\"cat\"END",
-    []
-   ],
    [
     "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_cat_replaced\"VARCHAR",
@@ -4322,28 +3362,13 @@
    ],
    [
     "fetch",
-    "SELECT\"cat\",\"cleaned_cat_replaced\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"cat\",\"cleaned_cat_replaced\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "replace_scalar": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"num\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_num_replaced\"INTEGER",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"cleaned_num_replaced\"=CASEWHEN\"num\"=1THENCAST(2ASINTEGER)ELSE\"num\"ENDWHERE1",
-    []
-   ],
    [
     "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_num_replaced\"INTEGER",
@@ -4356,28 +3381,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"cleaned_num_replaced\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"cleaned_num_replaced\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"num\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_num_replaced\"INTEGER",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"cleaned_num_replaced\"=CASEWHEN\"num\"=1THENCAST(2ASINTEGER)ELSE\"num\"END",
-    []
-   ],
-   [
-    "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_num_replaced\"INTEGER",
     []
    ],
@@ -4388,28 +3398,13 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"cleaned_num_replaced\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"cleaned_num_replaced\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"num\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_num_replaced\"INTEGER",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"SET\"cleaned_num_replaced\"=CASEWHEN\"num\"=1THENCAST(2ASINTEGER)ELSE\"num\"END",
-    []
-   ],
-   [
-    "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_num_replaced\"INTEGER",
     []
    ],
@@ -4420,7 +3415,7 @@
    ],
    [
     "fetch",
-    "SELECT\"num\",\"cleaned_num_replaced\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"cleaned_num_replaced\"FROM\"s\".\"t\"",
     []
    ]
   ]
