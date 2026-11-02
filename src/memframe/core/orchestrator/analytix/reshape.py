@@ -1,5 +1,6 @@
 from typing import List, Union
 from memframe.core.analytix.reshape import ReshapingOps, make_reshaping_ops
+from memframe.core.ingestion.datatype_detector import Backend, _generate_6char_id
 from memframe.cache import record_call
 
 
@@ -24,7 +25,60 @@ class ReshapingOrchestrator:
     async def _get_context(self):
         return await self._ops_parent._get_active_context()
 
-    @record_call(deep_cache=True)
+    async def _register_dataset(self, response, schema, filename):
+        """Move a reshape output into upload as a registered dataset."""
+        if not isinstance(response, dict) or response.get("is_error"):
+            return response
+        # ponytail: streaming responses keep their lazy table; renaming it
+        # would invalidate the captured iterator. Chunked reshape stays
+        # uncached/legacy for now.
+        if response.get("iterator") is not None:
+            return response
+        bare = response.get("new_table")
+        if not bare:
+            return response
+        backend = self._memframe._backend
+        be = getattr(backend, "backend", None)
+        new_id = _generate_6char_id()
+        q_new = f"`{new_id}`" if be == Backend.CLICKHOUSE else f'"{new_id}"'
+        src = backend.qualify_table(schema, bare)
+        dst = backend.qualify_table(backend.upload_schema, new_id)
+        if schema != backend.upload_schema:
+            if be == Backend.CLICKHOUSE:
+                await backend.execute(f"RENAME TABLE {src} TO {dst}")
+            elif be == Backend.DUCKDB:
+                await backend.execute(f"CREATE TABLE {dst} AS SELECT * FROM {src}")
+                await backend.execute(f"DROP TABLE {src}")
+            else:
+                await backend.execute(f"ALTER TABLE {src} SET SCHEMA {backend.upload_schema}")
+                await backend.execute(
+                    f"ALTER TABLE {backend.qualify_table(backend.upload_schema, bare)} "
+                    f"RENAME TO {q_new}"
+                )
+        else:
+            if be == Backend.CLICKHOUSE:
+                await backend.execute(f"RENAME TABLE {src} TO {dst}")
+            else:
+                await backend.execute(
+                    f"ALTER TABLE {src} RENAME TO {q_new}"
+                )
+        result = response.get("result")
+        try:
+            row_count = len(result) if result is not None else 0
+        except Exception:
+            row_count = 0
+        await backend.execute(
+            f"INSERT INTO {backend.csv_registry_table} "
+            f"(data_id, filename, table_name, row_count, is_upload_success, schema) "
+            f"VALUES ({backend.placeholder(1)}, {backend.placeholder(2)}, "
+            f"{backend.placeholder(3)}, {backend.placeholder(4)}, "
+            f"{backend.placeholder(5)}, {backend.placeholder(6)})",
+            new_id, filename, new_id, row_count, True, backend.upload_schema,
+        )
+        response["dataset_id"] = new_id
+        response["new_table"] = new_id
+        return response
+
     async def explode(self, column: Union[str, List[str]], chunk_size=None):
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
@@ -35,7 +89,6 @@ class ReshapingOrchestrator:
         res = await ops.explode(table, schema, column, backend, data_id, chunk_size)
         return res
 
-    @record_call(deep_cache=True)
     async def melt(
         self,
         id_vars,
@@ -57,9 +110,8 @@ class ReshapingOrchestrator:
             var_name, value_name,
             chunk_size,
         )
-        return res
+        return await self._register_dataset(res, schema, f"melt_{data_id}")
 
-    @record_call(deep_cache=True)
     async def pivot(
         self,
         index,
@@ -79,9 +131,8 @@ class ReshapingOrchestrator:
             backend, data_id,
             chunk_size,
         )
-        return res
+        return await self._register_dataset(res, schema, f"pivot_{data_id}")
 
-    @record_call(deep_cache=True)
     async def pivot_table(
         self,
         index=None,
@@ -104,9 +155,8 @@ class ReshapingOrchestrator:
             backend, data_id,
             chunk_size,
         )
-        return res
+        return await self._register_dataset(res, schema, f"pivot_table_{data_id}")
 
-    @record_call(deep_cache=True)
     async def crosstab(
         self,
         index,
@@ -133,9 +183,8 @@ class ReshapingOrchestrator:
             data_id=data_id,
             chunk_size=chunk_size,
         )
-        return res
+        return await self._register_dataset(res, schema, f"crosstab_{data_id}")
 
-    @record_call(deep_cache=True)
     async def transpose(self, chunk_size=None):
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
@@ -148,7 +197,7 @@ class ReshapingOrchestrator:
             backend, data_id,
             chunk_size,
         )
-        return res
+        return await self._register_dataset(res, schema, f"transpose_{data_id}")
 
     @record_call(deep_cache=True)
     async def rank(

@@ -131,11 +131,14 @@ class DataMergeOps:
         schema: str,
         backend=None,
         data_id: Optional[str] = None,
+        new_table: Optional[str] = None,
     ) -> str:
         safe_schema = SQLIdentifierSanitizer.sanitize(schema)
         safe_base = SQLIdentifierSanitizer.sanitize(base_table)
 
-        if backend is not None and data_id:
+        if new_table:
+            candidate = SQLIdentifierSanitizer.sanitize(new_table)
+        elif backend is not None and data_id:
             candidate = await self._generate_cache_table_name(
                 safe_base,
                 backend,
@@ -187,6 +190,7 @@ class DataMergeOps:
         backend=None,
         data_id: str = None,
         chunk_size: int = None,
+        requested_table: Optional[str] = None,
     ) -> Dict[str, Any]:
 
         try:
@@ -341,6 +345,7 @@ class DataMergeOps:
                 schema=schema,
                 backend=backend,
                 data_id=data_id,
+                new_table=requested_table,
             )
 
             select_body = f"""SELECT {select_sql}
@@ -405,6 +410,7 @@ class DataMergeOps:
         backend=None,
         data_id: str = None,
         chunk_size: int = None,
+        requested_table: Optional[str] = None,
     ) -> Dict[str, Any]:
 
         try:
@@ -548,6 +554,7 @@ class DataMergeOps:
                 schema=schema,
                 backend=backend,
                 data_id=data_id,
+                new_table=requested_table,
             )
 
             select_body = f"""SELECT {select_sql}
@@ -611,6 +618,7 @@ class DataMergeOps:
         backend=None,
         data_id: str = None,
         chunk_size: int = None,
+        requested_table: Optional[str] = None,
     ) -> Dict[str, Any]:
 
         try:
@@ -756,6 +764,7 @@ class DataMergeOps:
                 schema=schema,
                 backend=backend,
                 data_id=data_id,
+                new_table=requested_table,
             )
 
             create_sql = self._create_table_as(schema, new_table, final_sql)

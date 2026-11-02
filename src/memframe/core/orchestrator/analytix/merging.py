@@ -1,7 +1,8 @@
 from typing import Any, Dict, Optional
 
 from memframe.core.analytix.merging import DataMergeOps, make_merge_ops
-from memframe.cache import record_call
+from memframe.core.ingestion.datatype_detector import _generate_6char_id
+from memframe.core.ingestion.datatype_detector import Backend
 
 
 class MergeOrchestrator:
@@ -38,13 +39,46 @@ class MergeOrchestrator:
         # fallback: ops is a ContextManager-like with _get_active_context
         return await ops._get_active_context()
 
-    # ponytail: deep_cache=True so the output table survives — the public
-    # wrapper returns a live ContextManager on it, not a DataFrame snapshot.
-    # ponytail: right_ref/others_ref are cache-key material only.
-    # ContextManagers serialize as "<ContextManager>", so without an explicit
-    # right-side identity two different right datasets would collide in the
-    # deep-cache lookup. The operation itself ignores these kwargs.
-    @record_call(deep_cache=True)
+    async def _move_to_upload(self, bare: str, schema: str) -> None:
+        if schema == self._memframe._backend.upload_schema:
+            return
+        backend = self._memframe._backend
+        be = getattr(backend, "backend", None)
+        src = backend.qualify_table(schema, bare)
+        dst = backend.qualify_table(backend.upload_schema, bare)
+        if be == Backend.CLICKHOUSE:
+            await backend.execute(f"RENAME TABLE {src} TO {dst}")
+        elif be == Backend.DUCKDB:
+            await backend.execute(f"CREATE TABLE {dst} AS SELECT * FROM {src}")
+            await backend.execute(f"DROP TABLE {src}")
+        else:
+            await backend.execute(f"ALTER TABLE {src} SET SCHEMA {backend.upload_schema}")
+
+    async def _register_dataset(self, response: Dict[str, Any], schema: str, filename: str) -> Dict[str, Any]:
+        if not isinstance(response, dict) or response.get("is_error"):
+            return response
+        bare = response.get("new_table")
+        if not bare:
+            return response
+        backend = self._memframe._backend
+        await self._move_to_upload(bare, schema)
+        result = response.get("result")
+        try:
+            row_count = len(result) if result is not None else 0
+        except Exception:
+            row_count = 0
+        await backend.execute(
+            f"INSERT INTO {backend.csv_registry_table} "
+            f"(data_id, filename, table_name, row_count, is_upload_success, schema) "
+            f"VALUES ({backend.placeholder(1)}, {backend.placeholder(2)}, "
+            f"{backend.placeholder(3)}, {backend.placeholder(4)}, "
+            f"{backend.placeholder(5)}, {backend.placeholder(6)})",
+            bare, filename, bare, row_count, True, backend.upload_schema,
+        )
+        response["dataset_id"] = bare
+        response["new_table"] = bare
+        return response
+
     async def merge(
         self,
         right_ops,
@@ -63,7 +97,8 @@ class MergeOrchestrator:
         right_table, right_schema = await self._get_table_and_schema(right_ops)
         backend = self._memframe._backend
         data_id = self._data_id or self._memframe._active_id
-        return await ops.merge(
+        out_id = _generate_6char_id()
+        result = await ops.merge(
             left_table=left_table,
             right_table=right_table,
             schema=schema,
@@ -76,9 +111,12 @@ class MergeOrchestrator:
             backend=backend,
             data_id=data_id,
             chunk_size=chunk_size,
+            requested_table=out_id,
+        )
+        return await self._register_dataset(
+            result, schema, f"merge_{data_id}_{getattr(right_ops, '_data_id', 'x')}"
         )
 
-    @record_call(deep_cache=True)
     async def join(
         self,
         right_ops,
@@ -94,7 +132,8 @@ class MergeOrchestrator:
         right_table, right_schema = await self._get_table_and_schema(right_ops)
         backend = self._memframe._backend
         data_id = self._data_id or self._memframe._active_id
-        return await ops.join(
+        out_id = _generate_6char_id()
+        result = await ops.join(
             left_table=left_table,
             right_table=right_table,
             schema=schema,
@@ -106,9 +145,12 @@ class MergeOrchestrator:
             backend=backend,
             data_id=data_id,
             chunk_size=chunk_size,
+            requested_table=out_id,
+        )
+        return await self._register_dataset(
+            result, schema, f"join_{data_id}_{getattr(right_ops, '_data_id', 'x')}"
         )
 
-    @record_call(deep_cache=True)
     async def concat(
         self,
         other_ops_list,
@@ -129,7 +171,8 @@ class MergeOrchestrator:
             schemas.append(s)
         backend = self._memframe._backend
         data_id = self._data_id or self._memframe._active_id
-        return await ops.concat(
+        out_id = _generate_6char_id()
+        result = await ops.concat(
             tables=tables,
             schema=schema,
             table_schemas=schemas,
@@ -139,6 +182,10 @@ class MergeOrchestrator:
             backend=backend,
             data_id=data_id,
             chunk_size=chunk_size,
+            requested_table=out_id,
+        )
+        return await self._register_dataset(
+            result, schema, f"concat_{data_id}_{len(other_ops_list)}"
         )
 
 

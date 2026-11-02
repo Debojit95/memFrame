@@ -98,7 +98,10 @@ class ReshapingOps:
             yield pd.DataFrame([dict(r) for r in rows])
             offset += chunk_size
 
-    async def _generate_cache_table_name(self, base_table, backend, data_id):
+    async def _generate_cache_table_name(self, base_table, backend, data_id, schema=None):
+        # Reshape outputs are datasets and no longer record opidx rows, so
+        # MAX(opidx) alone would collide on repeats. Keep the deterministic
+        # name for fingerprints, then dedupe against the live schema.
         max_op = await backend.fetchval(
             f"""
             SELECT COALESCE(MAX(opidx), 0)
@@ -107,7 +110,14 @@ class ReshapingOps:
             """,
             data_id,
         )
-        return f"{base_table}__op_{max_op+1}"
+        safe_base = SQLIdentifierSanitizer.sanitize(base_table)
+        candidate = f"{safe_base}__op_{max_op+1}"
+        output = candidate
+        suffix = 1
+        while schema is not None and await self.db.table_exists(output, schema):
+            output = f"{candidate}_{suffix}"
+            suffix += 1
+        return output
 
     def _success(self, msg, df=None, **extra):
         return {
@@ -178,7 +188,7 @@ class ReshapingOps:
         try:
             if isinstance(self.db, (PostgresAdapter, DuckDBAdapter, ClickHouseAdapter)):
                 new_table = await self._generate_cache_table_name(
-                    table, backend, data_id
+                    table, backend, data_id, schema
                 )
 
                 q = self._qualified_table(table, schema)
@@ -248,7 +258,7 @@ class ReshapingOps:
         try:
             if isinstance(self.db, (PostgresAdapter, DuckDBAdapter, ClickHouseAdapter)):
                 new_table = await self._generate_cache_table_name(
-                    table, backend, data_id
+                    table, backend, data_id, schema
                 )
 
                 q = self._qualified_table(table, schema)
@@ -348,7 +358,7 @@ class ReshapingOps:
         try:
             if isinstance(self.db, (PostgresAdapter, DuckDBAdapter, ClickHouseAdapter)):
                 new_table = await self._generate_cache_table_name(
-                    table, backend, data_id
+                    table, backend, data_id, schema
                 )
 
                 q = self._qualified_table(table, schema)
@@ -471,7 +481,7 @@ class ReshapingOps:
         try:
             if isinstance(self.db, (PostgresAdapter, DuckDBAdapter, ClickHouseAdapter)):
                 new_table = await self._generate_cache_table_name(
-                    table, backend, data_id
+                    table, backend, data_id, schema
                 )
 
                 q = self._qualified_table(table, schema)
@@ -623,7 +633,7 @@ class ReshapingOps:
         try:
             if isinstance(self.db, (PostgresAdapter, DuckDBAdapter, ClickHouseAdapter)):
                 new_table = await self._generate_cache_table_name(
-                    table, backend, data_id
+                    table, backend, data_id, schema
                 )
 
                 q = self._qualified_table(table, schema)
@@ -821,7 +831,7 @@ class ReshapingOps:
         try:
             if isinstance(self.db, (PostgresAdapter, DuckDBAdapter, ClickHouseAdapter)):
                 new_table = await self._generate_cache_table_name(
-                    table, backend, data_id
+                    table, backend, data_id, schema
                 )
 
                 q = self._qualified_table(table, schema)
@@ -913,7 +923,7 @@ class ReshapingOps:
         try:
             if isinstance(self.db, (PostgresAdapter, DuckDBAdapter, ClickHouseAdapter)):
                 new_table = await self._generate_cache_table_name(
-                    table, backend, data_id
+                    table, backend, data_id, schema
                 )
 
                 q = self._qualified_table(table, schema)
@@ -1039,7 +1049,7 @@ class ReshapingOps:
         try:
             if isinstance(self.db, (PostgresAdapter, DuckDBAdapter, ClickHouseAdapter)):
                 new_table = await self._generate_cache_table_name(
-                    table, backend, data_id
+                    table, backend, data_id, schema
                 )
 
                 q = self._qualified_table(table, schema)

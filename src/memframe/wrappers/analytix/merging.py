@@ -41,10 +41,8 @@ class MergeWrapper(MergeOrchestrator):
             or not response.get("new_table")
         ):
             return response
-        data_id = self._data_id or self._memframe._active_id
-        return ContextManager(
-            self._memframe, data_id=data_id, _table_override=response["new_table"]
-        )
+        dataset_id = response.get("dataset_id") or self._data_id or self._memframe._active_id
+        return ContextManager(self._memframe, data_id=dataset_id)
 
     async def _resolve_right_ref(self, right_ops):
         table, schema = await self._get_table_and_schema(right_ops)

@@ -195,14 +195,13 @@ def test_merge_chained_as_right(merge_contexts):
     assert set(_frame(chained)["id_x"]) == {2, 3}
 
 
-def test_merge_dangling_table_raises(merge_nocache_contexts):
-    # ponytail: MemFrame(deep_cache=False) force-drops merge outputs, so the
-    # returned context dangles and resolves with a clear error on use.
+def test_merge_survives_deep_cache_false(merge_nocache_contexts):
+    # Merge outputs are upload datasets, not cache entries — deep_cache=False
+    # does not remove them.
     left, right, _ = merge_nocache_contexts
     merged = MergeWrapper(left).merge(right, on="id")
     assert isinstance(merged, ContextManager)
-    with pytest.raises(DataNotFound):
-        merged.full_table()
+    assert set(_frame(merged)["id_x"]) == {2, 3}
 
 
 def test_merge_direct_call_style(merge_contexts):
