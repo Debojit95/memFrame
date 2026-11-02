@@ -107,7 +107,7 @@ def tools(session):
     async def map(func: str, na_action: str | None = None, columns: list[str] | None = None, datetime_action: str = "skip") -> dict:
         """Apply a SQL `func` to values (e.g. 'UPPER', 'LOWER')."""
         return await normalize(
-            await w.amap(
+            await session.wrappers.transform.amap(
                 func=func, na_action=na_action,
                 columns=columns, datetime_action=datetime_action,
             ),

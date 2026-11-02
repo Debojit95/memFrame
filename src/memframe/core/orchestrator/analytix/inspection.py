@@ -137,25 +137,6 @@ class TableOpsOrchestrator:
         )
 
     @record_call(deep_cache=True)
-    async def map(self, func: str, na_action: Optional[str] = None,columns: Optional[List[str]] = None,datetime_action: str = "skip",):
-        
-        ops = await self._ensure_ops()
-
-        if datetime_action not in ["skip", "cast_string", "extract_epoch", "keep", "error"]:
-            return fail("Invalid datetime_action")
-
-        table, schema = await self._get_context()
-
-        return await ops.dataframe_map(
-            table,
-            schema,
-            func=func,
-            na_action=na_action,
-            columns=columns,
-            datetime_action=datetime_action,
-        )
-
-    @record_call(deep_cache=True)
     async def rename(self, columns: Dict[str, str]) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()

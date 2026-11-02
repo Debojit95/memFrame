@@ -297,41 +297,6 @@ class TableOpsWrapper(TableOpsOrchestrator):
         )
 
     # ==========================================================
-    # MAP
-    # ==========================================================
-
-    async def amap(
-        self,
-        func: str,
-        na_action: Optional[str] = None,
-        columns: Optional[List[str]] = None,
-        datetime_action: str = "skip",
-    ):
-        """Asynchronously apply a mapping function to values."""
-        return await super().map(
-            func=func,
-            na_action=na_action,
-            columns=columns,
-            datetime_action=datetime_action,
-        )
-
-    @async_to_sync
-    async def map(
-        self,
-        func: str,
-        na_action: Optional[str] = None,
-        columns: Optional[List[str]] = None,
-        datetime_action: str = "skip",
-    ):
-        """Synchronously apply a mapping function to values."""
-        return await self.amap(
-            func=func,
-            na_action=na_action,
-            columns=columns,
-            datetime_action=datetime_action,
-        )
-
-    # ==========================================================
     # RENAME
     # ==========================================================
 

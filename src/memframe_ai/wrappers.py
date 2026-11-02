@@ -12,6 +12,7 @@ class SessionWrappers:
         from memframe.wrappers.analytix.cleaning import CleaningWrapper
         from memframe.wrappers.analytix.selection import SelectionWrapper
         from memframe.wrappers.analytix.inspection import TableOpsWrapper
+        from memframe.wrappers.analytix.transform import TransformWrapper
         from memframe.wrappers.analytix.stats import StatsWrapper
         from memframe.wrappers.analytix.arithmetic import ArithmeticWrapper
         from memframe.wrappers.analytix.datetime import DateTimeWrapper
@@ -25,6 +26,7 @@ class SessionWrappers:
         self.cleaning = CleaningWrapper(session.ops)
         self.selection = SelectionWrapper(session.ops)
         self.inspection = TableOpsWrapper(session.ops)
+        self.transform = TransformWrapper(session.ops)
         self.stats = StatsWrapper(session.ops)
         self.arithmetic = ArithmeticWrapper(session.ops)
         self.datetime = DateTimeWrapper(session.ops)

@@ -5,6 +5,7 @@ import pytest
 
 from memframe.main import MemFrame
 from memframe.wrappers.analytix.inspection import TableOpsWrapper
+from memframe.wrappers.analytix.transform import TransformWrapper
 
 
 @pytest.fixture
@@ -33,7 +34,8 @@ def inspection_context():
     ],
 )
 def test_inspection_validation_errors_are_canonical(inspection_context, call, message):
-    response = call(TableOpsWrapper(inspection_context))
+    wrapper_cls = TransformWrapper if message == "Invalid datetime_action" else TableOpsWrapper
+    response = call(wrapper_cls(inspection_context))
 
     assert response["is_error"] is True
     assert message in response["error_message"]

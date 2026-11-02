@@ -260,6 +260,157 @@ class TransformOps:
         )
 
     # ==================================================================
+    # Scalar / column map
+    # ==================================================================
+    async def map(
+        self,
+        table: str,
+        schema: str,
+        func: str,
+        na_action: Optional[str] = None,
+        columns: Optional[List[str]] = None,
+        datetime_action: str = "skip",
+        backend=None,
+        data_id: Optional[str] = None,
+        new_table: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Apply a SQL expression to source columns as ``mapped_<col>`` features."""
+        try:
+            if not isinstance(func, str):
+                return self._error_response(
+                    "func must be a SQL expression string using 'x' as placeholder",
+                    columns or [],
+                )
+            if datetime_action not in ("skip", "cast_string", "extract_epoch", "keep", "error"):
+                return self._error_response("Invalid datetime_action", columns or [])
+
+            col_types = await self.db.get_column_types(table, schema)
+            if columns is None or columns == "*" or columns == ["*"]:
+                target_columns = list(col_types)
+            else:
+                raw = [columns] if isinstance(columns, str) else list(columns)
+                target_columns = [
+                    SQLIdentifierSanitizer.sanitize(c) for c in raw
+                    if SQLIdentifierSanitizer.sanitize(c) in col_types
+                ]
+
+            numeric_types = (
+                "integer", "bigint", "smallint", "decimal", "numeric",
+                "real", "double", "double precision", "float", "float8",
+                "float4", "int", "int4", "int8", "uint",
+            )
+            string_types = ("text", "varchar", "char", "character varying", "string")
+            datetime_types = (
+                "date", "timestamp", "timestamp without time zone",
+                "timestamp with time zone", "datetime",
+            )
+            bool_types = ("boolean", "bool")
+
+            select_parts: List[str] = []
+            applied: List[str] = []
+            generated: List[str] = []
+            skipped: List[str] = []
+
+            for col in target_columns:
+                safe_col = SQLIdentifierSanitizer.sanitize(col)
+                dtype = str(col_types[col]).lower()
+                expr = re.sub(r"\bx\b", self.db.quote_identifier(safe_col), func)
+
+                if any(t in dtype for t in numeric_types):
+                    pass
+                elif any(t in dtype for t in string_types):
+                    if not any(fn in func.upper() for fn in ("UPPER", "LOWER", "LENGTH", "TRIM")):
+                        skipped.append(col)
+                        continue
+                elif any(t in dtype for t in bool_types):
+                    if not any(op in func for op in ("*", "+", "-", "/", "%")):
+                        skipped.append(col)
+                        continue
+                    expr = re.sub(
+                        r"\bx\b",
+                        f"CAST({self.db.quote_identifier(safe_col)} AS INTEGER)",
+                        func,
+                    )
+                elif any(t in dtype for t in datetime_types):
+                    if datetime_action in ("skip", "keep"):
+                        skipped.append(col)
+                        continue
+                    if datetime_action == "error":
+                        return self._error_response(
+                            f"Datetime column '{col}' not allowed with current expression",
+                            target_columns,
+                        )
+                    if datetime_action == "cast_string":
+                        expr = re.sub(
+                            r"\bx\b",
+                            f"CAST({self.db.quote_identifier(safe_col)} AS TEXT)",
+                            func,
+                        )
+                    else:  # extract_epoch
+                        expr = re.sub(
+                            r"\bx\b",
+                            f"EXTRACT(EPOCH FROM {self.db.quote_identifier(safe_col)})",
+                            func,
+                        )
+                else:
+                    skipped.append(col)
+                    continue
+
+                if na_action == "ignore":
+                    q = self.db.quote_identifier(safe_col)
+                    expr = f"CASE WHEN {q} IS NULL THEN NULL ELSE {expr} END"
+                mapped = SQLIdentifierSanitizer.sanitize(f"mapped_{safe_col}", allow_qualified=False)
+                applied.append(safe_col)
+                generated.append(mapped)
+                select_parts.append(
+                    f'{expr} AS {self.db.quote_identifier(mapped)}'
+                )
+
+            if not select_parts:
+                return self._error_response(
+                    "No columns compatible with the given expression", target_columns
+                )
+
+            wide = await self._resolve_output_table_name(
+                table, schema, backend=backend, data_id=data_id, new_table=new_table,
+            )
+            q_src = self._qualified_table(table, schema)
+            q_wide = self._qualified_table(wide, schema)
+            src_star = ", ".join(
+                self.db.quote_identifier(c)
+                for c in col_types if c not in generated
+            )
+            select_list = ", ".join(select_parts)
+            await self._exec(
+                f"CREATE TABLE {q_wide} AS SELECT {src_star}, {select_list} FROM {q_src}"
+            )
+
+            cols = list(dict.fromkeys([*applied, *generated]))
+            rows = await self._fetch(
+                f"SELECT {', '.join(self.db.quote_identifier(c) for c in cols)} FROM {q_wide}"
+            )
+            df = pd.DataFrame.from_records([dict(r) for r in rows])
+
+            return self._success_response(
+                f"Applied map on {len(applied)} columns, skipped {len(skipped)}",
+                applied,
+                generated,
+                df,
+                new_table=wide,
+                new_columns=generated,
+                applied_columns=applied,
+                skipped_columns=skipped,
+                expression=func,
+                na_action=na_action,
+                datetime_action=datetime_action,
+            )
+        except Exception as e:
+            return self._error_response(
+                f"map error: {str(e)}\n{traceback.format_exc()}",
+                columns if isinstance(columns, list) else [],
+            )
+
+    # ==================================================================
     # Numeric Transform
     # ==================================================================
     async def numeric_standardize(

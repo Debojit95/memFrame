@@ -1,5 +1,6 @@
 from typing import Any, Dict, List, Optional
 from memframe.core.analytix.transform import TransformOps, make_transform_ops
+from memframe.core.analytix._generated import make_sig, publish_row_aligned
 from memframe.cache import record_call
 
 
@@ -25,6 +26,39 @@ class TransformOrchestrator:
         backend = self._ops_parent.memframe._backend
         data_id = self._ops_parent._data_id or self._ops_parent.memframe._active_id
         return {"backend": backend, "data_id": data_id}
+
+    # ------------------------------------------------------------------
+    # Generic map (moved from inspect)
+    # ------------------------------------------------------------------
+    @record_call(deep_cache=True)
+    async def map(
+        self,
+        func: str,
+        na_action: Optional[str] = None,
+        columns: Optional[List[str]] = None,
+        datetime_action: str = "skip",
+    ) -> Dict[str, Any]:
+        """Apply a SQL expression to columns as generated ``mapped_<col>`` features."""
+        ops = await self._ensure_ops()
+        table, schema = await self._get_context()
+        backend = self._memframe._backend
+        data_id = self._data_id or self._memframe._active_id
+        result = await ops.map(
+            table, schema, func=func, na_action=na_action,
+            columns=columns, datetime_action=datetime_action,
+            backend=backend, data_id=data_id,
+        )
+        sig = make_sig(
+            op="transform.map", func=func, na_action=na_action,
+            columns=columns, datetime_action=datetime_action,
+        )
+        return await publish_row_aligned(
+            ops, table, schema, result,
+            result.get("involved_cols") or [],
+            sig=sig, op_type="transform_map",
+            class_name=self.__class__.__name__, method_name="map",
+            backend=backend, data_id=data_id,
+        )
 
     # ------------------------------------------------------------------
     # Numeric

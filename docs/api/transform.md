@@ -5,10 +5,11 @@ Source: `src/memframe/wrappers/analytix/transform.py`
 `TransformWrapper` is the public feature-engineering interface exposed
 through a `ContextManager`. It provides sklearn/pandas-style numeric scaling,
 binning, polynomial expansion, interaction terms, categorical encoding,
-quantile/power transforms, and cyclical datetime features, compiled to
-backend-native SQL across DuckDB, PostgreSQL, and ClickHouse. Every call
-creates a new cache table (`<table>__op_<n>` via `deep_cache`) and
-returns a sample DataFrame; the source table is never mutated in place.
+quantile/power transforms, cyclical datetime features, and SQL-expression
+`map` columns, compiled to backend-native SQL across DuckDB, PostgreSQL, and
+ClickHouse. Every call writes its generated columns into the active source
+table, records a source ref, and returns the narrow involved/generated
+DataFrame; no cache copy is created.
 
 Users normally call transform directly on a dataset context returned by an
 upload operation:
@@ -48,6 +49,7 @@ Every operation has synchronous and asynchronous forms:
 
 | Synchronous | Asynchronous | Purpose |
 | --- | --- | --- |
+| `map(func, na_action=None, columns=None, datetime_action="skip")` | `await amap(...)` | Apply a SQL expression to columns |
 | `scale(column)` | `await ascale(...)` | Z-score standard scaling |
 | `minmax(column)` | `await aminmax(...)` | Min-max scaling to [0, 1] |
 | `bin(column, bins=5, strategy="uniform")` | `await abin(...)` | Uniform or quantile binning |
@@ -110,6 +112,40 @@ logd = await dataset.alog_transform(column="price", base="10", epsilon=0)
 ```
 
 Most transform methods materialize a new cache table (`<table>__op_<n>`) internally. The public return is the sample DataFrame; `new_table`, `involved_cols`, `generated_cols` remain internal to cache/AI.
+
+## Map
+
+`map` applies a SQL expression to compatible columns and writes the result as
+`mapped_<column>` on the source table. Use `x` as the placeholder for the
+current column.
+
+```python
+result = dataset.map(
+    func="x * 100",
+    columns=["conversion_rate"],
+)
+```
+
+```python
+result = await dataset.amap(
+    func="UPPER(x)",
+    columns=["segment"],
+    na_action="ignore",
+)
+```
+
+Parameters:
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `func` | `str` | SQL expression using `x` as the current column placeholder. |
+| `na_action` | `str` or `None` | `"ignore"` preserves nulls; `None` applies the expression normally. |
+| `columns` | `list[str]`, `"*"`, or `None` | Columns to map. Defaults to all columns. |
+| `datetime_action` | `str` | `skip` (default), `cast_string`, `extract_epoch`, `keep`, or `error`. |
+
+The result contains the involved columns followed by the generated
+`mapped_<column>` columns. The source is updated in place and the operation is
+recorded as a cache `ref`; no separate result table is created.
 
 ## Numeric Scaling
 
@@ -604,6 +640,8 @@ Transform methods raise `OperationError` for validation or backend failures. Che
       show_root_heading: true
       show_root_full_path: true
       members:
+        - amap
+        - map
         - ascale
         - scale
         - aminmax

@@ -15,6 +15,37 @@ class TransformWrapper(TransformOrchestrator):
         """Initialize the transform wrapper."""
         super().__init__(memframe_ops_instance)
 
+    async def amap(
+        self,
+        func: str,
+        na_action: Optional[str] = None,
+        columns: Optional[List[str]] = None,
+        datetime_action: str = "skip",
+    ) -> Dict[str, Any]:
+        """Asynchronously apply a SQL expression to columns."""
+        return await super().map(
+            func=func,
+            na_action=na_action,
+            columns=columns,
+            datetime_action=datetime_action,
+        )
+
+    @async_to_sync
+    async def map(
+        self,
+        func: str,
+        na_action: Optional[str] = None,
+        columns: Optional[List[str]] = None,
+        datetime_action: str = "skip",
+    ) -> Dict[str, Any]:
+        """Synchronously apply a SQL expression to columns."""
+        return await self.amap(
+            func=func,
+            na_action=na_action,
+            columns=columns,
+            datetime_action=datetime_action,
+        )
+
     # ------------------------------------------------------------------
     # Numeric
     # ------------------------------------------------------------------

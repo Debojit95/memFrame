@@ -45,7 +45,6 @@ Every inspect operation has synchronous and asynchronous forms:
 | `full_table(columns=None, chunk_size=None)` | `await afull_table(...)` | Full table or chunk iterator |
 | `astype(columns=None, dtypes=None, dtype_map=None)` | `await aastype(...)` | Cast selected columns |
 | `insert(column, value)` | `await ainsert(...)` | Add a column from a value list |
-| `map(func, na_action=None, columns=None, datetime_action="skip")` | `await amap(...)` | Apply SQL expression to values |
 | `rename(columns)` | `await arename(...)` | Rename columns |
 | `update(on, other_table, other_schema="upload", overwrite=True, errors="ignore")` | `await aupdate(...)` | Update from another table |
 | `dt.resample(column, freq, ...)` | `await dt.aresample(...)` | Time-series aggregation — see [Datetime](datetime.md#resampling) |
@@ -359,50 +358,6 @@ Parameters:
 | `column` | `str` | New column name. |
 | `value` | `list` | Values assigned row-by-row. Must match row count. |
 
-### `map`
-
-`map` applies a SQL expression to compatible columns. Use `x` as the placeholder
-for the current column expression.
-
-```python
-result = dataset.map(
-    func="x * 100",
-    columns=["conversion_rate"],
-)
-```
-
-```python
-result = await dataset.amap(
-    func="UPPER(x)",
-    columns=["segment"],
-    na_action="ignore",
-)
-```
-
-Parameters:
-
-| Parameter | Type | Description |
-| --- | --- | --- |
-| `func` | `str` | SQL expression using `x` as the current column placeholder. |
-| `na_action` | `str` or `None` | `"ignore"` preserves nulls; `None` applies the expression normally. |
-| `columns` | `list[str]`, `"*"`, or `None` | Columns to map. Defaults to all columns. |
-| `datetime_action` | `str` | How datetime columns are handled. Defaults to `"skip"`. |
-
-Supported `datetime_action` values:
-
-| Value | Behavior |
-| --- | --- |
-| `skip` | Skip datetime columns. |
-| `cast_string` | Cast datetime values to text before applying `func`. |
-| `extract_epoch` | Apply `func` to epoch seconds. |
-| `keep` | Return datetime column unchanged. |
-| `error` | Return an error if a datetime column is selected. |
-
-Numeric columns accept arithmetic expressions. String columns are only applied
-when the expression uses string-safe functions such as `UPPER`, `LOWER`,
-`LENGTH`, or `TRIM`. Boolean columns are auto-cast to integer for arithmetic
-expressions.
-
 ### `rename`
 
 `rename` renames columns in place and returns a current table preview.
@@ -558,8 +513,6 @@ Inspect methods raise `OperationError` for invalid input or backend failures.
 - `astype` requires either `dtype_map` or matching `columns` and `dtypes`.
 - `insert` raises an error when `value` is not a list or its length does not
   match the row count.
-- `map` raises an error when `func` is not a SQL expression string or when no
-  selected columns are compatible with the expression.
 - `rename` and `update` can raise backend SQL errors when identifiers or
   constraints are invalid.
 
