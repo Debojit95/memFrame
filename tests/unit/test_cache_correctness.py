@@ -374,6 +374,22 @@ class TestAnnotatedKinds:
         ))
         assert fmt == "parquet"
 
+    def test_clear_cache_removes_actual_payloads(self, mf, uploaded):
+        ops = ActualOps(mf, uploaded._data_id)
+        asyncio.run(ops.do())
+        assert asyncio.run(mf._backend.fetchval(
+            "SELECT COUNT(*) FROM memframe_csv_registry.memframe_cache_payloads"
+        )) == 1
+
+        asyncio.run(mf._aclear_cache(uploaded._data_id))
+
+        assert asyncio.run(mf._backend.fetchval(
+            "SELECT COUNT(*) FROM memframe_csv_registry.memframe_cache_payloads"
+        )) == 0
+        assert asyncio.run(mf._backend.fetchval(
+            "SELECT COUNT(*) FROM memframe_csv_registry.memframe_cache_registry"
+        )) == 0
+
     def test_stats_scalar_is_actual_payload(self, mf, uploaded):
         from memframe.wrappers.analytix.stats import StatsWrapper
 

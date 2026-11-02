@@ -151,15 +151,11 @@ class OpsMixin:
             raise DataNotFound(f"No table found for data_id: {data_id}")
         upload_table = row[0]
         is_external = bool(row[1]) if len(row) > 1 else False
-        cache_rows = await self._backend.fetch(
-            f"SELECT generated_table_name, schema FROM {self._backend.cache_registry_table} "
-            f"WHERE data_id = {self._placeholder(1)} AND generated_table_name IS NOT NULL",
-            data_id,
-        )
+        cache_rows = await self._owned_cache_tables(data_id)
         # ponytail: one transaction — drops + registry deletes commit together,
         # so a crash can't leave tables without rows or rows without tables.
         async with self._backend.transaction():
-            for bare, sch in cache_rows:
+            for sch, bare in cache_rows:
                 # ponytail: stored names are bare — qualify with the recorded
                 # schema (pre-upgrade rows fall back to cache); an
                 # unqualified drop would target the upload schema and miss.
@@ -170,6 +166,7 @@ class OpsMixin:
             # user's real table, only its registry/cache entries.
             if not is_external:
                 await self._backend.drop_table(upload_table)
+            await self._delete_cache_payloads(data_id)
             await self._backend.execute(
                 f"DELETE FROM {self._backend.csv_registry_table} WHERE data_id = {self._placeholder(1)}",
                 data_id,
@@ -186,17 +183,40 @@ class OpsMixin:
     async def delete_table(self, data_id: Optional[str] = None, filename: Optional[str] = None) -> None:
         return await self.adelete_table(data_id, filename)
 
-    async def _aclear_cache(self, data_id: str) -> None:
+    async def _owned_cache_tables(self, data_id: str):
+        """Tables the cache may drop: legacy copies and owns_table refs only."""
         rows = await self._backend.fetch(
-            f"SELECT generated_table_name, schema FROM {self._backend.cache_registry_table} "
-            f"WHERE data_id = {self._placeholder(1)} AND generated_table_name IS NOT NULL",
+            f"SELECT schema, generated_table_name, ref_schema, ref_table, "
+            f"owns_table, cache_kind FROM {self._backend.cache_registry_table} "
+            f"WHERE data_id = {self._placeholder(1)}",
             data_id,
         )
+        out = []
+        for sch, bare, ref_sch, ref_table, owns, kind in rows:
+            if kind == "actual":
+                continue
+            if kind == "ref":
+                if owns and ref_table:
+                    out.append((ref_sch or sch or self._backend.cache_schema, ref_table))
+            elif bare:
+                out.append((sch or self._backend.cache_schema, bare))
+        return out
+
+    async def _delete_cache_payloads(self, data_id: str) -> None:
+        await self._backend.execute(
+            f"DELETE FROM {self._backend.cache_payloads_table} "
+            f"WHERE data_id = {self._placeholder(1)}",
+            data_id,
+        )
+
+    async def _aclear_cache(self, data_id: str) -> None:
+        rows = await self._owned_cache_tables(data_id)
         async with self._backend.transaction():
-            for bare, sch in rows:
+            for sch, bare in rows:
                 await self._backend.drop_table(
                     self._backend.qualify_table(sch or self._backend.cache_schema, bare)
                 )
+            await self._delete_cache_payloads(data_id)
             await self._backend.execute(
                 f"DELETE FROM {self._backend.cache_registry_table} WHERE data_id = {self._placeholder(1)}",
                 data_id,
@@ -275,7 +295,8 @@ class OpsMixin:
             if data_id is None:
                 raise DataNotFound("No data_id provided and no active CSV set.")
         rows = await self._backend.fetch(
-            f"SELECT opidx, operation_type, generated_table_name, created_at "
+            f"SELECT opidx, operation_type, "
+            f"COALESCE(ref_table, generated_table_name), created_at "
             f"FROM {self._backend.cache_registry_table} "
             f"WHERE data_id = {self._placeholder(1)} ORDER BY opidx",
             data_id,
@@ -291,7 +312,8 @@ class OpsMixin:
 
     async def aretrieve_operation(self, data_id: str, opidx: int) -> str:
         row = await self._backend.fetch_row(
-            f"SELECT generated_table_name FROM {self._backend.cache_registry_table} "
+            f"SELECT COALESCE(ref_table, generated_table_name) "
+            f"FROM {self._backend.cache_registry_table} "
             f"WHERE data_id = {self._placeholder(1)} AND opidx = {self._placeholder(2)}",
             data_id, opidx,
         )
