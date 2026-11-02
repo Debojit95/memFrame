@@ -223,12 +223,10 @@ class CumulativeOps:
         data_id: Optional[str] = None,
         new_table: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Create a new cache table with a cumulative column."""
+        """Write the cumulative column into the active source table."""
         try:
-            # 1. Clone source table into a working cache table
-            working_table = await self._prepare_operation_table(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
-            )
+            # Out_2: operate on the source; no working copy.
+            working_table = table
 
             user_provided_order = bool(order_cols)
             safe_orders = self._resolve_order_columns(order_cols)

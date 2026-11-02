@@ -15,44 +15,34 @@
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    "SELECT\"cum_num_count\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
    [
     "exec",
-    "SELECT\"cum_num_count\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"AStSET\"cum_num_count\"=s.valFROM(SELECTrowid,COUNT(\"num\")OVER(ORDERBY\"rowid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_20240101000000000000\")ASsWHEREt.rowid=s.rowid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_count\"=s.valFROM(SELECTrowid,COUNT(\"num\")OVER(ORDERBY\"rowid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.rowid=s.rowid",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"cum_num_count\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"cum_num_count\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    "SELECT\"cum_num_count\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
    [
     "exec",
-    "SELECT\"cum_num_count\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"AStSET\"cum_num_count\"=s.valFROM(SELECTctid,COUNT(\"num\")OVER(ORDERBY\"ctid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_20240101000000000000\")ASsWHEREt.ctid=s.ctid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_count\"=s.valFROM(SELECTctid,COUNT(\"num\")OVER(ORDERBY\"ctid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.ctid=s.ctid",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"cum_num_count\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"cum_num_count\"FROM\"s\".\"t\"",
     []
    ]
   ]
@@ -73,44 +63,34 @@
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    "SELECT\"cum_num_count\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
    [
     "exec",
-    "SELECT\"cum_num_count\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"AStSET\"cum_num_count\"=s.valFROM(SELECTrowid,COUNT(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_20240101000000000000\")ASsWHEREt.rowid=s.rowid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_count\"=s.valFROM(SELECTrowid,COUNT(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.rowid=s.rowid",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"g\",\"cum_num_count\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"g\",\"cum_num_count\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    "SELECT\"cum_num_count\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
    [
     "exec",
-    "SELECT\"cum_num_count\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"AStSET\"cum_num_count\"=s.valFROM(SELECTctid,COUNT(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_20240101000000000000\")ASsWHEREt.ctid=s.ctid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_count\"=s.valFROM(SELECTctid,COUNT(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.ctid=s.ctid",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"g\",\"cum_num_count\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"g\",\"cum_num_count\"FROM\"s\".\"t\"",
     []
    ]
   ]
@@ -131,44 +111,34 @@
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    "SELECT\"run\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
    [
     "exec",
-    "SELECT\"run\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"AStSET\"run\"=s.valFROM(SELECTrowid,COUNT(\"num\")OVER(ORDERBY\"rowid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_20240101000000000000\")ASsWHEREt.rowid=s.rowid",
+    "UPDATE\"s\".\"t\"AStSET\"run\"=s.valFROM(SELECTrowid,COUNT(\"num\")OVER(ORDERBY\"rowid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.rowid=s.rowid",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"run\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"run\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    "SELECT\"run\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
    [
     "exec",
-    "SELECT\"run\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"AStSET\"run\"=s.valFROM(SELECTctid,COUNT(\"num\")OVER(ORDERBY\"ctid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_20240101000000000000\")ASsWHEREt.ctid=s.ctid",
+    "UPDATE\"s\".\"t\"AStSET\"run\"=s.valFROM(SELECTctid,COUNT(\"num\")OVER(ORDERBY\"ctid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.ctid=s.ctid",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"run\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"run\"FROM\"s\".\"t\"",
     []
    ]
   ]
@@ -189,44 +159,34 @@
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    "SELECT\"cum_num_max\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
    [
     "exec",
-    "SELECT\"cum_num_max\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"AStSET\"cum_num_max\"=s.valFROM(SELECTrowid,MAX(\"num\")OVER(ORDERBY\"rowid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_20240101000000000000\")ASsWHEREt.rowid=s.rowid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_max\"=s.valFROM(SELECTrowid,MAX(\"num\")OVER(ORDERBY\"rowid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.rowid=s.rowid",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"cum_num_max\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"cum_num_max\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    "SELECT\"cum_num_max\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
    [
     "exec",
-    "SELECT\"cum_num_max\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"AStSET\"cum_num_max\"=s.valFROM(SELECTctid,MAX(\"num\")OVER(ORDERBY\"ctid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_20240101000000000000\")ASsWHEREt.ctid=s.ctid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_max\"=s.valFROM(SELECTctid,MAX(\"num\")OVER(ORDERBY\"ctid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.ctid=s.ctid",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"cum_num_max\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"cum_num_max\"FROM\"s\".\"t\"",
     []
    ]
   ]
@@ -247,44 +207,34 @@
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    "SELECT\"cum_num_max\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
    [
     "exec",
-    "SELECT\"cum_num_max\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"AStSET\"cum_num_max\"=s.valFROM(SELECTrowid,MAX(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_20240101000000000000\")ASsWHEREt.rowid=s.rowid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_max\"=s.valFROM(SELECTrowid,MAX(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.rowid=s.rowid",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"g\",\"cum_num_max\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"g\",\"cum_num_max\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    "SELECT\"cum_num_max\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
    [
     "exec",
-    "SELECT\"cum_num_max\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"AStSET\"cum_num_max\"=s.valFROM(SELECTctid,MAX(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_20240101000000000000\")ASsWHEREt.ctid=s.ctid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_max\"=s.valFROM(SELECTctid,MAX(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.ctid=s.ctid",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"g\",\"cum_num_max\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"g\",\"cum_num_max\"FROM\"s\".\"t\"",
     []
    ]
   ]
@@ -305,44 +255,34 @@
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    "SELECT\"run\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
    [
     "exec",
-    "SELECT\"run\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"AStSET\"run\"=s.valFROM(SELECTrowid,MAX(\"num\")OVER(ORDERBY\"rowid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_20240101000000000000\")ASsWHEREt.rowid=s.rowid",
+    "UPDATE\"s\".\"t\"AStSET\"run\"=s.valFROM(SELECTrowid,MAX(\"num\")OVER(ORDERBY\"rowid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.rowid=s.rowid",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"run\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"run\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    "SELECT\"run\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
    [
     "exec",
-    "SELECT\"run\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"AStSET\"run\"=s.valFROM(SELECTctid,MAX(\"num\")OVER(ORDERBY\"ctid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_20240101000000000000\")ASsWHEREt.ctid=s.ctid",
+    "UPDATE\"s\".\"t\"AStSET\"run\"=s.valFROM(SELECTctid,MAX(\"num\")OVER(ORDERBY\"ctid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.ctid=s.ctid",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"run\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"run\"FROM\"s\".\"t\"",
     []
    ]
   ]
@@ -363,44 +303,34 @@
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    "SELECT\"cum_num_mean\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
    [
     "exec",
-    "SELECT\"cum_num_mean\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"AStSET\"cum_num_mean\"=s.valFROM(SELECTrowid,AVG(\"num\")OVER(ORDERBY\"rowid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_20240101000000000000\")ASsWHEREt.rowid=s.rowid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_mean\"=s.valFROM(SELECTrowid,AVG(\"num\")OVER(ORDERBY\"rowid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.rowid=s.rowid",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"cum_num_mean\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"cum_num_mean\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    "SELECT\"cum_num_mean\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
    [
     "exec",
-    "SELECT\"cum_num_mean\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"AStSET\"cum_num_mean\"=s.valFROM(SELECTctid,AVG(\"num\")OVER(ORDERBY\"ctid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_20240101000000000000\")ASsWHEREt.ctid=s.ctid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_mean\"=s.valFROM(SELECTctid,AVG(\"num\")OVER(ORDERBY\"ctid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.ctid=s.ctid",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"cum_num_mean\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"cum_num_mean\"FROM\"s\".\"t\"",
     []
    ]
   ]
@@ -421,44 +351,34 @@
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    "SELECT\"cum_num_mean\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
    [
     "exec",
-    "SELECT\"cum_num_mean\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"AStSET\"cum_num_mean\"=s.valFROM(SELECTrowid,AVG(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_20240101000000000000\")ASsWHEREt.rowid=s.rowid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_mean\"=s.valFROM(SELECTrowid,AVG(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.rowid=s.rowid",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"g\",\"cum_num_mean\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"g\",\"cum_num_mean\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    "SELECT\"cum_num_mean\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
    [
     "exec",
-    "SELECT\"cum_num_mean\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"AStSET\"cum_num_mean\"=s.valFROM(SELECTctid,AVG(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_20240101000000000000\")ASsWHEREt.ctid=s.ctid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_mean\"=s.valFROM(SELECTctid,AVG(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.ctid=s.ctid",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"g\",\"cum_num_mean\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"g\",\"cum_num_mean\"FROM\"s\".\"t\"",
     []
    ]
   ]
@@ -479,44 +399,34 @@
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    "SELECT\"run\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
    [
     "exec",
-    "SELECT\"run\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"AStSET\"run\"=s.valFROM(SELECTrowid,AVG(\"num\")OVER(ORDERBY\"rowid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_20240101000000000000\")ASsWHEREt.rowid=s.rowid",
+    "UPDATE\"s\".\"t\"AStSET\"run\"=s.valFROM(SELECTrowid,AVG(\"num\")OVER(ORDERBY\"rowid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.rowid=s.rowid",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"run\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"run\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    "SELECT\"run\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
    [
     "exec",
-    "SELECT\"run\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"AStSET\"run\"=s.valFROM(SELECTctid,AVG(\"num\")OVER(ORDERBY\"ctid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_20240101000000000000\")ASsWHEREt.ctid=s.ctid",
+    "UPDATE\"s\".\"t\"AStSET\"run\"=s.valFROM(SELECTctid,AVG(\"num\")OVER(ORDERBY\"ctid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.ctid=s.ctid",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"run\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"run\"FROM\"s\".\"t\"",
     []
    ]
   ]
@@ -537,44 +447,34 @@
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    "SELECT\"cum_num_min\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
    [
     "exec",
-    "SELECT\"cum_num_min\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"AStSET\"cum_num_min\"=s.valFROM(SELECTrowid,MIN(\"num\")OVER(ORDERBY\"rowid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_20240101000000000000\")ASsWHEREt.rowid=s.rowid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_min\"=s.valFROM(SELECTrowid,MIN(\"num\")OVER(ORDERBY\"rowid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.rowid=s.rowid",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"cum_num_min\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"cum_num_min\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    "SELECT\"cum_num_min\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
    [
     "exec",
-    "SELECT\"cum_num_min\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"AStSET\"cum_num_min\"=s.valFROM(SELECTctid,MIN(\"num\")OVER(ORDERBY\"ctid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_20240101000000000000\")ASsWHEREt.ctid=s.ctid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_min\"=s.valFROM(SELECTctid,MIN(\"num\")OVER(ORDERBY\"ctid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.ctid=s.ctid",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"cum_num_min\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"cum_num_min\"FROM\"s\".\"t\"",
     []
    ]
   ]
@@ -595,44 +495,34 @@
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    "SELECT\"cum_num_min\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
    [
     "exec",
-    "SELECT\"cum_num_min\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"AStSET\"cum_num_min\"=s.valFROM(SELECTrowid,MIN(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_20240101000000000000\")ASsWHEREt.rowid=s.rowid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_min\"=s.valFROM(SELECTrowid,MIN(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.rowid=s.rowid",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"g\",\"cum_num_min\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"g\",\"cum_num_min\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    "SELECT\"cum_num_min\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
    [
     "exec",
-    "SELECT\"cum_num_min\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"AStSET\"cum_num_min\"=s.valFROM(SELECTctid,MIN(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_20240101000000000000\")ASsWHEREt.ctid=s.ctid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_min\"=s.valFROM(SELECTctid,MIN(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.ctid=s.ctid",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"g\",\"cum_num_min\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"g\",\"cum_num_min\"FROM\"s\".\"t\"",
     []
    ]
   ]
@@ -653,44 +543,34 @@
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    "SELECT\"run\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
    [
     "exec",
-    "SELECT\"run\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"AStSET\"run\"=s.valFROM(SELECTrowid,MIN(\"num\")OVER(ORDERBY\"rowid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_20240101000000000000\")ASsWHEREt.rowid=s.rowid",
+    "UPDATE\"s\".\"t\"AStSET\"run\"=s.valFROM(SELECTrowid,MIN(\"num\")OVER(ORDERBY\"rowid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.rowid=s.rowid",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"run\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"run\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    "SELECT\"run\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
    [
     "exec",
-    "SELECT\"run\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"AStSET\"run\"=s.valFROM(SELECTctid,MIN(\"num\")OVER(ORDERBY\"ctid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_20240101000000000000\")ASsWHEREt.ctid=s.ctid",
+    "UPDATE\"s\".\"t\"AStSET\"run\"=s.valFROM(SELECTctid,MIN(\"num\")OVER(ORDERBY\"ctid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.ctid=s.ctid",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"run\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"run\"FROM\"s\".\"t\"",
     []
    ]
   ]
@@ -711,44 +591,34 @@
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    "SELECT\"cum_num_prod\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
    [
     "exec",
-    "SELECT\"cum_num_prod\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"AStSET\"cum_num_prod\"=s.valFROM(SELECTrowid,EXP(SUM(LN(NULLIF(\"num\",0)))OVER(ORDERBY\"rowid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW))ASvalFROM\"s\".\"t__op_20240101000000000000\")ASsWHEREt.rowid=s.rowid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_prod\"=s.valFROM(SELECTrowid,EXP(SUM(LN(NULLIF(\"num\",0)))OVER(ORDERBY\"rowid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW))ASvalFROM\"s\".\"t\")ASsWHEREt.rowid=s.rowid",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"cum_num_prod\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"cum_num_prod\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    "SELECT\"cum_num_prod\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
    [
     "exec",
-    "SELECT\"cum_num_prod\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"AStSET\"cum_num_prod\"=s.valFROM(SELECTctid,EXP(SUM(LN(NULLIF(\"num\",0)))OVER(ORDERBY\"ctid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW))ASvalFROM\"s\".\"t__op_20240101000000000000\")ASsWHEREt.ctid=s.ctid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_prod\"=s.valFROM(SELECTctid,EXP(SUM(LN(NULLIF(\"num\",0)))OVER(ORDERBY\"ctid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW))ASvalFROM\"s\".\"t\")ASsWHEREt.ctid=s.ctid",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"cum_num_prod\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"cum_num_prod\"FROM\"s\".\"t\"",
     []
    ]
   ]
@@ -769,44 +639,34 @@
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    "SELECT\"cum_num_prod\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
    [
     "exec",
-    "SELECT\"cum_num_prod\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"AStSET\"cum_num_prod\"=s.valFROM(SELECTrowid,EXP(SUM(LN(NULLIF(\"num\",0)))OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW))ASvalFROM\"s\".\"t__op_20240101000000000000\")ASsWHEREt.rowid=s.rowid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_prod\"=s.valFROM(SELECTrowid,EXP(SUM(LN(NULLIF(\"num\",0)))OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW))ASvalFROM\"s\".\"t\")ASsWHEREt.rowid=s.rowid",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"g\",\"cum_num_prod\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"g\",\"cum_num_prod\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    "SELECT\"cum_num_prod\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
    [
     "exec",
-    "SELECT\"cum_num_prod\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"AStSET\"cum_num_prod\"=s.valFROM(SELECTctid,EXP(SUM(LN(NULLIF(\"num\",0)))OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW))ASvalFROM\"s\".\"t__op_20240101000000000000\")ASsWHEREt.ctid=s.ctid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_prod\"=s.valFROM(SELECTctid,EXP(SUM(LN(NULLIF(\"num\",0)))OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW))ASvalFROM\"s\".\"t\")ASsWHEREt.ctid=s.ctid",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"g\",\"cum_num_prod\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"g\",\"cum_num_prod\"FROM\"s\".\"t\"",
     []
    ]
   ]
@@ -827,44 +687,34 @@
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    "SELECT\"run\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
    [
     "exec",
-    "SELECT\"run\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"AStSET\"run\"=s.valFROM(SELECTrowid,EXP(SUM(LN(NULLIF(\"num\",0)))OVER(ORDERBY\"rowid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW))ASvalFROM\"s\".\"t__op_20240101000000000000\")ASsWHEREt.rowid=s.rowid",
+    "UPDATE\"s\".\"t\"AStSET\"run\"=s.valFROM(SELECTrowid,EXP(SUM(LN(NULLIF(\"num\",0)))OVER(ORDERBY\"rowid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW))ASvalFROM\"s\".\"t\")ASsWHEREt.rowid=s.rowid",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"run\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"run\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    "SELECT\"run\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
    [
     "exec",
-    "SELECT\"run\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"AStSET\"run\"=s.valFROM(SELECTctid,EXP(SUM(LN(NULLIF(\"num\",0)))OVER(ORDERBY\"ctid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW))ASvalFROM\"s\".\"t__op_20240101000000000000\")ASsWHEREt.ctid=s.ctid",
+    "UPDATE\"s\".\"t\"AStSET\"run\"=s.valFROM(SELECTctid,EXP(SUM(LN(NULLIF(\"num\",0)))OVER(ORDERBY\"ctid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW))ASvalFROM\"s\".\"t\")ASsWHEREt.ctid=s.ctid",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"run\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"run\"FROM\"s\".\"t\"",
     []
    ]
   ]
@@ -885,44 +735,34 @@
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    "SELECT\"cum_num_std\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
    [
     "exec",
-    "SELECT\"cum_num_std\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"AStSET\"cum_num_std\"=s.valFROM(SELECTrowid,STDDEV_POP(\"num\")OVER(ORDERBY\"rowid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_20240101000000000000\")ASsWHEREt.rowid=s.rowid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_std\"=s.valFROM(SELECTrowid,STDDEV_POP(\"num\")OVER(ORDERBY\"rowid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.rowid=s.rowid",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"cum_num_std\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"cum_num_std\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    "SELECT\"cum_num_std\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
    [
     "exec",
-    "SELECT\"cum_num_std\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"AStSET\"cum_num_std\"=s.valFROM(SELECTctid,STDDEV_POP(\"num\")OVER(ORDERBY\"ctid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_20240101000000000000\")ASsWHEREt.ctid=s.ctid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_std\"=s.valFROM(SELECTctid,STDDEV_POP(\"num\")OVER(ORDERBY\"ctid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.ctid=s.ctid",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"cum_num_std\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"cum_num_std\"FROM\"s\".\"t\"",
     []
    ]
   ]
@@ -943,44 +783,34 @@
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    "SELECT\"cum_num_std\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
    [
     "exec",
-    "SELECT\"cum_num_std\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"AStSET\"cum_num_std\"=s.valFROM(SELECTrowid,STDDEV_POP(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_20240101000000000000\")ASsWHEREt.rowid=s.rowid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_std\"=s.valFROM(SELECTrowid,STDDEV_POP(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.rowid=s.rowid",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"g\",\"cum_num_std\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"g\",\"cum_num_std\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    "SELECT\"cum_num_std\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
    [
     "exec",
-    "SELECT\"cum_num_std\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"AStSET\"cum_num_std\"=s.valFROM(SELECTctid,STDDEV_POP(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_20240101000000000000\")ASsWHEREt.ctid=s.ctid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_std\"=s.valFROM(SELECTctid,STDDEV_POP(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.ctid=s.ctid",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"g\",\"cum_num_std\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"g\",\"cum_num_std\"FROM\"s\".\"t\"",
     []
    ]
   ]
@@ -1001,44 +831,34 @@
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    "SELECT\"run\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
    [
     "exec",
-    "SELECT\"run\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"AStSET\"run\"=s.valFROM(SELECTrowid,STDDEV_POP(\"num\")OVER(ORDERBY\"rowid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_20240101000000000000\")ASsWHEREt.rowid=s.rowid",
+    "UPDATE\"s\".\"t\"AStSET\"run\"=s.valFROM(SELECTrowid,STDDEV_POP(\"num\")OVER(ORDERBY\"rowid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.rowid=s.rowid",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"run\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"run\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    "SELECT\"run\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
    [
     "exec",
-    "SELECT\"run\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"AStSET\"run\"=s.valFROM(SELECTctid,STDDEV_POP(\"num\")OVER(ORDERBY\"ctid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_20240101000000000000\")ASsWHEREt.ctid=s.ctid",
+    "UPDATE\"s\".\"t\"AStSET\"run\"=s.valFROM(SELECTctid,STDDEV_POP(\"num\")OVER(ORDERBY\"ctid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.ctid=s.ctid",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"run\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"run\"FROM\"s\".\"t\"",
     []
    ]
   ]
@@ -1059,44 +879,34 @@
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    "SELECT\"cum_num_sum\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
    [
     "exec",
-    "SELECT\"cum_num_sum\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"AStSET\"cum_num_sum\"=s.valFROM(SELECTrowid,SUM(\"num\")OVER(ORDERBY\"rowid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_20240101000000000000\")ASsWHEREt.rowid=s.rowid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_sum\"=s.valFROM(SELECTrowid,SUM(\"num\")OVER(ORDERBY\"rowid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.rowid=s.rowid",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"cum_num_sum\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"cum_num_sum\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    "SELECT\"cum_num_sum\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
    [
     "exec",
-    "SELECT\"cum_num_sum\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"AStSET\"cum_num_sum\"=s.valFROM(SELECTctid,SUM(\"num\")OVER(ORDERBY\"ctid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_20240101000000000000\")ASsWHEREt.ctid=s.ctid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_sum\"=s.valFROM(SELECTctid,SUM(\"num\")OVER(ORDERBY\"ctid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.ctid=s.ctid",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"cum_num_sum\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"cum_num_sum\"FROM\"s\".\"t\"",
     []
    ]
   ]
@@ -1117,44 +927,34 @@
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    "SELECT\"cum_num_sum\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
    [
     "exec",
-    "SELECT\"cum_num_sum\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"AStSET\"cum_num_sum\"=s.valFROM(SELECTrowid,SUM(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_20240101000000000000\")ASsWHEREt.rowid=s.rowid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_sum\"=s.valFROM(SELECTrowid,SUM(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.rowid=s.rowid",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"g\",\"cum_num_sum\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"g\",\"cum_num_sum\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    "SELECT\"cum_num_sum\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
    [
     "exec",
-    "SELECT\"cum_num_sum\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"AStSET\"cum_num_sum\"=s.valFROM(SELECTctid,SUM(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_20240101000000000000\")ASsWHEREt.ctid=s.ctid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_sum\"=s.valFROM(SELECTctid,SUM(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.ctid=s.ctid",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"g\",\"cum_num_sum\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"g\",\"cum_num_sum\"FROM\"s\".\"t\"",
     []
    ]
   ]
@@ -1175,44 +975,34 @@
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    "SELECT\"run\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
    [
     "exec",
-    "SELECT\"run\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"AStSET\"run\"=s.valFROM(SELECTrowid,SUM(\"num\")OVER(ORDERBY\"rowid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_20240101000000000000\")ASsWHEREt.rowid=s.rowid",
+    "UPDATE\"s\".\"t\"AStSET\"run\"=s.valFROM(SELECTrowid,SUM(\"num\")OVER(ORDERBY\"rowid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.rowid=s.rowid",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"run\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"run\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    "SELECT\"run\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
    [
     "exec",
-    "SELECT\"run\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"AStSET\"run\"=s.valFROM(SELECTctid,SUM(\"num\")OVER(ORDERBY\"ctid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_20240101000000000000\")ASsWHEREt.ctid=s.ctid",
+    "UPDATE\"s\".\"t\"AStSET\"run\"=s.valFROM(SELECTctid,SUM(\"num\")OVER(ORDERBY\"ctid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.ctid=s.ctid",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"run\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"run\"FROM\"s\".\"t\"",
     []
    ]
   ]
@@ -1233,44 +1023,34 @@
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    "SELECT\"cum_num_var\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
    [
     "exec",
-    "SELECT\"cum_num_var\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"AStSET\"cum_num_var\"=s.valFROM(SELECTrowid,VAR_POP(\"num\")OVER(ORDERBY\"rowid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_20240101000000000000\")ASsWHEREt.rowid=s.rowid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_var\"=s.valFROM(SELECTrowid,VAR_POP(\"num\")OVER(ORDERBY\"rowid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.rowid=s.rowid",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"cum_num_var\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"cum_num_var\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    "SELECT\"cum_num_var\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
    [
     "exec",
-    "SELECT\"cum_num_var\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"AStSET\"cum_num_var\"=s.valFROM(SELECTctid,VAR_POP(\"num\")OVER(ORDERBY\"ctid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_20240101000000000000\")ASsWHEREt.ctid=s.ctid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_var\"=s.valFROM(SELECTctid,VAR_POP(\"num\")OVER(ORDERBY\"ctid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.ctid=s.ctid",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"cum_num_var\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"cum_num_var\"FROM\"s\".\"t\"",
     []
    ]
   ]
@@ -1291,44 +1071,34 @@
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    "SELECT\"cum_num_var\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
    [
     "exec",
-    "SELECT\"cum_num_var\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"AStSET\"cum_num_var\"=s.valFROM(SELECTrowid,VAR_POP(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_20240101000000000000\")ASsWHEREt.rowid=s.rowid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_var\"=s.valFROM(SELECTrowid,VAR_POP(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.rowid=s.rowid",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"g\",\"cum_num_var\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"g\",\"cum_num_var\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    "SELECT\"cum_num_var\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
    [
     "exec",
-    "SELECT\"cum_num_var\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"AStSET\"cum_num_var\"=s.valFROM(SELECTctid,VAR_POP(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_20240101000000000000\")ASsWHEREt.ctid=s.ctid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_var\"=s.valFROM(SELECTctid,VAR_POP(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.ctid=s.ctid",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"g\",\"cum_num_var\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"g\",\"cum_num_var\"FROM\"s\".\"t\"",
     []
    ]
   ]
@@ -1349,44 +1119,34 @@
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    "SELECT\"run\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
    [
     "exec",
-    "SELECT\"run\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"AStSET\"run\"=s.valFROM(SELECTrowid,VAR_POP(\"num\")OVER(ORDERBY\"rowid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_20240101000000000000\")ASsWHEREt.rowid=s.rowid",
+    "UPDATE\"s\".\"t\"AStSET\"run\"=s.valFROM(SELECTrowid,VAR_POP(\"num\")OVER(ORDERBY\"rowid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.rowid=s.rowid",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"run\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"run\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
+    "SELECT\"run\"FROM\"s\".\"t\"LIMIT1",
     []
    ],
    [
     "exec",
-    "SELECT\"run\"FROM\"s\".\"t__op_20240101000000000000\"LIMIT1",
-    []
-   ],
-   [
-    "exec",
-    "UPDATE\"s\".\"t__op_20240101000000000000\"AStSET\"run\"=s.valFROM(SELECTctid,VAR_POP(\"num\")OVER(ORDERBY\"ctid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_20240101000000000000\")ASsWHEREt.ctid=s.ctid",
+    "UPDATE\"s\".\"t\"AStSET\"run\"=s.valFROM(SELECTctid,VAR_POP(\"num\")OVER(ORDERBY\"ctid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.ctid=s.ctid",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"run\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"run\"FROM\"s\".\"t\"",
     []
    ]
   ]

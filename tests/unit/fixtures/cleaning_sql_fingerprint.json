@@ -126,21 +126,6 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"cat\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_cat_constant_filled\"VARCHAR",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"cleaned_cat_constant_filled\"=COALESCE(\"cat\",'x')WHERE1",
-    []
-   ],
-   [
-    "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_cat_constant_filled\"VARCHAR",
     []
    ],
@@ -151,12 +136,12 @@
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"cat\"ISNULL",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"cat\"ISNULL",
     []
    ],
    [
     "fetch",
-    "SELECT\"cat\",\"cleaned_cat_constant_filled\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"cat\",\"cleaned_cat_constant_filled\"FROM\"s\".\"t\"",
     []
    ]
   ],
@@ -209,12 +194,7 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"cat\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_cat_ffill_filled\"VARCHAR",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_cat_ffill_filled\"VARCHAR",
     []
    ]
   ],
@@ -267,31 +247,11 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"g\",\"cat\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_cat_ffill_filled\"VARCHAR",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_cat_ffill_filled\"VARCHAR",
     []
    ]
   ],
   "duckdb": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"g\",\"cat\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_cat_ffill_filled\"VARCHAR",
-    []
-   ],
-   [
-    "exec",
-    "WITHbaseAS(SELECT*,ROW_NUMBER()OVER()AS__idx,rowidAS__ridFROM\"s\".\"t__op_20240101000000000000\"),filledAS(SELECT*,LAST_VALUE(\"cat\"IGNORENULLS)OVER(PARTITIONBY\"g\"ORDERBY__idxROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASfilled_valFROMbase)UPDATE\"s\".\"t__op_20240101000000000000\"tSET\"cleaned_cat_ffill_filled\"=COALESCE(t.\"cat\",f.filled_val)FROMfilledfWHEREt.rowid=f.__rid",
-    []
-   ],
    [
     "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_cat_ffill_filled\"VARCHAR",
@@ -304,31 +264,16 @@
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"cat\"ISNULL",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"cat\"ISNULL",
     []
    ],
    [
     "fetch",
-    "SELECT\"g\",\"cat\",\"cleaned_cat_ffill_filled\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"g\",\"cat\",\"cleaned_cat_ffill_filled\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"g\",\"cat\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_cat_ffill_filled\"VARCHAR",
-    []
-   ],
-   [
-    "exec",
-    "WITHbaseAS(SELECT*,ROW_NUMBER()OVER()AS__idx,ctidAS__ridFROM\"s\".\"t__op_20240101000000000000\"),filledAS(SELECT*,MAX(\"cat\")OVER(PARTITIONBY\"g\"ORDERBY__idxROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASfilled_valFROMbase)UPDATE\"s\".\"t__op_20240101000000000000\"tSET\"cleaned_cat_ffill_filled\"=COALESCE(t.\"cat\",f.filled_val)FROMfilledfWHEREt.ctid=f.__rid",
-    []
-   ],
    [
     "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_cat_ffill_filled\"VARCHAR",
@@ -341,53 +286,18 @@
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"cat\"ISNULL",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"cat\"ISNULL",
     []
    ],
    [
     "fetch",
-    "SELECT\"g\",\"cat\",\"cleaned_cat_ffill_filled\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"g\",\"cat\",\"cleaned_cat_ffill_filled\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "categorical_fillna_groupby_mode": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"g\",\"cat\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_cat_mode_filled\"VARCHAR",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"DROPCOLUMN\"cleaned_cat_mode_filled\"",
-    []
-   ],
-   [
-    "exec",
-    "DROPTABLEIFEXISTS\"s\".\"t__op_20240101000000000000__temp\"",
-    []
-   ],
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000__temp\"ASSELECTt.*,COALESCE(t.\"cat\",m.mode_val)AS\"cleaned_cat_mode_filled\"FROM\"s\".\"t__op_20240101000000000000\"tLEFTJOIN(SELECT\"g\",\"cat\"ASmode_valFROM(SELECT\"g\",\"cat\",COUNT(*)AScnt,ROW_NUMBER()OVER(PARTITIONBY\"g\"ORDERBYCOUNT(*)DESC)ASrnFROM\"s\".\"t__op_20240101000000000000\"WHERE\"cat\"ISNOTNULLGROUPBY\"g\",\"cat\")subWHERErn=1)mON(t.\"g\"=m.\"g\"OR(t.\"g\"ISNULLANDm.\"g\"ISNULL))",
-    []
-   ],
-   [
-    "exec",
-    "DROPTABLE\"s\".\"t__op_20240101000000000000\"",
-    []
-   ],
-   [
-    "exec",
-    "RENAMETABLE\"s\".\"t__op_20240101000000000000__temp\"TO\"s\".\"t__op_20240101000000000000\"",
-    []
-   ],
    [
     "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_cat_mode_filled\"VARCHAR",
@@ -400,12 +310,12 @@
    ],
    [
     "exec",
-    "DROPTABLEIFEXISTS\"s\".\"t__op_20240101000000000000__temp\"",
+    "DROPTABLEIFEXISTS\"s\".\"t__temp\"",
     []
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000__temp\"ASSELECTt.*,COALESCE(t.\"cat\",m.mode_val)AS\"cleaned_cat_mode_filled\"FROM\"s\".\"t\"tLEFTJOIN(SELECT\"g\",\"cat\"ASmode_valFROM(SELECT\"g\",\"cat\",COUNT(*)AScnt,ROW_NUMBER()OVER(PARTITIONBY\"g\"ORDERBYCOUNT(*)DESC)ASrnFROM\"s\".\"t\"WHERE\"cat\"ISNOTNULLGROUPBY\"g\",\"cat\")subWHERErn=1)mON(t.\"g\"=m.\"g\"OR(t.\"g\"ISNULLANDm.\"g\"ISNULL))",
+    "CREATETABLE\"s\".\"t__temp\"ASSELECTt.*,COALESCE(t.\"cat\",m.mode_val)AS\"cleaned_cat_mode_filled\"FROM\"s\".\"t\"tLEFTJOIN(SELECT\"g\",\"cat\"ASmode_valFROM(SELECT\"g\",\"cat\",COUNT(*)AScnt,ROW_NUMBER()OVER(PARTITIONBY\"g\"ORDERBYCOUNT(*)DESC)ASrnFROM\"s\".\"t\"WHERE\"cat\"ISNOTNULLGROUPBY\"g\",\"cat\")subWHERErn=1)mON(t.\"g\"=m.\"g\"OR(t.\"g\"ISNULLANDm.\"g\"ISNULL))",
     []
    ],
    [
@@ -415,38 +325,23 @@
    ],
    [
     "exec",
-    "RENAMETABLE\"s\".\"t__op_20240101000000000000__temp\"TO\"s\".\"t\"",
+    "RENAMETABLE\"s\".\"t__temp\"TO\"s\".\"t\"",
     []
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"cat\"ISNULL",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"cat\"ISNULL",
     []
    ],
    [
     "fetch",
-    "SELECT\"g\",\"cat\",\"cleaned_cat_mode_filled\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"g\",\"cat\",\"cleaned_cat_mode_filled\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"g\",\"cat\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_cat_mode_filled\"VARCHAR",
-    []
-   ],
-   [
-    "exec",
-    "WITHmode_valsAS(SELECT\"g\",\"cat\"ASmode_valFROM(SELECT\"g\",\"cat\",COUNT(*)AScnt,ROW_NUMBER()OVER(PARTITIONBY\"g\"ORDERBYCOUNT(*)DESC)ASrnFROM\"s\".\"t__op_20240101000000000000\"WHERE\"cat\"ISNOTNULLGROUPBY\"g\",\"cat\")subWHERErn=1)UPDATE\"s\".\"t__op_20240101000000000000\"tSET\"cleaned_cat_mode_filled\"=COALESCE(t.\"cat\",m.mode_val)FROMmode_valsmWHERE(t.\"g\"=m.\"g\"OR(t.\"g\"ISNULLANDm.\"g\"ISNULL))",
-    []
-   ],
-   [
-    "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_cat_mode_filled\"VARCHAR",
     []
    ],
@@ -457,33 +352,18 @@
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"cat\"ISNULL",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"cat\"ISNULL",
     []
    ],
    [
     "fetch",
-    "SELECT\"g\",\"cat\",\"cleaned_cat_mode_filled\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"g\",\"cat\",\"cleaned_cat_mode_filled\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"g\",\"cat\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_cat_mode_filled\"VARCHAR",
-    []
-   ],
-   [
-    "exec",
-    "WITHmode_valsAS(SELECT\"g\",\"cat\"ASmode_valFROM(SELECT\"g\",\"cat\",COUNT(*)AScnt,ROW_NUMBER()OVER(PARTITIONBY\"g\"ORDERBYCOUNT(*)DESC)ASrnFROM\"s\".\"t__op_20240101000000000000\"WHERE\"cat\"ISNOTNULLGROUPBY\"g\",\"cat\")subWHERErn=1)UPDATE\"s\".\"t__op_20240101000000000000\"tSET\"cleaned_cat_mode_filled\"=COALESCE(t.\"cat\",m.mode_val)FROMmode_valsmWHERE(t.\"g\"=m.\"g\"OR(t.\"g\"ISNULLANDm.\"g\"ISNULL))",
-    []
-   ],
-   [
-    "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_cat_mode_filled\"VARCHAR",
     []
    ],
@@ -494,33 +374,18 @@
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"cat\"ISNULL",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"cat\"ISNULL",
     []
    ],
    [
     "fetch",
-    "SELECT\"g\",\"cat\",\"cleaned_cat_mode_filled\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"g\",\"cat\",\"cleaned_cat_mode_filled\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "categorical_fillna_map": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"cat\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_cat_mapped\"VARCHAR",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"cleaned_cat_mapped\"=COALESCE(CASEWHEN\"cat\"='a'THEN'b'ELSE\"cat\"END,\"cat\")WHERE1",
-    []
-   ],
    [
     "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_cat_mapped\"VARCHAR",
@@ -533,12 +398,12 @@
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"cat\"ISNULL",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"cat\"ISNULL",
     []
    ],
    [
     "fetch",
-    "SELECT\"cat\",\"cleaned_cat_mapped\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"cat\",\"cleaned_cat_mapped\"FROM\"s\".\"t\"",
     []
    ]
   ],
@@ -591,26 +456,6 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"cat\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_cat_mode_filled\"VARCHAR",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"cleaned_cat_mode_filled\"=COALESCE(\"cat\",(SELECT\"cat\"FROM\"s\".\"t__op_20240101000000000000\"WHERE\"cat\"ISNOTNULLGROUPBY\"cat\"ORDERBYCOUNT(*)DESCLIMIT1))WHERE1",
-    []
-   ],
-   [
-    "fetchval",
-    "SELECT\"cat\"ASmode_valueFROM\"s\".\"t__op_20240101000000000000\"WHERE\"cat\"ISNOTNULLGROUPBY\"cat\"ORDERBYCOUNT(*)DESCLIMIT1",
-    []
-   ],
-   [
-    "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_cat_mode_filled\"VARCHAR",
     []
    ],
@@ -626,12 +471,12 @@
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"cat\"ISNULL",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"cat\"ISNULL",
     []
    ],
    [
     "fetch",
-    "SELECT\"cat\",\"cleaned_cat_mode_filled\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"cat\",\"cleaned_cat_mode_filled\"FROM\"s\".\"t\"",
     []
    ]
   ],
@@ -934,21 +779,6 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"ts\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_ts_constant_filled\"TIMESTAMP",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"cleaned_ts_constant_filled\"=COALESCE(\"ts\",CAST('2024-01-01'ASDateTime))WHERE1",
-    []
-   ],
-   [
-    "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_ts_constant_filled\"TIMESTAMP",
     []
    ],
@@ -959,12 +789,12 @@
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"ts\"ISNULL",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"ts\"ISNULL",
     []
    ],
    [
     "fetch",
-    "SELECT\"ts\",\"cleaned_ts_constant_filled\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"ts\",\"cleaned_ts_constant_filled\"FROM\"s\".\"t\"",
     []
    ]
   ],
@@ -1036,12 +866,7 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"ts\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_ts_ffill_filled\"TIMESTAMP",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_ts_ffill_filled\"TIMESTAMP",
     []
    ]
   ],
@@ -1139,41 +964,6 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"g\",\"ts\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_ts_ffill_filled\"TIMESTAMP",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"DROPCOLUMN\"cleaned_ts_ffill_filled\"",
-    []
-   ],
-   [
-    "exec",
-    "DROPTABLEIFEXISTS\"s\".\"t__op_20240101000000000000__temp\"",
-    []
-   ],
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000__temp\"ASWITHbaseAS(SELECTt.*,ROW_NUMBER()OVER()AS__idxFROM\"s\".\"t__op_20240101000000000000\"t),with_islandAS(SELECTb.*,countIf(isNotNull(\"ts\"))OVER(PARTITIONBY\"g\"ORDERBY__idxASCROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS_island_idFROMbaseb),fill_mapAS(SELECT\"g\",_island_id,any(\"ts\")ASfill_valFROMwith_islandWHERE\"ts\"ISNOTNULLGROUPBY\"g\",_island_id)SELECTb.*,COALESCE(b.\"ts\",fm.fill_val)AS\"cleaned_ts_ffill_filled\"FROMwith_islandbLEFTJOINfill_mapfmONb.\"g\"=fm.\"g\"ANDb._island_id=fm._island_idORDERBYb.__idx",
-    []
-   ],
-   [
-    "exec",
-    "DROPTABLE\"s\".\"t__op_20240101000000000000\"",
-    []
-   ],
-   [
-    "exec",
-    "RENAMETABLE\"s\".\"t__op_20240101000000000000__temp\"TO\"s\".\"t__op_20240101000000000000\"",
-    []
-   ],
-   [
-    "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_ts_ffill_filled\"TIMESTAMP",
     []
    ],
@@ -1184,12 +974,12 @@
    ],
    [
     "exec",
-    "DROPTABLEIFEXISTS\"s\".\"t__op_20240101000000000000__temp\"",
+    "DROPTABLEIFEXISTS\"s\".\"t__temp\"",
     []
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000__temp\"ASWITHbaseAS(SELECTt.*,ROW_NUMBER()OVER()AS__idxFROM\"s\".\"t\"t),with_islandAS(SELECTb.*,countIf(isNotNull(\"ts\"))OVER(PARTITIONBY\"g\"ORDERBY__idxASCROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS_island_idFROMbaseb),fill_mapAS(SELECT\"g\",_island_id,any(\"ts\")ASfill_valFROMwith_islandWHERE\"ts\"ISNOTNULLGROUPBY\"g\",_island_id)SELECTb.*,COALESCE(b.\"ts\",fm.fill_val)AS\"cleaned_ts_ffill_filled\"FROMwith_islandbLEFTJOINfill_mapfmONb.\"g\"=fm.\"g\"ANDb._island_id=fm._island_idORDERBYb.__idx",
+    "CREATETABLE\"s\".\"t__temp\"ASWITHbaseAS(SELECTt.*,ROW_NUMBER()OVER()AS__idxFROM\"s\".\"t\"t),with_islandAS(SELECTb.*,countIf(isNotNull(\"ts\"))OVER(PARTITIONBY\"g\"ORDERBY__idxASCROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS_island_idFROMbaseb),fill_mapAS(SELECT\"g\",_island_id,any(\"ts\")ASfill_valFROMwith_islandWHERE\"ts\"ISNOTNULLGROUPBY\"g\",_island_id)SELECTb.*,COALESCE(b.\"ts\",fm.fill_val)AS\"cleaned_ts_ffill_filled\"FROMwith_islandbLEFTJOINfill_mapfmONb.\"g\"=fm.\"g\"ANDb._island_id=fm._island_idORDERBYb.__idx",
     []
    ],
    [
@@ -1199,36 +989,21 @@
    ],
    [
     "exec",
-    "RENAMETABLE\"s\".\"t__op_20240101000000000000__temp\"TO\"s\".\"t\"",
+    "RENAMETABLE\"s\".\"t__temp\"TO\"s\".\"t\"",
     []
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"ts\"ISNULL",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"ts\"ISNULL",
     []
    ],
    [
     "fetch",
-    "SELECT\"g\",\"ts\",\"cleaned_ts_ffill_filled\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"g\",\"ts\",\"cleaned_ts_ffill_filled\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"g\",\"ts\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_ts_ffill_filled\"TIMESTAMP",
-    []
-   ],
-   [
-    "exec",
-    "WITHbaseAS(SELECT*,ROW_NUMBER()OVER()AS__idx,rowidAS__ridFROM\"s\".\"t__op_20240101000000000000\"),filledAS(SELECT*,LAST_VALUE(\"ts\"IGNORENULLS)OVER(PARTITIONBY\"g\"ORDERBY__idxROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASfilled_valFROMbase)UPDATE\"s\".\"t__op_20240101000000000000\"tSET\"cleaned_ts_ffill_filled\"=COALESCE(t.\"ts\",f.filled_val)FROMfilledfWHEREt.rowid=f.__rid",
-    []
-   ],
    [
     "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_ts_ffill_filled\"TIMESTAMP",
@@ -1241,46 +1016,16 @@
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"ts\"ISNULL",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"ts\"ISNULL",
     []
    ],
    [
     "fetch",
-    "SELECT\"g\",\"ts\",\"cleaned_ts_ffill_filled\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"g\",\"ts\",\"cleaned_ts_ffill_filled\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"g\",\"ts\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_ts_ffill_filled\"TIMESTAMP",
-    []
-   ],
-   [
-    "exec",
-    "DROPTABLEIFEXISTS\"s\".\"t__op_20240101000000000000__fill_temp\"",
-    []
-   ],
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000__fill_temp\"ASSELECT\"g\",\"ts\",COALESCE(\"ts\",filled_val)AS\"cleaned_ts_ffill_filled\"FROM(WITHbaseAS(SELECT*,ROW_NUMBER()OVER(ORDERBYctid)AS__idxFROM\"s\".\"t__op_20240101000000000000\"),filledAS(SELECT*,MAX(\"ts\")OVER(PARTITIONBY\"g\"ORDERBY__idxROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASfilled_valFROMbase)SELECT*FROMfilled)subORDERBY__idx",
-    []
-   ],
-   [
-    "exec",
-    "DROPTABLE\"s\".\"t__op_20240101000000000000\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000__fill_temp\"RENAMETO\"t__op_20240101000000000000\"",
-    []
-   ],
    [
     "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_ts_ffill_filled\"TIMESTAMP",
@@ -1288,12 +1033,12 @@
    ],
    [
     "exec",
-    "DROPTABLEIFEXISTS\"s\".\"t__op_20240101000000000000__fill_temp\"",
+    "DROPTABLEIFEXISTS\"s\".\"t__fill_temp\"",
     []
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000__fill_temp\"ASSELECT\"g\",\"ts\",COALESCE(\"ts\",filled_val)AS\"cleaned_ts_ffill_filled\"FROM(WITHbaseAS(SELECT*,ROW_NUMBER()OVER(ORDERBYctid)AS__idxFROM\"s\".\"t\"),filledAS(SELECT*,MAX(\"ts\")OVER(PARTITIONBY\"g\"ORDERBY__idxROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASfilled_valFROMbase)SELECT*FROMfilled)subORDERBY__idx",
+    "CREATETABLE\"s\".\"t__fill_temp\"ASSELECT\"g\",\"ts\",COALESCE(\"ts\",filled_val)AS\"cleaned_ts_ffill_filled\"FROM(WITHbaseAS(SELECT*,ROW_NUMBER()OVER(ORDERBYctid)AS__idxFROM\"s\".\"t\"),filledAS(SELECT*,MAX(\"ts\")OVER(PARTITIONBY\"g\"ORDERBY__idxROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASfilled_valFROMbase)SELECT*FROMfilled)subORDERBY__idx",
     []
    ],
    [
@@ -1303,58 +1048,23 @@
    ],
    [
     "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000__fill_temp\"RENAMETO\"t\"",
+    "ALTERTABLE\"s\".\"t__fill_temp\"RENAMETO\"t\"",
     []
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"ts\"ISNULL",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"ts\"ISNULL",
     []
    ],
    [
     "fetch",
-    "SELECT\"g\",\"ts\",\"cleaned_ts_ffill_filled\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"g\",\"ts\",\"cleaned_ts_ffill_filled\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "datetime_fillna_groupby_mean": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"g\",\"ts\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_ts_mean_filled\"TIMESTAMP",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"DROPCOLUMN\"cleaned_ts_mean_filled\"",
-    []
-   ],
-   [
-    "exec",
-    "DROPTABLEIFEXISTS\"s\".\"t__op_20240101000000000000__temp\"",
-    []
-   ],
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000__temp\"ASSELECTt.*,COALESCE(t.\"ts\",g.val,(SELECTtoDateTime(toUInt32(avg(toUnixTimestamp(\"ts\"))))FROM\"s\".\"t__op_20240101000000000000\"))AS\"cleaned_ts_mean_filled\"FROM\"s\".\"t__op_20240101000000000000\"tLEFTJOIN(SELECT\"g\",toDateTime(toUInt32(avg(toUnixTimestamp(\"ts\"))))ASvalFROM\"s\".\"t__op_20240101000000000000\"GROUPBY\"g\")gON(t.\"g\"=g.\"g\"OR(t.\"g\"ISNULLANDg.\"g\"ISNULL))",
-    []
-   ],
-   [
-    "exec",
-    "DROPTABLE\"s\".\"t__op_20240101000000000000\"",
-    []
-   ],
-   [
-    "exec",
-    "RENAMETABLE\"s\".\"t__op_20240101000000000000__temp\"TO\"s\".\"t__op_20240101000000000000\"",
-    []
-   ],
    [
     "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_ts_mean_filled\"TIMESTAMP",
@@ -1367,12 +1077,12 @@
    ],
    [
     "exec",
-    "DROPTABLEIFEXISTS\"s\".\"t__op_20240101000000000000__temp\"",
+    "DROPTABLEIFEXISTS\"s\".\"t__temp\"",
     []
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000__temp\"ASSELECTt.*,COALESCE(t.\"ts\",g.val,(SELECTtoDateTime(toUInt32(avg(toUnixTimestamp(\"ts\"))))FROM\"s\".\"t\"))AS\"cleaned_ts_mean_filled\"FROM\"s\".\"t\"tLEFTJOIN(SELECT\"g\",toDateTime(toUInt32(avg(toUnixTimestamp(\"ts\"))))ASvalFROM\"s\".\"t\"GROUPBY\"g\")gON(t.\"g\"=g.\"g\"OR(t.\"g\"ISNULLANDg.\"g\"ISNULL))",
+    "CREATETABLE\"s\".\"t__temp\"ASSELECTt.*,COALESCE(t.\"ts\",g.val,(SELECTtoDateTime(toUInt32(avg(toUnixTimestamp(\"ts\"))))FROM\"s\".\"t\"))AS\"cleaned_ts_mean_filled\"FROM\"s\".\"t\"tLEFTJOIN(SELECT\"g\",toDateTime(toUInt32(avg(toUnixTimestamp(\"ts\"))))ASvalFROM\"s\".\"t\"GROUPBY\"g\")gON(t.\"g\"=g.\"g\"OR(t.\"g\"ISNULLANDg.\"g\"ISNULL))",
     []
    ],
    [
@@ -1382,36 +1092,21 @@
    ],
    [
     "exec",
-    "RENAMETABLE\"s\".\"t__op_20240101000000000000__temp\"TO\"s\".\"t\"",
+    "RENAMETABLE\"s\".\"t__temp\"TO\"s\".\"t\"",
     []
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"ts\"ISNULL",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"ts\"ISNULL",
     []
    ],
    [
     "fetch",
-    "SELECT\"g\",\"ts\",\"cleaned_ts_mean_filled\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"g\",\"ts\",\"cleaned_ts_mean_filled\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"g\",\"ts\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_ts_mean_filled\"TIMESTAMP",
-    []
-   ],
-   [
-    "exec",
-    "WITHgroupedAS(SELECT\"g\",TO_TIMESTAMP(AVG(EPOCH(\"ts\")))ASvalFROM\"s\".\"t__op_20240101000000000000\"GROUPBY\"g\"),global_statAS(SELECTCOALESCE(TO_TIMESTAMP(AVG(EPOCH(\"ts\"))),CURRENT_TIMESTAMP)ASvalFROM\"s\".\"t__op_20240101000000000000\")UPDATE\"s\".\"t__op_20240101000000000000\"tSET\"cleaned_ts_mean_filled\"=COALESCE(t.\"ts\",g.val,(SELECTvalFROMglobal_stat))FROMgroupedgWHERE(t.\"g\"=g.\"g\"OR(t.\"g\"ISNULLANDg.\"g\"ISNULL))",
-    []
-   ],
    [
     "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_ts_mean_filled\"TIMESTAMP",
@@ -1424,31 +1119,16 @@
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"ts\"ISNULL",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"ts\"ISNULL",
     []
    ],
    [
     "fetch",
-    "SELECT\"g\",\"ts\",\"cleaned_ts_mean_filled\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"g\",\"ts\",\"cleaned_ts_mean_filled\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"g\",\"ts\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_ts_mean_filled\"TIMESTAMP",
-    []
-   ],
-   [
-    "exec",
-    "WITHgroupedAS(SELECT\"g\",TO_TIMESTAMP(AVG(EXTRACT(EPOCHFROM\"ts\")))ASvalFROM\"s\".\"t__op_20240101000000000000\"GROUPBY\"g\"),global_statAS(SELECTCOALESCE(TO_TIMESTAMP(AVG(EXTRACT(EPOCHFROM\"ts\"))),CURRENT_TIMESTAMP)ASvalFROM\"s\".\"t__op_20240101000000000000\")UPDATE\"s\".\"t__op_20240101000000000000\"tSET\"cleaned_ts_mean_filled\"=COALESCE(t.\"ts\",g.val,(SELECTvalFROMglobal_stat))FROMgroupedgWHERE(t.\"g\"=g.\"g\"OR(t.\"g\"ISNULLANDg.\"g\"ISNULL))",
-    []
-   ],
    [
     "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_ts_mean_filled\"TIMESTAMP",
@@ -1461,38 +1141,18 @@
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"ts\"ISNULL",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"ts\"ISNULL",
     []
    ],
    [
     "fetch",
-    "SELECT\"g\",\"ts\",\"cleaned_ts_mean_filled\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"g\",\"ts\",\"cleaned_ts_mean_filled\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "datetime_fillna_mean": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"ts\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_ts_mean_filled\"TIMESTAMP",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"cleaned_ts_mean_filled\"=COALESCE(\"ts\",(SELECTtoDateTime(toUInt32(avg(toUnixTimestamp(\"ts\"))))FROM\"s\".\"t__op_20240101000000000000\"WHERE\"ts\"ISNOTNULL))WHERE1",
-    []
-   ],
-   [
-    "fetchval",
-    "SELECTtoDateTime(toUInt32(avg(toUnixTimestamp(\"ts\"))))FROM\"s\".\"t__op_20240101000000000000\"WHERE\"ts\"ISNOTNULL",
-    []
-   ],
    [
     "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_ts_mean_filled\"TIMESTAMP",
@@ -1510,12 +1170,12 @@
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"ts\"ISNULL",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"ts\"ISNULL",
     []
    ],
    [
     "fetch",
-    "SELECT\"ts\",\"cleaned_ts_mean_filled\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"ts\",\"cleaned_ts_mean_filled\"FROM\"s\".\"t\"",
     []
    ]
   ],
@@ -1598,21 +1258,6 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"ts\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_ts_now_filled\"TIMESTAMP",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"cleaned_ts_now_filled\"=COALESCE(\"ts\",now())WHERE1",
-    []
-   ],
-   [
-    "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_ts_now_filled\"TIMESTAMP",
     []
    ],
@@ -1623,12 +1268,12 @@
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"ts\"ISNULL",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"ts\"ISNULL",
     []
    ],
    [
     "fetch",
-    "SELECT\"ts\",\"cleaned_ts_now_filled\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"ts\",\"cleaned_ts_now_filled\"FROM\"s\".\"t\"",
     []
    ]
   ],
@@ -2227,31 +1872,11 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"g\",\"num\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_num_ffill_filled\"INTEGER",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_num_ffill_filled\"INTEGER",
     []
    ]
   ],
   "duckdb": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"g\",\"num\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_num_ffill_filled\"INTEGER",
-    []
-   ],
-   [
-    "exec",
-    "WITHbaseAS(SELECT*,ROW_NUMBER()OVER()AS__idx,rowidAS__ridFROM\"s\".\"t__op_20240101000000000000\"),filledAS(SELECT*,LAST_VALUE(\"num\"IGNORENULLS)OVER(PARTITIONBY\"g\"ORDERBY__idxROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASfilled_valFROMbase)UPDATE\"s\".\"t__op_20240101000000000000\"tSET\"cleaned_num_ffill_filled\"=COALESCE(t.\"num\",f.filled_val)FROMfilledfWHEREt.rowid=f.__rid",
-    []
-   ],
    [
     "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_num_ffill_filled\"INTEGER",
@@ -2264,31 +1889,16 @@
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"num\"ISNULL",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"num\"ISNULL",
     []
    ],
    [
     "fetch",
-    "SELECT\"g\",\"num\",\"cleaned_num_ffill_filled\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"g\",\"num\",\"cleaned_num_ffill_filled\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"g\",\"num\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_num_ffill_filled\"INTEGER",
-    []
-   ],
-   [
-    "exec",
-    "WITHbaseAS(SELECT*,ROW_NUMBER()OVER()AS__idx,ctidAS__ridFROM\"s\".\"t__op_20240101000000000000\"),filledAS(SELECT*,MAX(\"num\")OVER(PARTITIONBY\"g\"ORDERBY__idxROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASfilled_valFROMbase)UPDATE\"s\".\"t__op_20240101000000000000\"tSET\"cleaned_num_ffill_filled\"=COALESCE(t.\"num\",f.filled_val)FROMfilledfWHEREt.ctid=f.__rid",
-    []
-   ],
    [
     "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_num_ffill_filled\"INTEGER",
@@ -2301,53 +1911,18 @@
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"num\"ISNULL",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"num\"ISNULL",
     []
    ],
    [
     "fetch",
-    "SELECT\"g\",\"num\",\"cleaned_num_ffill_filled\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"g\",\"num\",\"cleaned_num_ffill_filled\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "numeric_fillna_groupby_mean": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"g\",\"num\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_num_mean_filled\"INTEGER",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"DROPCOLUMN\"cleaned_num_mean_filled\"",
-    []
-   ],
-   [
-    "exec",
-    "DROPTABLEIFEXISTS\"s\".\"t__op_20240101000000000000__temp\"",
-    []
-   ],
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000__temp\"ASSELECTt.*,COALESCE(t.\"num\",g.val,(SELECTAVG(\"num\")FROM\"s\".\"t__op_20240101000000000000\"))AS\"cleaned_num_mean_filled\"FROM\"s\".\"t__op_20240101000000000000\"tLEFTJOIN(SELECT\"g\",AVG(\"num\")ASvalFROM\"s\".\"t__op_20240101000000000000\"GROUPBY\"g\")gON(t.\"g\"=g.\"g\"OR(t.\"g\"ISNULLANDg.\"g\"ISNULL))",
-    []
-   ],
-   [
-    "exec",
-    "DROPTABLE\"s\".\"t__op_20240101000000000000\"",
-    []
-   ],
-   [
-    "exec",
-    "RENAMETABLE\"s\".\"t__op_20240101000000000000__temp\"TO\"s\".\"t__op_20240101000000000000\"",
-    []
-   ],
    [
     "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_num_mean_filled\"INTEGER",
@@ -2360,12 +1935,12 @@
    ],
    [
     "exec",
-    "DROPTABLEIFEXISTS\"s\".\"t__op_20240101000000000000__temp\"",
+    "DROPTABLEIFEXISTS\"s\".\"t__temp\"",
     []
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000__temp\"ASSELECTt.*,COALESCE(t.\"num\",g.val,(SELECTAVG(\"num\")FROM\"s\".\"t\"))AS\"cleaned_num_mean_filled\"FROM\"s\".\"t\"tLEFTJOIN(SELECT\"g\",AVG(\"num\")ASvalFROM\"s\".\"t\"GROUPBY\"g\")gON(t.\"g\"=g.\"g\"OR(t.\"g\"ISNULLANDg.\"g\"ISNULL))",
+    "CREATETABLE\"s\".\"t__temp\"ASSELECTt.*,COALESCE(t.\"num\",g.val,(SELECTAVG(\"num\")FROM\"s\".\"t\"))AS\"cleaned_num_mean_filled\"FROM\"s\".\"t\"tLEFTJOIN(SELECT\"g\",AVG(\"num\")ASvalFROM\"s\".\"t\"GROUPBY\"g\")gON(t.\"g\"=g.\"g\"OR(t.\"g\"ISNULLANDg.\"g\"ISNULL))",
     []
    ],
    [
@@ -2375,38 +1950,23 @@
    ],
    [
     "exec",
-    "RENAMETABLE\"s\".\"t__op_20240101000000000000__temp\"TO\"s\".\"t\"",
+    "RENAMETABLE\"s\".\"t__temp\"TO\"s\".\"t\"",
     []
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"num\"ISNULL",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"num\"ISNULL",
     []
    ],
    [
     "fetch",
-    "SELECT\"g\",\"num\",\"cleaned_num_mean_filled\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"g\",\"num\",\"cleaned_num_mean_filled\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"g\",\"num\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_num_mean_filled\"INTEGER",
-    []
-   ],
-   [
-    "exec",
-    "WITHgroupedAS(SELECT\"g\",AVG(CASEWHEN\"num\"ISNOTNULLTHEN\"num\"END)ASvalFROM\"s\".\"t__op_20240101000000000000\"GROUPBY\"g\"),global_statAS(SELECTAVG(CASEWHEN\"num\"ISNOTNULLTHEN\"num\"END)ASvalFROM\"s\".\"t__op_20240101000000000000\")UPDATE\"s\".\"t__op_20240101000000000000\"tSET\"cleaned_num_mean_filled\"=COALESCE(t.\"num\",g.val,(SELECTvalFROMglobal_stat))FROMgroupedgWHERE(t.\"g\"=g.\"g\"OR(t.\"g\"ISNULLANDg.\"g\"ISNULL))",
-    []
-   ],
-   [
-    "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_num_mean_filled\"INTEGER",
     []
    ],
@@ -2417,33 +1977,18 @@
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"num\"ISNULL",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"num\"ISNULL",
     []
    ],
    [
     "fetch",
-    "SELECT\"g\",\"num\",\"cleaned_num_mean_filled\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"g\",\"num\",\"cleaned_num_mean_filled\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"g\",\"num\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_num_mean_filled\"INTEGER",
-    []
-   ],
-   [
-    "exec",
-    "WITHgroupedAS(SELECT\"g\",AVG(CASEWHEN\"num\"ISNOTNULLTHEN\"num\"END)ASvalFROM\"s\".\"t__op_20240101000000000000\"GROUPBY\"g\"),global_statAS(SELECTAVG(CASEWHEN\"num\"ISNOTNULLTHEN\"num\"END)ASvalFROM\"s\".\"t__op_20240101000000000000\")UPDATE\"s\".\"t__op_20240101000000000000\"tSET\"cleaned_num_mean_filled\"=COALESCE(t.\"num\",g.val,(SELECTvalFROMglobal_stat))FROMgroupedgWHERE(t.\"g\"=g.\"g\"OR(t.\"g\"ISNULLANDg.\"g\"ISNULL))",
-    []
-   ],
-   [
-    "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_num_mean_filled\"INTEGER",
     []
    ],
@@ -2454,33 +1999,18 @@
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"num\"ISNULL",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"num\"ISNULL",
     []
    ],
    [
     "fetch",
-    "SELECT\"g\",\"num\",\"cleaned_num_mean_filled\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"g\",\"num\",\"cleaned_num_mean_filled\"FROM\"s\".\"t\"",
     []
    ]
   ]
  },
  "numeric_fillna_groupby_ungrouped": {
   "clickhouse": [
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"num\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_num_mean_filled\"INTEGER",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"cleaned_num_mean_filled\"=COALESCE(\"num\",(SELECTCOALESCE(AVG(\"num\"),0)FROM\"s\".\"t__op_20240101000000000000\"))WHERE1",
-    []
-   ],
    [
     "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_num_mean_filled\"INTEGER",
@@ -2493,33 +2023,18 @@
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"num\"ISNULL",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"num\"ISNULL",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"cleaned_num_mean_filled\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"cleaned_num_mean_filled\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "duckdb": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"num\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_num_mean_filled\"INTEGER",
-    []
-   ],
-   [
-    "exec",
-    "WITHstat_valAS(SELECTCOALESCE(AVG(CASEWHEN\"num\"ISNOTNULLTHEN\"num\"END),0)ASvalFROM\"s\".\"t__op_20240101000000000000\")UPDATE\"s\".\"t__op_20240101000000000000\"SET\"cleaned_num_mean_filled\"=COALESCE(\"num\",(SELECTvalFROMstat_val))",
-    []
-   ],
-   [
-    "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_num_mean_filled\"INTEGER",
     []
    ],
@@ -2530,33 +2045,18 @@
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"num\"ISNULL",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"num\"ISNULL",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"cleaned_num_mean_filled\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"cleaned_num_mean_filled\"FROM\"s\".\"t\"",
     []
    ]
   ],
   "postgres": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"num\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_num_mean_filled\"INTEGER",
-    []
-   ],
-   [
-    "exec",
-    "WITHstat_valAS(SELECTCOALESCE(AVG(CASEWHEN\"num\"ISNOTNULLTHEN\"num\"END),0)ASvalFROM\"s\".\"t__op_20240101000000000000\")UPDATE\"s\".\"t__op_20240101000000000000\"SET\"cleaned_num_mean_filled\"=COALESCE(\"num\",(SELECTvalFROMstat_val))",
-    []
-   ],
-   [
-    "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_num_mean_filled\"INTEGER",
     []
    ],
@@ -2567,12 +2067,12 @@
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"num\"ISNULL",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"num\"ISNULL",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"cleaned_num_mean_filled\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"cleaned_num_mean_filled\"FROM\"s\".\"t\"",
     []
    ]
   ]

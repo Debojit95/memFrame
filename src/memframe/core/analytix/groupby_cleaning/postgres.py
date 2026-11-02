@@ -21,16 +21,7 @@ class PostgresGroupByCleaningOps(PostgresCleaningOps, DuckDBGroupByCleaningOps):
         new_table: Optional[str] = None,
     ) -> Dict[str, Any]:
         try:
-            original = table
             involved_cols = [*(group_cols or []), column]
-            table = await self._prepare_column_operation_table(
-                table,
-                schema,
-                involved_cols,
-                backend=backend,
-                data_id=data_id,
-                new_table=new_table,
-            )
             mode = mode.upper()
 
             valid_modes = {"MIN", "MAX", "MEAN", "MEDIAN", "MODE", "FFILL", "BFILL"}
@@ -48,7 +39,7 @@ class PostgresGroupByCleaningOps(PostgresCleaningOps, DuckDBGroupByCleaningOps):
             }
 
             new_col = self._generate_cleaned_column_name(column, suffix_map[mode])
-            await self._add_new_column(table, schema, new_col, "TIMESTAMP")
+            await self._add_new_column_if_not_exists(table, schema, new_col, "TIMESTAMP")
 
             qualified = self._qualified_table(table, schema)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
@@ -178,8 +169,6 @@ class PostgresGroupByCleaningOps(PostgresCleaningOps, DuckDBGroupByCleaningOps):
             fill_value = await _apply(qualified)
 
             # Mirror the new column onto the original table (in-place mutation)
-            await self._add_new_column_if_not_exists(original, schema, new_col, "TIMESTAMP")
-            await _apply(self._qualified_table(original, schema))
 
             null_count = await self._fetchval(
                 f'SELECT COUNT(*) FROM {qualified} WHERE "{safe_col}" IS NULL'

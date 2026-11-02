@@ -23,11 +23,7 @@ class DuckDBGroupByCleaningOps(DuckDBCleaningOps):
         new_table: Optional[str] = None,
     ) -> Dict[str, Any]:
         try:
-            original = table
             involved_cols = [*(group_cols or []), column]
-            table = await self._prepare_column_operation_table(
-                table, schema, involved_cols, backend=backend, data_id=data_id, new_table=new_table,
-            )
             mode = mode.upper()
 
             suffix_map = {
@@ -51,7 +47,7 @@ class DuckDBGroupByCleaningOps(DuckDBCleaningOps):
 
             new_col = self._generate_cleaned_column_name(column, suffix_map[mode])
             col_type = await self._get_column_type(table, schema, column)
-            await self._add_new_column(table, schema, new_col, col_type)
+            await self._add_new_column_if_not_exists(table, schema, new_col, col_type)
 
             qualified = self._qualified_table(table, schema)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
@@ -177,8 +173,6 @@ class DuckDBGroupByCleaningOps(DuckDBCleaningOps):
 
             fill_value = await _apply(qualified)
 
-            await self._add_new_column_if_not_exists(original, schema, new_col, col_type)
-            await _apply(self._qualified_table(original, schema))
 
             null_count = await self._fetchval(
                 f'SELECT COUNT(*) FROM {qualified} WHERE "{safe_col}" IS NULL'
@@ -218,11 +212,7 @@ class DuckDBGroupByCleaningOps(DuckDBCleaningOps):
         new_table: Optional[str] = None,
     ) -> Dict[str, Any]:
         try:
-            original = table
             involved_cols = [*(group_cols or []), column]
-            table = await self._prepare_column_operation_table(
-                table, schema, involved_cols, backend=backend, data_id=data_id, new_table=new_table,
-            )
             mode = mode.upper()
 
             valid_modes = {"MODE", "BFILL", "FFILL"}
@@ -237,7 +227,7 @@ class DuckDBGroupByCleaningOps(DuckDBCleaningOps):
 
             new_col = self._generate_cleaned_column_name(column, suffix_map[mode])
             col_type = await self._get_column_type(table, schema, column)
-            await self._add_new_column(table, schema, new_col, col_type)
+            await self._add_new_column_if_not_exists(table, schema, new_col, col_type)
 
             qualified = self._qualified_table(table, schema)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
@@ -343,8 +333,6 @@ class DuckDBGroupByCleaningOps(DuckDBCleaningOps):
 
             fill_value = await _apply(qualified)
 
-            await self._add_new_column_if_not_exists(original, schema, new_col, col_type)
-            await _apply(self._qualified_table(original, schema))
 
             null_count = await self._fetchval(
                 f'SELECT COUNT(*) FROM {qualified} WHERE "{safe_col}" IS NULL'
@@ -384,11 +372,7 @@ class DuckDBGroupByCleaningOps(DuckDBCleaningOps):
         new_table: Optional[str] = None,
     ) -> Dict[str, Any]:
         try:
-            original = table
             involved_cols = [*(group_cols or []), column]
-            table = await self._prepare_column_operation_table(
-                table, schema, involved_cols, backend=backend, data_id=data_id, new_table=new_table,
-            )
             mode = mode.upper()
 
             valid_modes = {"MIN", "MAX", "MEAN", "MEDIAN", "MODE", "FFILL", "BFILL"}
@@ -406,7 +390,7 @@ class DuckDBGroupByCleaningOps(DuckDBCleaningOps):
             }
 
             new_col = self._generate_cleaned_column_name(column, suffix_map[mode])
-            await self._add_new_column(table, schema, new_col, "TIMESTAMP")
+            await self._add_new_column_if_not_exists(table, schema, new_col, "TIMESTAMP")
 
             qualified = self._qualified_table(table, schema)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
@@ -525,8 +509,6 @@ class DuckDBGroupByCleaningOps(DuckDBCleaningOps):
 
             fill_value = await _apply(qualified)
 
-            await self._add_new_column_if_not_exists(original, schema, new_col, "TIMESTAMP")
-            await _apply(self._qualified_table(original, schema))
 
             null_count = await self._fetchval(
                 f'SELECT COUNT(*) FROM {qualified} WHERE "{safe_col}" IS NULL'

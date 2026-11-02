@@ -808,22 +808,20 @@ class TestCumulativeOperations:
     # Mutation safety and chaining
     # ----------------------------------------------------
     def test_mutation_safety(self, uploaded_ctx, sample_df, backend_config):
-        """Ensure the source table is not modified by cumulative operations."""
-        uploaded_ctx.cumsum("value", order_col="id", target_col="cumsum_val")
-        # ponytail: read back the source table directly — the ContextManager
-        # is not a result payload, so get_result_df() cannot consume it.
+        """Out_2: cumulative ops add their column to the source table."""
+        result = uploaded_ctx.cumsum("value", order_col="id", target_col="cumsum_val")
         # head() covers all 5 fixture rows; compare order-free for CH safety.
         original_df = uploaded_ctx.head(n=10)
 
-        assert "cumsum_val" not in original_df.columns
-        assert set(original_df.columns) == set(sample_df.columns)
+        assert "cumsum_val" in original_df.columns
+        assert set(sample_df.columns) <= set(original_df.columns)
         assert len(original_df) == len(sample_df)
         self._record_result(
             test_name="mutation_safety",
-            method_call='uploaded_ctx.cumsum("value", order_col="id", target_col="cumsum_val") → original checked',
-            pandas_call='sample_df  # unchanged by cumsum',
+            method_call='uploaded_ctx.cumsum("value", order_col="id", target_col="cumsum_val") → source column added',
+            pandas_call='sample_df.assign(cumsum_val=...)',
             original_df=sample_df,
-            memframe_df=original_df,
+            memframe_df=result,
             pandas_df=sample_df,
             backend=backend_config["connection_type"],
         )
