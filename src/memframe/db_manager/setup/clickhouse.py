@@ -135,7 +135,26 @@ class ClickHouseBackend(DatabaseBackend):
                 kwargs Nullable(String),
                 created_at DateTime DEFAULT now(),
                 is_deep_cache Bool,
-                schema Nullable(String)
+                schema Nullable(String),
+                cache_kind Nullable(String),
+                ref_schema Nullable(String),
+                ref_table Nullable(String),
+                involved_cols Nullable(String),
+                generated_cols Nullable(String),
+                result_cols Nullable(String),
+                owns_table Bool,
+                epoch Int64,
+                input_refs Nullable(String)
+            ) ENGINE = MergeTree()
+            ORDER BY (data_id, opidx)
+        """)
+        await self.execute(f"""
+            CREATE TABLE IF NOT EXISTS {self.registry_schema}.memframe_cache_payloads (
+                data_id String,
+                opidx Int32,
+                format String,
+                payload String,
+                created_at DateTime DEFAULT now()
             ) ENGINE = MergeTree()
             ORDER BY (data_id, opidx)
         """)
@@ -162,6 +181,10 @@ class ClickHouseBackend(DatabaseBackend):
     @property
     def cache_registry_table(self) -> str:
         return f"`{self.registry_schema}`.memframe_cache_registry"
+
+    @property
+    def cache_payloads_table(self) -> str:
+        return f"`{self.registry_schema}`.memframe_cache_payloads"
 
     @property
     def csv_registry_table(self) -> str:

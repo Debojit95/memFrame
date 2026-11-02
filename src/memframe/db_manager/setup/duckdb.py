@@ -80,6 +80,25 @@ class DuckDBBackend(DatabaseBackend):
                 args TEXT,
                 kwargs TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                cache_kind TEXT,
+                ref_schema TEXT,
+                ref_table TEXT,
+                involved_cols TEXT,
+                generated_cols TEXT,
+                result_cols TEXT,
+                owns_table BOOLEAN,
+                epoch BIGINT,
+                input_refs TEXT,
+                PRIMARY KEY (data_id, opidx)
+            )
+        """)
+        await self.execute(f"""
+            CREATE TABLE IF NOT EXISTS {self.registry_schema}.memframe_cache_payloads (
+                data_id TEXT NOT NULL,
+                opidx INTEGER NOT NULL,
+                format TEXT NOT NULL,
+                payload BLOB,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY (data_id, opidx)
             )
         """)

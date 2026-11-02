@@ -110,6 +110,13 @@ The cache registry lives in the backend `memframe_csv_registry` schema (DuckDB/P
 | PostgreSQL | `memframe_csv_registry.memframe_cache_registry` | `memframe_cache` |
 | ClickHouse | `memframe_csv_registry.memframe_cache_registry` | `memframe_cache` |
 
+Registry rows carry the result kind (`cache_kind` = `actual` or `ref`), the ref
+target (`ref_schema`, `ref_table`, `involved_cols`, `generated_cols`,
+`result_cols`) and validity stamps (`epoch`, `input_refs`, `owns_table`).
+Actual payloads live in `memframe_csv_registry.memframe_cache_payloads`
+(`data_id`, `opidx`, `format`, `payload`); DataFrames use Parquet bytes and
+dict/list/scalar results use typed JSON.
+
 Registry and cache schemas/databases are fixed: `memframe_csv_registry`, `memframe_cache`, and
 `memframe_upload`.
 

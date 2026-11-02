@@ -63,6 +63,28 @@ class TestCacheKeys:
         ))
         assert {"base_fingerprint", "table_scope"} <= {r[0] for r in rows}
 
+    def test_cache_registry_has_actual_ref_columns(self, mf):
+        rows = asyncio.run(mf._backend.fetch(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_schema = 'memframe_csv_registry' "
+            "AND table_name = 'memframe_cache_registry'"
+        ))
+        expected = {
+            "cache_kind", "ref_schema", "ref_table", "involved_cols",
+            "generated_cols", "result_cols", "owns_table", "epoch", "input_refs",
+        }
+        assert expected <= {r[0] for r in rows}
+
+    def test_cache_payloads_table_exists(self, mf):
+        rows = asyncio.run(mf._backend.fetch(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_schema = 'memframe_csv_registry' "
+            "AND table_name = 'memframe_cache_payloads'"
+        ))
+        assert {"data_id", "opidx", "format", "payload", "created_at"} <= {
+            r[0] for r in rows
+        }
+
 
 class DeepOps:
     """Minimal @record_call user hitting the DataFrame-persist path."""

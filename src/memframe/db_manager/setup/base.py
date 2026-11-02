@@ -156,15 +156,27 @@ class DatabaseBackend(ABC):
             # Operation envelope (minus the DataFrame/table name) so a cache
             # hit can replay the same keys as the original call.
             "result_envelope": "TEXT",
+            # Result-kind discriminator and ref payload (Out_2) / actual
+            # payload pointer. Nullable so pre-upgrade rows read as legacy.
+            "cache_kind": "TEXT",
+            "ref_schema": "TEXT",
+            "ref_table": "TEXT",
+            "involved_cols": "TEXT",
+            "generated_cols": "TEXT",
+            "result_cols": "TEXT",
+            "owns_table": "BOOLEAN",
+            "epoch": "BIGINT",
+            "input_refs": "TEXT",
         }
 
         for column_name, column_type in required_columns.items():
             if not await self._column_exists(schema_name, table_name, column_name):
                 if self.backend == "clickhouse":
-                    if column_name == "is_deep_cache":
-                        ch_type = "Bool"
-                    else:
-                        ch_type = "Nullable(String)"
+                    ch_type = {
+                        "is_deep_cache": "Bool",
+                        "owns_table": "Bool",
+                        "epoch": "Int64",
+                    }.get(column_name, "Nullable(String)")
                 else:
                     ch_type = column_type
                 await self.execute(
@@ -299,6 +311,10 @@ class DatabaseBackend(ABC):
     @abstractmethod
     def cache_registry_table(self) -> str:
         pass
+
+    @property
+    def cache_payloads_table(self) -> str:
+        return f"{self.registry_schema}.memframe_cache_payloads"
 
     @property
     @abstractmethod
