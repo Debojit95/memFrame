@@ -1,7 +1,32 @@
+from functools import wraps
 from typing import Any, Dict, List, Optional
 from memframe.core.analytix.transform import TransformOps, make_transform_ops
 from memframe.core.analytix._generated import make_sig, publish_row_aligned
 from memframe.cache import record_call
+
+
+def _publish_wide(fn):
+    """Swap a backend-wide transform result into the source before caching."""
+    @wraps(fn)
+    async def wrapper(self, *args, **kwargs):
+        table, schema = await self._get_context()
+        result = await fn(self, *args, **kwargs)
+        if isinstance(result, dict) and not result.get("is_error"):
+            wide = result.get("new_table")
+            if wide and wide != table:
+                ops = await self._ensure_ops()
+                result = await publish_row_aligned(
+                    ops, table, schema, result,
+                    result.get("involved_cols") or [],
+                    sig=make_sig(op=fn.__name__, args=args, kwargs=kwargs),
+                    op_type=f"transform_{fn.__name__}",
+                    class_name=self.__class__.__name__,
+                    method_name=fn.__name__,
+                    backend=self._memframe._backend,
+                    data_id=self._data_id or self._memframe._active_id,
+                )
+        return result
+    return wrapper
 
 
 class TransformOrchestrator:
@@ -64,6 +89,7 @@ class TransformOrchestrator:
     # Numeric
     # ------------------------------------------------------------------
     @record_call(deep_cache=True)
+    @_publish_wide
     async def scale(self, column: str) -> Dict[str, Any]:
         """Standard scaling (z-score), similar to sklearn StandardScaler."""
         ops = await self._ensure_ops()
@@ -71,6 +97,7 @@ class TransformOrchestrator:
         return await ops.numeric_standardize(table, schema, column, **self._persistence_context())
 
     @record_call(deep_cache=True)
+    @_publish_wide
     async def minmax(self, column: str) -> Dict[str, Any]:
         """Min-max scaling, similar to sklearn MinMaxScaler."""
         ops = await self._ensure_ops()
@@ -78,6 +105,7 @@ class TransformOrchestrator:
         return await ops.numeric_minmax_scale(table, schema, column, **self._persistence_context())
 
     @record_call(deep_cache=True)
+    @_publish_wide
     async def bin(self, column: str, bins: int = 5, strategy: str = "uniform") -> Dict[str, Any]:
         """Binning (pd.cut / qcut-like behaviour)."""
         ops = await self._ensure_ops()
@@ -85,6 +113,7 @@ class TransformOrchestrator:
         return await ops.numeric_bin(table, schema, column, bins, strategy, **self._persistence_context())
 
     @record_call(deep_cache=True)
+    @_publish_wide
     async def poly(self, column: str, degree: int = 2) -> Dict[str, Any]:
         """Polynomial feature expansion, similar to sklearn PolynomialFeatures."""
         ops = await self._ensure_ops()
@@ -92,6 +121,7 @@ class TransformOrchestrator:
         return await ops.numeric_polynomial_features(table, schema, column, degree, **self._persistence_context())
 
     @record_call(deep_cache=True)
+    @_publish_wide
     async def interact(self, column1: str, column2: str) -> Dict[str, Any]:
         """Create interaction term between two columns."""
         ops = await self._ensure_ops()
@@ -102,6 +132,7 @@ class TransformOrchestrator:
     # Categorical
     # ------------------------------------------------------------------
     @record_call(deep_cache=True)
+    @_publish_wide
     async def onehot(self, column: str, max_categories: int = 10) -> Dict[str, Any]:
         """One-hot encoding (pd.get_dummies / sklearn OneHotEncoder-style)."""
         ops = await self._ensure_ops()
@@ -109,6 +140,7 @@ class TransformOrchestrator:
         return await ops.categorical_one_hot_encode(table, schema, column, max_categories, **self._persistence_context())
 
     @record_call(deep_cache=True)
+    @_publish_wide
     async def label(self, column: str) -> Dict[str, Any]:
         """Label encoding, similar to sklearn LabelEncoder."""
         ops = await self._ensure_ops()
@@ -116,6 +148,7 @@ class TransformOrchestrator:
         return await ops.categorical_label_encode(table, schema, column, **self._persistence_context())
 
     @record_call(deep_cache=True)
+    @_publish_wide
     async def frequency(self, column: str) -> Dict[str, Any]:
         """Frequency encoding."""
         ops = await self._ensure_ops()
@@ -123,6 +156,7 @@ class TransformOrchestrator:
         return await ops.categorical_frequency_encode(table, schema, column, **self._persistence_context())
 
     @record_call(deep_cache=True)
+    @_publish_wide
     async def target(self, column: str, target_column: str) -> Dict[str, Any]:
         """Target encoding."""
         ops = await self._ensure_ops()
@@ -130,6 +164,7 @@ class TransformOrchestrator:
         return await ops.categorical_target_encode(table, schema, column, target_column, **self._persistence_context())
 
     @record_call(deep_cache=True)
+    @_publish_wide
     async def binarize(
         self,
         column: str,
@@ -145,6 +180,7 @@ class TransformOrchestrator:
     # Datetime
     # ------------------------------------------------------------------
     @record_call(deep_cache=True)
+    @_publish_wide
     async def cyclical(self, column: str, features: List[str]) -> Dict[str, Any]:
         """Cyclical datetime encoding (sin/cos features)."""
         ops = await self._ensure_ops()
@@ -155,6 +191,7 @@ class TransformOrchestrator:
     # Tier1 scalers / transforms
     # ------------------------------------------------------------------
     @record_call(deep_cache=True)
+    @_publish_wide
     async def robust_scale(self, column: str, quantile_range: tuple = (25, 75)) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
@@ -164,6 +201,7 @@ class TransformOrchestrator:
         return await self.robust_scale(column, quantile_range)
 
     @record_call(deep_cache=True)
+    @_publish_wide
     async def maxabs_scale(self, column: str) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
@@ -173,12 +211,14 @@ class TransformOrchestrator:
         return await self.maxabs_scale(column)
 
     @record_call(deep_cache=True)
+    @_publish_wide
     async def normalize(self, column: str, norm: str = "l2") -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
         return await ops.numeric_normalize(table, schema, column, norm, **self._persistence_context())
 
     @record_call(deep_cache=True)
+    @_publish_wide
     async def log(self, column: str, base: str = "e", epsilon: float = 0) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
@@ -188,6 +228,7 @@ class TransformOrchestrator:
         return await self.log(column, base, epsilon)
 
     @record_call(deep_cache=True)
+    @_publish_wide
     async def quantile_transform(self, column: str, output: str = "uniform") -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
@@ -197,6 +238,7 @@ class TransformOrchestrator:
         return await self.quantile_transform(column, output)
 
     @record_call(deep_cache=True)
+    @_publish_wide
     async def power_transform(self, column: str, method: str = "yeo-johnson") -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
@@ -206,6 +248,7 @@ class TransformOrchestrator:
         return await self.power_transform(column, method)
 
     @record_call(deep_cache=True)
+    @_publish_wide
     async def ordinal_encode(self, column: str) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
