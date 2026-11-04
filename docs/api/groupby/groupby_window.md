@@ -140,8 +140,8 @@ sample = dataset.groupby("region").expanding().sum("sales")
 | `order_by` | `str`, `list[str]`, or `None` | Row ordering inside each group. `None` (default) uses physical row order. |
 | `q` | `float` | Quantile level for `quantile` (default `0.5`). |
 | `min_periods` | `int` | Minimum rows before an expanding value is produced (default `1`). |
-| `new_table` | `str` or `None` | Explicit name for the narrow result/cache table. Auto-generated as `<table>__op_<n>` when omitted. |
-| `map_feature` | `bool` | Deprecated/ignored. Generated columns are always written back to the source; the envelope carries `mapped_table` / `mapped_columns`. The returned `new_table` is the narrow `involved + generated` cache table. |
+| `new_table` | `str` or `None` | Kept for compatibility; the result is written to the source and `new_table` resolves to the source table. |
+| `map_feature` | `bool` | Deprecated/ignored. Generated columns are always written back to the source; the envelope carries `mapped_table` / `mapped_columns`. `new_table` is the source table (the ref target). |
 
 With no `order_by`, rows accumulate in physical storage order
 (PostgreSQL `ctid`, DuckDB `rowid`). ClickHouse has no stable row id, so
@@ -253,8 +253,7 @@ result = dataset.groupby("region").rolling(3, order_by="month").agg(
 Rules:
 
 - A repeated identical call reuses the same generated column(s); the source
-  keeps exactly one copy. This also holds with `deep_cache=False`, which
-  recomputes but drops only the narrow table.
+  keeps exactly one copy. `deep_cache=False` recomputes but writes no ref row.
 - The `map_feature` parameter is retained for compatibility but ignored:
   write-back is always on.
 - If the column name already exists from anything else, the call fails and

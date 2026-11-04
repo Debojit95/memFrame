@@ -361,8 +361,8 @@ Both forms → `[10, 20, 30, 40, 50]`.
 
 ### Multiple functions
 
-Passing a list chains each function onto the table produced by the previous
-one, so all result columns land in a single cache table:
+Passing a list computes every function in one pass and writes all generated
+columns to the source:
 
 ```python
 result = dataset.rolling(
@@ -737,7 +737,7 @@ method) returns the raw operation envelope:
     "is_error": False,
     "message": "Rolling mean on 'sales' (window=2)",
     "result": <pandas.DataFrame>,
-    "new_table": "ab12CD__op_3",             # narrow cache table
+    "new_table": "ab12CD",                   # source table (ref target)
     "new_columns": ["sales_rolling_mean_w2"],
     "new_column": "sales_rolling_mean_w2",   # single-function calls only
     "mapped_table": "ab12CD",                # source now holds the generated column
@@ -780,11 +780,10 @@ different call leaves the other derived columns intact. If a generated name
 already exists from a foreign source, the call fails and the source is left
 unchanged.
 
-Window operations apply `@record_call`, so repeat calls are recorded in the
-cache registry (L1). With `deep_cache=True` (via `mf.connect(deep_cache=True)`
-or `MemFrame(deep_cache=True)`) the narrow result tables are persisted and
-replayed on a hit (L2). With `deep_cache=False` the source is still mutated;
-only the narrow table is dropped.
+Window operations apply `@record_call`. The generated columns are written to
+the source and recorded as a cache `ref`; a hit replays the involved/generated
+columns from the source without recomputing. `deep_cache=False` skips the ref
+row but still mutates the source.
 
 ## Backend Behavior
 

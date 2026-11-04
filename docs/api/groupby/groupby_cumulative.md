@@ -97,7 +97,7 @@ sample = dataset.groupby("region").cummean("score")
 | `column` | `str` | Numeric column to accumulate. |
 | `order_col` | `str`, `list[str]`, or `None` | Row ordering inside each group. `None` (default) uses physical row order. A list orders by multiple columns. |
 | `target_col` | `str` or `None` | Name for the result column. Auto-generated as `cum_<column>_<op>_by_<groups>` with `_order_by_<orders>` appended when `order_col` is given (e.g. `cum_revenue_sum_by_region_order_by_month`). |
-| `map_feature` | `bool` | Deprecated/ignored. The running-value column is always written back to the source; the envelope carries `mapped_table` / `mapped_columns`. The returned `new_table` is the narrow `involved + generated` cache table. |
+| `map_feature` | `bool` | Deprecated/ignored. The running-value column is always written back to the source; the envelope carries `mapped_table` / `mapped_columns`. `new_table` is the source table (the ref target). |
 
 `group_cols` are fixed at builder creation (`groupby("region", "month")`)
 and accept one or more columns.
@@ -214,7 +214,7 @@ operation envelope:
     "is_error": False,
     "message": "Cumulative sum of 'revenue' grouped by [region] ...",
     "result": <pandas.DataFrame>,
-    "new_table": "ab12CD__op_3",   # narrow cache table
+    "new_table": "ab12CD",          # source table (ref target)
     "new_columns": ["cum_revenue_sum_by_region"],
     "group_cols": ["region"],
     "operation": "sum",
