@@ -618,8 +618,8 @@ Parameters:
 | `closed` | `str` | `"left"` (default) or `"right"` (validated; bins are left-closed). |
 
 Output columns are `<time_column>` (bucket) plus `value` (single agg) or
-`value_<column>_<agg>` per aggregation, plus any `group_by` keys. Result
-tables are persisted (`deep_cache`).
+`value_<column>_<agg>` per aggregation, plus any `group_by` keys. The result
+is cached as an actual payload.
 
 Bucketing is `DATE_TRUNC` on all backends (ClickHouse `toISOWeek` for weeks so
 all backends agree with pandas `isocalendar`).
@@ -649,8 +649,8 @@ Parameters:
 The grid is generated in-engine (`generate_series` on DuckDB/PostgreSQL,
 `numbers` + `dateAdd` on ClickHouse, capped at 100,000 buckets) and LEFT
 JOINed; fills use portable correlated subqueries. Like pandas, duplicate
-timestamps per bucket are refused — `resample` first. Result tables are
-persisted (`deep_cache`).
+timestamps per bucket are refused — `resample` first. The result is cached
+as an actual payload.
 
 ## Calendar Arithmetic
 
@@ -700,14 +700,20 @@ operations raise `OperationError`:
 - `add_offset` with all units zero → `"at least one offset unit must be non-zero"`
 - Unsupported backend → `NotImplementedError` wrapped as `is_error True`
 
-## Generated Tables
+## Generated Columns
 
-Every datetime operation is non-destructive to the source upload table. Each operation:
+Feature datetime operations write their generated column into the active
+source table:
 
-1. Clones the source table into a new cache table (`<table>__op_<n>`).
-2. Adds a result column (e.g. `dt_event_time_year`, `dt_ts_floor_day`).
-3. Populates it with backend-specific SQL (`EXTRACT`/`DATE_TRUNC`/ClickHouse `to*`).
-4. Returns the sample DataFrame directly; table metadata remains internal.
+1. Adds the result column if missing (e.g. `dt_event_time_year`, `dt_ts_floor_day`).
+2. Populates it with backend-specific SQL (`EXTRACT`/`DATE_TRUNC`/ClickHouse `to*`).
+3. Returns the narrow involved/generated DataFrame.
+4. Records a cache `ref` to the source (`ref_schema`, `ref_table`,
+   `involved_cols`, `generated_cols`); no cache copy is created.
+
+Row filters (`between`, `before`, `after`, `select_year`, `select_month`) and
+the standalone `resample`/`asfreq` aggregations are separate results and do
+not use a source-column ref.
 
 ## Backend Behavior
 

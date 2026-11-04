@@ -210,21 +210,19 @@ table names and operation metadata remain internal to cache and AI layers.
 Invalid operations raise `OperationError`. A negative column passed to
 `cumprod`, or a missing column, surfaces this way.
 
-## Generated Tables
+## Generated Columns
 
-Every cumulative operation is non-destructive to the source upload table.
-Each operation creates a new cache table (`<table>__op_<n>`) holding the
-source rows plus the result column, then returns a sample of it:
+Every cumulative operation writes its result column into the active source
+table and returns the narrow involved/generated DataFrame:
 
-- **PostgreSQL / DuckDB:** clone via `CREATE TABLE … AS SELECT *`, `ADD
-  COLUMN` for the target, then `UPDATE … FROM (SELECT ctid/rowid,
-  <window> AS val …) WHERE t.<rid> = s.<rid>`.
-- **ClickHouse:** a single `CREATE TABLE … ENGINE = MergeTree() ORDER BY
-  tuple() AS SELECT *, <window> AS <target> FROM …` — the window is computed
-  inline because asynchronous `UPDATE` mutations can return stale data.
+- **PostgreSQL / DuckDB:** `ADD COLUMN IF NOT EXISTS` for the target, then
+  `UPDATE … FROM (SELECT ctid/rowid, <window> AS val …) WHERE t.<rid> = s.<rid>`.
+- **ClickHouse:** a single `CREATE TABLE` with the window computed inline,
+  then the wide table is exchanged into the source and the temporary table is
+  dropped.
 
-Operations are recorded with `deep_cache=True`, so repeat calls replay the
-persisted cache table instead of recomputing.
+The result is recorded as a cache `ref` to the source (`ref_schema`,
+`ref_table`, `involved_cols`, `generated_cols`); no cache copy is created.
 
 ## Backend Behavior
 
