@@ -61,6 +61,39 @@ class CleaningOrchestrator:
         data_id = self._ops_parent._data_id or self._ops_parent.memframe._active_id
         return {"backend": backend, "data_id": data_id}
 
+    async def _mask_ref(self, response, schema, involved, generated):
+        """Move a mask result table into the cache schema and ref it."""
+        if not isinstance(response, dict) or response.get("is_error"):
+            return response
+        bare = response.get("new_table")
+        if not bare:
+            return response
+        backend = self._ops_parent.memframe._backend
+        be = getattr(backend, "backend", None)
+        cache_schema = backend.cache_schema
+        if schema != cache_schema:
+            src = backend.qualify_table(schema, bare)
+            dst = backend.qualify_table(cache_schema, bare)
+            if be == "clickhouse":
+                await backend.execute(f"RENAME TABLE {src} TO {dst}")
+            elif be == "duckdb":
+                await backend.execute(f"CREATE TABLE {dst} AS SELECT * FROM {src}")
+                await backend.execute(f"DROP TABLE {src}")
+            else:
+                await backend.execute(f"ALTER TABLE {src} SET SCHEMA {cache_schema}")
+        response["cache_kind"] = "ref"
+        response["ref_schema"] = cache_schema
+        response["ref_table"] = bare
+        response["involved_cols"] = list(involved)
+        response["generated_cols"] = list(generated)
+        response["owns_table"] = True
+        response["mutates"] = False
+        result = response.get("result")
+        if hasattr(result, "columns"):
+            response["result_cols"] = list(result.columns)
+        response["new_table"] = bare
+        return response
+
     async def _detect_fillna_dtype(self, ops: DataCleaningOps, table: str, schema: str, column: str) -> str:
         # Trust the declared schema type first: content sampling of the first
         sql_type = (await ops._get_column_type(table, schema, column)).lower()
@@ -444,13 +477,23 @@ class CleaningOrchestrator:
     async def isna(self) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
-        return await ops.dataframe_isna(table, schema, **self._persistence_context())
-    
-    @record_call(deep_cache=True)    
+        result = await ops.dataframe_isna(table, schema, **self._persistence_context())
+        return await self._mask_ref(
+            result, schema,
+            result.get("involved_cols") or [],
+            result.get("generated_cols") or [],
+        )
+
+    @record_call(deep_cache=True)
     async def notna(self) -> Dict[str, Any]:
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
-        return await ops.dataframe_notna(table, schema, **self._persistence_context())
+        result = await ops.dataframe_notna(table, schema, **self._persistence_context())
+        return await self._mask_ref(
+            result, schema,
+            result.get("involved_cols") or [],
+            result.get("generated_cols") or [],
+        )
 
     @record_call(deep_cache=True)
     async def drop_duplicates(self,  subset: Optional[List[str]] = None,  keep: Union[str, bool] = "first",) -> Dict[str, Any]:
@@ -477,12 +520,17 @@ class CleaningOrchestrator:
 
         table, schema = await self._get_context()
 
-        return await ops.dataframe_duplicated(
+        result = await ops.dataframe_duplicated(
             table=table,
             schema=schema,
             subset=subset,
             keep=keep,
             **self._persistence_context(),
+        )
+        return await self._mask_ref(
+            result, schema,
+            result.get("involved_cols") or [],
+            result.get("generated_cols") or [],
         )
         
         
