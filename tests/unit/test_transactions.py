@@ -136,29 +136,6 @@ class TestDeleteAtomicity:
         assert len(asyncio.run(_registry_rows(mf, data_id))) == 2
 
 
-class TestDeepCacheAtomicity:
-    def test_store_failure_leaves_no_orphan(self, mf, uploaded, monkeypatch):
-        from memframe.cache import record_call
-
-        data_id = uploaded._data_id
-
-        async def failing(*args, **kwargs):
-            raise RuntimeError("boom mid-store")
-
-        monkeypatch.setattr(mf._uploader, "_insert_arrow_table", failing)
-        with pytest.raises(RuntimeError, match="boom mid-store"):
-            asyncio.run(record_call._create_deep_cache_table(
-                mf, mf._backend, data_id, pd.DataFrame({"x": [1]})
-            ))
-
-        rows = asyncio.run(mf._backend.fetch(
-            "SELECT table_name FROM information_schema.tables "
-            "WHERE table_schema = 'memframe_cache'"
-        ))
-        assert rows == []
-        assert asyncio.run(_registry_rows(mf, data_id)) == []
-
-
 class TestClickHouseCompensationHelper:
     def test_noop_on_duckdb(self, mf, uploaded):
         # Must not drop anything when transactions handle the rollback.

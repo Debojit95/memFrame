@@ -141,28 +141,6 @@ class DatetimeOps:
 
         return output_table
 
-    async def _prepare_operation_table(
-        self,
-        table: str,
-        schema: str,
-        backend=None,
-        data_id: Optional[str] = None,
-        new_table: Optional[str] = None,
-    ) -> str:
-        safe_schema = SQLIdentifierSanitizer.sanitize(schema)
-        source_table = SQLIdentifierSanitizer.sanitize(table)
-        output_table = await self._resolve_output_table_name(
-            source_table,
-            safe_schema,
-            backend=backend,
-            data_id=data_id,
-            new_table=new_table,
-        )
-
-        qualified_source = self._qualified_table(source_table, safe_schema)
-        qualified_target = f'{self.db.quote_identifier(safe_schema)}.{self.db.quote_identifier(output_table)}'
-        await self._exec(f"CREATE TABLE {qualified_target} AS SELECT * FROM {qualified_source}")
-        return output_table
 
     def _success_response(self, message: str, involved_cols: List[str], generated_cols: List[str],
                           sample_df: pd.DataFrame, **extra) -> Dict[str, Any]:

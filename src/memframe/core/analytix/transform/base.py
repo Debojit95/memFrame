@@ -182,32 +182,7 @@ class TransformOps:
 
         return output_table
 
-    async def _prepare_operation_table(
-        self,
-        table: str,
-        schema: str,
-        backend=None,
-        data_id: Optional[str] = None,
-        new_table: Optional[str] = None,
-    ) -> str:
-        safe_schema = SQLIdentifierSanitizer.sanitize(schema)
-        source_table = SQLIdentifierSanitizer.sanitize(table)
-        output_table = await self._resolve_output_table_name(
-            source_table,
-            safe_schema,
-            backend=backend,
-            data_id=data_id,
-            new_table=new_table,
-        )
 
-        qualified_source = self._qualified_table(source_table, safe_schema)
-        qualified_target = f'{self.db.quote_identifier(safe_schema)}.{self.db.quote_identifier(output_table)}'
-        await self._exec(f"CREATE TABLE {qualified_target} AS SELECT * FROM {qualified_source}")
-        return output_table
-
-    # ------------------------------------------------------------------
-    # ClickHouse CTAS helper
-    # ------------------------------------------------------------------
     def _ch_create_table_as(self, schema: str, table: str, query: str) -> str:
         schema_q = self.db.quote_identifier(schema)
         table_q = self.db.quote_identifier(table)

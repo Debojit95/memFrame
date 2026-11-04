@@ -113,8 +113,6 @@ class DuckDBBackend(DatabaseBackend):
     def get_upload_table_name(self, data_id: str) -> str:
         return data_id
 
-    def get_cache_table_name(self, data_id: str, opidx: int) -> str:
-        return f'{self.cache_schema}."{data_id}_{opidx}"'
 
     @property
     def cache_registry_table(self) -> str:

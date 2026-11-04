@@ -21,8 +21,6 @@ class TestTableNaming:
     def test_get_upload_table_name(self, duckdb_backend):
         assert duckdb_backend.get_upload_table_name("abc123") == "abc123"
 
-    def test_get_cache_table_name(self, duckdb_backend):
-        assert duckdb_backend.get_cache_table_name("abc123", 5) == 'memframe_cache."abc123_5"'
 
     def test_registry_table_properties(self, duckdb_backend):
         assert duckdb_backend.cache_registry_table == "memframe_csv_registry.memframe_cache_registry"

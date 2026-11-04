@@ -15,7 +15,6 @@ from typing import Any, Callable, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
-import pyarrow as pa
 
 from memframe.core.ingestion.datatype_detector import Backend
 from memframe.exceptions import OperationError
@@ -414,40 +413,6 @@ class CacheManager:
         except Exception as exc:
             logger.warning("[cache] reload failed for %s: %s", qualified, exc)
             return None
-
-    async def _create_deep_cache_table(self, mf, backend, data_id: str, df: pd.DataFrame) -> str:
-        """Persist a DataFrame as a typed cache table (deep-cache payload)."""
-        async with CacheManager._op_lock_for(backend, data_id):
-            op = await backend.fetchval(
-                f"SELECT COALESCE(MAX(opidx), 0) FROM {backend.cache_registry_table} "
-                f"WHERE data_id = {backend.placeholder(1)}", data_id,
-            )
-            op = (op or 0) + 1
-            qualified = backend.get_cache_table_name(data_id, op)
-            arrow = pa.Table.from_pandas(df, preserve_index=False)
-            uploader = mf._uploader
-            schema = {}
-            for i, name in enumerate(arrow.schema.names):
-                pg_type = uploader._arrow_type_to_postgres(arrow.schema.field(i).type)
-                schema[name] = {
-                    "postgres_type": pg_type,
-                    "clickhouse_type": uploader._postgres_type_to_clickhouse(pg_type),
-                    "is_nullable": True,
-                }
-            # ponytail: one transaction — create+insert commit together; on
-            # ClickHouse (no transactions) drop the partial table instead.
-            try:
-                async with backend.transaction():
-                    await uploader._create_final_table_typed(qualified, arrow.schema.names, schema)
-                    await uploader._insert_arrow_table(qualified, arrow)
-            except BaseException:
-                if getattr(backend, "backend", None) == Backend.CLICKHOUSE:
-                    try:
-                        await backend.drop_table(qualified)
-                    except Exception as exc:
-                        logger.warning("[cache] deep-cache cleanup failed for %s: %s", qualified, exc)
-                raise
-            return qualified
 
     def _make_hit_response(
         self, payload: Dict[str, Any], cached: Any,

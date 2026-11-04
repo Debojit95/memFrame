@@ -313,9 +313,6 @@ class DatabaseBackend(ABC):
     def get_upload_table_name(self, data_id: str) -> str:
         pass
 
-    @abstractmethod
-    def get_cache_table_name(self, data_id: str, opidx: int) -> str:
-        pass
 
     @property
     @abstractmethod

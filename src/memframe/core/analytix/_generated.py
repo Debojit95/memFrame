@@ -95,29 +95,6 @@ async def _drop_columns(db, backend, schema: str, table: str, cols: List[str]) -
         await asyncio.sleep(0.1)
 
 
-async def create_projection(
-    db, backend, schema: str, source: str, result: str,
-    involved: Iterable[str], generated: Iterable[str],
-) -> None:
-    """Create the narrow cached table: involved + generated columns only."""
-    cols = _dedupe([*involved, *generated])
-    if not cols:
-        raise ValueError("narrow projection requires at least one column")
-    select_sql = ", ".join(db.quote_identifier(c) for c in cols)
-    src_q = _qualified(db, schema, source)
-    out_q = _qualified(db, schema, result)
-
-    if _backend_name(backend) == Backend.CLICKHOUSE:
-        await db.execute(
-            f"CREATE TABLE {out_q} ENGINE = MergeTree() ORDER BY tuple() AS "
-            f"SELECT {select_sql} FROM {src_q}"
-        )
-    else:
-        await db.execute(
-            f"CREATE TABLE {out_q} AS SELECT {select_sql} FROM {src_q}"
-        )
-
-
 async def _known_generated_columns(
     ops, table: str, op_type: str, backend, data_id: str,
 ) -> set:
