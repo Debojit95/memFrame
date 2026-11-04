@@ -3,22 +3,17 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE`s`.`t__op_20240101000000000000`ASSELECT*FROM`s`.`t`",
+    "ALTERTABLE`s`.`t`ADDCOLUMN\"dt_ts_offset\"TIMESTAMP",
     []
    ],
    [
     "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`ADDCOLUMN\"dt_ts_offset\"TIMESTAMP",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_offset\"=addDays(addDays(\"ts\",(CASEWHENtoDayOfWeek(\"ts\")=6THEN2WHENtoDayOfWeek(\"ts\")=7THEN1ELSE0END)),(greatest(5-(CASEWHENtoDayOfWeek(\"ts\")IN(6,7)THEN1ELSE0END),0))+2*intDiv(((toDayOfWeek(addDays(\"ts\",(CASEWHENtoDayOfWeek(\"ts\")=6THEN2WHENtoDayOfWeek(\"ts\")=7THEN1ELSE0END)))-1))+(greatest(5-(CASEWHENtoDayOfWeek(\"ts\")IN(6,7)THEN1ELSE0END),0)),5))WHERE1SETTINGSmutations_sync=1",
+    "ALTERTABLE`s`.`t`UPDATE\"dt_ts_offset\"=addDays(addDays(\"ts\",(CASEWHENtoDayOfWeek(\"ts\")=6THEN2WHENtoDayOfWeek(\"ts\")=7THEN1ELSE0END)),(greatest(5-(CASEWHENtoDayOfWeek(\"ts\")IN(6,7)THEN1ELSE0END),0))+2*intDiv(((toDayOfWeek(addDays(\"ts\",(CASEWHENtoDayOfWeek(\"ts\")=6THEN2WHENtoDayOfWeek(\"ts\")=7THEN1ELSE0END)))-1))+(greatest(5-(CASEWHENtoDayOfWeek(\"ts\")IN(6,7)THEN1ELSE0END),0)),5))WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
     "fetch",
-    "SELECT`ts`,`dt_ts_offset`FROM`s`.`t__op_20240101000000000000`",
+    "SELECT`ts`,`dt_ts_offset`FROM`s`.`t`",
     []
    ]
   ],
@@ -61,22 +56,17 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE`s`.`t__op_20240101000000000000`ASSELECT*FROM`s`.`t`",
+    "ALTERTABLE`s`.`t`ADDCOLUMN\"dt_ts_offset\"TIMESTAMP",
     []
    ],
    [
     "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`ADDCOLUMN\"dt_ts_offset\"TIMESTAMP",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_offset\"=addMonths(\"ts\",1)WHERE1SETTINGSmutations_sync=1",
+    "ALTERTABLE`s`.`t`UPDATE\"dt_ts_offset\"=addMonths(\"ts\",1)WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
     "fetch",
-    "SELECT`ts`,`dt_ts_offset`FROM`s`.`t__op_20240101000000000000`",
+    "SELECT`ts`,`dt_ts_offset`FROM`s`.`t`",
     []
    ]
   ],
@@ -119,22 +109,17 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE`s`.`t__op_20240101000000000000`ASSELECT*FROM`s`.`t`",
+    "ALTERTABLE`s`.`t`ADDCOLUMN\"dt_ts_add\"TIMESTAMP",
     []
    ],
    [
     "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`ADDCOLUMN\"dt_ts_add\"TIMESTAMP",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_add\"=\"ts\"+INTERVAL1dayWHERE1SETTINGSmutations_sync=1",
+    "ALTERTABLE`s`.`t`UPDATE\"dt_ts_add\"=\"ts\"+INTERVAL1dayWHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
     "fetch",
-    "SELECT`ts`,`dt_ts_add`FROM`s`.`t__op_20240101000000000000`",
+    "SELECT`ts`,`dt_ts_add`FROM`s`.`t`",
     []
    ]
   ],
@@ -399,22 +384,17 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE`s`.`t__op_20240101000000000000`ASSELECT*FROM`s`.`t`",
+    "ALTERTABLE`s`.`t`ADDCOLUMN\"dt_ts_ceil_month\"TIMESTAMP",
     []
    ],
    [
     "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`ADDCOLUMN\"dt_ts_ceil_month\"TIMESTAMP",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_ceil_month\"=IF(\"ts\"=toStartOfMonth(\"ts\"),\"ts\",toStartOfMonth(\"ts\"+INTERVAL1MONTH))WHERE1SETTINGSmutations_sync=1",
+    "ALTERTABLE`s`.`t`UPDATE\"dt_ts_ceil_month\"=IF(\"ts\"=toStartOfMonth(\"ts\"),\"ts\",toStartOfMonth(\"ts\"+INTERVAL1MONTH))WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
     "fetch",
-    "SELECT`ts`,`dt_ts_ceil_month`FROM`s`.`t__op_20240101000000000000`",
+    "SELECT`ts`,`dt_ts_ceil_month`FROM`s`.`t`",
     []
    ]
   ],
@@ -457,22 +437,17 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE`s`.`t__op_20240101000000000000`ASSELECT*FROM`s`.`t`",
+    "ALTERTABLE`s`.`t`ADDCOLUMN\"dt_ts_day_name\"TEXT",
     []
    ],
    [
     "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`ADDCOLUMN\"dt_ts_day_name\"TEXT",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_day_name\"=DATE_FORMAT(\"ts\",'%W')WHERE1SETTINGSmutations_sync=1",
+    "ALTERTABLE`s`.`t`UPDATE\"dt_ts_day_name\"=DATE_FORMAT(\"ts\",'%W')WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
     "fetch",
-    "SELECT`ts`,`dt_ts_day_name`FROM`s`.`t__op_20240101000000000000`",
+    "SELECT`ts`,`dt_ts_day_name`FROM`s`.`t`",
     []
    ]
   ],
@@ -515,22 +490,17 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE`s`.`t__op_20240101000000000000`ASSELECT*FROM`s`.`t`",
+    "ALTERTABLE`s`.`t`ADDCOLUMN\"dt_ts_days_in_month\"INTEGER",
     []
    ],
    [
     "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`ADDCOLUMN\"dt_ts_days_in_month\"INTEGER",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_days_in_month\"=toDayOfMonth(toLastDayOfMonth(\"ts\"))WHERE1SETTINGSmutations_sync=1",
+    "ALTERTABLE`s`.`t`UPDATE\"dt_ts_days_in_month\"=toDayOfMonth(toLastDayOfMonth(\"ts\"))WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
     "fetch",
-    "SELECT`ts`,`dt_ts_days_in_month`FROM`s`.`t__op_20240101000000000000`",
+    "SELECT`ts`,`dt_ts_days_in_month`FROM`s`.`t`",
     []
    ]
   ],
@@ -573,22 +543,17 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE`s`.`t__op_20240101000000000000`ASSELECT*FROM`s`.`t`",
+    "ALTERTABLE`s`.`t`ADDCOLUMN\"dt_ts_ts_diff_day\"DOUBLEPRECISION",
     []
    ],
    [
     "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`ADDCOLUMN\"dt_ts_ts_diff_day\"DOUBLEPRECISION",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_ts_diff_day\"=dateDiff('day',\"ts\",\"ts\")WHERE1SETTINGSmutations_sync=1",
+    "ALTERTABLE`s`.`t`UPDATE\"dt_ts_ts_diff_day\"=dateDiff('day',\"ts\",\"ts\")WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
     "fetch",
-    "SELECT`ts`,`ts`,`dt_ts_ts_diff_day`FROM`s`.`t__op_20240101000000000000`",
+    "SELECT`ts`,`ts`,`dt_ts_ts_diff_day`FROM`s`.`t`",
     []
    ]
   ],
@@ -631,22 +596,17 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE`s`.`t__op_20240101000000000000`ASSELECT*FROM`s`.`t`",
+    "ALTERTABLE`s`.`t`ADDCOLUMN\"dt_ts_dayofweek\"INTEGER",
     []
    ],
    [
     "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`ADDCOLUMN\"dt_ts_dayofweek\"INTEGER",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_dayofweek\"=toDayOfWeek(\"ts\")%7WHERE1SETTINGSmutations_sync=1",
+    "ALTERTABLE`s`.`t`UPDATE\"dt_ts_dayofweek\"=toDayOfWeek(\"ts\")%7WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
     "fetch",
-    "SELECT`ts`,`dt_ts_dayofweek`FROM`s`.`t__op_20240101000000000000`",
+    "SELECT`ts`,`dt_ts_dayofweek`FROM`s`.`t`",
     []
    ]
   ],
@@ -694,22 +654,17 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE`s`.`t__op_20240101000000000000`ASSELECT*FROM`s`.`t`",
+    "ALTERTABLE`s`.`t`ADDCOLUMN\"dt_ts_month\"INTEGER",
     []
    ],
    [
     "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`ADDCOLUMN\"dt_ts_month\"INTEGER",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_month\"=toMonth(\"ts\")WHERE1SETTINGSmutations_sync=1",
+    "ALTERTABLE`s`.`t`UPDATE\"dt_ts_month\"=toMonth(\"ts\")WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
     "fetch",
-    "SELECT`ts`,`dt_ts_month`FROM`s`.`t__op_20240101000000000000`",
+    "SELECT`ts`,`dt_ts_month`FROM`s`.`t`",
     []
    ]
   ],
@@ -752,22 +707,17 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE`s`.`t__op_20240101000000000000`ASSELECT*FROM`s`.`t`",
+    "ALTERTABLE`s`.`t`ADDCOLUMN\"dt_ts_quarter\"INTEGER",
     []
    ],
    [
     "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`ADDCOLUMN\"dt_ts_quarter\"INTEGER",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_quarter\"=toQuarter(\"ts\")WHERE1SETTINGSmutations_sync=1",
+    "ALTERTABLE`s`.`t`UPDATE\"dt_ts_quarter\"=toQuarter(\"ts\")WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
     "fetch",
-    "SELECT`ts`,`dt_ts_quarter`FROM`s`.`t__op_20240101000000000000`",
+    "SELECT`ts`,`dt_ts_quarter`FROM`s`.`t`",
     []
    ]
   ],
@@ -810,22 +760,17 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE`s`.`t__op_20240101000000000000`ASSELECT*FROM`s`.`t`",
+    "ALTERTABLE`s`.`t`ADDCOLUMN\"dt_ts_week\"INTEGER",
     []
    ],
    [
     "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`ADDCOLUMN\"dt_ts_week\"INTEGER",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_week\"=toISOWeek(\"ts\")WHERE1SETTINGSmutations_sync=1",
+    "ALTERTABLE`s`.`t`UPDATE\"dt_ts_week\"=toISOWeek(\"ts\")WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
     "fetch",
-    "SELECT`ts`,`dt_ts_week`FROM`s`.`t__op_20240101000000000000`",
+    "SELECT`ts`,`dt_ts_week`FROM`s`.`t`",
     []
    ]
   ],
@@ -868,22 +813,17 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE`s`.`t__op_20240101000000000000`ASSELECT*FROM`s`.`t`",
+    "ALTERTABLE`s`.`t`ADDCOLUMN\"dt_ts_year\"INTEGER",
     []
    ],
    [
     "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`ADDCOLUMN\"dt_ts_year\"INTEGER",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_year\"=toYear(\"ts\")WHERE1SETTINGSmutations_sync=1",
+    "ALTERTABLE`s`.`t`UPDATE\"dt_ts_year\"=toYear(\"ts\")WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
     "fetch",
-    "SELECT`ts`,`dt_ts_year`FROM`s`.`t__op_20240101000000000000`",
+    "SELECT`ts`,`dt_ts_year`FROM`s`.`t`",
     []
    ]
   ],
@@ -926,22 +866,17 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE`s`.`t__op_20240101000000000000`ASSELECT*FROM`s`.`t`",
+    "ALTERTABLE`s`.`t`ADDCOLUMN\"dt_ts_floor_day\"TIMESTAMP",
     []
    ],
    [
     "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`ADDCOLUMN\"dt_ts_floor_day\"TIMESTAMP",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_floor_day\"=toStartOfDay(\"ts\")WHERE1SETTINGSmutations_sync=1",
+    "ALTERTABLE`s`.`t`UPDATE\"dt_ts_floor_day\"=toStartOfDay(\"ts\")WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
     "fetch",
-    "SELECT`ts`,`dt_ts_floor_day`FROM`s`.`t__op_20240101000000000000`",
+    "SELECT`ts`,`dt_ts_floor_day`FROM`s`.`t`",
     []
    ]
   ],
@@ -984,22 +919,17 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE`s`.`t__op_20240101000000000000`ASSELECT*FROM`s`.`t`",
+    "ALTERTABLE`s`.`t`ADDCOLUMN\"dt_ts_is_month_end\"BOOLEAN",
     []
    ],
    [
     "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`ADDCOLUMN\"dt_ts_is_month_end\"BOOLEAN",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_is_month_end\"=toDayOfMonth(toLastDayOfMonth(\"ts\"))=toDayOfMonth(\"ts\")WHERE1SETTINGSmutations_sync=1",
+    "ALTERTABLE`s`.`t`UPDATE\"dt_ts_is_month_end\"=toDayOfMonth(toLastDayOfMonth(\"ts\"))=toDayOfMonth(\"ts\")WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
     "fetch",
-    "SELECT`ts`,`dt_ts_is_month_end`FROM`s`.`t__op_20240101000000000000`",
+    "SELECT`ts`,`dt_ts_is_month_end`FROM`s`.`t`",
     []
    ]
   ],
@@ -1042,22 +972,17 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE`s`.`t__op_20240101000000000000`ASSELECT*FROM`s`.`t`",
+    "ALTERTABLE`s`.`t`ADDCOLUMN\"dt_ts_is_month_start\"BOOLEAN",
     []
    ],
    [
     "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`ADDCOLUMN\"dt_ts_is_month_start\"BOOLEAN",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_is_month_start\"=toDayOfMonth(\"ts\")=1WHERE1SETTINGSmutations_sync=1",
+    "ALTERTABLE`s`.`t`UPDATE\"dt_ts_is_month_start\"=toDayOfMonth(\"ts\")=1WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
     "fetch",
-    "SELECT`ts`,`dt_ts_is_month_start`FROM`s`.`t__op_20240101000000000000`",
+    "SELECT`ts`,`dt_ts_is_month_start`FROM`s`.`t`",
     []
    ]
   ],
@@ -1100,22 +1025,17 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE`s`.`t__op_20240101000000000000`ASSELECT*FROM`s`.`t`",
+    "ALTERTABLE`s`.`t`ADDCOLUMN\"dt_ts_is_quarter_start\"BOOLEAN",
     []
    ],
    [
     "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`ADDCOLUMN\"dt_ts_is_quarter_start\"BOOLEAN",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_is_quarter_start\"=toStartOfQuarter(\"ts\")=toStartOfDay(\"ts\")WHERE1SETTINGSmutations_sync=1",
+    "ALTERTABLE`s`.`t`UPDATE\"dt_ts_is_quarter_start\"=toStartOfQuarter(\"ts\")=toStartOfDay(\"ts\")WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
     "fetch",
-    "SELECT`ts`,`dt_ts_is_quarter_start`FROM`s`.`t__op_20240101000000000000`",
+    "SELECT`ts`,`dt_ts_is_quarter_start`FROM`s`.`t`",
     []
    ]
   ],
@@ -1158,22 +1078,17 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE`s`.`t__op_20240101000000000000`ASSELECT*FROM`s`.`t`",
+    "ALTERTABLE`s`.`t`ADDCOLUMN\"dt_ts_is_weekend\"BOOLEAN",
     []
    ],
    [
     "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`ADDCOLUMN\"dt_ts_is_weekend\"BOOLEAN",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_is_weekend\"=toDayOfWeek(\"ts\")IN(6,7)WHERE1SETTINGSmutations_sync=1",
+    "ALTERTABLE`s`.`t`UPDATE\"dt_ts_is_weekend\"=toDayOfWeek(\"ts\")IN(6,7)WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
     "fetch",
-    "SELECT`ts`,`dt_ts_is_weekend`FROM`s`.`t__op_20240101000000000000`",
+    "SELECT`ts`,`dt_ts_is_weekend`FROM`s`.`t`",
     []
    ]
   ],
@@ -1216,22 +1131,17 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE`s`.`t__op_20240101000000000000`ASSELECT*FROM`s`.`t`",
+    "ALTERTABLE`s`.`t`ADDCOLUMN\"dt_ts_is_year_end\"BOOLEAN",
     []
    ],
    [
     "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`ADDCOLUMN\"dt_ts_is_year_end\"BOOLEAN",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_is_year_end\"=toMonth(\"ts\")=12ANDtoDayOfMonth(\"ts\")=31WHERE1SETTINGSmutations_sync=1",
+    "ALTERTABLE`s`.`t`UPDATE\"dt_ts_is_year_end\"=toMonth(\"ts\")=12ANDtoDayOfMonth(\"ts\")=31WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
     "fetch",
-    "SELECT`ts`,`dt_ts_is_year_end`FROM`s`.`t__op_20240101000000000000`",
+    "SELECT`ts`,`dt_ts_is_year_end`FROM`s`.`t`",
     []
    ]
   ],
@@ -1274,22 +1184,17 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE`s`.`t__op_20240101000000000000`ASSELECT*FROM`s`.`t`",
+    "ALTERTABLE`s`.`t`ADDCOLUMN\"dt_ts_is_year_start\"BOOLEAN",
     []
    ],
    [
     "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`ADDCOLUMN\"dt_ts_is_year_start\"BOOLEAN",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_is_year_start\"=toMonth(\"ts\")=1ANDtoDayOfMonth(\"ts\")=1WHERE1SETTINGSmutations_sync=1",
+    "ALTERTABLE`s`.`t`UPDATE\"dt_ts_is_year_start\"=toMonth(\"ts\")=1ANDtoDayOfMonth(\"ts\")=1WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
     "fetch",
-    "SELECT`ts`,`dt_ts_is_year_start`FROM`s`.`t__op_20240101000000000000`",
+    "SELECT`ts`,`dt_ts_is_year_start`FROM`s`.`t`",
     []
    ]
   ],
@@ -1332,22 +1237,17 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE`s`.`t__op_20240101000000000000`ASSELECT*FROM`s`.`t`",
+    "ALTERTABLE`s`.`t`ADDCOLUMN\"dt_ts_month_name\"TEXT",
     []
    ],
    [
     "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`ADDCOLUMN\"dt_ts_month_name\"TEXT",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_month_name\"=DATE_FORMAT(\"ts\",'%M')WHERE1SETTINGSmutations_sync=1",
+    "ALTERTABLE`s`.`t`UPDATE\"dt_ts_month_name\"=DATE_FORMAT(\"ts\",'%M')WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
     "fetch",
-    "SELECT`ts`,`dt_ts_month_name`FROM`s`.`t__op_20240101000000000000`",
+    "SELECT`ts`,`dt_ts_month_name`FROM`s`.`t`",
     []
    ]
   ],
@@ -1390,22 +1290,17 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE`s`.`t__op_20240101000000000000`ASSELECT*FROM`s`.`t`",
+    "ALTERTABLE`s`.`t`ADDCOLUMN\"dt_ts_normalize\"TIMESTAMP",
     []
    ],
    [
     "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`ADDCOLUMN\"dt_ts_normalize\"TIMESTAMP",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_normalize\"=toStartOfDay(\"ts\")WHERE1SETTINGSmutations_sync=1",
+    "ALTERTABLE`s`.`t`UPDATE\"dt_ts_normalize\"=toStartOfDay(\"ts\")WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
     "fetch",
-    "SELECT`ts`,`dt_ts_normalize`FROM`s`.`t__op_20240101000000000000`",
+    "SELECT`ts`,`dt_ts_normalize`FROM`s`.`t`",
     []
    ]
   ],
@@ -1448,22 +1343,17 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE`s`.`t__op_20240101000000000000`ASSELECT*FROM`s`.`t`",
+    "ALTERTABLE`s`.`t`ADDCOLUMN\"dt_ts_replace\"TIMESTAMP",
     []
    ],
    [
     "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`ADDCOLUMN\"dt_ts_replace\"TIMESTAMP",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_replace\"=makeDateTime(2000,toMonth(\"ts\"),toDayOfMonth(\"ts\"),toHour(\"ts\"),toMinute(\"ts\"),toSecond(\"ts\"))WHERE1SETTINGSmutations_sync=1",
+    "ALTERTABLE`s`.`t`UPDATE\"dt_ts_replace\"=makeDateTime(2000,toMonth(\"ts\"),toDayOfMonth(\"ts\"),toHour(\"ts\"),toMinute(\"ts\"),toSecond(\"ts\"))WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
     "fetch",
-    "SELECT`ts`,`dt_ts_replace`FROM`s`.`t__op_20240101000000000000`",
+    "SELECT`ts`,`dt_ts_replace`FROM`s`.`t`",
     []
    ]
   ],
@@ -1621,22 +1511,17 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE`s`.`t__op_20240101000000000000`ASSELECT*FROM`s`.`t`",
+    "ALTERTABLE`s`.`t`ADDCOLUMN\"dt_ts_round_hour\"TIMESTAMP",
     []
    ],
    [
     "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`ADDCOLUMN\"dt_ts_round_hour\"TIMESTAMP",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_round_hour\"=toStartOfHour(\"ts\"+INTERVAL30MINUTE)WHERE1SETTINGSmutations_sync=1",
+    "ALTERTABLE`s`.`t`UPDATE\"dt_ts_round_hour\"=toStartOfHour(\"ts\"+INTERVAL30MINUTE)WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
     "fetch",
-    "SELECT`ts`,`dt_ts_round_hour`FROM`s`.`t__op_20240101000000000000`",
+    "SELECT`ts`,`dt_ts_round_hour`FROM`s`.`t`",
     []
    ]
   ],
@@ -1717,22 +1602,17 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE`s`.`t__op_20240101000000000000`ASSELECT*FROM`s`.`t`",
+    "ALTERTABLE`s`.`t`ADDCOLUMN\"dt_ts_strftime\"TEXT",
     []
    ],
    [
     "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`ADDCOLUMN\"dt_ts_strftime\"TEXT",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_strftime\"=formatDateTime(\"ts\",'%Y-%m-%d')WHERE1SETTINGSmutations_sync=1",
+    "ALTERTABLE`s`.`t`UPDATE\"dt_ts_strftime\"=formatDateTime(\"ts\",'%Y-%m-%d')WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
     "fetch",
-    "SELECT`ts`,`dt_ts_strftime`FROM`s`.`t__op_20240101000000000000`",
+    "SELECT`ts`,`dt_ts_strftime`FROM`s`.`t`",
     []
    ]
   ],
@@ -1775,22 +1655,17 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE`s`.`t__op_20240101000000000000`ASSELECT*FROM`s`.`t`",
+    "ALTERTABLE`s`.`t`ADDCOLUMN\"dt_s_strptime\"TIMESTAMP",
     []
    ],
    [
     "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`ADDCOLUMN\"dt_s_strptime\"TIMESTAMP",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_s_strptime\"=parseDateTimeBestEffort(\"s\",'%Y-%m-%d')WHERE1SETTINGSmutations_sync=1",
+    "ALTERTABLE`s`.`t`UPDATE\"dt_s_strptime\"=parseDateTimeBestEffort(\"s\",'%Y-%m-%d')WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
     "fetch",
-    "SELECT`s`,`dt_s_strptime`FROM`s`.`t__op_20240101000000000000`",
+    "SELECT`s`,`dt_s_strptime`FROM`s`.`t`",
     []
    ]
   ],
@@ -1833,22 +1708,17 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE`s`.`t__op_20240101000000000000`ASSELECT*FROM`s`.`t`",
+    "ALTERTABLE`s`.`t`ADDCOLUMN\"dt_ts_sub\"TIMESTAMP",
     []
    ],
    [
     "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`ADDCOLUMN\"dt_ts_sub\"TIMESTAMP",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_sub\"=\"ts\"-INTERVAL1hourWHERE1SETTINGSmutations_sync=1",
+    "ALTERTABLE`s`.`t`UPDATE\"dt_ts_sub\"=\"ts\"-INTERVAL1hourWHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
     "fetch",
-    "SELECT`ts`,`dt_ts_sub`FROM`s`.`t__op_20240101000000000000`",
+    "SELECT`ts`,`dt_ts_sub`FROM`s`.`t`",
     []
    ]
   ],
@@ -1891,22 +1761,17 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE`s`.`t__op_20240101000000000000`ASSELECT*FROM`s`.`t`",
+    "ALTERTABLE`s`.`t`ADDCOLUMN\"dt_ts_timestamp\"DOUBLEPRECISION",
     []
    ],
    [
     "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`ADDCOLUMN\"dt_ts_timestamp\"DOUBLEPRECISION",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_timestamp\"=toUnixTimestamp(\"ts\")WHERE1SETTINGSmutations_sync=1",
+    "ALTERTABLE`s`.`t`UPDATE\"dt_ts_timestamp\"=toUnixTimestamp(\"ts\")WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
     "fetch",
-    "SELECT`ts`,`dt_ts_timestamp`FROM`s`.`t__op_20240101000000000000`",
+    "SELECT`ts`,`dt_ts_timestamp`FROM`s`.`t`",
     []
    ]
   ],
@@ -1949,22 +1814,17 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE`s`.`t__op_20240101000000000000`ASSELECT*FROM`s`.`t`",
+    "ALTERTABLE`s`.`t`ADDCOLUMN\"dt_s_todatetime\"TIMESTAMP",
     []
    ],
    [
     "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`ADDCOLUMN\"dt_s_todatetime\"TIMESTAMP",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_s_todatetime\"=CAST(\"s\"ASDateTime)WHERE1SETTINGSmutations_sync=1",
+    "ALTERTABLE`s`.`t`UPDATE\"dt_s_todatetime\"=CAST(\"s\"ASDateTime)WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
     "fetch",
-    "SELECT`s`,`dt_s_todatetime`FROM`s`.`t__op_20240101000000000000`",
+    "SELECT`s`,`dt_s_todatetime`FROM`s`.`t`",
     []
    ]
   ],
@@ -2007,22 +1867,17 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE`s`.`t__op_20240101000000000000`ASSELECT*FROM`s`.`t`",
+    "ALTERTABLE`s`.`t`ADDCOLUMN\"dt_s_todatetime\"Nullable(DateTime)",
     []
    ],
    [
     "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`ADDCOLUMN\"dt_s_todatetime\"Nullable(DateTime)",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_s_todatetime\"=parseDateTimeBestEffortOrNull(\"s\")WHERE1SETTINGSmutations_sync=1",
+    "ALTERTABLE`s`.`t`UPDATE\"dt_s_todatetime\"=parseDateTimeBestEffortOrNull(\"s\")WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
     "fetch",
-    "SELECT`s`,`dt_s_todatetime`FROM`s`.`t__op_20240101000000000000`",
+    "SELECT`s`,`dt_s_todatetime`FROM`s`.`t`",
     []
    ]
   ],
@@ -2065,22 +1920,17 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE`s`.`t__op_20240101000000000000`ASSELECT*FROM`s`.`t`",
+    "ALTERTABLE`s`.`t`ADDCOLUMN\"dt_val_todatetime\"TIMESTAMP",
     []
    ],
    [
     "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`ADDCOLUMN\"dt_val_todatetime\"TIMESTAMP",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_val_todatetime\"=toDateTime(CAST(\"val\"ASFloat64)/1)WHERE1SETTINGSmutations_sync=1",
+    "ALTERTABLE`s`.`t`UPDATE\"dt_val_todatetime\"=toDateTime(CAST(\"val\"ASFloat64)/1)WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
     "fetch",
-    "SELECT`val`,`dt_val_todatetime`FROM`s`.`t__op_20240101000000000000`",
+    "SELECT`val`,`dt_val_todatetime`FROM`s`.`t`",
     []
    ]
   ],
@@ -2123,22 +1973,17 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE`s`.`t__op_20240101000000000000`ASSELECT*FROM`s`.`t`",
+    "ALTERTABLE`s`.`t`ADDCOLUMN\"dt_ts_tzconvert_UTC\"TIMESTAMP",
     []
    ],
    [
     "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`ADDCOLUMN\"dt_ts_tzconvert_UTC\"TIMESTAMP",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_tzconvert_UTC\"=CAST(toString(toTimezone(toTimezone(\"ts\",'UTC'),'UTC'))ASDateTime)WHERE1SETTINGSmutations_sync=1",
+    "ALTERTABLE`s`.`t`UPDATE\"dt_ts_tzconvert_UTC\"=CAST(toString(toTimezone(toTimezone(\"ts\",'UTC'),'UTC'))ASDateTime)WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
     "fetch",
-    "SELECT`ts`,`dt_ts_tzconvert_UTC`FROM`s`.`t__op_20240101000000000000`",
+    "SELECT`ts`,`dt_ts_tzconvert_UTC`FROM`s`.`t`",
     []
    ]
   ],
@@ -2181,22 +2026,17 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE`s`.`t__op_20240101000000000000`ASSELECT*FROM`s`.`t`",
+    "ALTERTABLE`s`.`t`ADDCOLUMN\"dt_ts_tz_naive\"TIMESTAMP",
     []
    ],
    [
     "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`ADDCOLUMN\"dt_ts_tz_naive\"TIMESTAMP",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_tz_naive\"=toTimezone(\"ts\",'UTC')WHERE1SETTINGSmutations_sync=1",
+    "ALTERTABLE`s`.`t`UPDATE\"dt_ts_tz_naive\"=toTimezone(\"ts\",'UTC')WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
     "fetch",
-    "SELECT`ts`,`dt_ts_tz_naive`FROM`s`.`t__op_20240101000000000000`",
+    "SELECT`ts`,`dt_ts_tz_naive`FROM`s`.`t`",
     []
    ]
   ],
@@ -2239,22 +2079,17 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE`s`.`t__op_20240101000000000000`ASSELECT*FROM`s`.`t`",
+    "ALTERTABLE`s`.`t`ADDCOLUMN\"dt_ts_tz_UTC\"TIMESTAMP",
     []
    ],
    [
     "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`ADDCOLUMN\"dt_ts_tz_UTC\"TIMESTAMP",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_tz_UTC\"=toTimezone(\"ts\",'UTC')WHERE1SETTINGSmutations_sync=1",
+    "ALTERTABLE`s`.`t`UPDATE\"dt_ts_tz_UTC\"=toTimezone(\"ts\",'UTC')WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
     "fetch",
-    "SELECT`ts`,`dt_ts_tz_UTC`FROM`s`.`t__op_20240101000000000000`",
+    "SELECT`ts`,`dt_ts_tz_UTC`FROM`s`.`t`",
     []
    ]
   ],
@@ -2297,22 +2132,17 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE`s`.`t__op_20240101000000000000`ASSELECT*FROM`s`.`t`",
+    "ALTERTABLE`s`.`t`ADDCOLUMN\"dt_ts_week_of_month\"INTEGER",
     []
    ],
    [
     "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`ADDCOLUMN\"dt_ts_week_of_month\"INTEGER",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE`s`.`t__op_20240101000000000000`UPDATE\"dt_ts_week_of_month\"=toWeek(\"ts\")-toWeek(toStartOfMonth(\"ts\"))+1WHERE1SETTINGSmutations_sync=1",
+    "ALTERTABLE`s`.`t`UPDATE\"dt_ts_week_of_month\"=toWeek(\"ts\")-toWeek(toStartOfMonth(\"ts\"))+1WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
     "fetch",
-    "SELECT`ts`,`dt_ts_week_of_month`FROM`s`.`t__op_20240101000000000000`",
+    "SELECT`ts`,`dt_ts_week_of_month`FROM`s`.`t`",
     []
    ]
   ],

@@ -3,41 +3,6 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_cat_compressed_5_other\"VARCHAR",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"DROPCOLUMN\"cleaned_cat_compressed_5_other\"",
-    []
-   ],
-   [
-    "exec",
-    "DROPTABLEIFEXISTS\"s\".\"t__op_20240101000000000000__temp\"",
-    []
-   ],
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000__temp\"ASSELECTt.*,CASEWHENfreq.cntISNULLORfreq.cnt<5THEN'other'ELSEt.\"cat\"ENDAS\"cleaned_cat_compressed_5_other\"FROM\"s\".\"t__op_20240101000000000000\"tLEFTJOIN(SELECT\"cat\",COUNT(*)AScntFROM\"s\".\"t__op_20240101000000000000\"WHERE\"cat\"ISNOTNULLGROUPBY\"cat\")freqONt.\"cat\"=freq.\"cat\"",
-    []
-   ],
-   [
-    "exec",
-    "DROPTABLE\"s\".\"t__op_20240101000000000000\"",
-    []
-   ],
-   [
-    "exec",
-    "RENAMETABLE\"s\".\"t__op_20240101000000000000__temp\"TO\"s\".\"t__op_20240101000000000000\"",
-    []
-   ],
-   [
-    "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_cat_compressed_5_other\"VARCHAR",
     []
    ],
@@ -48,12 +13,12 @@
    ],
    [
     "exec",
-    "DROPTABLEIFEXISTS\"s\".\"t__op_20240101000000000000__temp\"",
+    "DROPTABLEIFEXISTS\"s\".\"t__temp\"",
     []
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000__temp\"ASSELECTt.*,CASEWHENfreq.cntISNULLORfreq.cnt<5THEN'other'ELSEt.\"cat\"ENDAS\"cleaned_cat_compressed_5_other\"FROM\"s\".\"t\"tLEFTJOIN(SELECT\"cat\",COUNT(*)AScntFROM\"s\".\"t\"WHERE\"cat\"ISNOTNULLGROUPBY\"cat\")freqONt.\"cat\"=freq.\"cat\"",
+    "CREATETABLE\"s\".\"t__temp\"ASSELECTt.*,CASEWHENfreq.cntISNULLORfreq.cnt<5THEN'other'ELSEt.\"cat\"ENDAS\"cleaned_cat_compressed_5_other\"FROM\"s\".\"t\"tLEFTJOIN(SELECT\"cat\",COUNT(*)AScntFROM\"s\".\"t\"WHERE\"cat\"ISNOTNULLGROUPBY\"cat\")freqONt.\"cat\"=freq.\"cat\"",
     []
    ],
    [
@@ -63,17 +28,17 @@
    ],
    [
     "exec",
-    "RENAMETABLE\"s\".\"t__op_20240101000000000000__temp\"TO\"s\".\"t\"",
+    "RENAMETABLE\"s\".\"t__temp\"TO\"s\".\"t\"",
     []
    ],
    [
     "fetch",
-    "SELECTDISTINCT\"cat\"FROM\"s\".\"t__op_20240101000000000000\"WHERE\"cat\"ISNOTNULLGROUPBY\"cat\"HAVINGCOUNT(*)<5",
+    "SELECTDISTINCT\"cat\"FROM\"s\".\"t\"WHERE\"cat\"ISNOTNULLGROUPBY\"cat\"HAVINGCOUNT(*)<5",
     []
    ],
    [
     "fetch",
-    "SELECT\"cat\",\"cleaned_cat_compressed_5_other\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"cat\",\"cleaned_cat_compressed_5_other\"FROM\"s\".\"t\"",
     []
    ]
   ],
@@ -856,8 +821,13 @@
     []
    ],
    [
+    "exec",
+    "DROPTABLEIFEXISTS\"s\".\"t__op_20240101000000000000\"",
+    []
+   ],
+   [
     "fetch",
-    "SELECT\"ts\",\"cleaned_ts_constant_filled\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"ts\",\"cleaned_ts_constant_filled\"FROM\"s\".\"t\"",
     []
    ]
   ]
@@ -954,8 +924,13 @@
     []
    ],
    [
+    "exec",
+    "DROPTABLEIFEXISTS\"s\".\"t__op_20240101000000000000\"",
+    []
+   ],
+   [
     "fetch",
-    "SELECT\"ts\",\"cleaned_ts_ffill_filled\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"ts\",\"cleaned_ts_ffill_filled\"FROM\"s\".\"t\"",
     []
    ]
   ]
@@ -1248,8 +1223,13 @@
     []
    ],
    [
+    "exec",
+    "DROPTABLEIFEXISTS\"s\".\"t__op_20240101000000000000\"",
+    []
+   ],
+   [
     "fetch",
-    "SELECT\"ts\",\"cleaned_ts_mean_filled\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"ts\",\"cleaned_ts_mean_filled\"FROM\"s\".\"t\"",
     []
    ]
   ]
@@ -1331,8 +1311,13 @@
     []
    ],
    [
+    "exec",
+    "DROPTABLEIFEXISTS\"s\".\"t__op_20240101000000000000\"",
+    []
+   ],
+   [
     "fetch",
-    "SELECT\"ts\",\"cleaned_ts_now_filled\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"ts\",\"cleaned_ts_now_filled\"FROM\"s\".\"t\"",
     []
    ]
   ]
@@ -1409,21 +1394,6 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_ts_range_filtered\"Nullable(Date)",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"cleaned_ts_range_filtered\"=CASEWHEN\"ts\"<toDate('2020-01-01')THENNULLWHEN\"ts\">toDate('2030-01-01')THENNULLELSEtoDate(\"ts\")ENDWHERE1SETTINGSmutations_sync=1",
-    []
-   ],
-   [
-    "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_ts_range_filtered\"Nullable(Date)",
     []
    ],
@@ -1434,12 +1404,12 @@
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"ts\"<toDate('2020-01-01')OR\"ts\">toDate('2030-01-01')",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"ts\"<toDate('2020-01-01')OR\"ts\">toDate('2030-01-01')",
     []
    ],
    [
     "fetch",
-    "SELECT\"ts\",\"cleaned_ts_range_filtered\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"ts\",\"cleaned_ts_range_filtered\"FROM\"s\".\"t\"",
     []
    ]
   ],
@@ -1491,43 +1461,18 @@
  "numeric_convert_text": {
   "clickhouse": [
    [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
     "fetch",
-    "SELECTnullIf(replaceRegexpAll(toString(\"num\"),'[^0-9.+-]',''),'')ASvFROM\"s\".\"t__op_20240101000000000000\"WHEREnullIf(replaceRegexpAll(toString(\"num\"),'[^0-9.+-]',''),'')ISNOTNULLLIMIT5000",
+    "SELECTnullIf(replaceRegexpAll(toString(\"num\"),'[^0-9.+-]',''),'')ASvFROM\"s\".\"t\"WHEREnullIf(replaceRegexpAll(toString(\"num\"),'[^0-9.+-]',''),'')ISNOTNULLLIMIT5000",
     []
    ],
    [
     "exec",
-    "DROPTABLEIFEXISTS\"s\".\"t__op_20240101000000000000__temp\"",
+    "DROPTABLEIFEXISTS\"s\".\"t__temp\"",
     []
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000__temp\"ASSELECT*REPLACE(CAST(CASEWHENmatch(nullIf(replaceRegexpAll(toString(\"num\"),'[^0-9.+-]',''),''),'^[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)$')THENnullIf(replaceRegexpAll(toString(\"num\"),'[^0-9.+-]',''),'')ELSENULLENDASDecimal(18,6))AS\"num\")FROM\"s\".\"t__op_20240101000000000000\"",
-    []
-   ],
-   [
-    "exec",
-    "DROPTABLE\"s\".\"t__op_20240101000000000000\"",
-    []
-   ],
-   [
-    "exec",
-    "RENAMETABLE\"s\".\"t__op_20240101000000000000__temp\"TO\"s\".\"t__op_20240101000000000000\"",
-    []
-   ],
-   [
-    "exec",
-    "DROPTABLEIFEXISTS\"s\".\"t__op_20240101000000000000__temp\"",
-    []
-   ],
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000__temp\"ASSELECT*REPLACE(CAST(CASEWHENmatch(nullIf(replaceRegexpAll(toString(\"num\"),'[^0-9.+-]',''),''),'^[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)$')THENnullIf(replaceRegexpAll(toString(\"num\"),'[^0-9.+-]',''),'')ELSENULLENDASDecimal(18,6))AS\"num\")FROM\"s\".\"t\"",
+    "CREATETABLE\"s\".\"t__temp\"ASSELECT*REPLACE(CAST(CASEWHENmatch(nullIf(replaceRegexpAll(toString(\"num\"),'[^0-9.+-]',''),''),'^[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)$')THENnullIf(replaceRegexpAll(toString(\"num\"),'[^0-9.+-]',''),'')ELSENULLENDASDecimal(18,6))AS\"num\")FROM\"s\".\"t\"",
     []
    ],
    [
@@ -1537,17 +1482,17 @@
    ],
    [
     "exec",
-    "RENAMETABLE\"s\".\"t__op_20240101000000000000__temp\"TO\"s\".\"t\"",
+    "RENAMETABLE\"s\".\"t__temp\"TO\"s\".\"t\"",
     []
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"num\"ISNOTNULL",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\"FROM\"s\".\"t\"",
     []
    ]
   ],
@@ -1580,21 +1525,6 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT*FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_num_zscore_filtered_2_5\"INTEGER",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"cleaned_num_zscore_filtered_2_5\"=CASEWHENABS((\"num\"-(SELECTAVG(\"num\")FROM\"s\".\"t__op_20240101000000000000\"WHERE\"num\"ISNOTNULL))/NULLIF((SELECTstddevPop(\"num\")FROM\"s\".\"t__op_20240101000000000000\"WHERE\"num\"ISNOTNULL),0))>2.5THENNULLELSE\"num\"ENDWHERE1",
-    []
-   ],
-   [
-    "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_num_zscore_filtered_2_5\"INTEGER",
     []
    ],
@@ -1605,12 +1535,12 @@
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"num\"ISNOTNULLANDABS((\"num\"-(SELECTAVG(\"num\")FROM\"s\".\"t__op_20240101000000000000\"WHERE\"num\"ISNOTNULL))/NULLIF((SELECTstddevPop(\"num\")FROM\"s\".\"t__op_20240101000000000000\"WHERE\"num\"ISNOTNULL),0))>2.5",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"num\"ISNOTNULLANDABS((\"num\"-(SELECTAVG(\"num\")FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL))/NULLIF((SELECTstddevPop(\"num\")FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL),0))>2.5",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"cleaned_num_zscore_filtered_2_5\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"cleaned_num_zscore_filtered_2_5\"FROM\"s\".\"t\"",
     []
    ]
   ],
@@ -1731,21 +1661,6 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"num\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_num_constant_filled_5\"INTEGER",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"cleaned_num_constant_filled_5\"=COALESCE(\"num\",5)WHERE1",
-    []
-   ],
-   [
-    "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_num_constant_filled_5\"INTEGER",
     []
    ],
@@ -1756,12 +1671,12 @@
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"num\"ISNULL",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"num\"ISNULL",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"cleaned_num_constant_filled_5\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"cleaned_num_constant_filled_5\"FROM\"s\".\"t\"",
     []
    ]
   ],
@@ -1814,12 +1729,7 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"num\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_num_ffill_filled\"INTEGER",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_num_ffill_filled\"INTEGER",
     []
    ]
   ],
@@ -2081,26 +1991,6 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"num\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_num_mean_filled\"INTEGER",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"cleaned_num_mean_filled\"=COALESCE(\"num\",(SELECTCOALESCE(AVG(\"num\"),0)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"num\"ISNOTNULL))WHERE1",
-    []
-   ],
-   [
-    "fetchval",
-    "SELECTAVG(\"num\")FROM\"s\".\"t__op_20240101000000000000\"WHERE\"num\"ISNOTNULL",
-    []
-   ],
-   [
-    "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_num_mean_filled\"INTEGER",
     []
    ],
@@ -2116,12 +2006,12 @@
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"num\"ISNULL",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"num\"ISNULL",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"cleaned_num_mean_filled\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"cleaned_num_mean_filled\"FROM\"s\".\"t\"",
     []
    ]
   ],
@@ -2184,26 +2074,6 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_20240101000000000000\"ASSELECT\"num\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"ADDCOLUMN\"cleaned_num_median_filled\"INTEGER",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__op_20240101000000000000\"UPDATE\"cleaned_num_median_filled\"=COALESCE(\"num\",(SELECTCOALESCE(quantile(0.5)(\"num\"),0)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"num\"ISNOTNULL))WHERE1",
-    []
-   ],
-   [
-    "fetchval",
-    "SELECTquantile(0.5)(\"num\")FROM\"s\".\"t__op_20240101000000000000\"WHERE\"num\"ISNOTNULL",
-    []
-   ],
-   [
-    "exec",
     "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"cleaned_num_median_filled\"INTEGER",
     []
    ],
@@ -2219,12 +2089,12 @@
    ],
    [
     "fetchval",
-    "SELECTCOUNT(*)FROM\"s\".\"t__op_20240101000000000000\"WHERE\"num\"ISNULL",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"WHERE\"num\"ISNULL",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"cleaned_num_median_filled\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"cleaned_num_median_filled\"FROM\"s\".\"t\"",
     []
    ]
   ],
@@ -2341,8 +2211,13 @@
     []
    ],
    [
+    "exec",
+    "DROPTABLEIFEXISTS\"s\".\"t__op_20240101000000000000\"",
+    []
+   ],
+   [
     "fetch",
-    "SELECT\"num\",\"cleaned_num_interpolated\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"cleaned_num_interpolated\"FROM\"s\".\"t\"",
     []
    ]
   ],
@@ -2444,8 +2319,13 @@
     []
    ],
    [
+    "exec",
+    "DROPTABLEIFEXISTS\"s\".\"t__op_20240101000000000000\"",
+    []
+   ],
+   [
     "fetch",
-    "SELECT\"num\",\"cleaned_num_interpolated\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"cleaned_num_interpolated\"FROM\"s\".\"t\"",
     []
    ]
   ],
@@ -2547,8 +2427,13 @@
     []
    ],
    [
+    "exec",
+    "DROPTABLEIFEXISTS\"s\".\"t__op_20240101000000000000\"",
+    []
+   ],
+   [
     "fetch",
-    "SELECT\"num\",\"cleaned_num_interpolated\"FROM\"s\".\"t__op_20240101000000000000\"",
+    "SELECT\"num\",\"cleaned_num_interpolated\"FROM\"s\".\"t\"",
     []
    ]
   ],

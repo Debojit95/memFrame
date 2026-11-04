@@ -77,10 +77,6 @@ class ClickHouseCleaningOps(DataCleaningOps):
         new_table: Optional[str] = None,
     ) -> Dict[str, Any]:
         try:
-            original = table
-            table = await self._prepare_column_operation_table(
-                table, schema, [column], backend=backend, data_id=data_id, new_table=new_table,
-            )
             mode = mode.upper()
 
             suffix_map = {
@@ -104,7 +100,7 @@ class ClickHouseCleaningOps(DataCleaningOps):
 
             new_col = self._generate_cleaned_column_name(column, suffix_map[mode])
             col_type = await self._get_column_type(table, schema, column)
-            await self._add_new_column(table, schema, new_col, col_type)
+            await self._add_new_column_if_not_exists(table, schema, new_col, col_type)
 
             qualified = self._qualified_table(table, schema)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
@@ -148,9 +144,6 @@ class ClickHouseCleaningOps(DataCleaningOps):
                     """)
 
             fill_value = await _apply(qualified)
-
-            await self._add_new_column_if_not_exists(original, schema, new_col, col_type)
-            await _apply(self._qualified_table(original, schema))
 
             null_count = await self._fetchval(
                 f'SELECT COUNT(*) FROM {qualified} WHERE "{safe_col}" IS NULL'
@@ -278,14 +271,15 @@ class ClickHouseCleaningOps(DataCleaningOps):
                 f'SELECT COUNT(*) FROM {qualified} WHERE "{safe_col}" IS NULL'
             ) or 0
 
-            sample = await self._fetch_data(table, schema, columns=[safe_col, safe_new])
+            await self._exec(f"DROP TABLE IF EXISTS {qualified}")
+            sample = await self._fetch_data(original, schema, columns=[safe_col, safe_new])
             msg = f"Interpolated {null_count} null values in '{column}' using linear"
             if order_cols:
                 msg += f" ordered by {order_cols}"
 
             return ok(
                 msg, [column, *order_cols], [new_col], sample, fill_mode="LINEAR", fill_value="linear",
-                new_table=table, order_by=order_cols or None,
+                new_table=original, order_by=order_cols or None,
             )
 
         except Exception as e:
@@ -304,13 +298,9 @@ class ClickHouseCleaningOps(DataCleaningOps):
         new_table: Optional[str] = None,
     ) -> Dict[str, Any]:
         try:
-            original = table
-            table = await self._prepare_operation_table(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table,
-            )
             new_col = self._generate_cleaned_column_name(column, f"zscore_filtered_{z_thresh}")
             col_type = await self._get_column_type(table, schema, column)
-            await self._add_new_column(table, schema, new_col, col_type)
+            await self._add_new_column_if_not_exists(table, schema, new_col, col_type)
 
             qualified = self._qualified_table(table, schema)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
@@ -328,9 +318,6 @@ class ClickHouseCleaningOps(DataCleaningOps):
                 """)
 
             await _apply(qualified)
-
-            await self._add_new_column_if_not_exists(original, schema, new_col, col_type)
-            await _apply(self._qualified_table(original, schema))
 
             outlier_count = await self._fetchval(f"""
                 SELECT COUNT(*)
@@ -357,11 +344,6 @@ class ClickHouseCleaningOps(DataCleaningOps):
         new_table: Optional[str] = None,
     ) -> Dict[str, Any]:
         try:
-            original = table
-            table = await self._prepare_operation_table(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table,
-            )
-
             qualified = self._qualified_table(table, schema)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
 
@@ -392,9 +374,6 @@ class ClickHouseCleaningOps(DataCleaningOps):
 
             await _apply(qualified)
 
-            # Mirror the in-place conversion onto the original table
-            await _apply(self._qualified_table(original, schema))
-
             converted = await self._fetchval(
                 f'SELECT COUNT(*) FROM {qualified} WHERE "{safe_col}" IS NOT NULL'
             ) or 0
@@ -418,13 +397,9 @@ class ClickHouseCleaningOps(DataCleaningOps):
         new_table: Optional[str] = None,
     ) -> Dict[str, Any]:
         try:
-            original = table
-            table = await self._prepare_operation_table(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table,
-            )
             new_col = self._generate_cleaned_column_name(column, f"compressed_{min_count}_{other_label}")
             col_type = await self._get_column_type(table, schema, column)
-            await self._add_new_column(table, schema, new_col, col_type)
+            await self._add_new_column_if_not_exists(table, schema, new_col, col_type)
 
             qualified = self._qualified_table(table, schema)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
@@ -462,9 +437,6 @@ class ClickHouseCleaningOps(DataCleaningOps):
 
             await _apply(qualified)
 
-            await self._add_new_column_if_not_exists(original, schema, new_col, col_type)
-            await _apply(self._qualified_table(original, schema))
-
             rare_rows = await self._fetch(f"""
                 SELECT DISTINCT "{safe_col}"
                 FROM {qualified}
@@ -493,13 +465,9 @@ class ClickHouseCleaningOps(DataCleaningOps):
         new_table: Optional[str] = None,
     ) -> Dict[str, Any]:
         try:
-            original = table
-            table = await self._prepare_operation_table(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table,
-            )
             new_col = self._generate_cleaned_column_name(column, "range_filtered")
             new_col_type = "Nullable(Date)"
-            await self._add_new_column(table, schema, new_col, new_col_type)
+            await self._add_new_column_if_not_exists(table, schema, new_col, new_col_type)
 
             if min_dt is None and max_dt is None:
                 min_dt, max_dt = "1900-01-01", "2100-01-01"
@@ -528,9 +496,6 @@ class ClickHouseCleaningOps(DataCleaningOps):
                 )
 
             await _apply(qualified)
-
-            await self._add_new_column_if_not_exists(original, schema, new_col, new_col_type)
-            await _apply(self._qualified_table(original, schema))
 
             affected = 0
             if case_parts:

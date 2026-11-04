@@ -201,11 +201,12 @@ class PostgresCleaningOps(DataCleaningOps):
                 f'SELECT COUNT(*) FROM {qualified} WHERE "{safe_col}" IS NULL'
             ) or 0
 
-            sample = await self._fetch_data(table, schema, columns=[safe_col, safe_new])
+            await self._exec(f"DROP TABLE IF EXISTS {qualified}")
+            sample = await self._fetch_data(original, schema, columns=[safe_col, safe_new])
             msg = f"Filled {null_count} null values in '{column}' using {mode} ({fill_value})"
 
             return ok(
-                msg, [column], [new_col], sample, fill_mode=mode, fill_value=fill_value, new_table=table,
+                msg, [column], [new_col], sample, fill_mode=mode, fill_value=fill_value, new_table=original,
             )
 
         except Exception as e:
