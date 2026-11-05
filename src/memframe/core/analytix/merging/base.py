@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 
 import pandas as pd
 
+from memframe.core.indexing import visible_columns
 from memframe.db_manager.adapters.base import DatabaseAdapter
 from memframe.utils.helper import SQLIdentifierSanitizer
 
@@ -251,7 +252,7 @@ class DataMergeOps:
             safe_schema = SQLIdentifierSanitizer.sanitize(schema)
             safe_right_schema = SQLIdentifierSanitizer.sanitize(right_schema or schema)
 
-            left_names = list(
+            left_names = visible_columns(
                 (
                     await self.db.get_column_types(
                         safe_left_table,
@@ -259,7 +260,7 @@ class DataMergeOps:
                     )
                 ).keys()
             )
-            right_names = list(
+            right_names = visible_columns(
                 (
                     await self.db.get_column_types(
                         safe_right_table,
@@ -437,8 +438,8 @@ class DataMergeOps:
             left_types_raw = await self.db.get_column_types(safe_left_table, safe_schema)
             right_types_raw = await self.db.get_column_types(safe_right_table, safe_right_schema)
 
-            left_cols = list(left_types_raw.keys())
-            right_cols = list(right_types_raw.keys())
+            left_cols = visible_columns(left_types_raw.keys())
+            right_cols = visible_columns(right_types_raw.keys())
 
             if not left_cols:
                 return self._error(f"No columns found in left table: {left_table}")

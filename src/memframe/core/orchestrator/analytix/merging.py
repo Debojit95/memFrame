@@ -80,6 +80,7 @@ class MergeOrchestrator:
         uploader = getattr(self._memframe, "_uploader", None)
         if uploader is not None:
             await uploader._ensure_mf_idx(bare, bare, row_count)
+            await uploader._promote_public_view(bare, backend.upload_schema)
         response["dataset_id"] = bare
         response["new_table"] = bare
         return response

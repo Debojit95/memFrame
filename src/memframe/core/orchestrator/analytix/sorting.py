@@ -62,6 +62,9 @@ class SortingOrchestrator:
             backend.upload_schema, self._data_id or table,
         )
         await self._memframe._uploader._ensure_mf_idx(new_id, new_id, row_count)
+        await self._memframe._uploader._promote_public_view(
+            new_id, backend.upload_schema
+        )
         try:
             await backend.drop_table(order)
         except Exception:

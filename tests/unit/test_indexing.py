@@ -68,3 +68,52 @@ def test_public_view_hides_mf_idx():
         assert rows == [(10,), (20,)]
     finally:
         asyncio.run(mf.aclose())
+
+
+def test_derived_public_views_hide_mf_idx():
+    import asyncio
+
+    from memframe.main import MemFrame
+
+    async def run():
+        mf = MemFrame(
+            connection_type="local", connection_params={"db_path": ":memory:"}
+        )
+        await mf.aconnect()
+        try:
+            left = await mf.aupload_df(
+                pd.DataFrame({"id": [1, 2], "a": [10, 20]}), filename="left"
+            )
+            right = await mf.aupload_df(
+                pd.DataFrame({"id": [1, 2], "b": [1, 2]}), filename="right"
+            )
+            merged = await left.amerge(right, on="id")
+            await left.amelt(id_vars=["id"], value_vars=["a"])
+            melted_id = await mf._backend.fetchval(
+                f"SELECT data_id FROM {mf._backend.csv_registry_table} "
+                "WHERE filename LIKE 'melt_%'"
+            )
+            for data_id in (merged._data_id, melted_id):
+                base = await mf._backend.fetchval(
+                    f"SELECT base_table FROM {mf._backend.csv_registry_table} "
+                    f"WHERE data_id = {mf._backend.placeholder(1)}",
+                    data_id,
+                )
+                public_cols = await mf._backend.fetch(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_schema = 'memframe_upload' AND table_name = ? "
+                    "ORDER BY ordinal_position",
+                    data_id,
+                )
+                base_cols = await mf._backend.fetch(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_schema = 'memframe_upload' AND table_name = ?",
+                    base,
+                )
+                assert public_cols, f"missing public view for {data_id}"
+                assert MF_IDX not in [c[0] for c in public_cols]
+                assert MF_IDX in [c[0] for c in base_cols]
+        finally:
+            await mf.aclose()
+
+    asyncio.run(run())

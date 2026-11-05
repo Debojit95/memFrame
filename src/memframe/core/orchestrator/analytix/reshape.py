@@ -79,6 +79,7 @@ class ReshapingOrchestrator:
         uploader = getattr(self._memframe, "_uploader", None)
         if uploader is not None:
             await uploader._ensure_mf_idx(new_id, new_id, row_count)
+            await uploader._promote_public_view(new_id, backend.upload_schema)
         response["dataset_id"] = new_id
         response["new_table"] = new_id
         return response

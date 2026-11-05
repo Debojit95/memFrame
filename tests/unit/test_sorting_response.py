@@ -73,14 +73,15 @@ def test_sorting_upload_as_source(sorting_context):
     assert sorted_ctx._data_id != original_id
 
     rows = asyncio.run(mf._backend.fetch(
-        f"SELECT data_id, filename, mf_source_id FROM {mf._backend.csv_registry_table} "
+        f"SELECT data_id, filename, mf_source_id, base_table "
+        f"FROM {mf._backend.csv_registry_table} "
         f"WHERE data_id = {mf._backend.placeholder(1)}",
         sorted_ctx._data_id,
     ))
     assert rows and rows[0][1] == f"sort_{original_id}"
     assert rows[0][2] == original_id
     assert asyncio.run(mf._backend._column_exists(
-        mf._backend.upload_schema, sorted_ctx._data_id, "_mf_idx"
+        mf._backend.upload_schema, rows[0][3], "_mf_idx"
     ))
     head = sorted_ctx.head(n=5)
     assert head["score"].iloc[0] == 1.0

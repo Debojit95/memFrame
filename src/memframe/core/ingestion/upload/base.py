@@ -212,6 +212,26 @@ class Uploader(DuckDBUploadImpl, PostgresUploadImpl, ClickHouseUploadImpl):
             logical, max(int(row_count or 0) - 1, 0), data_id,
         )
 
+    async def _promote_public_view(self, data_id: str, schema: str) -> None:
+        """Rename a derived table to <data_id>__base and expose a public view."""
+        backend = self._backend
+        base_table = f"{data_id}__base"
+        src = backend.qualify_table(schema, data_id)
+        dst = backend.qualify_table(schema, base_table)
+        if getattr(backend, "backend", None) == Backend.CLICKHOUSE:
+            await self.execute(f"RENAME TABLE {src} TO {dst}")
+        else:
+            await self.execute(f'ALTER TABLE {src} RENAME TO "{base_table}"')
+        await self._create_public_view(data_id, base_table, schema)
+        await self.execute(
+            f"UPDATE {backend.csv_registry_table} "
+            f"SET table_name = {self._placeholder(1)}, "
+            f"base_table = {self._placeholder(2)}, "
+            f"base_schema = {self._placeholder(3)} "
+            f"WHERE data_id = {self._placeholder(4)}",
+            data_id, base_table, schema, data_id,
+        )
+
     async def _create_public_view(
         self, data_id: str, base_table: str, schema: str
     ) -> None:
