@@ -3,6 +3,7 @@
 from typing import Any, Dict, List, Union
 
 from memframe.core.orchestrator.analytix.sorting import SortingOrchestrator
+from memframe.db_manager.context import ContextManager
 from memframe.utils.async_sync import async_to_sync
 
 
@@ -26,15 +27,20 @@ class SortingWrapper(SortingOrchestrator):
         na_position: str = "last",
         columns: Union[str, List[str]] = "*",
         chunk_size: int = None,
+        upload_as_source: bool = False,
     ) -> Dict[str, Any]:
         """Asynchronously sort rows by one or more columns."""
-        return await super().sort_values(
+        result = await super().sort_values(
             by=by,
             ascending=ascending,
             na_position=na_position,
             columns=columns,
             chunk_size=chunk_size,
+            upload_as_source=upload_as_source,
         )
+        if isinstance(result, dict) and result.get("dataset_id"):
+            return ContextManager(self._memframe, data_id=result["dataset_id"])
+        return result
 
     @async_to_sync
     async def sort_values(
@@ -44,6 +50,7 @@ class SortingWrapper(SortingOrchestrator):
         na_position: str = "last",
         columns: Union[str, List[str]] = "*",
         chunk_size: int = None,
+        upload_as_source: bool = False,
     ) -> Dict[str, Any]:
         """Synchronously sort rows by one or more columns."""
         return await self.asort_values(
@@ -52,6 +59,7 @@ class SortingWrapper(SortingOrchestrator):
             na_position=na_position,
             columns=columns,
             chunk_size=chunk_size,
+            upload_as_source=upload_as_source,
         )
 
 

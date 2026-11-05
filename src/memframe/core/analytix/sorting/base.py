@@ -3,7 +3,9 @@ import traceback
 import pandas as pd
 
 from memframe.db_manager.adapters.base import DatabaseAdapter
-from memframe.core.indexing import strip_hidden
+from memframe.core.indexing import (
+    HIDDEN_COLUMNS, MF_IDX, mf_idx_sql_type, select_mf_idx_dtype, strip_hidden,
+)
 from memframe.utils.helper import SQLIdentifierSanitizer
 from memframe.core.analytix._response import fail, ok
 
@@ -194,25 +196,26 @@ class DataSortingOps:
             # ──────────────────────────────────────────────────────────
             safe_by = [SQLIdentifierSanitizer.sanitize(c) for c in by]
 
-            # ──────────────────────────────────────────────────────────
-            #  SELECT clause  (same for all backends)
-            # ──────────────────────────────────────────────────────────
+            if backend is None or data_id is None:
+                return self._error_response("backend and data_id required")
+
+            col_types = await self.db.get_column_types(table, schema)
+            visible = [c for c in col_types if str(c) not in HIDDEN_COLUMNS]
             if columns == "*":
-                select_clause = "*"
-                output_cols = "*"
+                output_cols = visible
             else:
                 if isinstance(columns, str):
                     columns = [columns]
                 cols = list(dict.fromkeys(list(columns) + list(by)))
-                sanitized = [SQLIdentifierSanitizer.sanitize(c) for c in cols]
-                select_clause = ", ".join(
-                    self.db.quote_identifier(c) for c in sanitized
-                )
-                output_cols = cols
+                output_cols = [
+                    c for c in cols if str(c) not in HIDDEN_COLUMNS
+                ]
+            if not output_cols:
+                return self._error_response("No columns selected", by)
+            select_clause = ", ".join(
+                f"s.{self.db.quote_identifier(str(c))}" for c in output_cols
+            )
 
-            # ──────────────────────────────────────────────────────────
-            #  ORDER BY clause  (backend-specific via _order_term)
-            # ──────────────────────────────────────────────────────────
             order_clauses = []
             for col, asc in zip(safe_by, ascending):
                 direction = "ASC" if asc else "DESC"
@@ -220,68 +223,88 @@ class DataSortingOps:
                 order_clauses.append(
                     self._order_term(quoted_col, direction, na_position)
                 )
-
+            if MF_IDX not in safe_by:
+                order_clauses.append(f'{self.db.quote_identifier(MF_IDX)} ASC')
             order_sql = ", ".join(order_clauses)
 
-            # ──────────────────────────────────────────────────────────
-            #  Generate cache table name  (same for all backends)
-            # ──────────────────────────────────────────────────────────
             qualified = self._qualified_table(table, schema)
+            row_count = int(await self.db.fetchval(
+                f"SELECT COUNT(*) FROM {qualified}"
+            ) or 0)
+            pos_dtype = select_mf_idx_dtype(row_count)
+            pos_sql = mf_idx_sql_type(pos_dtype, backend.backend)
 
-            if backend is None or data_id is None:
-                return self._error_response("backend and data_id required")
-
-            new_table = await self._generate_cache_table_name(
+            order_table = await self._generate_cache_table_name(
                 table, backend, data_id,
             )
-            new_table_safe = SQLIdentifierSanitizer.sanitize(new_table)
-            qualified_new = (
-                f"{self.db.quote_identifier(schema)}"
-                f".{self.db.quote_identifier(new_table_safe)}"
+            order_table = SQLIdentifierSanitizer.sanitize(order_table)
+            suffix = 1
+            base_order = order_table
+            while await self.db.table_exists(order_table, backend.cache_schema):
+                order_table = f"{base_order}_{suffix}"
+                suffix += 1
+            qualified_order = self._qualified_table(
+                order_table, backend.cache_schema
+            )
+            await self._exec(
+                f"CREATE TABLE {qualified_order} AS "
+                f"SELECT CAST(ROW_NUMBER() OVER (ORDER BY {order_sql}) - 1 AS {pos_sql}) "
+                f'AS "position", {self.db.quote_identifier(MF_IDX)} '
+                f"FROM {qualified}"
             )
 
-            # ──────────────────────────────────────────────────────────
-            #  CREATE TABLE  (backend-specific via _create_sort_table_sql)
-            # ──────────────────────────────────────────────────────────
-            create_sql = self._create_sort_table_sql(
-                qualified_new, select_clause, qualified, order_sql
+            join_sql = (
+                f"SELECT {select_clause} FROM {qualified} s "
+                f"JOIN {qualified_order} o "
+                f"ON s.{self.db.quote_identifier(MF_IDX)} = o.{self.db.quote_identifier(MF_IDX)} "
+                f"ORDER BY o.\"position\""
             )
 
-            await self._exec(create_sql)
-
-            # ──────────────────────────────────────────────────────────
-            #  Return  (same for all backends)
-            # ──────────────────────────────────────────────────────────
-            if chunk_size is None:
-                sample = await self._fetch_sample(
-                    new_table_safe, schema, columns=output_cols,
-                )
-                return self._success_response(
-                    f"Sorted by {by}",
-                    sample,
-                    involved_cols=by,
-                    sorted_by=by,
-                    ascending=ascending,
-                    na_position=na_position,
-                    output_columns=output_cols,
-                    new_table=new_table_safe,
-                )
-            else:
-                async def iterator():
-                    async for chunk in self._fetch_in_chunks(
-                        new_table_safe, schema, chunk_size, columns=output_cols,
-                        backend=backend,
-                    ):
-                        yield strip_hidden(chunk)
-
+            def _response(sample, iterator=None):
+                extra = {
+                    "sorted_by": by,
+                    "ascending": ascending,
+                    "na_position": na_position,
+                    "output_columns": output_cols,
+                    "new_table": table,
+                    "cache_kind": "ref",
+                    "ref_schema": schema,
+                    "ref_table": table,
+                    "order_schema": backend.cache_schema,
+                    "order_table": order_table,
+                    "order_position_dtype": pos_dtype,
+                    "order_kind": "sort",
+                    "order_limit": None,
+                    "result_cols": output_cols,
+                    "owns_table": False,
+                    "mutates": False,
+                }
+                if iterator is not None:
+                    extra["iterator"] = iterator
                 return ok(
-                    f"Sorted by {by} (streaming)",
-                    result=None,
-                    involved_cols=by,
-                    iterator=iterator(),
-                    chunk_size=chunk_size,
-                    new_table=new_table_safe,
+                    f"Sorted by {by}", result=sample,
+                    involved_cols=by, **extra,
                 )
+
+            if chunk_size is None:
+                rows = await self.db.fetch(join_sql)
+                sample = pd.DataFrame([dict(r) for r in rows])
+                return _response(strip_hidden(sample))
+
+            async def iterator():
+                offset = 0
+                while True:
+                    rows = await self.db.fetch(
+                        f"{join_sql} LIMIT {chunk_size} OFFSET {offset}"
+                    )
+                    if not rows:
+                        break
+                    yield strip_hidden(pd.DataFrame([dict(r) for r in rows]))
+                    offset += chunk_size
+
+            resp = _response(None, iterator())
+            resp["chunk_size"] = chunk_size
+            return resp
 
         except Exception as e:
             return self._error_response(

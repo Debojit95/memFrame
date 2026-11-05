@@ -224,12 +224,15 @@ class OpsMixin:
         """Tables the cache may drop: legacy copies and owns_table refs only."""
         rows = await self._backend.fetch(
             f"SELECT schema, generated_table_name, ref_schema, ref_table, "
-            f"owns_table, cache_kind FROM {self._backend.cache_registry_table} "
+            f"owns_table, cache_kind, order_schema, order_table "
+            f"FROM {self._backend.cache_registry_table} "
             f"WHERE data_id = {self._placeholder(1)}",
             data_id,
         )
         out = []
-        for sch, bare, ref_sch, ref_table, owns, kind in rows:
+        for sch, bare, ref_sch, ref_table, owns, kind, ord_sch, ord_tbl in rows:
+            if ord_tbl:
+                out.append((ord_sch or self._backend.cache_schema, ord_tbl))
             if kind == "actual":
                 continue
             if kind == "ref":
@@ -292,6 +295,11 @@ class OpsMixin:
         owns_table: bool = False,
         epoch: int = 0,
         input_refs: Optional[str] = None,
+        order_schema: Optional[str] = None,
+        order_table: Optional[str] = None,
+        order_position_dtype: Optional[str] = None,
+        order_kind: Optional[str] = None,
+        order_limit: Optional[int] = None,
     ) -> int:
         if not self._backend:
             raise ConnectionNotReady("Not connected.")
@@ -307,20 +315,24 @@ class OpsMixin:
                 f"(data_id, opidx, operation_type, class_name, method_name, args, kwargs, "
                 f"generated_table_name, is_deep_cache, schema, table_scope, base_fingerprint, "
                 f"result_envelope, cache_kind, ref_schema, ref_table, involved_cols, "
-                f"generated_cols, result_cols, owns_table, epoch, input_refs) "
+                f"generated_cols, result_cols, owns_table, epoch, input_refs, "
+                f"order_schema, order_table, order_position_dtype, order_kind, order_limit) "
                 f"VALUES ({self._placeholder(1)}, {self._placeholder(2)}, {self._placeholder(3)}, "
                 f"{self._placeholder(4)}, {self._placeholder(5)}, {self._placeholder(6)}, "
                 f"{self._placeholder(7)}, {self._placeholder(8)}, {self._placeholder(9)}, {self._placeholder(10)}, "
                 f"{self._placeholder(11)}, {self._placeholder(12)}, {self._placeholder(13)}, "
                 f"{self._placeholder(14)}, {self._placeholder(15)}, {self._placeholder(16)}, "
                 f"{self._placeholder(17)}, {self._placeholder(18)}, {self._placeholder(19)}, "
-                f"{self._placeholder(20)}, {self._placeholder(21)}, {self._placeholder(22)})",
+                f"{self._placeholder(20)}, {self._placeholder(21)}, {self._placeholder(22)}, "
+                f"{self._placeholder(23)}, {self._placeholder(24)}, {self._placeholder(25)}, "
+                f"{self._placeholder(26)}, {self._placeholder(27)})",
                 data_id, opidx, "method_call", class_name, method_name,
                 args_sig, kwargs_sig,
                 generated_table_name, is_deep_cache, schema,
                 table_scope, base_fingerprint, result_envelope,
                 cache_kind, ref_schema, ref_table, involved_cols,
                 generated_cols, result_cols, owns_table, epoch, input_refs,
+                order_schema, order_table, order_position_dtype, order_kind, order_limit,
             )
             return opidx
 

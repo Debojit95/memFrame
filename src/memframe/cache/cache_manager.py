@@ -16,7 +16,7 @@ from typing import Any, Callable, Dict, List, Optional
 import numpy as np
 import pandas as pd
 
-from memframe.core.indexing import strip_hidden
+from memframe.core.indexing import MF_IDX, strip_hidden
 from memframe.core.ingestion.datatype_detector import Backend
 from memframe.exceptions import OperationError
 
@@ -283,14 +283,34 @@ class CacheManager:
         return ordered
 
     async def _load_ref_table(
-        self, backend, schema: str, table: str, columns: List[str]
+        self, backend, schema: str, table: str, columns: List[str],
+        order_schema: Optional[str] = None, order_table: Optional[str] = None,
+        order_limit: Optional[int] = None,
     ) -> Optional[pd.DataFrame]:
         if not columns:
             return None
         qualified = self._qualify(schema, table, backend)
         cols = ", ".join(self._quote_col(c, backend) for c in columns)
         try:
-            rows = await backend.fetch(f"SELECT {cols} FROM {qualified}")
+            if order_table:
+                qualified_order = self._qualify(
+                    order_schema or schema, order_table, backend
+                )
+                src_cols = ", ".join(
+                    f"s.{self._quote_col(c, backend)}" for c in columns
+                )
+                sql = (
+                    f"SELECT {src_cols} FROM {qualified} s "
+                    f"JOIN {qualified_order} o "
+                    f"ON s.{self._quote_col(MF_IDX, backend)} = "
+                    f"o.{self._quote_col(MF_IDX, backend)} "
+                    f'ORDER BY o."position"'
+                )
+                if order_limit is not None:
+                    sql += f" LIMIT {int(order_limit)}"
+            else:
+                sql = f"SELECT {cols} FROM {qualified}"
+            rows = await backend.fetch(sql)
             records = [dict(r) if hasattr(r, "keys") else r for r in rows]
             if records and isinstance(records[0], dict):
                 return pd.DataFrame(records, columns=columns)
@@ -511,7 +531,10 @@ class CacheManager:
                          table_scope=None, base_fingerprint=None, result_envelope=None,
                          cache_kind=None, ref_schema=None, ref_table=None,
                          involved_cols=None, generated_cols=None, result_cols=None,
-                         owns_table=False, epoch=0, input_refs=None):
+                         owns_table=False, epoch=0, input_refs=None,
+                         order_schema=None, order_table=None,
+                         order_position_dtype=None, order_kind=None,
+                         order_limit=None):
             return await mf._arecord_method_call(
                 data_id=data_id,
                 class_name=payload["class_name"],
@@ -533,6 +556,11 @@ class CacheManager:
                 owns_table=owns_table,
                 epoch=epoch,
                 input_refs=input_refs,
+                order_schema=order_schema,
+                order_table=order_table,
+                order_position_dtype=order_position_dtype,
+                order_kind=order_kind,
+                order_limit=order_limit,
             )
         return writer
 
@@ -625,7 +653,8 @@ class CacheManager:
                             SELECT generated_table_name, schema, base_fingerprint, opidx,
                                    result_envelope, cache_kind, ref_schema, ref_table,
                                    involved_cols, generated_cols, result_cols, epoch,
-                                   owns_table
+                                   owns_table, order_schema, order_table,
+                                   order_position_dtype, order_kind, order_limit
                             FROM {backend.cache_registry_table}
                             WHERE data_id = {backend.placeholder(1)}
                               AND operation_type = 'method_call'
@@ -655,6 +684,11 @@ class CacheManager:
                             result_cols = manager._as_list(row[10] if len(row) > 10 else None)
                             stored_epoch = row[11] if len(row) > 11 else None
                             owns_table = bool(row[12]) if len(row) > 12 else False
+                            order_schema = row[13] if len(row) > 13 else None
+                            order_table = row[14] if len(row) > 14 else None
+                            order_position_dtype = row[15] if len(row) > 15 else None
+                            order_kind = row[16] if len(row) > 16 else None
+                            order_limit = row[17] if len(row) > 17 else None
                             sch = sch or backend.cache_schema
                             current_fp = await manager._read_fingerprint(backend, data_id, ops_parent)
                             stale = False
@@ -687,6 +721,19 @@ class CacheManager:
                                     f"AND opidx = {backend.placeholder(2)}",
                                     data_id, opidx,
                                 )
+                                if order_table:
+                                    try:
+                                        await backend.drop_table(
+                                            manager._qualify(
+                                                order_schema or backend.cache_schema,
+                                                order_table, backend,
+                                            )
+                                        )
+                                    except Exception as exc:
+                                        logger.warning(
+                                            "[cache] stale order drop failed for %s: %s",
+                                            order_table, exc,
+                                        )
                                 if stored_kind == "ref" and owns_table:
                                     try:
                                         await backend.drop_table(
@@ -750,6 +797,9 @@ class CacheManager:
                                 target_table = ref_table or bare
                                 cached = await manager._load_ref_table(
                                     backend, target_schema, target_table, cols,
+                                    order_schema=order_schema,
+                                    order_table=order_table,
+                                    order_limit=order_limit,
                                 )
                                 if cached is not None:
                                     logger.info(
@@ -801,6 +851,11 @@ class CacheManager:
                     actual_payload = None
                     epoch = 0
                     store_deep = is_deep
+                    order_schema = None
+                    order_table = None
+                    order_position_dtype = None
+                    order_kind = None
+                    order_limit = None
 
                     is_error = isinstance(result, dict) and result.get("is_error", False)
                     annotated_kind = (
@@ -865,6 +920,11 @@ class CacheManager:
                                         )
                                         result_cols = json.dumps(manager._ref_columns(result))
                                         owns_table = bool(result.get("owns_table", False))
+                                        order_schema = result.get("order_schema")
+                                        order_table = result.get("order_table")
+                                        order_position_dtype = result.get("order_position_dtype")
+                                        order_kind = result.get("order_kind")
+                                        order_limit = result.get("order_limit")
                             else:
                                 # Ops (datetime/transform/cumulative/window)
                                 # that write into the active source table but do
@@ -967,6 +1027,9 @@ class CacheManager:
                                         "is_error", "message", "error_message",
                                         "cache_kind", "ref_schema", "ref_table",
                                         "owns_table", "result_cols",
+                                        "order_schema", "order_table",
+                                        "order_position_dtype", "order_kind",
+                                        "order_limit",
                                     )
                                 },
                                 default=manager._json_default,
@@ -983,6 +1046,9 @@ class CacheManager:
                         ref_table=ref_table, involved_cols=involved_cols,
                         generated_cols=generated_cols, result_cols=result_cols,
                         owns_table=owns_table, epoch=epoch,
+                        order_schema=order_schema, order_table=order_table,
+                        order_position_dtype=order_position_dtype,
+                        order_kind=order_kind, order_limit=order_limit,
                     )
                     if cache_kind == "actual" and actual_payload is not None and backend:
                         try:

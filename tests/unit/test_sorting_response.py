@@ -4,6 +4,7 @@ import pandas as pd
 import pytest
 
 from memframe.core.analytix.sorting import DataSortingOps
+from memframe.db_manager.context import ContextManager
 from memframe.exceptions import OperationError
 from memframe.main import MemFrame
 from memframe.wrappers.analytix.sorting import SortingWrapper
@@ -41,6 +42,50 @@ def test_sorting_single_asc_last(sorting_context):
     # exact order via wrapper (asc, nulls last)
     assert response["result"]["score"].iloc[0] == 1.0
     assert pd.isna(response["result"]["score"].iloc[-1])
+
+
+def test_sorting_cache_hit_preserves_order(sorting_context):
+    wrapper = SortingWrapper(sorting_context)
+    first = wrapper.sort_values(by="score")
+    second = wrapper.sort_values(by="score")
+
+    assert second["result_metadata"]["from_cache"] is True
+    pd.testing.assert_frame_equal(first["result"], second["result"])
+
+    be = sorting_context.memframe._backend
+    order_table = asyncio.run(be.fetchval(
+        f"SELECT order_table FROM {be.cache_registry_table} "
+        f"WHERE data_id = {be.placeholder(1)} AND order_table IS NOT NULL",
+        sorting_context._data_id,
+    ))
+    assert order_table
+    asyncio.run(sorting_context.memframe._aclear_cache(sorting_context._data_id))
+    assert not asyncio.run(be.table_exists(be.qualify_table(be.cache_schema, order_table)))
+
+
+def test_sorting_upload_as_source(sorting_context):
+    mf = sorting_context.memframe
+    original_id = sorting_context._data_id
+    sorted_ctx = SortingWrapper(sorting_context).sort_values(
+        by="score", upload_as_source=True
+    )
+    assert isinstance(sorted_ctx, ContextManager)
+    assert sorted_ctx._data_id != original_id
+
+    rows = asyncio.run(mf._backend.fetch(
+        f"SELECT data_id, filename, mf_source_id FROM {mf._backend.csv_registry_table} "
+        f"WHERE data_id = {mf._backend.placeholder(1)}",
+        sorted_ctx._data_id,
+    ))
+    assert rows and rows[0][1] == f"sort_{original_id}"
+    assert rows[0][2] == original_id
+    assert asyncio.run(mf._backend._column_exists(
+        mf._backend.upload_schema, sorted_ctx._data_id, "_mf_idx"
+    ))
+    head = sorted_ctx.head(n=5)
+    assert head["score"].iloc[0] == 1.0
+    # original dataset is unchanged
+    assert sorting_context.shape[0] == 5
 
 
 def test_sorting_single_desc_first(sorting_context):

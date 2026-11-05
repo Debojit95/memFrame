@@ -1,8 +1,26 @@
 {
  "sort_ascending_scalar_broadcast": {
-  "clickhouse": [],
-  "duckdb": [],
-  "postgres": []
+  "clickhouse": [
+   [
+    "fetchval",
+    "SELECTCOUNT(*)FROM`s`.`t`",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetchval",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetchval",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"",
+    []
+   ]
+  ]
  },
  "sort_bad_ascending_len": {
   "clickhouse": [],
@@ -15,33 +33,141 @@
   "postgres": []
  },
  "sort_collect_all": {
-  "clickhouse": [],
-  "duckdb": [],
-  "postgres": []
+  "clickhouse": [
+   [
+    "fetchval",
+    "SELECTCOUNT(*)FROM`s`.`t`",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetchval",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetchval",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"",
+    []
+   ]
+  ]
  },
  "sort_columns_str": {
-  "clickhouse": [],
-  "duckdb": [],
-  "postgres": []
+  "clickhouse": [
+   [
+    "fetchval",
+    "SELECTCOUNT(*)FROM`s`.`t`",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetchval",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetchval",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"",
+    []
+   ]
+  ]
  },
  "sort_columns_subset": {
-  "clickhouse": [],
-  "duckdb": [],
-  "postgres": []
+  "clickhouse": [
+   [
+    "fetchval",
+    "SELECTCOUNT(*)FROM`s`.`t`",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetchval",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetchval",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"",
+    []
+   ]
+  ]
  },
  "sort_multi_mixed": {
-  "clickhouse": [],
-  "duckdb": [],
-  "postgres": []
+  "clickhouse": [
+   [
+    "fetchval",
+    "SELECTCOUNT(*)FROM`s`.`t`",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetchval",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetchval",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"",
+    []
+   ]
+  ]
  },
  "sort_single_asc_last": {
-  "clickhouse": [],
-  "duckdb": [],
-  "postgres": []
+  "clickhouse": [
+   [
+    "fetchval",
+    "SELECTCOUNT(*)FROM`s`.`t`",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetchval",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetchval",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"",
+    []
+   ]
+  ]
  },
  "sort_single_desc_first": {
-  "clickhouse": [],
-  "duckdb": [],
-  "postgres": []
+  "clickhouse": [
+   [
+    "fetchval",
+    "SELECTCOUNT(*)FROM`s`.`t`",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetchval",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetchval",
+    "SELECTCOUNT(*)FROM\"s\".\"t\"",
+    []
+   ]
+  ]
  }
 }
