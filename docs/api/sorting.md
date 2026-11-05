@@ -6,6 +6,11 @@ Source: `src/memframe/wrappers/analytix/sorting.py`
 `ContextManager`. It provides a pandas-like `sort_values` API backed by
 SQL `ORDER BY` across DuckDB, PostgreSQL, and ClickHouse.
 
+Sorting does not rewrite the source table. It stores a
+`(position, _mf_idx)` permutation and returns the ordered view. Pass
+`upload_as_source=True` to materialize a new sorted dataset with its own
+`data_id` and `ContextManager`.
+
 Users normally call sorting directly on a dataset context returned by an upload
 operation:
 
@@ -36,10 +41,11 @@ Every sorting operation has synchronous and asynchronous forms:
 
 | Synchronous | Asynchronous | Purpose |
 | --- | --- | --- |
-| `sort_values(by, ascending=True, na_position="last", columns="*", chunk_size=None)` | `await asort_values(...)` | Sort rows by one or more columns |
+| `sort_values(by, ascending=True, na_position="last", columns="*", chunk_size=None, upload_as_source=False)` | `await asort_values(...)` | Sort rows by one or more columns |
 
 Public methods return the operation value directly (a `DataFrame` or an async
-iterator). Invalid operations raise `OperationError`.
+iterator). With `upload_as_source=True`, they return a `ContextManager` bound
+to a new sorted dataset. Invalid operations raise `OperationError`.
 
 ## Usage Overview
 
@@ -50,6 +56,7 @@ sample = dataset.sort_values(by="score")
 sample = dataset.sort_values(by=["region", "score"], ascending=[True, False])
 nulls_first = dataset.sort_values(by="score", na_position="first")
 subset = dataset.sort_values(by="score", columns=["name", "score"])
+sorted_dataset = dataset.sort_values(by="score", upload_as_source=True)
 ```
 
 ```python
