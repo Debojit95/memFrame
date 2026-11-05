@@ -167,6 +167,12 @@ class DatabaseBackend(ABC):
             "owns_table": "BOOLEAN",
             "epoch": "BIGINT",
             "input_refs": "TEXT",
+            # Ordering replay (sort/filter): permutation table + kind/limit.
+            "order_schema": "TEXT",
+            "order_table": "TEXT",
+            "order_position_dtype": "TEXT",
+            "order_kind": "TEXT",
+            "order_limit": "BIGINT",
         }
 
         for column_name, column_type in required_columns.items():
@@ -176,6 +182,7 @@ class DatabaseBackend(ABC):
                         "is_deep_cache": "Bool",
                         "owns_table": "Bool",
                         "epoch": "Int64",
+                        "order_limit": "Int64",
                     }.get(column_name, "Nullable(String)")
                 else:
                     ch_type = column_type
@@ -252,6 +259,43 @@ class DatabaseBackend(ABC):
             else:
                 await self.execute(
                     f"ALTER TABLE {fq_table_name} ADD COLUMN cache_epoch BIGINT DEFAULT 0"
+                )
+
+        if not await self._column_exists(schema_name, table_name, "mf_idx_dtype"):
+            if self.backend == "clickhouse":
+                await self.execute(
+                    f"ALTER TABLE {fq_table_name} ADD COLUMN IF NOT EXISTS mf_idx_dtype Nullable(String)"
+                )
+            else:
+                await self.execute(
+                    f"ALTER TABLE {fq_table_name} ADD COLUMN mf_idx_dtype TEXT"
+                )
+        if not await self._column_exists(schema_name, table_name, "mf_idx_max"):
+            if self.backend == "clickhouse":
+                await self.execute(
+                    f"ALTER TABLE {fq_table_name} ADD COLUMN IF NOT EXISTS mf_idx_max Int64"
+                )
+            else:
+                await self.execute(
+                    f"ALTER TABLE {fq_table_name} ADD COLUMN mf_idx_max BIGINT"
+                )
+        if not await self._column_exists(schema_name, table_name, "mf_source_id"):
+            if self.backend == "clickhouse":
+                await self.execute(
+                    f"ALTER TABLE {fq_table_name} ADD COLUMN IF NOT EXISTS mf_source_id Nullable(String)"
+                )
+            else:
+                await self.execute(
+                    f"ALTER TABLE {fq_table_name} ADD COLUMN mf_source_id TEXT"
+                )
+        if not await self._column_exists(schema_name, table_name, "mf_idx_ready"):
+            if self.backend == "clickhouse":
+                await self.execute(
+                    f"ALTER TABLE {fq_table_name} ADD COLUMN IF NOT EXISTS mf_idx_ready Bool"
+                )
+            else:
+                await self.execute(
+                    f"ALTER TABLE {fq_table_name} ADD COLUMN mf_idx_ready BOOLEAN DEFAULT FALSE"
                 )
 
         # The old metadata-only logical index stored key columns here. Indexes

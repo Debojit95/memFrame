@@ -72,7 +72,18 @@ class TestCacheKeys:
         expected = {
             "cache_kind", "ref_schema", "ref_table", "involved_cols",
             "generated_cols", "result_cols", "owns_table", "epoch", "input_refs",
+            "order_schema", "order_table", "order_position_dtype",
+            "order_kind", "order_limit",
         }
+        assert expected <= {r[0] for r in rows}
+
+    def test_csv_registry_has_index_metadata(self, mf):
+        rows = asyncio.run(mf._backend.fetch(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_schema = 'memframe_csv_registry' "
+            "AND table_name = 'memframe_csv_registry'"
+        ))
+        expected = {"mf_idx_dtype", "mf_idx_max", "mf_source_id", "mf_idx_ready"}
         assert expected <= {r[0] for r in rows}
 
     def test_cache_payloads_table_exists(self, mf):
