@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 import pandas as pd
 
 from memframe.db_manager.adapters.base import DatabaseAdapter
+from memframe.core.indexing import HIDDEN_COLUMNS
 from memframe.utils.helper import SQLIdentifierSanitizer
 from memframe.exceptions import OperationError
 
@@ -619,7 +620,7 @@ class DataCleaningOps:
             qualified = self._qualified_table(source_table, schema)
 
             column_types = await self.db.get_column_types(source_table, schema)
-            all_cols = list(column_types.keys())
+            all_cols = [c for c in column_types.keys() if str(c) not in HIDDEN_COLUMNS]
 
             if not all_cols:
                 return fail("No columns found")
@@ -712,7 +713,7 @@ class DataCleaningOps:
             qualified = self._qualified_table(source_table, schema)
 
             column_types = await self.db.get_column_types(source_table, schema)
-            all_cols = list(column_types.keys())
+            all_cols = [c for c in column_types.keys() if str(c) not in HIDDEN_COLUMNS]
 
             if not all_cols:
                 return fail("No columns found")

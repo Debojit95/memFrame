@@ -6,6 +6,7 @@ from collections import namedtuple
 from datetime import datetime, timezone
 
 from memframe.db_manager.adapters.base import DatabaseAdapter
+from memframe.core.indexing import HIDDEN_COLUMNS, visible_columns
 from memframe.utils.helper import SQLIdentifierSanitizer
 from memframe.core.analytix._response import fail, ok
 
@@ -511,6 +512,11 @@ class GeneralTableOps:
             table_info = await self._get_table_info(table, schema)
             if "error" in table_info:
                 return self._error_response(table_info["error"])
+            table_info["columns"] = {
+                k: v for k, v in table_info["columns"].items()
+                if str(k) not in HIDDEN_COLUMNS
+            }
+            table_info["column_count"] = len(table_info["columns"])
 
             column_details = []
 
@@ -574,7 +580,8 @@ class GeneralTableOps:
             if not columns:
                 columns = [
                     col for col, dtype in column_types.items()
-                    if any(nt in dtype.lower() for nt in numeric_types)
+                    if str(col) not in HIDDEN_COLUMNS
+                    and any(nt in dtype.lower() for nt in numeric_types)
                 ]
 
             if not columns:
@@ -669,7 +676,7 @@ class GeneralTableOps:
 
             total_rows = await self._fetchval(f"SELECT COUNT(*) FROM {qualified}") or 0
 
-            actual_columns = await self._list_table_columns(schema, table)
+            actual_columns = visible_columns(await self._list_table_columns(schema, table))
 
             if not actual_columns:
                 return self._error_response("No columns found in table")
@@ -1299,15 +1306,17 @@ class GeneralTableOps:
     # aggregation belongs to the datetime domain, not inspection.
     async def dataframe_columns(self, table: str, schema: str, **kwargs) -> Dict[str, Any]:
         try:
-            cols = list((await self._get_column_types(table, schema)).keys())
-            return self._success_response(result=cols)
+            cols = visible_columns((await self._get_column_types(table, schema)).keys())
+            return self._success_response(result=list(cols))
         except Exception as e:
             return self._error_response(str(e))
 
     async def dataframe_dtypes(self, table: str, schema: str, **kwargs) -> Dict[str, Any]:
         try:
             col_types = await self._get_column_types(table, schema)
-            return self._success_response(result=col_types)
+            return self._success_response(
+                result={k: v for k, v in col_types.items() if str(k) not in HIDDEN_COLUMNS}
+            )
         except Exception as e:
             return self._error_response(str(e))
 
@@ -1316,14 +1325,18 @@ class GeneralTableOps:
             rows = await self._fetchval(
                 f"SELECT COUNT(*) FROM {self._qualified_table(table, schema)}"
             )
-            cols = len(await self._get_column_types(table, schema))
+            cols = len(visible_columns(await self._get_column_types(table, schema)))
             return self._success_response(result={"shape": (rows, cols)})
         except Exception as e:
             return self._error_response(str(e))
 
     async def dataframe_values(self, table: str, schema: str, **kwargs) -> Dict[str, Any]:
         try:
-            rows = await self._fetch(f"SELECT * FROM {self._qualified_table(table, schema)}")
+            cols = visible_columns((await self._get_column_types(table, schema)).keys())
+            col_clause = ", ".join(self.db.quote_identifier(str(c)) for c in cols)
+            rows = await self._fetch(
+                f"SELECT {col_clause} FROM {self._qualified_table(table, schema)}"
+            )
             values = [list(row.values()) for row in rows]
             return self._success_response(result={"values": values})
         except Exception as e:

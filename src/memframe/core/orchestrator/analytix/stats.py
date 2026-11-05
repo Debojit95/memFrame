@@ -2,6 +2,7 @@ from typing import Any, Dict, List, Optional
 from memframe.core.analytix.stats import DataStatsOps, make_stats_ops
 from memframe.core.analytix._response import fail, ok
 from memframe.cache import record_call
+from memframe.core.indexing import HIDDEN_COLUMNS
 from memframe.utils.helper import SQLIdentifierSanitizer
 
 
@@ -148,7 +149,7 @@ class StatsOrchestrator:
         """
         families = _WHOLE_TABLE_FAMILIES[op_name]
         col_types = await ops.db.get_column_types(table, schema)
-        columns = list(col_types.keys())
+        columns = [c for c in col_types.keys() if str(c) not in HIDDEN_COLUMNS]
         detected = await self._detect_column_families(
             ops, table, schema, columns, col_types=col_types
         )
@@ -559,7 +560,7 @@ class StatsOrchestrator:
         candidate_columns = columns
         if columns is None:
             col_types = await ops.db.get_column_types(table, schema)
-            candidate_columns = list(col_types.keys())
+            candidate_columns = [c for c in col_types.keys() if str(c) not in HIDDEN_COLUMNS]
 
         numeric_cols = await self._detect_numeric_columns(ops, table, schema, candidate_columns or [])
 
@@ -578,7 +579,7 @@ class StatsOrchestrator:
         candidate_columns = columns
         if columns is None:
             col_types = await ops.db.get_column_types(table, schema)
-            candidate_columns = list(col_types.keys())
+            candidate_columns = [c for c in col_types.keys() if str(c) not in HIDDEN_COLUMNS]
 
         numeric_cols = await self._detect_numeric_columns(ops, table, schema, candidate_columns or [])
 

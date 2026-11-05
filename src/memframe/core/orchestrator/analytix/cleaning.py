@@ -5,6 +5,7 @@ import numpy as np
 from memframe.core.ingestion.datatype_detector import DatatypeDetector
 from memframe.core.analytix.cleaning import DataCleaningOps, make_cleaning_ops
 from memframe.core.analytix._response import fail
+from memframe.core.indexing import assert_user_columns
 from memframe.cache import record_call
 
 
@@ -454,6 +455,11 @@ class CleaningOrchestrator:
         Dict[str, Any]
             Standard response with resulting DataFrame
         """
+        if columns is not None:
+            try:
+                assert_user_columns(columns)
+            except ValueError as exc:
+                return fail(str(exc))
         ops = await self._ensure_ops()
 
         table, schema = await self._get_context()

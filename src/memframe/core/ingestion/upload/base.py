@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     import pandas as pd
 
 from memframe.core.ingestion.datatype_detector import Backend
+from memframe.core.indexing import mf_idx_sql_type, select_mf_idx_dtype
 from memframe.db_manager.context import ContextManager
 from memframe.exceptions import ConfigurationError
 
@@ -173,6 +174,41 @@ class Uploader(DuckDBUploadImpl, PostgresUploadImpl, ClickHouseUploadImpl):
 
     def _placeholder(self, index: int) -> str:
         return self._backend.placeholder(index)
+
+    async def _ensure_mf_idx(self, data_id: str, table_name: str, row_count: int) -> None:
+        """Add and populate the immutable positional index exactly once."""
+        backend = self._backend
+        schema = backend.upload_schema
+        bare = self._get_raw_table_name(table_name)
+        if await backend._column_exists(schema, bare, "_mf_idx"):
+            return
+        logical = select_mf_idx_dtype(int(row_count or 0))
+        sql_type = mf_idx_sql_type(logical, backend.backend)
+        q = backend.qualify_table(schema, bare)
+        tmp = f"{bare}__mfidx_tmp"
+        q_tmp = backend.qualify_table(schema, tmp)
+        if backend.backend == Backend.CLICKHOUSE:
+            await self.execute(
+                f"CREATE TABLE {q_tmp} ENGINE = MergeTree() ORDER BY tuple() AS "
+                f"SELECT *, CAST(ROW_NUMBER() OVER () - 1 AS {sql_type}) AS `_mf_idx` FROM {q}"
+            )
+            await self.execute(f"EXCHANGE TABLES {q} AND {q_tmp}")
+            await self.execute(f"DROP TABLE {q_tmp}")
+        else:
+            # Window functions are illegal in UPDATE on DuckDB/Postgres.
+            await self.execute(
+                f'CREATE TABLE {q_tmp} AS '
+                f'SELECT *, CAST(ROW_NUMBER() OVER () - 1 AS {sql_type}) AS "_mf_idx" FROM {q}'
+            )
+            await self.execute(f"DROP TABLE {q}")
+            await self.execute(f'ALTER TABLE {q_tmp} RENAME TO "{bare}"')
+        await self.execute(
+            f"UPDATE {backend.csv_registry_table} "
+            f"SET mf_idx_dtype = {backend.placeholder(1)}, "
+            f"mf_idx_max = {backend.placeholder(2)}, mf_idx_ready = TRUE "
+            f"WHERE data_id = {backend.placeholder(3)}",
+            logical, max(int(row_count or 0) - 1, 0), data_id,
+        )
 
     async def drop_table(self, table_name: str) -> None:
         await self._backend.drop_table(table_name)

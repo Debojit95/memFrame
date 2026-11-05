@@ -225,7 +225,7 @@ class TestFingerprint:
 
         # Out-of-band edit changes the base: same call must MISS and heal.
         asyncio.run(mf._backend.execute(
-            f'INSERT INTO memframe_upload."{data_id}" VALUES (4)'
+            f'INSERT INTO memframe_upload."{data_id}" ("x") VALUES (4)'
         ))
         third = asyncio.run(ops.do(1))
         assert "result_metadata" not in third

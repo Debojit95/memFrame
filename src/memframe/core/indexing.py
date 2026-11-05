@@ -69,8 +69,12 @@ def visible_columns(columns: Iterable[Any]) -> List[Any]:
 
 
 def strip_hidden(df: Any) -> Any:
-    """Remove hidden internal columns from a user-facing DataFrame."""
+    """Remove hidden internal columns/keys from a user-facing result."""
     if isinstance(df, pd.DataFrame):
         drop = [c for c in df.columns if str(c) in HIDDEN_COLUMNS]
         return df.drop(columns=drop) if drop else df
+    if isinstance(df, dict):
+        return {k: v for k, v in df.items() if str(k) not in HIDDEN_COLUMNS}
+    if isinstance(df, list):
+        return [v for v in df if str(v) not in HIDDEN_COLUMNS]
     return df

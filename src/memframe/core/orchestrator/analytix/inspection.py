@@ -2,6 +2,7 @@ from typing import Optional, Dict, Any, List
 from memframe.cache import record_call
 from memframe.core.analytix.inspection import GeneralTableOps, make_table_ops
 from memframe.core.analytix._response import fail
+from memframe.core.indexing import assert_user_column, assert_user_columns
 
 
 class TableOpsOrchestrator:
@@ -126,6 +127,10 @@ class TableOpsOrchestrator:
 
         if not isinstance(value, list):
             return fail("Value must be a list")
+        try:
+            assert_user_column(column)
+        except ValueError as exc:
+            return fail(str(exc))
 
         table, schema = await self._get_context()
 
@@ -138,12 +143,20 @@ class TableOpsOrchestrator:
 
     @record_call(deep_cache=True)
     async def rename(self, columns: Dict[str, str]) -> Dict[str, Any]:
+        try:
+            assert_user_columns(list(columns.keys()) + list(columns.values()))
+        except ValueError as exc:
+            return fail(str(exc))
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
         return await ops.dataframe_rename(table, schema, columns=columns)
 
     @record_call(deep_cache=True)
     async def update(self, on: str, other_table: str, other_schema: str = "memframe_upload",overwrite: bool = True, errors: str = "ignore",) -> Dict[str, Any]:
+        try:
+            assert_user_column(on)
+        except ValueError as exc:
+            return fail(str(exc))
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
         if other_schema == "memframe_upload":

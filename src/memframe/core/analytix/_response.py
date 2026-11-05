@@ -6,6 +6,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from memframe.core.indexing import strip_hidden
 from memframe.exceptions import OperationError
 
 
@@ -66,7 +67,7 @@ def ok(
         error_message=None,
         involved_cols=involved_cols or [],
         generated_cols=generated_cols or [],
-        result=result,
+        result=strip_hidden(result),
         **extra,
     ).to_payload()
 

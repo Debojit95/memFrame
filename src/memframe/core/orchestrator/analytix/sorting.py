@@ -2,6 +2,7 @@ from typing import Any, Dict, Union
 
 from memframe.core.analytix.sorting import DataSortingOps, make_sorting_ops
 from memframe.core.analytix._response import fail
+from memframe.core.indexing import assert_user_columns
 from memframe.cache import record_call
 
 
@@ -40,6 +41,10 @@ class SortingOrchestrator:
             chunk_size is not None and (not isinstance(chunk_size, int) or chunk_size <= 0)
         ):
             return fail("chunk_size must be a positive integer")
+        try:
+            assert_user_columns([by] if isinstance(by, str) else by)
+        except ValueError as exc:
+            return fail(str(exc))
 
         ops = await self._ensure_ops()
         table, schema = await self._get_context()

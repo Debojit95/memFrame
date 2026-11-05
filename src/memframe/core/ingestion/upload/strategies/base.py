@@ -51,6 +51,7 @@ class UploadStrategy(ABC):
             True,
             self._uploader._backend.upload_schema,
         )
+        await self._uploader._ensure_mf_idx(data_id, table_name, row_count)
 
     async def _require_connection(self) -> None:
         if not self._uploader._backend:

@@ -10,6 +10,7 @@ import pyarrow.csv as pcsv
 
 from memframe.core.ingestion.datatype_detector import Backend
 from memframe.core.ingestion.upload.strategies.base import UploadStrategy
+from memframe.core.indexing import assert_user_columns
 from memframe.exceptions import ConfigurationError
 
 
@@ -82,6 +83,7 @@ class CsvUploadStrategy(UploadStrategy):
         if self._uploader._backend.backend == Backend.CLICKHOUSE:
             # ClickHouse: all-text insert then cast (native CSV parser can't handle typed conversion)
             columns = self._get_csv_columns(file_path, encoding)
+            assert_user_columns(columns)
             await self._uploader._create_final_table_all_text(final_table, columns)
             await self._stream_csv_all_text(final_table, file_path, columns, encoding)
             sample_table = await self._uploader._fetch_arrow_sample(final_table, columns, 50)
@@ -117,6 +119,7 @@ class CsvUploadStrategy(UploadStrategy):
         await self._uploader.create_schema_if_not_exists(schema_name)
 
         columns = self._get_csv_columns(file_path, encoding)
+        assert_user_columns(columns)
         await self._uploader._create_final_table_all_text(final_table, columns)
         await self._stream_csv_all_text(final_table, file_path, columns, encoding)
         sample_table = await self._uploader._fetch_arrow_sample(
@@ -253,6 +256,7 @@ class CsvUploadStrategy(UploadStrategy):
         header_reader.close()
 
         columns = self._uploader._make_unique_column_names(original_names)
+        assert_user_columns(original_names)
 
         # Native inference (no forced string types) so PyArrow resolves
         # int/float/date columns itself.

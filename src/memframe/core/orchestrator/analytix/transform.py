@@ -2,6 +2,7 @@ from functools import wraps
 from typing import Any, Dict, List, Optional
 from memframe.core.analytix.transform import TransformOps, make_transform_ops
 from memframe.core.analytix._generated import make_sig, publish_row_aligned
+from memframe.core.indexing import assert_user_columns
 from memframe.cache import record_call
 
 
@@ -64,6 +65,12 @@ class TransformOrchestrator:
         datetime_action: str = "skip",
     ) -> Dict[str, Any]:
         """Apply a SQL expression to columns as generated ``mapped_<col>`` features."""
+        if columns is not None and columns not in ("*", ["*"]):
+            try:
+                assert_user_columns([columns] if isinstance(columns, str) else columns)
+            except ValueError as exc:
+                from memframe.core.analytix._response import fail
+                return fail(str(exc))
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
         backend = self._memframe._backend

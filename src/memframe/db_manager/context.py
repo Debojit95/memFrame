@@ -8,6 +8,7 @@ from functools import wraps
 if TYPE_CHECKING:
     from memframe.wrappers.analytix.datetime import DateTimeWrapper
 
+from memframe.core.indexing import strip_hidden
 from memframe.core.ingestion.datatype_detector import Backend
 from memframe.db_manager.adapters.base import DatabaseAdapter
 from memframe.db_manager.adapters.postgresql import PostgresAdapter
@@ -32,10 +33,10 @@ def _public_result(method):
         value = method(*args, **kwargs)
         if inspect.isawaitable(value):
             async def resolve():
-                return unwrap_response(await value)
+                return strip_hidden(unwrap_response(await value))
 
             return resolve()
-        return unwrap_response(value)
+        return strip_hidden(unwrap_response(value))
 
     return wrapped
 

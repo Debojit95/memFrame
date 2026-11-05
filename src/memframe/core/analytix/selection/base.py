@@ -16,6 +16,7 @@ from datetime import date, datetime
 import pandas as pd
 
 from memframe.db_manager.adapters.base import DatabaseAdapter
+from memframe.core.indexing import HIDDEN_COLUMNS
 from memframe.utils.helper import SQLIdentifierSanitizer
 from memframe.exceptions import DataNotFound, OperationError
 from memframe.core.analytix._response import fail, ok
@@ -472,7 +473,9 @@ class DataSelectionOps:
                 exclude = [e.lower() for e in exclude]
 
             col_types = await self._get_column_types(table, schema)
-            all_columns = list(col_types.keys())
+            all_columns = [
+                c for c in col_types.keys() if str(c) not in HIDDEN_COLUMNS
+            ]
             selected = set(all_columns)
 
             if include is not None:

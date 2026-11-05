@@ -9,6 +9,7 @@ import pyarrow.parquet as pq
 
 from memframe.core.ingestion.datatype_detector import Backend
 from memframe.core.ingestion.upload.strategies.base import UploadStrategy
+from memframe.core.indexing import assert_user_columns
 
 
 logger = logging.getLogger("memFrame")
@@ -52,6 +53,7 @@ class ParquetUploadStrategy(UploadStrategy):
         arrow_table = pq.read_table(file_path)
         original_names = arrow_table.schema.names
         columns = self._uploader._make_unique_column_names(original_names)
+        assert_user_columns(original_names)
 
         # Phase 1: Infer types directly from Parquet schema (no sampling needed!)
         schema = self._infer_types_from_parquet(arrow_table, columns)

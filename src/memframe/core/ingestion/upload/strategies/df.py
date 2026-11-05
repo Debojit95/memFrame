@@ -9,6 +9,7 @@ import pyarrow as pa
 
 from memframe.core.ingestion.datatype_detector import Backend
 from memframe.core.ingestion.upload.strategies.base import UploadStrategy
+from memframe.core.indexing import assert_user_columns
 from memframe.exceptions import ConfigurationError
 
 
@@ -47,6 +48,7 @@ class DfUploadStrategy(UploadStrategy):
         data_id, table_name = await self._alloc_data_id()
 
         columns = self._uploader._make_unique_column_names([str(col) for col in df.columns])
+        assert_user_columns(df.columns)
         # Native Arrow inference first; fall back to an all-string table (whose
         # types are fixed by the heuristic detector after insert) if pandas
         # holds mixed-type columns Arrow cannot convert.

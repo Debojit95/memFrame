@@ -5,6 +5,7 @@ from memframe.db_manager.adapters.base import DatabaseAdapter
 from memframe.db_manager.adapters.duckdb import DuckDBAdapter
 from memframe.db_manager.adapters.postgresql import PostgresAdapter
 from memframe.db_manager.adapters.clickhouse import ClickHouseAdapter
+from memframe.core.indexing import HIDDEN_COLUMNS, strip_hidden
 from memframe.utils.helper import SQLIdentifierSanitizer
 
 
@@ -124,7 +125,7 @@ class ReshapingOps:
             "is_error": False,
             "message": msg,
             "error_message": None,
-            "result": df,
+            "result": strip_hidden(df),
             **extra,
         }
 
@@ -836,7 +837,10 @@ class ReshapingOps:
 
                 q = self._qualified_table(table, schema)
 
-                cols = await self._get_table_columns(table, schema)
+                cols = [
+                    c for c in await self._get_table_columns(table, schema)
+                    if str(c) not in HIDDEN_COLUMNS
+                ]
 
                 if not cols:
                     return self._error("No columns found")

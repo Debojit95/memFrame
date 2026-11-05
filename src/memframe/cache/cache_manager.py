@@ -16,6 +16,7 @@ from typing import Any, Callable, Dict, List, Optional
 import numpy as np
 import pandas as pd
 
+from memframe.core.indexing import strip_hidden
 from memframe.core.ingestion.datatype_detector import Backend
 from memframe.exceptions import OperationError
 
@@ -419,6 +420,7 @@ class CacheManager:
         bare_name: Optional[str] = None, schema: Optional[str] = None,
         envelope: Optional[str] = None, kind: str = "ref",
     ) -> Dict[str, Any]:
+        cached = strip_hidden(cached)
         stored: Dict[str, Any] = {}
         if envelope:
             try:

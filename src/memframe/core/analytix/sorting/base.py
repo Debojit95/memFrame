@@ -3,6 +3,7 @@ import traceback
 import pandas as pd
 
 from memframe.db_manager.adapters.base import DatabaseAdapter
+from memframe.core.indexing import strip_hidden
 from memframe.utils.helper import SQLIdentifierSanitizer
 from memframe.core.analytix._response import fail, ok
 
@@ -271,7 +272,7 @@ class DataSortingOps:
                         new_table_safe, schema, chunk_size, columns=output_cols,
                         backend=backend,
                     ):
-                        yield chunk
+                        yield strip_hidden(chunk)
 
                 return ok(
                     f"Sorted by {by} (streaming)",
