@@ -2,6 +2,7 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from memframe.exceptions import ConfigurationError, ConnectionNotReady, DataNotFound
+from memframe.core.indexing import mf_idx_sql_type, select_mf_idx_dtype
 from memframe.core.ingestion.datatype_detector import _generate_6char_id
 from memframe.db_manager.context import ContextManager
 from memframe.utils.async_sync import async_to_sync
@@ -96,6 +97,41 @@ class OpsMixin:
     async def register_tables(self) -> Dict[str, List[Dict[str, Any]]]:
         return await self.aregister_tables()
 
+    async def _ensure_mf_idx(self, data_id: str, table: str, schema: str) -> None:
+        """Add _mf_idx to a synced/external dataset on first activation."""
+        backend = self._backend
+        if await backend._column_exists(schema, table, "_mf_idx"):
+            return
+        row_count = int(await backend.fetchval(
+            f"SELECT COUNT(*) FROM {backend.qualify_table(schema, table)}"
+        ) or 0)
+        logical = select_mf_idx_dtype(row_count)
+        sql_type = mf_idx_sql_type(logical, backend.backend)
+        q = backend.qualify_table(schema, table)
+        tmp = f"{table}__mfidx_tmp"
+        q_tmp = backend.qualify_table(schema, tmp)
+        if getattr(backend, "backend", None) == "clickhouse":
+            await backend.execute(
+                f"CREATE TABLE {q_tmp} ENGINE = MergeTree() ORDER BY tuple() AS "
+                f"SELECT *, CAST(ROW_NUMBER() OVER () - 1 AS {sql_type}) AS `_mf_idx` FROM {q}"
+            )
+            await backend.execute(f"EXCHANGE TABLES {q} AND {q_tmp}")
+            await backend.execute(f"DROP TABLE {q_tmp}")
+        else:
+            await backend.execute(
+                f'CREATE TABLE {q_tmp} AS '
+                f'SELECT *, CAST(ROW_NUMBER() OVER () - 1 AS {sql_type}) AS "_mf_idx" FROM {q}'
+            )
+            await backend.execute(f"DROP TABLE {q}")
+            await backend.execute(f'ALTER TABLE {q_tmp} RENAME TO "{table}"')
+        await backend.execute(
+            f"UPDATE {backend.csv_registry_table} "
+            f"SET mf_idx_dtype = {self._placeholder(1)}, "
+            f"mf_idx_max = {self._placeholder(2)}, mf_idx_ready = TRUE "
+            f"WHERE data_id = {self._placeholder(3)}",
+            logical, max(row_count - 1, 0), data_id,
+        )
+
     async def aset_active(self, data_id: str) -> ContextManager:
         row = await self._backend.fetch_row(
             f"SELECT table_name, schema FROM {self._backend.csv_registry_table} "
@@ -109,6 +145,7 @@ class OpsMixin:
         qualified = f"{schema}.{table_name}" if schema else table_name
         if not await self._backend.table_exists(qualified):
             raise DataNotFound(f"Table for data_id '{data_id}' does not exist")
+        await self._ensure_mf_idx(data_id, table_name, schema)
         self._active_id = data_id
         logger.info(f"Active CSV set to {data_id}")
         # ponytail: return a context bound to this data_id, matching the

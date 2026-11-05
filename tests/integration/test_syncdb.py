@@ -185,6 +185,22 @@ class TestSyncDBRegister:
             df = get_result_df(asyncio.run(ds.ahead(n=rc)))
             assert len(df) == rc
 
+    def test_set_active_adds_mf_idx(self, synced_memframe):
+        registered = asyncio.run(synced_memframe.aregister_tables())
+        s, t, rc = TABLE_SPECS[0]
+        data_id = next(x["data_id"] for x in registered[s] if x["table_name"] == t)
+
+        asyncio.run(synced_memframe.aset_active(data_id))
+        backend = synced_memframe._backend
+        assert asyncio.run(backend._column_exists(s, t, "_mf_idx"))
+        meta = asyncio.run(backend.fetch_row(
+            f"SELECT mf_idx_dtype, mf_idx_ready FROM {backend.csv_registry_table} "
+            f"WHERE data_id = {synced_memframe._placeholder(1)}",
+            data_id,
+        ))
+        assert meta[0]
+        assert bool(meta[1]) is True
+
     def test_register_idempotent(self, synced_memframe):
         first = asyncio.run(synced_memframe.aregister_tables())
         total = sum(len(v) for v in first.values())
