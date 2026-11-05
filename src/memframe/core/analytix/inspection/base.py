@@ -387,21 +387,24 @@ class GeneralTableOps:
             qualified = self._qualified_table(table, schema)
             column_types = await self._get_column_types(table, schema)
 
+            visible = visible_columns(column_types.keys())
             if columns:
-                selected = [c for c in columns if c in column_types]
+                selected = [c for c in columns if c in column_types and str(c) not in HIDDEN_COLUMNS]
                 if not selected:
-                    selected = list(column_types.keys())
+                    selected = visible
             else:
-                selected = list(column_types.keys())
+                selected = visible
 
             if selected:
                 sanitized = [SQLIdentifierSanitizer.sanitize(c) for c in selected]
                 column_clause = ", ".join([f'"{c}"' for c in sanitized])
             else:
                 column_clause = "*"
-                selected = list(column_types.keys())
 
-            rows = await self._fetch(f"SELECT {column_clause} FROM {qualified} LIMIT {n}")
+            order_clause = ' ORDER BY "_mf_idx"' if "_mf_idx" in column_types else ""
+            rows = await self._fetch(
+                f"SELECT {column_clause} FROM {qualified}{order_clause} LIMIT {n}"
+            )
             records = self._rows_to_records(rows)
             records = await self._normalize_records_by_type(records, table, schema)
             df = pd.DataFrame.from_records(records)
@@ -429,21 +432,25 @@ class GeneralTableOps:
 
             column_types = await self._get_column_types(table, schema)
 
+            visible = visible_columns(column_types.keys())
             if columns:
-                selected = [c for c in columns if c in column_types]
+                selected = [c for c in columns if c in column_types and str(c) not in HIDDEN_COLUMNS]
                 if not selected:
-                    selected = list(column_types.keys())
+                    selected = visible
             else:
-                selected = list(column_types.keys())
+                selected = visible
 
             if selected:
                 sanitized = [SQLIdentifierSanitizer.sanitize(c) for c in selected]
                 column_clause = ", ".join([f'"{c}"' for c in sanitized])
             else:
                 column_clause = "*"
-                selected = list(column_types.keys())
 
-            query = f"SELECT {column_clause} FROM {qualified} {self._limit_offset(n, offset)}"
+            order_clause = ' ORDER BY "_mf_idx" DESC' if "_mf_idx" in column_types else ""
+            query = (
+                f"SELECT {column_clause} FROM {qualified}{order_clause} "
+                f"{self._limit_offset(n, offset)}"
+            )
 
             rows = await self._fetch(query)
             records = self._rows_to_records(rows)
@@ -468,18 +475,17 @@ class GeneralTableOps:
             column_types = await self._get_column_types(table, schema)
 
             if columns:
-                selected = [c for c in columns if c in column_types]
+                selected = [c for c in columns if c in column_types and str(c) not in HIDDEN_COLUMNS]
                 if not selected:
-                    selected = list(column_types.keys())
+                    selected = visible_columns(column_types.keys())
             else:
-                selected = list(column_types.keys())
+                selected = visible_columns(column_types.keys())
 
             if selected:
                 sanitized = [SQLIdentifierSanitizer.sanitize(c) for c in selected]
                 column_clause = ", ".join([f'"{c}"' for c in sanitized])
             else:
                 column_clause = "*"
-                selected = list(column_types.keys())
 
             query = f"""
                 SELECT {column_clause}

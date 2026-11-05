@@ -67,6 +67,8 @@ class MergeOrchestrator:
             row_count = len(result) if result is not None else 0
         except Exception:
             row_count = 0
+        q_new = backend.qualify_table(backend.upload_schema, bare)
+        await backend.execute(f'ALTER TABLE {q_new} DROP COLUMN IF EXISTS "_mf_idx"')
         await backend.execute(
             f"INSERT INTO {backend.csv_registry_table} "
             f"(data_id, filename, table_name, row_count, is_upload_success, schema) "
@@ -75,6 +77,9 @@ class MergeOrchestrator:
             f"{backend.placeholder(5)}, {backend.placeholder(6)})",
             bare, filename, bare, row_count, True, backend.upload_schema,
         )
+        uploader = getattr(self._memframe, "_uploader", None)
+        if uploader is not None:
+            await uploader._ensure_mf_idx(bare, bare, row_count)
         response["dataset_id"] = bare
         response["new_table"] = bare
         return response

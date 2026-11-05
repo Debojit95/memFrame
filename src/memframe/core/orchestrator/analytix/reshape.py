@@ -67,6 +67,7 @@ class ReshapingOrchestrator:
             row_count = len(result) if result is not None else 0
         except Exception:
             row_count = 0
+        await backend.execute(f'ALTER TABLE {dst} DROP COLUMN IF EXISTS "_mf_idx"')
         await backend.execute(
             f"INSERT INTO {backend.csv_registry_table} "
             f"(data_id, filename, table_name, row_count, is_upload_success, schema) "
@@ -75,6 +76,9 @@ class ReshapingOrchestrator:
             f"{backend.placeholder(5)}, {backend.placeholder(6)})",
             new_id, filename, new_id, row_count, True, backend.upload_schema,
         )
+        uploader = getattr(self._memframe, "_uploader", None)
+        if uploader is not None:
+            await uploader._ensure_mf_idx(new_id, new_id, row_count)
         response["dataset_id"] = new_id
         response["new_table"] = new_id
         return response
