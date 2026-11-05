@@ -9,7 +9,7 @@ class PostgresGroupbyWindowOps(GroupbyWindowOps):
 
     @property
     def _row_id_col(self) -> str:
-        return "ctid"
+        return "_mf_idx"
 
     async def _apply_map(
         self, table, schema, group_table, new_columns, backend, data_id, sig,

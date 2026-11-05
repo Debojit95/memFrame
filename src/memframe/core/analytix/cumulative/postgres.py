@@ -6,4 +6,4 @@ class PostgresCumulativeOps(CumulativeOps):
 
     @property
     def _row_id_col(self) -> str:
-        return "ctid"
+        return "_mf_idx"

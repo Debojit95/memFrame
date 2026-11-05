@@ -304,7 +304,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t__op_1\"SET\"__totem_order\"=rnFROM(SELECTrowid,ROW_NUMBER()OVER()ASrnFROM\"s\".\"t__op_1\")subWHERE\"s\".\"t__op_1\".rowid=sub.rowid",
+    "UPDATE\"s\".\"t__op_1\"SET\"__totem_order\"=rnFROM(SELECT_mf_idx,ROW_NUMBER()OVER()ASrnFROM\"s\".\"t__op_1\")subWHERE\"s\".\"t__op_1\"._mf_idx=sub._mf_idx",
     []
    ],
    [
@@ -314,7 +314,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t__op_1\"AStSET\"num_expanding_mean\"=s.valFROM(SELECTrowid,AVG(\"num\")OVER(ORDERBY\"__totem_order\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_1\")ASsWHEREt.rowid=s.rowid",
+    "UPDATE\"s\".\"t__op_1\"AStSET\"num_expanding_mean\"=s.valFROM(SELECT_mf_idx,AVG(\"num\")OVER(ORDERBY\"__totem_order\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_1\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -348,7 +348,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t__op_1\"AStSET\"__totem_order\"=rnFROM(SELECTctid,ROW_NUMBER()OVER()ASrnFROM\"s\".\"t__op_1\")subWHEREt.ctid=sub.ctid",
+    "UPDATE\"s\".\"t__op_1\"SET\"__totem_order\"=rnFROM(SELECT_mf_idx,ROW_NUMBER()OVER()ASrnFROM\"s\".\"t__op_1\")subWHERE\"s\".\"t__op_1\"._mf_idx=sub._mf_idx",
     []
    ],
    [
@@ -358,7 +358,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t__op_1\"AStSET\"num_expanding_mean\"=s.valFROM(SELECTctid,AVG(\"num\")OVER(ORDERBY\"__totem_order\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_1\")ASsWHEREt.ctid=s.ctid",
+    "UPDATE\"s\".\"t__op_1\"AStSET\"num_expanding_mean\"=s.valFROM(SELECT_mf_idx,AVG(\"num\")OVER(ORDERBY\"__totem_order\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_1\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -425,7 +425,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t__op_1\"AStSET\"num_expanding_q0.5\"=s.valFROM(SELECTrowid,CASEWHENCOUNT(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)>=2THENQUANTILE_CONT(\"num\",0.5)OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ELSENULLENDASvalFROM\"s\".\"t__op_1\")ASsWHEREt.rowid=s.rowid",
+    "UPDATE\"s\".\"t__op_1\"AStSET\"num_expanding_q0.5\"=s.valFROM(SELECT_mf_idx,CASEWHENCOUNT(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)>=2THENQUANTILE_CONT(\"num\",0.5)OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ELSENULLENDASvalFROM\"s\".\"t__op_1\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -454,7 +454,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t__op_1\"AStSET\"num_expanding_q0.5\"=s.valFROM(SELECTctid,CASEWHENCOUNT(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)>=2THENPERCENTILE_CONT(0.5)WITHINGROUP(ORDERBY\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ELSENULLENDASvalFROM\"s\".\"t__op_1\")ASsWHEREt.ctid=s.ctid",
+    "UPDATE\"s\".\"t__op_1\"AStSET\"num_expanding_q0.5\"=s.valFROM(SELECT_mf_idx,CASEWHENCOUNT(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)>=2THENPERCENTILE_CONT(0.5)WITHINGROUP(ORDERBY\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ELSENULLENDASvalFROM\"s\".\"t__op_1\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -516,7 +516,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t__op_1\"AStSET\"num_expanding_sem\"=s.valFROM(SELECTrowid,CASEWHENCOUNT(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)>=2THEN(STDDEV_SAMP(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)/SQRT(COUNT(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)))ELSENULLENDASvalFROM\"s\".\"t__op_1\")ASsWHEREt.rowid=s.rowid",
+    "UPDATE\"s\".\"t__op_1\"AStSET\"num_expanding_sem\"=s.valFROM(SELECT_mf_idx,CASEWHENCOUNT(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)>=2THEN(STDDEV_SAMP(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)/SQRT(COUNT(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)))ELSENULLENDASvalFROM\"s\".\"t__op_1\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -545,7 +545,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t__op_1\"AStSET\"num_expanding_sem\"=s.valFROM(SELECTctid,CASEWHENCOUNT(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)>=2THEN(STDDEV(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)/SQRT(COUNT(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)))ELSENULLENDASvalFROM\"s\".\"t__op_1\")ASsWHEREt.ctid=s.ctid",
+    "UPDATE\"s\".\"t__op_1\"AStSET\"num_expanding_sem\"=s.valFROM(SELECT_mf_idx,CASEWHENCOUNT(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)>=2THEN(STDDEV(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)/SQRT(COUNT(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)))ELSENULLENDASvalFROM\"s\".\"t__op_1\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -595,7 +595,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t__op_1\"AStSET\"num_expanding_std\"=s.valFROM(SELECTrowid,CASEWHENCOUNT(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)>=2THENSTDDEV_SAMP(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ELSENULLENDASvalFROM\"s\".\"t__op_1\")ASsWHEREt.rowid=s.rowid",
+    "UPDATE\"s\".\"t__op_1\"AStSET\"num_expanding_std\"=s.valFROM(SELECT_mf_idx,CASEWHENCOUNT(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)>=2THENSTDDEV_SAMP(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ELSENULLENDASvalFROM\"s\".\"t__op_1\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -624,7 +624,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t__op_1\"AStSET\"num_expanding_std\"=s.valFROM(SELECTctid,CASEWHENCOUNT(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)>=2THENSTDDEV(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ELSENULLENDASvalFROM\"s\".\"t__op_1\")ASsWHEREt.ctid=s.ctid",
+    "UPDATE\"s\".\"t__op_1\"AStSET\"num_expanding_std\"=s.valFROM(SELECT_mf_idx,CASEWHENCOUNT(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)>=2THENSTDDEV(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ELSENULLENDASvalFROM\"s\".\"t__op_1\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -674,7 +674,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t__op_1\"AStSET\"num_expanding_sum\"=s.valFROM(SELECTrowid,CASEWHENCOUNT(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)>=2THENSUM(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ELSENULLENDASvalFROM\"s\".\"t__op_1\")ASsWHEREt.rowid=s.rowid",
+    "UPDATE\"s\".\"t__op_1\"AStSET\"num_expanding_sum\"=s.valFROM(SELECT_mf_idx,CASEWHENCOUNT(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)>=2THENSUM(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ELSENULLENDASvalFROM\"s\".\"t__op_1\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -703,7 +703,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t__op_1\"AStSET\"num_expanding_sum\"=s.valFROM(SELECTctid,CASEWHENCOUNT(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)>=2THENSUM(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ELSENULLENDASvalFROM\"s\".\"t__op_1\")ASsWHEREt.ctid=s.ctid",
+    "UPDATE\"s\".\"t__op_1\"AStSET\"num_expanding_sum\"=s.valFROM(SELECT_mf_idx,CASEWHENCOUNT(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)>=2THENSUM(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ELSENULLENDASvalFROM\"s\".\"t__op_1\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -945,7 +945,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t__op_1\"AStSET\"num_rolling_first_w3\"=s.valFROM(SELECTrowid,FIRST_VALUE(\"num\")OVER(ORDERBY\"g\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_1\")ASsWHEREt.rowid=s.rowid",
+    "UPDATE\"s\".\"t__op_1\"AStSET\"num_rolling_first_w3\"=s.valFROM(SELECT_mf_idx,FIRST_VALUE(\"num\")OVER(ORDERBY\"g\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_1\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -974,7 +974,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t__op_1\"AStSET\"num_rolling_first_w3\"=s.valFROM(SELECTctid,FIRST_VALUE(\"num\")OVER(ORDERBY\"g\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_1\")ASsWHEREt.ctid=s.ctid",
+    "UPDATE\"s\".\"t__op_1\"AStSET\"num_rolling_first_w3\"=s.valFROM(SELECT_mf_idx,FIRST_VALUE(\"num\")OVER(ORDERBY\"g\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_1\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -1024,7 +1024,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t__op_1\"AStSET\"num_rolling_last_w3\"=s.valFROM(SELECTrowid,LAST_VALUE(\"num\")OVER(ORDERBY\"g\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_1\")ASsWHEREt.rowid=s.rowid",
+    "UPDATE\"s\".\"t__op_1\"AStSET\"num_rolling_last_w3\"=s.valFROM(SELECT_mf_idx,LAST_VALUE(\"num\")OVER(ORDERBY\"g\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_1\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -1053,7 +1053,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t__op_1\"AStSET\"num_rolling_last_w3\"=s.valFROM(SELECTctid,LAST_VALUE(\"num\")OVER(ORDERBY\"g\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_1\")ASsWHEREt.ctid=s.ctid",
+    "UPDATE\"s\".\"t__op_1\"AStSET\"num_rolling_last_w3\"=s.valFROM(SELECT_mf_idx,LAST_VALUE(\"num\")OVER(ORDERBY\"g\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_1\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -1103,7 +1103,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t__op_1\"AStSET\"num_rolling_sum_w3\"=s.valFROM(SELECTrowid,SUM(\"num\")OVER(ORDERBY\"g\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_1\")ASsWHEREt.rowid=s.rowid",
+    "UPDATE\"s\".\"t__op_1\"AStSET\"num_rolling_sum_w3\"=s.valFROM(SELECT_mf_idx,SUM(\"num\")OVER(ORDERBY\"g\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_1\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -1113,7 +1113,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t__op_1\"AStSET\"num_rolling_avg_w3\"=s.valFROM(SELECTrowid,AVG(\"num\")OVER(ORDERBY\"g\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_1\")ASsWHEREt.rowid=s.rowid",
+    "UPDATE\"s\".\"t__op_1\"AStSET\"num_rolling_avg_w3\"=s.valFROM(SELECT_mf_idx,AVG(\"num\")OVER(ORDERBY\"g\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_1\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -1142,7 +1142,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t__op_1\"AStSET\"num_rolling_sum_w3\"=s.valFROM(SELECTctid,SUM(\"num\")OVER(ORDERBY\"g\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_1\")ASsWHEREt.ctid=s.ctid",
+    "UPDATE\"s\".\"t__op_1\"AStSET\"num_rolling_sum_w3\"=s.valFROM(SELECT_mf_idx,SUM(\"num\")OVER(ORDERBY\"g\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_1\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -1152,7 +1152,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t__op_1\"AStSET\"num_rolling_avg_w3\"=s.valFROM(SELECTctid,AVG(\"num\")OVER(ORDERBY\"g\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_1\")ASsWHEREt.ctid=s.ctid",
+    "UPDATE\"s\".\"t__op_1\"AStSET\"num_rolling_avg_w3\"=s.valFROM(SELECT_mf_idx,AVG(\"num\")OVER(ORDERBY\"g\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_1\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -1267,7 +1267,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t__op_1\"AStSET\"__totem_tmp_row\"=rnFROM(SELECTctid,ROW_NUMBER()OVER(ORDERBY\"g\")ASrnFROM\"s\".\"t__op_1\")subWHEREt.ctid=sub.ctid",
+    "UPDATE\"s\".\"t__op_1\"SET\"__totem_tmp_row\"=rnFROM(SELECT_mf_idx,ROW_NUMBER()OVER(ORDERBY\"g\")ASrnFROM\"s\".\"t__op_1\")subWHERE\"s\".\"t__op_1\"._mf_idx=sub._mf_idx",
     []
    ],
    [
@@ -1339,7 +1339,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t__op_1\"AStSET\"num_rolling_q0.5_w3\"=s.valFROM(SELECTrowid,CASEWHENCOUNT(\"num\")OVER(ORDERBY\"g\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)>=3THENQUANTILE_CONT(\"num\",0.5)OVER(ORDERBY\"g\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)ELSENULLENDASvalFROM\"s\".\"t__op_1\")ASsWHEREt.rowid=s.rowid",
+    "UPDATE\"s\".\"t__op_1\"AStSET\"num_rolling_q0.5_w3\"=s.valFROM(SELECT_mf_idx,CASEWHENCOUNT(\"num\")OVER(ORDERBY\"g\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)>=3THENQUANTILE_CONT(\"num\",0.5)OVER(ORDERBY\"g\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)ELSENULLENDASvalFROM\"s\".\"t__op_1\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -1527,7 +1527,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t__op_1\"AStSET\"num_rolling_sem_w3\"=s.valFROM(SELECTrowid,(STDDEV_SAMP(\"num\")OVER(ORDERBY\"g\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)/SQRT(COUNT(\"num\")OVER(ORDERBY\"g\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)))ASvalFROM\"s\".\"t__op_1\")ASsWHEREt.rowid=s.rowid",
+    "UPDATE\"s\".\"t__op_1\"AStSET\"num_rolling_sem_w3\"=s.valFROM(SELECT_mf_idx,(STDDEV_SAMP(\"num\")OVER(ORDERBY\"g\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)/SQRT(COUNT(\"num\")OVER(ORDERBY\"g\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)))ASvalFROM\"s\".\"t__op_1\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -1556,7 +1556,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t__op_1\"AStSET\"num_rolling_sem_w3\"=s.valFROM(SELECTctid,(STDDEV(\"num\")OVER(ORDERBY\"g\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)/SQRT(COUNT(\"num\")OVER(ORDERBY\"g\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)))ASvalFROM\"s\".\"t__op_1\")ASsWHEREt.ctid=s.ctid",
+    "UPDATE\"s\".\"t__op_1\"AStSET\"num_rolling_sem_w3\"=s.valFROM(SELECT_mf_idx,(STDDEV(\"num\")OVER(ORDERBY\"g\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)/SQRT(COUNT(\"num\")OVER(ORDERBY\"g\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)))ASvalFROM\"s\".\"t__op_1\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -1606,7 +1606,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t__op_1\"AStSET\"num_rolling_std_w3\"=s.valFROM(SELECTrowid,STDDEV_POP(\"num\")OVER(ORDERBY\"g\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_1\")ASsWHEREt.rowid=s.rowid",
+    "UPDATE\"s\".\"t__op_1\"AStSET\"num_rolling_std_w3\"=s.valFROM(SELECT_mf_idx,STDDEV_POP(\"num\")OVER(ORDERBY\"g\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_1\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -1635,7 +1635,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t__op_1\"AStSET\"num_rolling_std_w3\"=s.valFROM(SELECTctid,STDDEV_POP(\"num\")OVER(ORDERBY\"g\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_1\")ASsWHEREt.ctid=s.ctid",
+    "UPDATE\"s\".\"t__op_1\"AStSET\"num_rolling_std_w3\"=s.valFROM(SELECT_mf_idx,STDDEV_POP(\"num\")OVER(ORDERBY\"g\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_1\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -1685,7 +1685,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t__op_1\"AStSET\"num_rolling_sum_w3\"=s.valFROM(SELECTrowid,SUM(\"num\")OVER(ORDERBY\"g\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_1\")ASsWHEREt.rowid=s.rowid",
+    "UPDATE\"s\".\"t__op_1\"AStSET\"num_rolling_sum_w3\"=s.valFROM(SELECT_mf_idx,SUM(\"num\")OVER(ORDERBY\"g\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_1\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -1714,7 +1714,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t__op_1\"AStSET\"num_rolling_sum_w3\"=s.valFROM(SELECTctid,SUM(\"num\")OVER(ORDERBY\"g\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_1\")ASsWHEREt.ctid=s.ctid",
+    "UPDATE\"s\".\"t__op_1\"AStSET\"num_rolling_sum_w3\"=s.valFROM(SELECT_mf_idx,SUM(\"num\")OVER(ORDERBY\"g\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_1\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -1764,7 +1764,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t__op_1\"SET\"__totem_order\"=rnFROM(SELECTrowid,ROW_NUMBER()OVER()ASrnFROM\"s\".\"t__op_1\")subWHERE\"s\".\"t__op_1\".rowid=sub.rowid",
+    "UPDATE\"s\".\"t__op_1\"SET\"__totem_order\"=rnFROM(SELECT_mf_idx,ROW_NUMBER()OVER()ASrnFROM\"s\".\"t__op_1\")subWHERE\"s\".\"t__op_1\"._mf_idx=sub._mf_idx",
     []
    ],
    [
@@ -1774,7 +1774,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t__op_1\"AStSET\"num_rolling_sum_w3\"=s.valFROM(SELECTrowid,SUM(\"num\")OVER(ORDERBY\"__totem_order\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_1\")ASsWHEREt.rowid=s.rowid",
+    "UPDATE\"s\".\"t__op_1\"AStSET\"num_rolling_sum_w3\"=s.valFROM(SELECT_mf_idx,SUM(\"num\")OVER(ORDERBY\"__totem_order\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_1\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -1808,7 +1808,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t__op_1\"AStSET\"__totem_order\"=rnFROM(SELECTctid,ROW_NUMBER()OVER()ASrnFROM\"s\".\"t__op_1\")subWHEREt.ctid=sub.ctid",
+    "UPDATE\"s\".\"t__op_1\"SET\"__totem_order\"=rnFROM(SELECT_mf_idx,ROW_NUMBER()OVER()ASrnFROM\"s\".\"t__op_1\")subWHERE\"s\".\"t__op_1\"._mf_idx=sub._mf_idx",
     []
    ],
    [
@@ -1818,7 +1818,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t__op_1\"AStSET\"num_rolling_sum_w3\"=s.valFROM(SELECTctid,SUM(\"num\")OVER(ORDERBY\"__totem_order\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_1\")ASsWHEREt.ctid=s.ctid",
+    "UPDATE\"s\".\"t__op_1\"AStSET\"num_rolling_sum_w3\"=s.valFROM(SELECT_mf_idx,SUM(\"num\")OVER(ORDERBY\"__totem_order\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_1\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -1873,7 +1873,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t__op_1\"AStSET\"num_rolling_var_w3\"=s.valFROM(SELECTrowid,VAR_SAMP(\"num\")OVER(ORDERBY\"g\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_1\")ASsWHEREt.rowid=s.rowid",
+    "UPDATE\"s\".\"t__op_1\"AStSET\"num_rolling_var_w3\"=s.valFROM(SELECT_mf_idx,VAR_SAMP(\"num\")OVER(ORDERBY\"g\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_1\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -1902,7 +1902,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t__op_1\"AStSET\"num_rolling_var_w3\"=s.valFROM(SELECTctid,VARIANCE(\"num\")OVER(ORDERBY\"g\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_1\")ASsWHEREt.ctid=s.ctid",
+    "UPDATE\"s\".\"t__op_1\"AStSET\"num_rolling_var_w3\"=s.valFROM(SELECT_mf_idx,VARIANCE(\"num\")OVER(ORDERBY\"g\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t__op_1\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [

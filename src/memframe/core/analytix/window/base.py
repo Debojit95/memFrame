@@ -29,7 +29,7 @@ class WindowOps:
     @property
     def _row_id_col(self) -> str:
         # ponytail: DuckDB-flavoured default; postgres.py returns "ctid".
-        return "rowid"
+        return "_mf_idx"
 
     def _datetime_epoch_expr(self, column_expr: str) -> str:
         return f"EPOCH(CAST({column_expr} AS TIMESTAMP))"

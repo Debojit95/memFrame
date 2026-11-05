@@ -26,7 +26,7 @@ class ClickHouseCumulativeOps(CumulativeOps):
     @property
     def _row_id_col(self) -> str:
         # ClickHouse has no native rowid — use synthetic _ch_rowid
-        return "_ch_rowid"
+        return "_mf_idx"
 
     async def _cumulative_op(
         self,

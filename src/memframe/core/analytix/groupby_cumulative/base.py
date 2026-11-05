@@ -41,7 +41,7 @@ class GroupbyCumulativeOps:
         # ponytail: DuckDB-flavoured default; postgres.py returns "ctid",
         # clickhouse.py raises (no physical row id — the ROW_NUMBER()
         # fallback in _groupby_cumulative_op is used instead).
-        return "rowid"
+        return "_mf_idx"
 
     # ------------------------------------------------------------------
     # Window-function dialect hooks (DuckDB-flavoured defaults)

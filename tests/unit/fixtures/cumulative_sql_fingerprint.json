@@ -3,7 +3,7 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE`s`.`t__op_20240101000000000000`ENGINE=MergeTree()ORDERBYtuple()ASSELECT*,COUNT(`num`)OVER(ORDERBY_ch_rowidROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS`cum_num_count`FROM(SELECT*,ROW_NUMBER()OVER()AS_ch_rowidFROM`s`.`t`)",
+    "CREATETABLE`s`.`t__op_20240101000000000000`ENGINE=MergeTree()ORDERBYtuple()ASSELECT*,COUNT(`num`)OVER(ORDERBY_mf_idxROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS`cum_num_count`FROM(SELECT*,ROW_NUMBER()OVER()AS_mf_idxFROM`s`.`t`)",
     []
    ],
    [
@@ -20,7 +20,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"cum_num_count\"=s.valFROM(SELECTrowid,COUNT(\"num\")OVER(ORDERBY\"rowid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.rowid=s.rowid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_count\"=s.valFROM(SELECT_mf_idx,COUNT(\"num\")OVER(ORDERBY\"_mf_idx\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -37,7 +37,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"cum_num_count\"=s.valFROM(SELECTctid,COUNT(\"num\")OVER(ORDERBY\"ctid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.ctid=s.ctid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_count\"=s.valFROM(SELECT_mf_idx,COUNT(\"num\")OVER(ORDERBY\"_mf_idx\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -68,7 +68,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"cum_num_count\"=s.valFROM(SELECTrowid,COUNT(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.rowid=s.rowid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_count\"=s.valFROM(SELECT_mf_idx,COUNT(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -85,7 +85,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"cum_num_count\"=s.valFROM(SELECTctid,COUNT(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.ctid=s.ctid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_count\"=s.valFROM(SELECT_mf_idx,COUNT(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -99,7 +99,7 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE`s`.`t__op_20240101000000000000`ENGINE=MergeTree()ORDERBYtuple()ASSELECT*,COUNT(`num`)OVER(ORDERBY_ch_rowidROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS`run`FROM(SELECT*,ROW_NUMBER()OVER()AS_ch_rowidFROM`s`.`t`)",
+    "CREATETABLE`s`.`t__op_20240101000000000000`ENGINE=MergeTree()ORDERBYtuple()ASSELECT*,COUNT(`num`)OVER(ORDERBY_mf_idxROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS`run`FROM(SELECT*,ROW_NUMBER()OVER()AS_mf_idxFROM`s`.`t`)",
     []
    ],
    [
@@ -116,7 +116,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"run\"=s.valFROM(SELECTrowid,COUNT(\"num\")OVER(ORDERBY\"rowid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.rowid=s.rowid",
+    "UPDATE\"s\".\"t\"AStSET\"run\"=s.valFROM(SELECT_mf_idx,COUNT(\"num\")OVER(ORDERBY\"_mf_idx\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -133,7 +133,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"run\"=s.valFROM(SELECTctid,COUNT(\"num\")OVER(ORDERBY\"ctid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.ctid=s.ctid",
+    "UPDATE\"s\".\"t\"AStSET\"run\"=s.valFROM(SELECT_mf_idx,COUNT(\"num\")OVER(ORDERBY\"_mf_idx\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -147,7 +147,7 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE`s`.`t__op_20240101000000000000`ENGINE=MergeTree()ORDERBYtuple()ASSELECT*,MAX(`num`)OVER(ORDERBY_ch_rowidROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS`cum_num_max`FROM(SELECT*,ROW_NUMBER()OVER()AS_ch_rowidFROM`s`.`t`)",
+    "CREATETABLE`s`.`t__op_20240101000000000000`ENGINE=MergeTree()ORDERBYtuple()ASSELECT*,MAX(`num`)OVER(ORDERBY_mf_idxROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS`cum_num_max`FROM(SELECT*,ROW_NUMBER()OVER()AS_mf_idxFROM`s`.`t`)",
     []
    ],
    [
@@ -164,7 +164,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"cum_num_max\"=s.valFROM(SELECTrowid,MAX(\"num\")OVER(ORDERBY\"rowid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.rowid=s.rowid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_max\"=s.valFROM(SELECT_mf_idx,MAX(\"num\")OVER(ORDERBY\"_mf_idx\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -181,7 +181,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"cum_num_max\"=s.valFROM(SELECTctid,MAX(\"num\")OVER(ORDERBY\"ctid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.ctid=s.ctid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_max\"=s.valFROM(SELECT_mf_idx,MAX(\"num\")OVER(ORDERBY\"_mf_idx\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -212,7 +212,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"cum_num_max\"=s.valFROM(SELECTrowid,MAX(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.rowid=s.rowid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_max\"=s.valFROM(SELECT_mf_idx,MAX(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -229,7 +229,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"cum_num_max\"=s.valFROM(SELECTctid,MAX(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.ctid=s.ctid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_max\"=s.valFROM(SELECT_mf_idx,MAX(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -243,7 +243,7 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE`s`.`t__op_20240101000000000000`ENGINE=MergeTree()ORDERBYtuple()ASSELECT*,MAX(`num`)OVER(ORDERBY_ch_rowidROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS`run`FROM(SELECT*,ROW_NUMBER()OVER()AS_ch_rowidFROM`s`.`t`)",
+    "CREATETABLE`s`.`t__op_20240101000000000000`ENGINE=MergeTree()ORDERBYtuple()ASSELECT*,MAX(`num`)OVER(ORDERBY_mf_idxROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS`run`FROM(SELECT*,ROW_NUMBER()OVER()AS_mf_idxFROM`s`.`t`)",
     []
    ],
    [
@@ -260,7 +260,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"run\"=s.valFROM(SELECTrowid,MAX(\"num\")OVER(ORDERBY\"rowid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.rowid=s.rowid",
+    "UPDATE\"s\".\"t\"AStSET\"run\"=s.valFROM(SELECT_mf_idx,MAX(\"num\")OVER(ORDERBY\"_mf_idx\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -277,7 +277,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"run\"=s.valFROM(SELECTctid,MAX(\"num\")OVER(ORDERBY\"ctid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.ctid=s.ctid",
+    "UPDATE\"s\".\"t\"AStSET\"run\"=s.valFROM(SELECT_mf_idx,MAX(\"num\")OVER(ORDERBY\"_mf_idx\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -291,7 +291,7 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE`s`.`t__op_20240101000000000000`ENGINE=MergeTree()ORDERBYtuple()ASSELECT*,AVG(`num`)OVER(ORDERBY_ch_rowidROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS`cum_num_mean`FROM(SELECT*,ROW_NUMBER()OVER()AS_ch_rowidFROM`s`.`t`)",
+    "CREATETABLE`s`.`t__op_20240101000000000000`ENGINE=MergeTree()ORDERBYtuple()ASSELECT*,AVG(`num`)OVER(ORDERBY_mf_idxROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS`cum_num_mean`FROM(SELECT*,ROW_NUMBER()OVER()AS_mf_idxFROM`s`.`t`)",
     []
    ],
    [
@@ -308,7 +308,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"cum_num_mean\"=s.valFROM(SELECTrowid,AVG(\"num\")OVER(ORDERBY\"rowid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.rowid=s.rowid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_mean\"=s.valFROM(SELECT_mf_idx,AVG(\"num\")OVER(ORDERBY\"_mf_idx\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -325,7 +325,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"cum_num_mean\"=s.valFROM(SELECTctid,AVG(\"num\")OVER(ORDERBY\"ctid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.ctid=s.ctid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_mean\"=s.valFROM(SELECT_mf_idx,AVG(\"num\")OVER(ORDERBY\"_mf_idx\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -356,7 +356,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"cum_num_mean\"=s.valFROM(SELECTrowid,AVG(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.rowid=s.rowid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_mean\"=s.valFROM(SELECT_mf_idx,AVG(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -373,7 +373,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"cum_num_mean\"=s.valFROM(SELECTctid,AVG(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.ctid=s.ctid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_mean\"=s.valFROM(SELECT_mf_idx,AVG(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -387,7 +387,7 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE`s`.`t__op_20240101000000000000`ENGINE=MergeTree()ORDERBYtuple()ASSELECT*,AVG(`num`)OVER(ORDERBY_ch_rowidROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS`run`FROM(SELECT*,ROW_NUMBER()OVER()AS_ch_rowidFROM`s`.`t`)",
+    "CREATETABLE`s`.`t__op_20240101000000000000`ENGINE=MergeTree()ORDERBYtuple()ASSELECT*,AVG(`num`)OVER(ORDERBY_mf_idxROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS`run`FROM(SELECT*,ROW_NUMBER()OVER()AS_mf_idxFROM`s`.`t`)",
     []
    ],
    [
@@ -404,7 +404,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"run\"=s.valFROM(SELECTrowid,AVG(\"num\")OVER(ORDERBY\"rowid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.rowid=s.rowid",
+    "UPDATE\"s\".\"t\"AStSET\"run\"=s.valFROM(SELECT_mf_idx,AVG(\"num\")OVER(ORDERBY\"_mf_idx\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -421,7 +421,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"run\"=s.valFROM(SELECTctid,AVG(\"num\")OVER(ORDERBY\"ctid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.ctid=s.ctid",
+    "UPDATE\"s\".\"t\"AStSET\"run\"=s.valFROM(SELECT_mf_idx,AVG(\"num\")OVER(ORDERBY\"_mf_idx\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -435,7 +435,7 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE`s`.`t__op_20240101000000000000`ENGINE=MergeTree()ORDERBYtuple()ASSELECT*,MIN(`num`)OVER(ORDERBY_ch_rowidROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS`cum_num_min`FROM(SELECT*,ROW_NUMBER()OVER()AS_ch_rowidFROM`s`.`t`)",
+    "CREATETABLE`s`.`t__op_20240101000000000000`ENGINE=MergeTree()ORDERBYtuple()ASSELECT*,MIN(`num`)OVER(ORDERBY_mf_idxROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS`cum_num_min`FROM(SELECT*,ROW_NUMBER()OVER()AS_mf_idxFROM`s`.`t`)",
     []
    ],
    [
@@ -452,7 +452,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"cum_num_min\"=s.valFROM(SELECTrowid,MIN(\"num\")OVER(ORDERBY\"rowid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.rowid=s.rowid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_min\"=s.valFROM(SELECT_mf_idx,MIN(\"num\")OVER(ORDERBY\"_mf_idx\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -469,7 +469,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"cum_num_min\"=s.valFROM(SELECTctid,MIN(\"num\")OVER(ORDERBY\"ctid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.ctid=s.ctid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_min\"=s.valFROM(SELECT_mf_idx,MIN(\"num\")OVER(ORDERBY\"_mf_idx\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -500,7 +500,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"cum_num_min\"=s.valFROM(SELECTrowid,MIN(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.rowid=s.rowid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_min\"=s.valFROM(SELECT_mf_idx,MIN(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -517,7 +517,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"cum_num_min\"=s.valFROM(SELECTctid,MIN(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.ctid=s.ctid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_min\"=s.valFROM(SELECT_mf_idx,MIN(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -531,7 +531,7 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE`s`.`t__op_20240101000000000000`ENGINE=MergeTree()ORDERBYtuple()ASSELECT*,MIN(`num`)OVER(ORDERBY_ch_rowidROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS`run`FROM(SELECT*,ROW_NUMBER()OVER()AS_ch_rowidFROM`s`.`t`)",
+    "CREATETABLE`s`.`t__op_20240101000000000000`ENGINE=MergeTree()ORDERBYtuple()ASSELECT*,MIN(`num`)OVER(ORDERBY_mf_idxROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS`run`FROM(SELECT*,ROW_NUMBER()OVER()AS_mf_idxFROM`s`.`t`)",
     []
    ],
    [
@@ -548,7 +548,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"run\"=s.valFROM(SELECTrowid,MIN(\"num\")OVER(ORDERBY\"rowid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.rowid=s.rowid",
+    "UPDATE\"s\".\"t\"AStSET\"run\"=s.valFROM(SELECT_mf_idx,MIN(\"num\")OVER(ORDERBY\"_mf_idx\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -565,7 +565,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"run\"=s.valFROM(SELECTctid,MIN(\"num\")OVER(ORDERBY\"ctid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.ctid=s.ctid",
+    "UPDATE\"s\".\"t\"AStSET\"run\"=s.valFROM(SELECT_mf_idx,MIN(\"num\")OVER(ORDERBY\"_mf_idx\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -579,7 +579,7 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE`s`.`t__op_20240101000000000000`ENGINE=MergeTree()ORDERBYtuple()ASSELECT*,EXP(SUM(LN(NULLIF(`num`,0)))OVER(ORDERBY_ch_rowidROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW))AS`cum_num_prod`FROM(SELECT*,ROW_NUMBER()OVER()AS_ch_rowidFROM`s`.`t`)",
+    "CREATETABLE`s`.`t__op_20240101000000000000`ENGINE=MergeTree()ORDERBYtuple()ASSELECT*,EXP(SUM(LN(NULLIF(`num`,0)))OVER(ORDERBY_mf_idxROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW))AS`cum_num_prod`FROM(SELECT*,ROW_NUMBER()OVER()AS_mf_idxFROM`s`.`t`)",
     []
    ],
    [
@@ -596,7 +596,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"cum_num_prod\"=s.valFROM(SELECTrowid,EXP(SUM(LN(NULLIF(\"num\",0)))OVER(ORDERBY\"rowid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW))ASvalFROM\"s\".\"t\")ASsWHEREt.rowid=s.rowid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_prod\"=s.valFROM(SELECT_mf_idx,EXP(SUM(LN(NULLIF(\"num\",0)))OVER(ORDERBY\"_mf_idx\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW))ASvalFROM\"s\".\"t\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -613,7 +613,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"cum_num_prod\"=s.valFROM(SELECTctid,EXP(SUM(LN(NULLIF(\"num\",0)))OVER(ORDERBY\"ctid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW))ASvalFROM\"s\".\"t\")ASsWHEREt.ctid=s.ctid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_prod\"=s.valFROM(SELECT_mf_idx,EXP(SUM(LN(NULLIF(\"num\",0)))OVER(ORDERBY\"_mf_idx\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW))ASvalFROM\"s\".\"t\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -644,7 +644,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"cum_num_prod\"=s.valFROM(SELECTrowid,EXP(SUM(LN(NULLIF(\"num\",0)))OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW))ASvalFROM\"s\".\"t\")ASsWHEREt.rowid=s.rowid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_prod\"=s.valFROM(SELECT_mf_idx,EXP(SUM(LN(NULLIF(\"num\",0)))OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW))ASvalFROM\"s\".\"t\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -661,7 +661,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"cum_num_prod\"=s.valFROM(SELECTctid,EXP(SUM(LN(NULLIF(\"num\",0)))OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW))ASvalFROM\"s\".\"t\")ASsWHEREt.ctid=s.ctid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_prod\"=s.valFROM(SELECT_mf_idx,EXP(SUM(LN(NULLIF(\"num\",0)))OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW))ASvalFROM\"s\".\"t\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -675,7 +675,7 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE`s`.`t__op_20240101000000000000`ENGINE=MergeTree()ORDERBYtuple()ASSELECT*,EXP(SUM(LN(NULLIF(`num`,0)))OVER(ORDERBY_ch_rowidROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW))AS`run`FROM(SELECT*,ROW_NUMBER()OVER()AS_ch_rowidFROM`s`.`t`)",
+    "CREATETABLE`s`.`t__op_20240101000000000000`ENGINE=MergeTree()ORDERBYtuple()ASSELECT*,EXP(SUM(LN(NULLIF(`num`,0)))OVER(ORDERBY_mf_idxROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW))AS`run`FROM(SELECT*,ROW_NUMBER()OVER()AS_mf_idxFROM`s`.`t`)",
     []
    ],
    [
@@ -692,7 +692,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"run\"=s.valFROM(SELECTrowid,EXP(SUM(LN(NULLIF(\"num\",0)))OVER(ORDERBY\"rowid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW))ASvalFROM\"s\".\"t\")ASsWHEREt.rowid=s.rowid",
+    "UPDATE\"s\".\"t\"AStSET\"run\"=s.valFROM(SELECT_mf_idx,EXP(SUM(LN(NULLIF(\"num\",0)))OVER(ORDERBY\"_mf_idx\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW))ASvalFROM\"s\".\"t\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -709,7 +709,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"run\"=s.valFROM(SELECTctid,EXP(SUM(LN(NULLIF(\"num\",0)))OVER(ORDERBY\"ctid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW))ASvalFROM\"s\".\"t\")ASsWHEREt.ctid=s.ctid",
+    "UPDATE\"s\".\"t\"AStSET\"run\"=s.valFROM(SELECT_mf_idx,EXP(SUM(LN(NULLIF(\"num\",0)))OVER(ORDERBY\"_mf_idx\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW))ASvalFROM\"s\".\"t\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -723,7 +723,7 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE`s`.`t__op_20240101000000000000`ENGINE=MergeTree()ORDERBYtuple()ASSELECT*,stddevPop(`num`)OVER(ORDERBY_ch_rowidROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS`cum_num_std`FROM(SELECT*,ROW_NUMBER()OVER()AS_ch_rowidFROM`s`.`t`)",
+    "CREATETABLE`s`.`t__op_20240101000000000000`ENGINE=MergeTree()ORDERBYtuple()ASSELECT*,stddevPop(`num`)OVER(ORDERBY_mf_idxROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS`cum_num_std`FROM(SELECT*,ROW_NUMBER()OVER()AS_mf_idxFROM`s`.`t`)",
     []
    ],
    [
@@ -740,7 +740,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"cum_num_std\"=s.valFROM(SELECTrowid,STDDEV_POP(\"num\")OVER(ORDERBY\"rowid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.rowid=s.rowid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_std\"=s.valFROM(SELECT_mf_idx,STDDEV_POP(\"num\")OVER(ORDERBY\"_mf_idx\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -757,7 +757,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"cum_num_std\"=s.valFROM(SELECTctid,STDDEV_POP(\"num\")OVER(ORDERBY\"ctid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.ctid=s.ctid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_std\"=s.valFROM(SELECT_mf_idx,STDDEV_POP(\"num\")OVER(ORDERBY\"_mf_idx\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -788,7 +788,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"cum_num_std\"=s.valFROM(SELECTrowid,STDDEV_POP(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.rowid=s.rowid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_std\"=s.valFROM(SELECT_mf_idx,STDDEV_POP(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -805,7 +805,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"cum_num_std\"=s.valFROM(SELECTctid,STDDEV_POP(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.ctid=s.ctid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_std\"=s.valFROM(SELECT_mf_idx,STDDEV_POP(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -819,7 +819,7 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE`s`.`t__op_20240101000000000000`ENGINE=MergeTree()ORDERBYtuple()ASSELECT*,stddevPop(`num`)OVER(ORDERBY_ch_rowidROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS`run`FROM(SELECT*,ROW_NUMBER()OVER()AS_ch_rowidFROM`s`.`t`)",
+    "CREATETABLE`s`.`t__op_20240101000000000000`ENGINE=MergeTree()ORDERBYtuple()ASSELECT*,stddevPop(`num`)OVER(ORDERBY_mf_idxROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS`run`FROM(SELECT*,ROW_NUMBER()OVER()AS_mf_idxFROM`s`.`t`)",
     []
    ],
    [
@@ -836,7 +836,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"run\"=s.valFROM(SELECTrowid,STDDEV_POP(\"num\")OVER(ORDERBY\"rowid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.rowid=s.rowid",
+    "UPDATE\"s\".\"t\"AStSET\"run\"=s.valFROM(SELECT_mf_idx,STDDEV_POP(\"num\")OVER(ORDERBY\"_mf_idx\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -853,7 +853,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"run\"=s.valFROM(SELECTctid,STDDEV_POP(\"num\")OVER(ORDERBY\"ctid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.ctid=s.ctid",
+    "UPDATE\"s\".\"t\"AStSET\"run\"=s.valFROM(SELECT_mf_idx,STDDEV_POP(\"num\")OVER(ORDERBY\"_mf_idx\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -867,7 +867,7 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE`s`.`t__op_20240101000000000000`ENGINE=MergeTree()ORDERBYtuple()ASSELECT*,SUM(`num`)OVER(ORDERBY_ch_rowidROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS`cum_num_sum`FROM(SELECT*,ROW_NUMBER()OVER()AS_ch_rowidFROM`s`.`t`)",
+    "CREATETABLE`s`.`t__op_20240101000000000000`ENGINE=MergeTree()ORDERBYtuple()ASSELECT*,SUM(`num`)OVER(ORDERBY_mf_idxROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS`cum_num_sum`FROM(SELECT*,ROW_NUMBER()OVER()AS_mf_idxFROM`s`.`t`)",
     []
    ],
    [
@@ -884,7 +884,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"cum_num_sum\"=s.valFROM(SELECTrowid,SUM(\"num\")OVER(ORDERBY\"rowid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.rowid=s.rowid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_sum\"=s.valFROM(SELECT_mf_idx,SUM(\"num\")OVER(ORDERBY\"_mf_idx\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -901,7 +901,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"cum_num_sum\"=s.valFROM(SELECTctid,SUM(\"num\")OVER(ORDERBY\"ctid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.ctid=s.ctid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_sum\"=s.valFROM(SELECT_mf_idx,SUM(\"num\")OVER(ORDERBY\"_mf_idx\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -932,7 +932,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"cum_num_sum\"=s.valFROM(SELECTrowid,SUM(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.rowid=s.rowid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_sum\"=s.valFROM(SELECT_mf_idx,SUM(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -949,7 +949,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"cum_num_sum\"=s.valFROM(SELECTctid,SUM(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.ctid=s.ctid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_sum\"=s.valFROM(SELECT_mf_idx,SUM(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -963,7 +963,7 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE`s`.`t__op_20240101000000000000`ENGINE=MergeTree()ORDERBYtuple()ASSELECT*,SUM(`num`)OVER(ORDERBY_ch_rowidROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS`run`FROM(SELECT*,ROW_NUMBER()OVER()AS_ch_rowidFROM`s`.`t`)",
+    "CREATETABLE`s`.`t__op_20240101000000000000`ENGINE=MergeTree()ORDERBYtuple()ASSELECT*,SUM(`num`)OVER(ORDERBY_mf_idxROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS`run`FROM(SELECT*,ROW_NUMBER()OVER()AS_mf_idxFROM`s`.`t`)",
     []
    ],
    [
@@ -980,7 +980,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"run\"=s.valFROM(SELECTrowid,SUM(\"num\")OVER(ORDERBY\"rowid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.rowid=s.rowid",
+    "UPDATE\"s\".\"t\"AStSET\"run\"=s.valFROM(SELECT_mf_idx,SUM(\"num\")OVER(ORDERBY\"_mf_idx\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -997,7 +997,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"run\"=s.valFROM(SELECTctid,SUM(\"num\")OVER(ORDERBY\"ctid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.ctid=s.ctid",
+    "UPDATE\"s\".\"t\"AStSET\"run\"=s.valFROM(SELECT_mf_idx,SUM(\"num\")OVER(ORDERBY\"_mf_idx\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -1011,7 +1011,7 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE`s`.`t__op_20240101000000000000`ENGINE=MergeTree()ORDERBYtuple()ASSELECT*,varPop(`num`)OVER(ORDERBY_ch_rowidROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS`cum_num_var`FROM(SELECT*,ROW_NUMBER()OVER()AS_ch_rowidFROM`s`.`t`)",
+    "CREATETABLE`s`.`t__op_20240101000000000000`ENGINE=MergeTree()ORDERBYtuple()ASSELECT*,varPop(`num`)OVER(ORDERBY_mf_idxROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS`cum_num_var`FROM(SELECT*,ROW_NUMBER()OVER()AS_mf_idxFROM`s`.`t`)",
     []
    ],
    [
@@ -1028,7 +1028,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"cum_num_var\"=s.valFROM(SELECTrowid,VAR_POP(\"num\")OVER(ORDERBY\"rowid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.rowid=s.rowid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_var\"=s.valFROM(SELECT_mf_idx,VAR_POP(\"num\")OVER(ORDERBY\"_mf_idx\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -1045,7 +1045,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"cum_num_var\"=s.valFROM(SELECTctid,VAR_POP(\"num\")OVER(ORDERBY\"ctid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.ctid=s.ctid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_var\"=s.valFROM(SELECT_mf_idx,VAR_POP(\"num\")OVER(ORDERBY\"_mf_idx\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -1076,7 +1076,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"cum_num_var\"=s.valFROM(SELECTrowid,VAR_POP(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.rowid=s.rowid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_var\"=s.valFROM(SELECT_mf_idx,VAR_POP(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -1093,7 +1093,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"cum_num_var\"=s.valFROM(SELECTctid,VAR_POP(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.ctid=s.ctid",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_var\"=s.valFROM(SELECT_mf_idx,VAR_POP(\"num\")OVER(ORDERBY\"g\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -1107,7 +1107,7 @@
   "clickhouse": [
    [
     "exec",
-    "CREATETABLE`s`.`t__op_20240101000000000000`ENGINE=MergeTree()ORDERBYtuple()ASSELECT*,varPop(`num`)OVER(ORDERBY_ch_rowidROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS`run`FROM(SELECT*,ROW_NUMBER()OVER()AS_ch_rowidFROM`s`.`t`)",
+    "CREATETABLE`s`.`t__op_20240101000000000000`ENGINE=MergeTree()ORDERBYtuple()ASSELECT*,varPop(`num`)OVER(ORDERBY_mf_idxROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS`run`FROM(SELECT*,ROW_NUMBER()OVER()AS_mf_idxFROM`s`.`t`)",
     []
    ],
    [
@@ -1124,7 +1124,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"run\"=s.valFROM(SELECTrowid,VAR_POP(\"num\")OVER(ORDERBY\"rowid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.rowid=s.rowid",
+    "UPDATE\"s\".\"t\"AStSET\"run\"=s.valFROM(SELECT_mf_idx,VAR_POP(\"num\")OVER(ORDERBY\"_mf_idx\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [
@@ -1141,7 +1141,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"run\"=s.valFROM(SELECTctid,VAR_POP(\"num\")OVER(ORDERBY\"ctid\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt.ctid=s.ctid",
+    "UPDATE\"s\".\"t\"AStSET\"run\"=s.valFROM(SELECT_mf_idx,VAR_POP(\"num\")OVER(ORDERBY\"_mf_idx\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalFROM\"s\".\"t\")ASsWHEREt._mf_idx=s._mf_idx",
     []
    ],
    [

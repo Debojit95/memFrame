@@ -18,7 +18,7 @@ class PostgresWindowOps(WindowOps):
     # --------------------------------------------------
     @property
     def _row_id_col(self) -> str:
-        return "ctid"
+        return "_mf_idx"
 
     def _datetime_epoch_expr(self, column_expr: str) -> str:
         return f"EXTRACT(EPOCH FROM {column_expr})"

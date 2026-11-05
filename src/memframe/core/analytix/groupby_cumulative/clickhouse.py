@@ -20,14 +20,8 @@ class ClickHouseGroupbyCumulativeOps(GroupbyCumulativeOps):
 
     @property
     def _row_id_col(self) -> str:
-        # ClickHouse has no physical row ID.
-        # When order_cols is None, _groupby_cumulative_op uses a
-        # ROW_NUMBER() OVER() subquery fallback instead of this.
-        raise NotImplementedError(
-            "ClickHouse has no physical row identifier. "
-            "Provide order_cols, or rely on the ROW_NUMBER() fallback "
-            "in _groupby_cumulative_op."
-        )
+        # Immutable positional index replaces the physical row id.
+        return "_mf_idx"
 
     async def _after_drop_columns(self, table: str, schema: str) -> None:
         # ponytail: DROP COLUMN is an async MergeTree mutation; poll until

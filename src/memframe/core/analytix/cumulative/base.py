@@ -40,7 +40,7 @@ class CumulativeOps:
     def _row_id_col(self) -> str:
         # ponytail: DuckDB-flavoured default; postgres.py returns "ctid",
         # clickhouse.py returns the synthetic "_ch_rowid".
-        return "rowid"
+        return "_mf_idx"
 
     # ------------------------------------------------------------------
     # Helpers

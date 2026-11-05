@@ -724,7 +724,7 @@
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_1\"ASSELECT*,SUM(\"num\")OVER(PARTITIONBY\"g\"ORDERBYrowidROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"cum_num_sum_by_g\"FROM\"s\".\"t\"",
+    "CREATETABLE\"s\".\"t__op_1\"ASSELECT*,SUM(\"num\")OVER(PARTITIONBY\"g\"ORDERBY_mf_idxROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"cum_num_sum_by_g\"FROM\"s\".\"t\"",
     []
    ],
    [
@@ -743,7 +743,7 @@
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_1\"ASSELECT*,SUM(\"num\")OVER(PARTITIONBY\"g\"ORDERBYctidROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"cum_num_sum_by_g\"FROM\"s\".\"t\"",
+    "CREATETABLE\"s\".\"t__op_1\"ASSELECT*,SUM(\"num\")OVER(PARTITIONBY\"g\"ORDERBY_mf_idxROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"cum_num_sum_by_g\"FROM\"s\".\"t\"",
     []
    ],
    [
