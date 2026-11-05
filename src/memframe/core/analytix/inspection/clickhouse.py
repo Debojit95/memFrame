@@ -2,6 +2,7 @@ from typing import Dict, List, Any
 import pandas as pd
 
 from memframe.core.analytix.inspection.base import GeneralTableOps
+from memframe.core.indexing import MF_IDX
 from memframe.utils.helper import SQLIdentifierSanitizer
 
 
@@ -129,6 +130,8 @@ class ClickHouseTableOps(GeneralTableOps):
 
             # ClickHouse: get current data, add column, recreate table
             df = await self._get_table_dataframe(table, schema)
+            if MF_IDX in df.columns:
+                df = df.sort_values(MF_IDX).reset_index(drop=True)
             df[column] = value
 
             temp_name = await self._save_dataframe_as_table(

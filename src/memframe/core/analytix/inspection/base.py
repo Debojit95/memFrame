@@ -6,7 +6,7 @@ from collections import namedtuple
 from datetime import datetime, timezone
 
 from memframe.db_manager.adapters.base import DatabaseAdapter
-from memframe.core.indexing import HIDDEN_COLUMNS, visible_columns
+from memframe.core.indexing import HIDDEN_COLUMNS, MF_IDX, visible_columns
 from memframe.utils.helper import SQLIdentifierSanitizer
 from memframe.core.analytix._response import fail, ok
 
@@ -364,9 +364,6 @@ class GeneralTableOps:
 
     def _cast_expr(self, col_safe: str, target_type: str, source_type: str, requested_dtype: str) -> str:
         return f'CAST("{col_safe}" AS {target_type}) AS "{col_safe}"'
-
-    def _rowid_column(self) -> str:
-        return "rowid"
 
     def _row_value(self, row: Any, col: str, columns: List[str]) -> Any:
         # DuckDB returns bare tuples
@@ -1009,8 +1006,6 @@ class GeneralTableOps:
 
             await self._exec(f'ALTER TABLE {qualified} ADD COLUMN "{column}" {col_type}')
 
-            id_col = self._rowid_column()
-
             temp_table = f"temp_insert_{column}"
 
             await self._exec(f"CREATE TEMP TABLE {temp_table} (idx INT, val {col_type})")
@@ -1028,12 +1023,8 @@ class GeneralTableOps:
             update_sql = f"""
                 UPDATE {qualified}
                 SET "{column}" = t.val
-                FROM (
-                    SELECT {id_col}, ROW_NUMBER() OVER () - 1 as idx
-                    FROM {qualified}
-                ) base
-                JOIN {temp_table} t ON base.idx = t.idx
-                WHERE {qualified}.{id_col} = base.{id_col}
+                FROM {temp_table} t
+                WHERE {qualified}."{MF_IDX}" = t.idx
             """
 
             await self._exec(update_sql)

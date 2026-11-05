@@ -6,9 +6,6 @@ from memframe.core.analytix.inspection.base import GeneralTableOps
 class PostgresTableOps(GeneralTableOps):
     """PostgreSQL backend — only the hooks that differ from DuckDB."""
 
-    def _rowid_column(self) -> str:
-        return "ctid"
-
     def _numeric_stat_exprs(self, col: str) -> Dict[str, str]:
         return {
             "q25": f'PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY "{col}")',
