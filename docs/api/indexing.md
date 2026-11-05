@@ -51,8 +51,18 @@ memFrame’s public read paths, metadata, statistics, masks and cache hits strip
 - `sort_values(by=...)`
 - filter/groupby predicates
 
-Raw SQL against the physical base table can still see the column; the public
-dataset views exclude it.
+Uploads create:
+
+```text
+memframe_upload.<data_id>__base   physical table (includes _mf_idx)
+memframe_upload.<data_id>        public view (visible columns only)
+```
+
+`memframe_csv_registry.table_name` points at the public view;
+`base_table`/`base_schema` point at the physical table for internal ops.
+A raw `SELECT * FROM memframe_upload.<data_id>` therefore never returns
+`_mf_idx`. Querying the `__base` table directly still exposes it; that is the
+internal source used by memFrame.
 
 ## SyncDB / external tables
 

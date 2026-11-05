@@ -7,6 +7,11 @@ ingests CSV files, Parquet files, and pandas DataFrames into the connected
 DuckDB or PostgreSQL backend. Successful uploads are recorded in
 `memframe_csv_registry.memframe_csv_registry` and return a `ContextManager` bound to the new dataset.
 
+Each upload creates a physical `<data_id>__base` table with the immutable
+`_mf_idx` and a public `<data_id>` view containing only user-visible columns.
+Internal operations use the base table; `SELECT *` on the dataset view never
+returns `_mf_idx`.
+
 Users normally call these methods on a connected `MemFrame` instance. The
 lower-level uploader methods in `src/core/ingestion/upload_manager.py` are
 implementation details used by the wrapper.
