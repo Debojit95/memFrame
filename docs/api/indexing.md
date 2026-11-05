@@ -68,6 +68,19 @@ internal source used by memFrame.
 When an operation adds generated columns, the public view is re-created so
 those columns remain visible through raw SQL as well.
 
+## Derived datasets
+
+Merge, reshape, and `sort_values(..., upload_as_source=True)` create a new
+dataset rather than modifying the source. Each derived dataset gets:
+
+- a fresh `0..n-1` identity space, regardless of the inputs' indices;
+- its own physical `<data_id>__base` table;
+- a public `<data_id>` view with only user-visible columns.
+
+The registry's `mf_source_id` records the dataset the derived one came from.
+Joining datasets never carries the sources' `_mf_idx` into the result; the
+join selects only visible columns.
+
 ## SyncDB / external tables
 
 `register_tables()` does not touch external tables. `set_active(data_id)` adds
