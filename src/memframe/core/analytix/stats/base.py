@@ -6,6 +6,7 @@ import traceback
 import numpy as np
 import pandas as pd
 from memframe.db_manager.adapters.base import DatabaseAdapter
+from memframe.core.indexing import assert_user_column
 from memframe.utils.helper import SQLIdentifierSanitizer
 from memframe.core.analytix._response import fail, ok
 
@@ -709,6 +710,7 @@ class DataStatsOps:
         try:
             c = SQLIdentifierSanitizer.sanitize(column)
             tgt = SQLIdentifierSanitizer.sanitize(target_col) if target_col else f'{c}__diff_seconds'
+            assert_user_column(tgt)
             col_types = await self.db.get_column_types(table, schema)
             if tgt not in col_types:
                 await self._ensure_datetime_diff_column(

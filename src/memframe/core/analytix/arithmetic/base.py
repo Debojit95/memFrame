@@ -7,6 +7,7 @@ import pandas as pd
 
 from memframe.db_manager.adapters.base import DatabaseAdapter
 from memframe.utils.helper import SQLIdentifierSanitizer
+from memframe.core.indexing import assert_user_column
 from memframe.core.analytix._response import fail, ok
 
 
@@ -268,6 +269,7 @@ class ArithmeticOps:
                                 operation_name, backend=None, data_id=None, new_table=None, **extra):
         # Out_2: write the generated column into the active source table; the
         # result is a narrow projection of that table (no cache copy).
+        assert_user_column(target_col)
         tgt_safe = SQLIdentifierSanitizer.sanitize(target_col)
         await self._add_column_if_not_exists(table, schema, tgt_safe)
         qualified = self._qualified_table(table, schema)

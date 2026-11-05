@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional, Union
 import pandas as pd
 
 from memframe.core.analytix._response import fail, ok
+from memframe.core.indexing import assert_user_column
 from memframe.db_manager.adapters.base import DatabaseAdapter
 from memframe.utils.helper import SQLIdentifierSanitizer
 
@@ -177,6 +178,7 @@ class CumulativeOps:
         self, column: str, operation_name: str, target_col: Optional[str]
     ) -> str:
         tgt = target_col or f"cum_{column}_{operation_name}"
+        assert_user_column(tgt)
         return SQLIdentifierSanitizer.sanitize(tgt)
 
     # ------------------------------------------------------------------

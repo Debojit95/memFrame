@@ -48,6 +48,7 @@ memFrame’s public read paths, metadata, statistics, masks and cache hits strip
 
 - upload columns / `dtypes`
 - `rename`, `drop`, `insert`, `update`, `map`
+- arithmetic / cumulative `target_col`
 - `sort_values(by=...)`
 - filter/groupby predicates
 

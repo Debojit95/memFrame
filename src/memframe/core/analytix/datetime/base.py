@@ -3,6 +3,7 @@ import traceback
 from datetime import datetime, timezone
 import pandas as pd
 
+from memframe.core.indexing import assert_user_column
 from memframe.db_manager.adapters.base import DatabaseAdapter
 from memframe.utils.helper import SQLIdentifierSanitizer
 
@@ -867,6 +868,7 @@ class DatetimeOps:
                 return self._error_response(f"Unsupported diff unit: {unit}", [col1, col2], [])
 
             working_table = table
+            assert_user_column(target_col or "")
             new_col = SQLIdentifierSanitizer.sanitize(target_col) if target_col else self._generate_cleaned_column_name(f"{col1}_{col2}", f"diff_{unit}")
             await self._add_new_column_if_not_exists(working_table, schema, new_col, "DOUBLE PRECISION")
 
@@ -1218,6 +1220,7 @@ class DatetimeOps:
                     "business_day offsets only combine with 'days'", [column], [])
 
             working_table = table
+            assert_user_column(target_col or "")
             new_col = SQLIdentifierSanitizer.sanitize(target_col) if target_col else self._generate_cleaned_column_name(column, "offset")
             await self._add_new_column_if_not_exists(working_table, schema, new_col, "TIMESTAMP")
 

@@ -69,13 +69,45 @@ def test_public_view_hides_mf_idx():
 
         # Generated columns must also show up through the public view.
         ctx.add("price", 1)
+        ctx.insert("extra", [1, 2])
+        ctx.filter("price > 10", create_flag=True)
+        ctx.rename({"price": "cost"})
         cols = asyncio.run(mf._backend.fetch(
             "SELECT column_name FROM information_schema.columns "
             "WHERE table_schema = 'memframe_upload' AND table_name = ? "
             "ORDER BY ordinal_position",
             ctx._data_id,
         ))
-        assert [r[0] for r in cols] == ["price", "price_add__1"]
+        assert [r[0] for r in cols] == [
+            "cost", "price_add__1", "extra", "filter_flag",
+        ]
+    finally:
+        asyncio.run(mf.aclose())
+
+
+def test_reserved_index_is_not_a_write_target():
+    import asyncio
+
+    from memframe.exceptions import OperationError
+    from memframe.main import MemFrame
+
+    mf = MemFrame(connection_type="local", connection_params={"db_path": ":memory:"})
+    asyncio.run(mf.aconnect())
+    try:
+        ctx = mf.upload_df(pd.DataFrame({"a": [1, 2]}), filename="guard")
+        with pytest.raises(OperationError):
+            ctx.add("a", 1, target_col=MF_IDX)
+        with pytest.raises(OperationError):
+            ctx.cumsum("a", target_col=MF_IDX)
+        base = asyncio.run(mf._backend.fetchval(
+            f"SELECT base_table FROM {mf._backend.csv_registry_table} "
+            f"WHERE data_id = {mf._backend.placeholder(1)}",
+            ctx._data_id,
+        ))
+        rows = asyncio.run(mf._backend.fetch(
+            f'SELECT "{MF_IDX}" FROM memframe_upload."{base}" ORDER BY "{MF_IDX}"'
+        ))
+        assert [r[0] for r in rows] == [0, 1]
     finally:
         asyncio.run(mf.aclose())
 

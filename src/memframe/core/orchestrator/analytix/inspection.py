@@ -134,12 +134,19 @@ class TableOpsOrchestrator:
 
         table, schema = await self._get_context()
 
-        return await ops.dataframe_insert(
+        result = await ops.dataframe_insert(
             table,
             schema,
             column=column,
             value=value,
         )
+        if isinstance(result, dict) and not result.get("is_error"):
+            uploader = getattr(self._memframe, "_uploader", None)
+            if uploader is not None:
+                data_id = self._data_id or self._memframe._active_id
+                if data_id:
+                    await uploader._refresh_public_view(data_id)
+        return result
 
     @record_call(deep_cache=True)
     async def rename(self, columns: Dict[str, str]) -> Dict[str, Any]:

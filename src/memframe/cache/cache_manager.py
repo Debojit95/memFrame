@@ -1073,7 +1073,11 @@ class CacheManager:
                     and not is_error
                     and isinstance(result, dict)
                     and not result.get("owns_table", False)
-                    and (result.get("generated_cols") or result.get("new_columns"))
+                    and (
+                        result.get("generated_cols")
+                        or result.get("new_columns")
+                        or result.get("flag_column")
+                    )
                 ):
                     uploader = getattr(mf, "_uploader", None)
                     if uploader is not None:

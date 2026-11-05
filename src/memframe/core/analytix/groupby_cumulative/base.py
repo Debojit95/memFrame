@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Optional, Union
 import pandas as pd
 from datetime import datetime, timezone
 
+from memframe.core.indexing import assert_user_column
 from memframe.db_manager.adapters.base import DatabaseAdapter
 from memframe.utils.helper import SQLIdentifierSanitizer
 
@@ -370,6 +371,7 @@ class GroupbyCumulativeOps:
             if order_cols:
                 auto_tgt = f"{auto_tgt}_order_by_{'_'.join(safe_orders)}"
             tgt = target_col or auto_tgt
+            assert_user_column(tgt)
             tgt_safe = SQLIdentifierSanitizer.sanitize(tgt)
 
             map_sig = self._map_sig(
