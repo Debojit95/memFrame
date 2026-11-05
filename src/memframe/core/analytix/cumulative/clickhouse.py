@@ -13,10 +13,10 @@ from memframe.utils.helper import SQLIdentifierSanitizer
 class ClickHouseCumulativeOps(CumulativeOps):
     """ClickHouse backend.
 
-    Dialect hooks (native ``stddevPop``/``varPop``, ``UInt64`` count type,
-    synthetic ``_ch_rowid``) plus one structural override: the window is
-    computed inline in a single CTAS because asynchronous ``UPDATE``
-    mutations can return stale data.
+    Dialect hooks (native ``stddevPop``/``varPop``, ``UInt64`` count type)
+    plus one structural override: the window is computed inline in a single
+    CTAS because asynchronous ``UPDATE`` mutations can return stale data.
+    Ordering falls back to the immutable ``_mf_idx``.
     """
 
     _std_fn = "stddevPop"
@@ -25,7 +25,7 @@ class ClickHouseCumulativeOps(CumulativeOps):
 
     @property
     def _row_id_col(self) -> str:
-        # ClickHouse has no native rowid — use synthetic _ch_rowid
+        # Immutable positional index is the stable row order.
         return "_mf_idx"
 
     async def _cumulative_op(
@@ -62,8 +62,8 @@ class ClickHouseCumulativeOps(CumulativeOps):
                 order_sql = ", ".join(self.db.quote_identifier(c) for c in safe_orders)
                 display_orders = safe_orders
             else:
-                # No user order → synthetic rowid via subquery
-                order_sql = self._row_id_col
+                # No user order → immutable positional index.
+                order_sql = self.db.quote_identifier(self._row_id_col)
                 display_orders = []
 
             # ── 3. Build window spec & full expression ──
@@ -82,29 +82,13 @@ class ClickHouseCumulativeOps(CumulativeOps):
                 f".{self.db.quote_identifier(working_table)}"
             )
 
-            if user_provided_order:
-                # Direct CTAS — no synthetic rowid needed
-                create_sql = f"""
-                    CREATE TABLE {qualified_target}
-                    ENGINE = MergeTree()
-                    ORDER BY tuple()
-                    AS SELECT *, {full_window} AS {tgt_q}
-                    FROM {qualified_source}
-                """
-            else:
-                # Subquery adds _ch_rowid via ROW_NUMBER()
-                # so the window function has a deterministic order
-                create_sql = f"""
-                    CREATE TABLE {qualified_target}
-                    ENGINE = MergeTree()
-                    ORDER BY tuple()
-                    AS
-                    SELECT *, {full_window} AS {tgt_q}
-                    FROM (
-                        SELECT *, ROW_NUMBER() OVER() AS {self._row_id_col}
-                        FROM {qualified_source}
-                    )
-                """
+            create_sql = f"""
+                CREATE TABLE {qualified_target}
+                ENGINE = MergeTree()
+                ORDER BY tuple()
+                AS SELECT *, {full_window} AS {tgt_q}
+                FROM {qualified_source}
+            """
 
             await self._exec(create_sql)
 

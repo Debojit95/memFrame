@@ -122,16 +122,11 @@ class ClickHouseGroupbyCumulativeOps(GroupbyCumulativeOps):
             safe_groups = [SQLIdentifierSanitizer.sanitize(c) for c in group_cols]
 
             # ------ Resolve ordering ------
-            # ClickHouse has no physical row ID (no ctid / rowid).
-            # When order_cols is None we inject a synthetic _mf_row_num
-            # via ROW_NUMBER() OVER() in a subquery, then EXCLUDE it
-            # from the final output so chained operations stay clean.
+            # The immutable _mf_idx is the stable positional order.
             if order_cols is None:
-                use_row_num_fallback = True
-                safe_orders = ["_mf_row_num"]
-                order_sql = self.db.quote_identifier("_mf_row_num")
+                safe_orders = ["_mf_idx"]
+                order_sql = self.db.quote_identifier("_mf_idx")
             else:
-                use_row_num_fallback = False
                 if isinstance(order_cols, str):
                     order_cols = [order_cols]
                 safe_orders = [SQLIdentifierSanitizer.sanitize(c) for c in order_cols]
@@ -182,37 +177,14 @@ class ClickHouseGroupbyCumulativeOps(GroupbyCumulativeOps):
             # ------ CREATE TABLE AS SELECT ------
             # ClickHouse *requires* an ENGINE clause.
             # MergeTree with ORDER BY tuple() = no enforced sort order.
-            #
-            # When no order_cols were given we wrap the source in a
-            # subquery that adds _mf_row_num, then strip it out with
-            # SELECT * EXCEPT(_mf_row_num) so the cache result
-            # stays clean for downstream chaining.
-            if use_row_num_fallback:
-                fallback_star = await self._source_star(table, schema, [tgt_safe])
-                fallback_head = (
-                    "SELECT * EXCEPT(_mf_row_num),"
-                    if fallback_star == "*"
-                    else f"SELECT {fallback_star},"
-                )
-                create_sql = (
-                    f"CREATE TABLE {output_qualified} "
-                    f"ENGINE = MergeTree() ORDER BY tuple() AS\n"
-                    f"{fallback_head}\n"
-                    f"    {full_window} AS {self.db.quote_identifier(tgt_safe)}\n"
-                    f"FROM (\n"
-                    f"    SELECT *, ROW_NUMBER() OVER() AS _mf_row_num\n"
-                    f"    FROM {source_qualified}\n"
-                    f")"
-                )
-            else:
-                ordered_star = await self._source_star(table, schema, [tgt_safe])
-                create_sql = (
-                    f"CREATE TABLE {output_qualified} "
-                    f"ENGINE = MergeTree() ORDER BY tuple() AS\n"
-                    f"SELECT {ordered_star},\n"
-                    f"    {full_window} AS {self.db.quote_identifier(tgt_safe)}\n"
-                    f"FROM {source_qualified}"
-                )
+            ordered_star = await self._source_star(table, schema, [tgt_safe])
+            create_sql = (
+                f"CREATE TABLE {output_qualified} "
+                f"ENGINE = MergeTree() ORDER BY tuple() AS\n"
+                f"SELECT {ordered_star},\n"
+                f"    {full_window} AS {self.db.quote_identifier(tgt_safe)}\n"
+                f"FROM {source_qualified}"
+            )
 
             await self._exec(create_sql)
 

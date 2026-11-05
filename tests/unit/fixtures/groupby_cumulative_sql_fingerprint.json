@@ -705,7 +705,7 @@
    ],
    [
     "exec",
-    "CREATETABLE`s`.`t__op_1`ENGINE=MergeTree()ORDERBYtuple()ASSELECT*EXCEPT(_mf_row_num),SUM(`num`)OVER(PARTITIONBY`g`ORDERBY`_mf_row_num`ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS`cum_num_sum_by_g`FROM(SELECT*,ROW_NUMBER()OVER()AS_mf_row_numFROM`s`.`t`)",
+    "CREATETABLE`s`.`t__op_1`ENGINE=MergeTree()ORDERBYtuple()ASSELECT*,SUM(`num`)OVER(PARTITIONBY`g`ORDERBY`_mf_idx`ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS`cum_num_sum_by_g`FROM`s`.`t`",
     []
    ],
    [

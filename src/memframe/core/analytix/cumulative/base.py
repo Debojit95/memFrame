@@ -39,8 +39,7 @@ class CumulativeOps:
     # ------------------------------------------------------------------
     @property
     def _row_id_col(self) -> str:
-        # ponytail: DuckDB-flavoured default; postgres.py returns "ctid",
-        # clickhouse.py returns the synthetic "_ch_rowid".
+        # The immutable positional index is the row identity everywhere.
         return "_mf_idx"
 
     # ------------------------------------------------------------------
