@@ -1066,6 +1066,25 @@ class CacheManager:
                                 payload["method_name"], data_id, opidx, exc,
                             )
 
+                # Generated columns land on the physical base table; keep the
+                # public view's column list in sync so raw SELECT * sees them.
+                if (
+                    backend
+                    and not is_error
+                    and isinstance(result, dict)
+                    and not result.get("owns_table", False)
+                    and (result.get("generated_cols") or result.get("new_columns"))
+                ):
+                    uploader = getattr(mf, "_uploader", None)
+                    if uploader is not None:
+                        try:
+                            await uploader._refresh_public_view(data_id)
+                        except Exception as exc:
+                            logger.warning(
+                                "[cache] public view refresh failed for data_id=%s: %s",
+                                data_id, exc,
+                            )
+
                 if store_deep and cache_kind == "actual":
                     logger.info(
                         "[cache] STORE %s.%s data_id=%s (actual payload)",

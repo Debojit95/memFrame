@@ -212,6 +212,20 @@ class Uploader(DuckDBUploadImpl, PostgresUploadImpl, ClickHouseUploadImpl):
             logical, max(int(row_count or 0) - 1, 0), data_id,
         )
 
+    async def _refresh_public_view(self, data_id: str) -> None:
+        """Rebuild the public view after generated columns are added."""
+        backend = self._backend
+        row = await backend.fetch_row(
+            f"SELECT base_table, base_schema FROM {backend.csv_registry_table} "
+            f"WHERE data_id = {self._placeholder(1)}",
+            data_id,
+        )
+        if not row or not row[0]:
+            return
+        await self._create_public_view(
+            data_id, row[0], row[1] or backend.upload_schema
+        )
+
     async def _promote_public_view(self, data_id: str, schema: str) -> None:
         """Rename a derived table to <data_id>__base and expose a public view."""
         backend = self._backend

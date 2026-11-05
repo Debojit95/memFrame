@@ -66,6 +66,16 @@ def test_public_view_hides_mf_idx():
         ))
         assert [r[0] for r in cols] == ["price"]
         assert rows == [(10,), (20,)]
+
+        # Generated columns must also show up through the public view.
+        ctx.add("price", 1)
+        cols = asyncio.run(mf._backend.fetch(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_schema = 'memframe_upload' AND table_name = ? "
+            "ORDER BY ordinal_position",
+            ctx._data_id,
+        ))
+        assert [r[0] for r in cols] == ["price", "price_add__1"]
     finally:
         asyncio.run(mf.aclose())
 

@@ -64,6 +64,9 @@ A raw `SELECT * FROM memframe_upload.<data_id>` therefore never returns
 `_mf_idx`. Querying the `__base` table directly still exposes it; that is the
 internal source used by memFrame.
 
+When an operation adds generated columns, the public view is re-created so
+those columns remain visible through raw SQL as well.
+
 ## SyncDB / external tables
 
 `register_tables()` does not touch external tables. `set_active(data_id)` adds
