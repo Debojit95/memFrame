@@ -224,8 +224,13 @@ class TestFingerprint:
         assert _ops_count(mf, data_id) == 1  # HIT stores nothing new
 
         # Out-of-band edit changes the base: same call must MISS and heal.
+        base = asyncio.run(mf._backend.fetchval(
+            f"SELECT base_table FROM {mf._backend.csv_registry_table} "
+            f"WHERE data_id = {mf._backend.placeholder(1)}",
+            data_id,
+        ))
         asyncio.run(mf._backend.execute(
-            f'INSERT INTO memframe_upload."{data_id}" ("x") VALUES (4)'
+            f'INSERT INTO memframe_upload."{base}" ("x") VALUES (4)'
         ))
         third = asyncio.run(ops.do(1))
         assert "result_metadata" not in third

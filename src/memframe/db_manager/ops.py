@@ -134,18 +134,22 @@ class OpsMixin:
 
     async def aset_active(self, data_id: str) -> ContextManager:
         row = await self._backend.fetch_row(
-            f"SELECT table_name, schema FROM {self._backend.csv_registry_table} "
+            f"SELECT table_name, schema, base_table, base_schema "
+            f"FROM {self._backend.csv_registry_table} "
             f"WHERE data_id = {self._placeholder(1)}",
             data_id,
         )
         if not row:
             raise DataNotFound(f"No registry entry for {data_id}")
-        table_name = row[0]
-        schema = row[1] or self._backend.upload_schema
-        qualified = f"{schema}.{table_name}" if schema else table_name
+        base_table = row[2] if len(row) > 2 and row[2] else row[0]
+        schema = (
+            (row[3] if len(row) > 3 and row[3] else row[1])
+            or self._backend.upload_schema
+        )
+        qualified = f"{schema}.{base_table}" if schema else base_table
         if not await self._backend.table_exists(qualified):
             raise DataNotFound(f"Table for data_id '{data_id}' does not exist")
-        await self._ensure_mf_idx(data_id, table_name, schema)
+        await self._ensure_mf_idx(data_id, base_table, schema)
         self._active_id = data_id
         logger.info(f"Active CSV set to {data_id}")
         # ponytail: return a context bound to this data_id, matching the
@@ -180,14 +184,20 @@ class OpsMixin:
                 raise DataNotFound(f"No table found for filename: {filename}")
             data_id = row[0]
         row = await self._backend.fetch_row(
-            f"SELECT table_name, is_external FROM {self._backend.csv_registry_table} "
+            f"SELECT table_name, is_external, base_table, base_schema "
+            f"FROM {self._backend.csv_registry_table} "
             f"WHERE data_id = {self._placeholder(1)}",
             data_id,
         )
         if not row:
             raise DataNotFound(f"No table found for data_id: {data_id}")
-        upload_table = row[0]
+        public_table = row[0]
         is_external = bool(row[1]) if len(row) > 1 else False
+        base_table = row[2] if len(row) > 2 else None
+        base_schema = (
+            (row[3] if len(row) > 3 else None)
+            or self._backend.upload_schema
+        )
         cache_rows = await self._owned_cache_tables(data_id)
         # ponytail: one transaction — drops + registry deletes commit together,
         # so a crash can't leave tables without rows or rows without tables.
@@ -202,7 +212,18 @@ class OpsMixin:
             # ponytail: synced tables live outside memFrame — never drop the
             # user's real table, only its registry/cache entries.
             if not is_external:
-                await self._backend.drop_table(upload_table)
+                q_public = self._backend.qualify_table(
+                    self._backend.upload_schema, public_table
+                )
+                if base_table:
+                    await self._backend.execute(
+                        f"DROP VIEW IF EXISTS {q_public}"
+                    )
+                    await self._backend.drop_table(
+                        self._backend.qualify_table(base_schema, base_table)
+                    )
+                else:
+                    await self._backend.drop_table(q_public)
             await self._delete_cache_payloads(data_id)
             await self._backend.execute(
                 f"DELETE FROM {self._backend.csv_registry_table} WHERE data_id = {self._placeholder(1)}",

@@ -12,7 +12,9 @@ if TYPE_CHECKING:
     import pandas as pd
 
 from memframe.core.ingestion.datatype_detector import Backend
-from memframe.core.indexing import mf_idx_sql_type, select_mf_idx_dtype
+from memframe.core.indexing import (
+    mf_idx_sql_type, select_mf_idx_dtype, visible_columns,
+)
 from memframe.db_manager.context import ContextManager
 from memframe.exceptions import ConfigurationError
 
@@ -209,6 +211,40 @@ class Uploader(DuckDBUploadImpl, PostgresUploadImpl, ClickHouseUploadImpl):
             f"WHERE data_id = {backend.placeholder(3)}",
             logical, max(int(row_count or 0) - 1, 0), data_id,
         )
+
+    async def _create_public_view(
+        self, data_id: str, base_table: str, schema: str
+    ) -> None:
+        """Public view over the physical table, excluding _mf_idx."""
+        backend = self._backend
+        base = backend.qualify_table(schema, base_table)
+        if getattr(backend, "backend", None) == Backend.CLICKHOUSE:
+            rows = await self.fetch(f"DESCRIBE TABLE {base}")
+            all_cols = [r[0] for r in rows]
+        else:
+            rows = await self.fetch(
+                "SELECT column_name FROM information_schema.columns "
+                f"WHERE table_schema = {self._placeholder(1)} "
+                f"AND table_name = {self._placeholder(2)} "
+                "ORDER BY ordinal_position",
+                schema, base_table,
+            )
+            all_cols = [r[0] for r in rows]
+        cols = visible_columns(all_cols)
+        if not cols:
+            return
+        col_sql = ", ".join(self._quote_identifier(str(c)) for c in cols)
+        view = backend.qualify_table(backend.upload_schema, data_id)
+        base = backend.qualify_table(schema, base_table)
+        try:
+            await self.execute(
+                f"CREATE OR REPLACE VIEW {view} AS SELECT {col_sql} FROM {base}"
+            )
+        except Exception:
+            await self.execute(f"DROP VIEW IF EXISTS {view}")
+            await self.execute(
+                f"CREATE VIEW {view} AS SELECT {col_sql} FROM {base}"
+            )
 
     async def drop_table(self, table_name: str) -> None:
         await self._backend.drop_table(table_name)

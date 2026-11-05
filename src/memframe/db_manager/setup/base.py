@@ -261,6 +261,24 @@ class DatabaseBackend(ABC):
                     f"ALTER TABLE {fq_table_name} ADD COLUMN cache_epoch BIGINT DEFAULT 0"
                 )
 
+        if not await self._column_exists(schema_name, table_name, "base_table"):
+            if self.backend == "clickhouse":
+                await self.execute(
+                    f"ALTER TABLE {fq_table_name} ADD COLUMN IF NOT EXISTS base_table Nullable(String)"
+                )
+            else:
+                await self.execute(
+                    f"ALTER TABLE {fq_table_name} ADD COLUMN base_table TEXT"
+                )
+        if not await self._column_exists(schema_name, table_name, "base_schema"):
+            if self.backend == "clickhouse":
+                await self.execute(
+                    f"ALTER TABLE {fq_table_name} ADD COLUMN IF NOT EXISTS base_schema Nullable(String)"
+                )
+            else:
+                await self.execute(
+                    f"ALTER TABLE {fq_table_name} ADD COLUMN base_schema TEXT"
+                )
         if not await self._column_exists(schema_name, table_name, "mf_idx_dtype"):
             if self.backend == "clickhouse":
                 await self.execute(

@@ -411,7 +411,10 @@ class ContextManager:
             raise DataNotFound("No active dataset and no explicit data_id provided.")
         backend = self.memframe._backend
         rows = await backend.fetch(
-            f"SELECT table_name, schema FROM {backend.csv_registry_table} WHERE data_id = {backend.placeholder(1)}",
+            f"SELECT COALESCE(base_table, table_name), "
+            f"COALESCE(base_schema, schema) "
+            f"FROM {backend.csv_registry_table} "
+            f"WHERE data_id = {backend.placeholder(1)}",
             data_id,
         )
         if not rows:

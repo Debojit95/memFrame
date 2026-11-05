@@ -136,7 +136,8 @@ def test_context_snapshots_active_dataset_at_creation():
         assert loose._data_id is None  # created empty -> still follows active
 
         table, _ = asyncio.run(loose._get_active_context())
-        assert table == ctx_b._data_id  # MemFrame-level "active" semantics intact
+        # Internal ops use the physical base table; the public name is a view.
+        assert table == f"{ctx_b._data_id}__base"  # MemFrame-level "active" semantics intact
     finally:
         asyncio.run(mf.aclose())
 

@@ -28,9 +28,9 @@ class UploadStrategy(ABC):
     async def _alloc_data_id(self) -> Tuple[str, str]:
         while True:
             data_id = _generate_6char_id()
-            table_name = self._uploader.get_upload_table_name(data_id)
-            if not await self._uploader.table_exists(table_name):
-                return data_id, table_name
+            base_table = f"{self._uploader.get_upload_table_name(data_id)}__base"
+            if not await self._uploader.table_exists(base_table):
+                return data_id, base_table
 
     async def _register(
         self,
@@ -39,19 +39,24 @@ class UploadStrategy(ABC):
         table_name: str,
         row_count: int,
     ) -> None:
-        await self._uploader._backend.execute(
+        backend = self._uploader._backend
+        schema = backend.upload_schema
+        await backend.execute(
             f"""
-            INSERT INTO {self._uploader._backend.csv_registry_table} (data_id, filename, table_name, row_count, is_upload_success, schema)
-            VALUES ({self._uploader._placeholder(1)}, {self._uploader._placeholder(2)}, {self._uploader._placeholder(3)}, {self._uploader._placeholder(4)}, {self._uploader._placeholder(5)}, {self._uploader._placeholder(6)})
+            INSERT INTO {backend.csv_registry_table} (data_id, filename, table_name, row_count, is_upload_success, schema, base_table, base_schema)
+            VALUES ({self._uploader._placeholder(1)}, {self._uploader._placeholder(2)}, {self._uploader._placeholder(3)}, {self._uploader._placeholder(4)}, {self._uploader._placeholder(5)}, {self._uploader._placeholder(6)}, {self._uploader._placeholder(7)}, {self._uploader._placeholder(8)})
             """,
             data_id,
             filename,
-            table_name,
+            data_id,
             row_count,
             True,
-            self._uploader._backend.upload_schema,
+            schema,
+            table_name,
+            schema,
         )
         await self._uploader._ensure_mf_idx(data_id, table_name, row_count)
+        await self._uploader._create_public_view(data_id, table_name, schema)
 
     async def _require_connection(self) -> None:
         if not self._uploader._backend:

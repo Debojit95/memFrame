@@ -58,8 +58,8 @@ class SortingOrchestrator:
             f"VALUES ({backend.placeholder(1)}, {backend.placeholder(2)}, "
             f"{backend.placeholder(3)}, {backend.placeholder(4)}, "
             f"{backend.placeholder(5)}, {backend.placeholder(6)}, {backend.placeholder(7)})",
-            new_id, f"sort_{table}", new_id, row_count, True,
-            backend.upload_schema, table,
+            new_id, f"sort_{self._data_id or table}", new_id, row_count, True,
+            backend.upload_schema, self._data_id or table,
         )
         await self._memframe._uploader._ensure_mf_idx(new_id, new_id, row_count)
         try:
