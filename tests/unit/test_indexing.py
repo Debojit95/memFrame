@@ -45,3 +45,26 @@ def test_strip_hidden():
     df = pd.DataFrame({MF_IDX: [0, 1], "price": [10, 20]})
     out = strip_hidden(df)
     assert list(out.columns) == ["price"]
+
+
+def test_public_view_hides_mf_idx():
+    import asyncio
+
+    from memframe.main import MemFrame
+
+    mf = MemFrame(connection_type="local", connection_params={"db_path": ":memory:"})
+    asyncio.run(mf.aconnect())
+    try:
+        ctx = mf.upload_df(pd.DataFrame({"price": [10, 20]}), filename="idx_view")
+        rows = asyncio.run(mf._backend.fetch(
+            f'SELECT * FROM memframe_upload."{ctx._data_id}"'
+        ))
+        cols = asyncio.run(mf._backend.fetch(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_schema = 'memframe_upload' AND table_name = ?",
+            ctx._data_id,
+        ))
+        assert [r[0] for r in cols] == ["price"]
+        assert rows == [(10,), (20,)]
+    finally:
+        asyncio.run(mf.aclose())
