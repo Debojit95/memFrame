@@ -59,6 +59,19 @@ records the same source ref.
 `owns_table` is `false` for source refs. Cache clear/delete never drops a
 source table.
 
+Filtering and sorting also use refs, with a small selection/permutation table
+in `memframe_cache`:
+
+```text
+order_kind  = 'filter' | 'sort'
+order_table = '<base>__op_<n>'
+```
+
+The order table holds only `(position, _mf_idx)`. Replay joins the source to
+it and orders by `position`, so no filtered or sorted copy of the data is
+stored. `filter(..., create_flag=True)` additionally writes the flag column
+into the source and bumps the epoch.
+
 ### Group-by operations
 
 The cache kind follows whether the operation writes to the source:

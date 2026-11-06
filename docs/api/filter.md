@@ -4,10 +4,10 @@ Source: `src/memframe/wrappers/analytix/filter.py`
 
 `FilteringWrapper` is the public filtering interface exposed through a
 `ContextManager`. It filters *rows*: a string expression is parsed into a
-predicate tree, compiled to a SQL `WHERE` clause, and the matching rows are
-written to a freshly created cache table — the source table is never
-mutated. Unlike comparison, which adds a boolean column, filtering returns
-only the rows that satisfy the expression.
+predicate tree, compiled to a SQL `WHERE` clause, and the matching
+`_mf_idx` values are stored as a selection in `memframe_cache`. The result is
+a view over the source joined to that selection — no full copy of the source
+is created. The source is only mutated when `create_flag=True`.
 
 ```python
 dataset = mf.DataFrame(frame)
@@ -18,9 +18,9 @@ The lower-level files are implementation details:
 
 - `src/memframe/core/analytix/filter/filter_I.py` defines the predicate tree
   and compiles it to parameterized SQL per backend.
-- `src/memframe/core/analytix/filter/filter_II/` executes the filter as
-  `CREATE TABLE ... AS SELECT ... WHERE ...` (with a `MergeTree` engine clause
-  on ClickHouse) and returns a sample or a chunked iterator.
+- `src/memframe/core/analytix/filter/filter_II/` compiles the predicate,
+  writes a `(position, _mf_idx)` selection table to `memframe_cache`, and
+  returns the matching rows from a source join (or a chunked iterator).
 - `src/memframe/core/orchestrator/analytix/filter.py` resolves the active dataset
   context, parses string expressions, and passes persistence metadata.
 - `src/memframe/wrappers/analytix/filter.py` exposes synchronous and asynchronous
@@ -93,9 +93,9 @@ async for chunk in response["iterator"]:
     process(chunk)
 ```
 
-The iterator reads the cache table lazily, so streaming requires
-`deep_cache=True` on the `MemFrame` — in default signature-only mode the table
-is dropped when the call returns and the first pull fails.
+The iterator reads the selection table lazily, so streaming requires
+`deep_cache=True` on the `MemFrame` — in default signature-only mode the
+selection is dropped when the call returns and the first pull fails.
 
 ## Flag Column
 
@@ -137,8 +137,24 @@ Rules:
 
 `filter` applies `@record_call`, so calls are recorded in the cache
 registry like every other orchestrated operation. With `deep_cache=True` the
-result table persists and repeat calls replay it; otherwise the call is
-signature-logged only.
+result is a source **ref**:
+
+```text
+cache_kind  = 'ref'
+ref_schema  = 'memframe_upload'
+ref_table   = '<data_id>__base'
+order_schema= 'memframe_cache'
+order_table = '<data_id>__base__op_<n>'
+order_kind  = 'filter'
+```
+
+The order table contains only `position` and `_mf_idx`; replay joins the
+source against it and orders by `position`. No filtered copy is stored.
+`create_flag=True` adds the flag column name to `generated_cols`, marks the
+entry as mutating, and bumps the cache epoch so older entries are invalidated.
+
+With `deep_cache=False` the selection table is dropped after the result is
+materialized (streaming iterators require `deep_cache=True`).
 
 ## API Reference
 
