@@ -1287,6 +1287,7 @@ class GeneralTableOps:
                 message=f"Table '{table}' updated using '{other_table}'",
                 involved_cols=[on] + common_cols,
                 generated_cols=common_cols,
+                mutates=True,
                 result_metadata={
                     "updated_columns": common_cols,
                     "overwrite": overwrite,

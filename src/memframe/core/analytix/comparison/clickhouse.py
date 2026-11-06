@@ -2,6 +2,8 @@ from typing import Any, Dict, Optional
 import traceback
 
 from memframe.core.analytix.comparison.base import ComparisonOps
+from memframe.core.analytix._generated import swap_table_into_source
+from memframe.core.indexing import MF_IDX
 from memframe.utils.helper import SQLIdentifierSanitizer
 
 
@@ -58,10 +60,21 @@ class ClickHouseComparisonOps(ComparisonOps):
                 backend=backend, data_id=data_id, new_table=new_table
             )
 
-            # Sample result from the working table
-            sample = await self._fetch_data(
-                working_table, schema, columns=[safe_col1, safe_col2, safe_new]
+            await swap_table_into_source(
+                self.db, backend, schema, table, working_table,
+                generated=[safe_new],
             )
+
+            # Sample the source in canonical index order.
+            sample = await self._fetch_data(
+                table, schema, columns=[safe_col1, safe_col2, safe_new, MF_IDX]
+            )
+            if MF_IDX in sample.columns:
+                sample = (
+                    sample.sort_values(MF_IDX)
+                    .drop(columns=[MF_IDX])
+                    .reset_index(drop=True)
+                )
 
             return self._success_response(
                 f"Compared {col1} {operator} {col2} → {new_col}",
@@ -70,7 +83,15 @@ class ClickHouseComparisonOps(ComparisonOps):
                 col2=col2,
                 operator=operator,
                 new_column=new_col,
-                new_table=working_table,
+                new_table=table,
+                involved_cols=[safe_col1, safe_col2],
+                generated_cols=[safe_new],
+                result_cols=[safe_col1, safe_col2, safe_new],
+                cache_kind="ref",
+                ref_schema=schema,
+                ref_table=table,
+                mutates=True,
+                order_kind="mf_idx",
             )
 
         except Exception as e:

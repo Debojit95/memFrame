@@ -408,6 +408,17 @@ class GroupByStatsOps:
             if not select_parts:
                 raise ValueError("No valid aggregate expressions generated.")
 
+            try:
+                source_cols = set(await self.db.get_column_types(table, schema) or {})
+            except Exception:
+                source_cols = set()
+            missing = [c for c in agg_spec if c not in source_cols]
+            if missing and source_cols:
+                return self._error_response(
+                    f"Group-by aggregation failed: unknown column(s) {missing}",
+                    group_cols=safe_group_cols,
+                )
+
             map_sig = self._map_sig(safe_group_cols, agg_spec, new_columns)
             if map_feature:
                 collision = await self._check_map_collision(
@@ -430,6 +441,7 @@ class GroupByStatsOps:
                 table, schema, backend=backend, data_id=data_id, new_table=new_table
             )
             output_qualified = self._qualified_table(output_table, schema)
+            created = False
 
             create_sql = self._create_table_sql(
                 output_table,
@@ -440,6 +452,7 @@ class GroupByStatsOps:
                 """,
             )
             await self._exec(create_sql)
+            created = True
 
             preview_cols = safe_group_cols + new_columns
             ref_meta: Dict[str, Any] = {
@@ -498,6 +511,13 @@ class GroupByStatsOps:
             )
 
         except Exception as e:
+            if locals().get("created") and locals().get("output_qualified"):
+                try:
+                    await self._exec(
+                        f"DROP TABLE IF EXISTS {output_qualified}"
+                    )
+                except Exception:
+                    pass
             return self._error_response(
                 f"Group-by aggregation failed: {str(e)}\n{traceback.format_exc()}",
                 group_cols=group_cols if 'group_cols' in locals() else [],

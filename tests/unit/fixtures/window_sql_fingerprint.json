@@ -139,13 +139,8 @@
     []
    ],
    [
-    "exec",
-    "CREATETABLE`s`.`t__op_1__rowid_20240101000000000000`ASSELECT*,ROW_NUMBER()OVER()AS`__totem_rowid`FROM`s`.`t__op_1`",
-    []
-   ],
-   [
     "fetch",
-    "SELECT`num`ASvFROM`s`.`t__op_1__rowid_20240101000000000000`ORDERBY`__totem_rowid`",
+    "SELECT`num`ASvFROM`s`.`t__op_1`ORDERBY`_mf_idx`",
     []
    ],
    [
@@ -167,7 +162,7 @@
    ],
    [
     "exec",
-    "CREATETABLE`s`.`t__op_1`ASWITH__baseAS(SELECT*,ROW_NUMBER()OVER(ORDERBY`__totem_rowid`)ASrnFROM`s`.`t__op_1__rowid_20240101000000000000`)SELECTb.*,e.`num_ewm_mean`AS`num_ewm_mean`,e.`num_ewm_std`AS`num_ewm_std`FROM__basebLEFTJOIN`s`.`t__op_1__ewm_stage_20240101000000000000`eONb.rn=e.`rn`",
+    "CREATETABLE`s`.`t__op_1`ASWITH__baseAS(SELECT*,ROW_NUMBER()OVER(ORDERBY`_mf_idx`)ASrnFROM`s`.`t__op_1`)SELECTb.*,e.`num_ewm_mean`AS`num_ewm_mean`,e.`num_ewm_std`AS`num_ewm_std`FROM__basebLEFTJOIN`s`.`t__op_1__ewm_stage_20240101000000000000`eONb.rn=e.`rn`",
     []
    ],
    [
@@ -195,13 +190,8 @@
     []
    ],
    [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_1__rowid_20240101000000000000\"ASSELECT*,ROW_NUMBER()OVER()AS\"__totem_rowid\"FROM\"s\".\"t__op_1\"",
-    []
-   ],
-   [
     "fetch",
-    "SELECT\"num\"ASvFROM\"s\".\"t__op_1__rowid_20240101000000000000\"ORDERBY\"__totem_rowid\"",
+    "SELECT\"num\"ASvFROM\"s\".\"t__op_1\"ORDERBY\"_mf_idx\"",
     []
    ],
    [
@@ -213,7 +203,7 @@
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_1\"ASWITH__baseAS(SELECT*,ROW_NUMBER()OVER(ORDERBY\"__totem_rowid\")ASrnFROM\"s\".\"t__op_1__rowid_20240101000000000000\"),__ewmAS(SELECT*FROM(VALUES)ASt(\"rn\",\"num_ewm_mean\",\"num_ewm_std\"))SELECTb.*,e.\"num_ewm_mean\"AS\"num_ewm_mean\",e.\"num_ewm_std\"AS\"num_ewm_std\"FROM__basebLEFTJOIN__ewmeONb.rn=e.\"rn\"",
+    "CREATETABLE\"s\".\"t__op_1\"ASWITH__baseAS(SELECT*,ROW_NUMBER()OVER(ORDERBY\"_mf_idx\")ASrnFROM\"s\".\"t__op_1\"),__ewmAS(SELECT*FROM(VALUES)ASt(\"rn\",\"num_ewm_mean\",\"num_ewm_std\"))SELECTb.*,e.\"num_ewm_mean\"AS\"num_ewm_mean\",e.\"num_ewm_std\"AS\"num_ewm_std\"FROM__basebLEFTJOIN__ewmeONb.rn=e.\"rn\"",
     []
    ],
    [
@@ -236,13 +226,8 @@
     []
    ],
    [
-    "exec",
-    "CREATETABLE\"s\".\"t__op_1__rowid_20240101000000000000\"ASSELECT*,ROW_NUMBER()OVER()AS\"__totem_rowid\"FROM\"s\".\"t__op_1\"",
-    []
-   ],
-   [
     "fetch",
-    "SELECT\"num\"ASvFROM\"s\".\"t__op_1__rowid_20240101000000000000\"ORDERBY\"__totem_rowid\"",
+    "SELECT\"num\"ASvFROM\"s\".\"t__op_1\"ORDERBY\"_mf_idx\"",
     []
    ],
    [
@@ -254,7 +239,7 @@
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_1\"ASWITH__baseAS(SELECT*,ROW_NUMBER()OVER(ORDERBY\"__totem_rowid\")ASrnFROM\"s\".\"t__op_1__rowid_20240101000000000000\"),__ewmAS(SELECT*FROM(VALUES)ASt(\"rn\",\"num_ewm_mean\",\"num_ewm_std\"))SELECTb.*,e.\"num_ewm_mean\"AS\"num_ewm_mean\",e.\"num_ewm_std\"AS\"num_ewm_std\"FROM__basebLEFTJOIN__ewmeONb.rn=e.\"rn\"",
+    "CREATETABLE\"s\".\"t__op_1\"ASWITH__baseAS(SELECT*,ROW_NUMBER()OVER(ORDERBY\"_mf_idx\")ASrnFROM\"s\".\"t__op_1\"),__ewmAS(SELECT*FROM(VALUES)ASt(\"rn\",\"num_ewm_mean\",\"num_ewm_std\"))SELECTb.*,e.\"num_ewm_mean\"AS\"num_ewm_mean\",e.\"num_ewm_std\"AS\"num_ewm_std\"FROM__basebLEFTJOIN__ewmeONb.rn=e.\"rn\"",
     []
    ],
    [
@@ -716,11 +701,6 @@
  "rolling_dt_mean_unordered": {
   "clickhouse": [
    [
-    "exec",
-    "CREATETABLE`s`.`t__rowid_20240101000000000000`ASSELECT*,ROW_NUMBER()OVER()AS`__totem_rowid`FROM`s`.`t`",
-    []
-   ],
-   [
     "fetchval",
     "SELECTCOALESCE(MAX(opidx),0)FROMmemframe_csv_registry.memframe_cache_registryWHEREdata_id=?",
     [
@@ -729,7 +709,7 @@
    ],
    [
     "exec",
-    "CREATETABLE`s`.`t__op_1`ASWITH__baseAS(SELECT*,ROW_NUMBER()OVER(ORDERBY`__totem_rowid`)AS`__totem_roll_rn`FROM`s`.`t__rowid_20240101000000000000`)SELECTb.*,(SELECTtoDateTime(__agg.value_epoch)FROM(SELECTavg(toUnixTimestamp(r.`ts`))ASvalue_epochFROM__baserWHEREr.`__totem_roll_rn`BETWEENb.`__totem_roll_rn`-2ANDb.`__totem_roll_rn`ANDr.`ts`ISNOTNULL)__agg)AS`ts_rolling_mean_w3`FROM__baseb",
+    "CREATETABLE`s`.`t__op_1`ASWITH__baseAS(SELECT*,ROW_NUMBER()OVER(ORDERBY`_mf_idx`)AS`__totem_roll_rn`FROM`s`.`t`)SELECTb.*,(SELECTtoDateTime(__agg.value_epoch)FROM(SELECTavg(toUnixTimestamp(r.`ts`))ASvalue_epochFROM__baserWHEREr.`__totem_roll_rn`BETWEENb.`__totem_roll_rn`-2ANDb.`__totem_roll_rn`ANDr.`ts`ISNOTNULL)__agg)AS`ts_rolling_mean_w3`FROM__baseb",
     []
    ],
    [
@@ -740,11 +720,6 @@
   ],
   "duckdb": [
    [
-    "exec",
-    "CREATETABLE\"s\".\"t__rowid_20240101000000000000\"ASSELECT*,ROW_NUMBER()OVER()AS\"__totem_rowid\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
     "fetchval",
     "SELECTCOALESCE(MAX(opidx),0)FROMmemframe_csv_registry.memframe_cache_registryWHEREdata_id=?",
     [
@@ -753,7 +728,7 @@
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_1\"ASWITH__baseAS(SELECT*,ROW_NUMBER()OVER(ORDERBY\"__totem_rowid\")AS\"__totem_roll_rn\"FROM\"s\".\"t__rowid_20240101000000000000\")SELECTb.*,(SELECTTO_TIMESTAMP(__agg.value_epoch)FROM(SELECTAVG(EPOCH(CAST(r.\"ts\"ASTIMESTAMP)))ASvalue_epochFROM__baserWHEREr.\"__totem_roll_rn\"BETWEENb.\"__totem_roll_rn\"-2ANDb.\"__totem_roll_rn\"ANDr.\"ts\"ISNOTNULL)__agg)AS\"ts_rolling_mean_w3\"FROM__baseb",
+    "CREATETABLE\"s\".\"t__op_1\"ASWITH__baseAS(SELECT*,ROW_NUMBER()OVER(ORDERBY\"_mf_idx\")AS\"__totem_roll_rn\"FROM\"s\".\"t\")SELECTb.*,(SELECTTO_TIMESTAMP(__agg.value_epoch)FROM(SELECTAVG(EPOCH(CAST(r.\"ts\"ASTIMESTAMP)))ASvalue_epochFROM__baserWHEREr.\"__totem_roll_rn\"BETWEENb.\"__totem_roll_rn\"-2ANDb.\"__totem_roll_rn\"ANDr.\"ts\"ISNOTNULL)__agg)AS\"ts_rolling_mean_w3\"FROM__baseb",
     []
    ],
    [
@@ -764,11 +739,6 @@
   ],
   "postgres": [
    [
-    "exec",
-    "CREATETABLE\"s\".\"t__rowid_20240101000000000000\"ASSELECT*,ROW_NUMBER()OVER()AS\"__totem_rowid\"FROM\"s\".\"t\"",
-    []
-   ],
-   [
     "fetchval",
     "SELECTCOALESCE(MAX(opidx),0)FROMmemframe_csv_registry.memframe_cache_registryWHEREdata_id=$1",
     [
@@ -777,7 +747,7 @@
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_1\"ASWITH__baseAS(SELECT*,ROW_NUMBER()OVER(ORDERBY\"__totem_rowid\")AS\"__totem_roll_rn\"FROM\"s\".\"t__rowid_20240101000000000000\")SELECTb.*,(SELECTTO_TIMESTAMP(__agg.value_epoch)FROM(SELECTAVG(EXTRACT(EPOCHFROMr.\"ts\"))ASvalue_epochFROM__baserWHEREr.\"__totem_roll_rn\"BETWEENb.\"__totem_roll_rn\"-2ANDb.\"__totem_roll_rn\"ANDr.\"ts\"ISNOTNULL)__agg)AS\"ts_rolling_mean_w3\"FROM__baseb",
+    "CREATETABLE\"s\".\"t__op_1\"ASWITH__baseAS(SELECT*,ROW_NUMBER()OVER(ORDERBY\"_mf_idx\")AS\"__totem_roll_rn\"FROM\"s\".\"t\")SELECTb.*,(SELECTTO_TIMESTAMP(__agg.value_epoch)FROM(SELECTAVG(EXTRACT(EPOCHFROMr.\"ts\"))ASvalue_epochFROM__baserWHEREr.\"__totem_roll_rn\"BETWEENb.\"__totem_roll_rn\"-2ANDb.\"__totem_roll_rn\"ANDr.\"ts\"ISNOTNULL)__agg)AS\"ts_rolling_mean_w3\"FROM__baseb",
     []
    ],
    [

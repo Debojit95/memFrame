@@ -95,6 +95,16 @@ async def swap_table_into_source(
         await db.execute(f"DROP TABLE {wide_q}")
 
 
+async def drop_table_if_exists(db, schema: str, table: str) -> None:
+    """Drop a working table, ignoring failures."""
+    if not table:
+        return
+    try:
+        await db.execute(f"DROP TABLE IF EXISTS {_qualified(db, schema, table)}")
+    except Exception:
+        pass
+
+
 async def _drop_columns(db, backend, schema: str, table: str, cols: List[str]) -> None:
     if not cols:
         return

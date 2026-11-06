@@ -405,6 +405,33 @@ class CacheManager:
             return None
         return row[0], row[1] or backend.upload_schema
 
+    async def _move_owned_to_cache(self, backend, schema: str, bare: str):
+        """Move a cache-owned result table into memframe_cache."""
+        cache_schema = backend.cache_schema
+        if not bare or schema == cache_schema:
+            return schema, bare
+        src = self._qualify(schema, bare, backend)
+        dst = self._qualify(cache_schema, bare, backend)
+        try:
+            if not await backend.table_exists(src):
+                return schema, bare
+            be = getattr(backend, "backend", None)
+            if be == Backend.CLICKHOUSE:
+                await backend.execute(f"RENAME TABLE {src} TO {dst}")
+            elif be == Backend.DUCKDB:
+                await backend.execute(f"CREATE TABLE {dst} AS SELECT * FROM {src}")
+                await backend.execute(f"DROP TABLE {src}")
+            else:
+                await backend.execute(
+                    f"ALTER TABLE {src} SET SCHEMA {cache_schema}"
+                )
+        except Exception as exc:
+            logger.warning(
+                "[cache] could not move owned table %s.%s: %s", schema, bare, exc
+            )
+            return schema, bare
+        return cache_schema, bare
+
     async def _read_fingerprint(self, backend, data_id: str, ops_parent) -> Optional[str]:
         """Fingerprint of the table this op reads (override-aware). None if unresolvable."""
         try:
@@ -898,12 +925,6 @@ class CacheManager:
                     # registry row commit together, so a crash can't leave one
                     # without the other.
                     async with manager._txn_for(backend):
-                        if backend:
-                            if not is_error and annotated_kind is not None and mutates:
-                                epoch = await manager._bump_epoch(backend, data_id)
-                            else:
-                                epoch = await manager._current_epoch(backend, data_id)
-
                         if is_deep and not is_error and isinstance(result, dict):
                             if annotated_kind == "actual":
                                 try:
@@ -952,6 +973,17 @@ class CacheManager:
                                         order_position_dtype = result.get("order_position_dtype")
                                         order_kind = result.get("order_kind")
                                         order_limit = result.get("order_limit")
+                                        if owns_table and ref_table:
+                                            ref_schema, ref_table = (
+                                                await manager._move_owned_to_cache(
+                                                    backend,
+                                                    ref_schema or backend.upload_schema,
+                                                    ref_table,
+                                                )
+                                            )
+                                            result["ref_schema"] = ref_schema
+                                            result["ref_table"] = ref_table
+                                            result["new_table"] = ref_table
                             else:
                                 # Ops (datetime/transform/cumulative/window)
                                 # that write into the active source table but do
@@ -1048,14 +1080,39 @@ class CacheManager:
                             and isinstance(result, dict)
                             and annotated_kind is None
                         ):
-                            # ponytail: drop any table the method created — deep_cache=False means no tables
+                            # deep_cache=False: no result table is kept. Source
+                            # write-backs must still invalidate older entries.
                             bare_table = result.get("new_table") or result.get("generated_table_name")
                             if bare_table and backend:
-                                for sch in (backend.cache_schema, backend.upload_schema):
-                                    q = manager._qualify(sch, bare_table, backend)
-                                    if q and await backend.table_exists(q):
-                                        await backend.drop_table(q)
-                                        break
+                                src_table, _ = await manager._active_context(
+                                    backend, data_id, ops_parent
+                                )
+                                if src_table and bare_table == src_table:
+                                    mutates = True
+                                else:
+                                    registered = await manager._registered_base_ref(
+                                        backend, bare_table
+                                    )
+                                    if not registered:
+                                        for sch in (backend.cache_schema, backend.upload_schema):
+                                            q = manager._qualify(sch, bare_table, backend)
+                                            if q and await backend.table_exists(q):
+                                                await backend.drop_table(q)
+                                                break
+
+                        if backend:
+                            source_mutated = bool(mutates) or (
+                                cache_kind == "ref"
+                                and not owns_table
+                                and not order_table
+                            )
+                            if source_mutated:
+                                epoch = await manager._bump_epoch(backend, data_id)
+                            else:
+                                epoch = await manager._current_epoch(backend, data_id)
+
+                    if is_error:
+                        return result
 
                     # ponytail: stamp the post-execute base state — a mutating op's
                     # repeat must see the mutated base, not the pre-state.

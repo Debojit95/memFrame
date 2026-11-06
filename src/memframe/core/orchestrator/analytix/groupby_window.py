@@ -16,7 +16,9 @@ from memframe.core.analytix.groupby_window import (
     GroupbyWindowOps,
     make_groupby_window_ops,
 )
-from memframe.core.analytix._generated import make_sig, publish_row_aligned
+from memframe.core.analytix._generated import (
+    drop_table_if_exists, make_sig, publish_row_aligned,
+)
 from memframe.core.ingestion.datatype_detector import DatatypeDetector
 from memframe.cache import record_call
 
@@ -468,6 +470,7 @@ class GroupByWindowOrchestrator:
             }
 
         current_table = table
+        intermediates = []
         successful_funcs = []
         failed_funcs = {}
         generated_cols = []
@@ -501,6 +504,8 @@ class GroupByWindowOrchestrator:
 
             new_table = result.get("new_table")
             if new_table:
+                if new_table != current_table and current_table != table:
+                    intermediates.append(current_table)
                 current_table = new_table
 
             if isinstance(result.get("new_columns"), list):
@@ -574,10 +579,15 @@ class GroupByWindowOrchestrator:
             "failed_funcs": failed_funcs,
             "is_partial": is_partial,
         }
-        return await self._publish(
-            ops, table, schema, response, involved,
-            sig, op_kind, backend, data_id,
-        )
+        try:
+            return await self._publish(
+                ops, table, schema, response, involved,
+                sig, op_kind, backend, data_id,
+            )
+        finally:
+            for t in list(dict.fromkeys([*intermediates, current_table])):
+                if t != table:
+                    await drop_table_if_exists(ops.db, schema, t)
 
     # --------------------------------------------------
     #  UNIFIED EXPANDING
@@ -639,6 +649,7 @@ class GroupByWindowOrchestrator:
             }
 
         current_table = table
+        intermediates = []
         successful_funcs = []
         failed_funcs = {}
         generated_cols = []
@@ -672,6 +683,8 @@ class GroupByWindowOrchestrator:
 
             new_table = result.get("new_table")
             if new_table:
+                if new_table != current_table and current_table != table:
+                    intermediates.append(current_table)
                 current_table = new_table
 
             if isinstance(result.get("new_columns"), list):
@@ -742,10 +755,15 @@ class GroupByWindowOrchestrator:
             "is_partial": is_partial,
             "min_periods": min_periods,
         }
-        return await self._publish(
-            ops, table, schema, response, involved,
-            sig, op_kind, backend, data_id,
-        )
+        try:
+            return await self._publish(
+                ops, table, schema, response, involved,
+                sig, op_kind, backend, data_id,
+            )
+        finally:
+            for t in list(dict.fromkeys([*intermediates, current_table])):
+                if t != table:
+                    await drop_table_if_exists(ops.db, schema, t)
 
     # --------------------------------------------------
     #  UNIFIED EWM

@@ -96,33 +96,14 @@ class WindowOps:
         return pd.DataFrame([dict(r) for r in rows])
 
     async def _resolve_ordering(self, table: str, schema: str, order_by: str):
-        """
-        Resolve ordering column.
+        """Resolve the ordering expression.
 
-        If order_by is None:
-            → create temp table with ROW_NUMBER() to preserve current order
+        With no explicit ``order_by`` the immutable positional index is the
+        stable row order, so no temporary column/table is needed.
         """
-
         if order_by:
             return SQLIdentifierSanitizer.sanitize(order_by), table
-
-        rowid_col = "__totem_rowid"
-        temp_table = SQLIdentifierSanitizer.sanitize(
-            f"{table}__rowid_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}"
-        )
-
-        qualified = self._qualified_table(table, schema)
-
-        create_sql = f"""
-            CREATE TABLE {self.db.quote_identifier(schema)}.{self.db.quote_identifier(temp_table)} AS
-            SELECT *,
-                ROW_NUMBER() OVER () AS {self.db.quote_identifier(rowid_col)}
-            FROM {qualified}
-        """
-
-        await self._exec(create_sql)
-
-        return rowid_col, temp_table
+        return "_mf_idx", table
 
     def _success_response(self, message, result, **extra):
         return {

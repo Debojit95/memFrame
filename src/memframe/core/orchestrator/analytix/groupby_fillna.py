@@ -177,7 +177,6 @@ class GroupByFillna:
         )
         return [context, list(self.group_cols)]
 
-    @record_call(deep_cache=True)
     async def fillna(
         self,
         column: str,

@@ -8,6 +8,7 @@ from memframe.db_manager.adapters.duckdb import DuckDBAdapter
 from memframe.db_manager.adapters.postgresql import PostgresAdapter
 
 from memframe.db_manager.adapters.clickhouse import ClickHouseAdapter
+from memframe.core.indexing import MF_IDX
 from memframe.utils.helper import SQLIdentifierSanitizer
 
 
@@ -235,9 +236,17 @@ class ComparisonOps:
 
             # Sample result from the working table
             sample = await self._fetch_data(
-                working_table, schema, columns=[safe_col1, safe_col2, safe_new]
+                working_table, schema,
+                columns=[safe_col1, safe_col2, safe_new, MF_IDX],
             )
+            if MF_IDX in sample.columns:
+                sample = (
+                    sample.sort_values(MF_IDX)
+                    .drop(columns=[MF_IDX])
+                    .reset_index(drop=True)
+                )
 
+            result_cols = [safe_col1, safe_col2, safe_new]
             return self._success_response(
                 f"Compared {col1} {operator} {col2} → {new_col}",
                 sample,
@@ -246,6 +255,14 @@ class ComparisonOps:
                 operator=operator,
                 new_column=new_col,
                 new_table=working_table,
+                involved_cols=[safe_col1, safe_col2],
+                generated_cols=[safe_new],
+                result_cols=result_cols,
+                cache_kind="ref",
+                ref_schema=schema,
+                ref_table=working_table,
+                mutates=True,
+                order_kind="mf_idx",
             )
 
         except Exception as e:

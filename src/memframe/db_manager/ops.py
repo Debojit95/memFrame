@@ -243,11 +243,19 @@ class OpsMixin:
 
     async def _owned_cache_tables(self, data_id: str):
         """Tables the cache may drop: legacy copies and owns_table refs only."""
+        protected_row = await self._backend.fetch_row(
+            f"SELECT table_name, base_table FROM {self._backend.csv_registry_table} "
+            f"WHERE data_id = {self._placeholder(1)}",
+            data_id,
+        )
+        protected = {name for name in (protected_row or ()) if name}
         rows = await self._backend.fetch(
             f"SELECT schema, generated_table_name, ref_schema, ref_table, "
             f"owns_table, cache_kind, order_schema, order_table "
             f"FROM {self._backend.cache_registry_table} "
-            f"WHERE data_id = {self._placeholder(1)}",
+            f"WHERE data_id = {self._placeholder(1)} "
+            f"AND operation_type NOT IN "
+            f"('window_map', 'groupby_map', 'groupby_cum_map', 'groupby_win_map')",
             data_id,
         )
         out = []
@@ -257,9 +265,9 @@ class OpsMixin:
             if kind == "actual":
                 continue
             if kind == "ref":
-                if owns and ref_table:
+                if owns and ref_table and ref_table not in protected:
                     out.append((ref_sch or sch or self._backend.cache_schema, ref_table))
-            elif bare:
+            elif bare and bare not in protected:
                 out.append((sch or self._backend.cache_schema, bare))
         return out
 
@@ -368,7 +376,10 @@ class OpsMixin:
             f"SELECT opidx, operation_type, "
             f"COALESCE(ref_table, generated_table_name), created_at "
             f"FROM {self._backend.cache_registry_table} "
-            f"WHERE data_id = {self._placeholder(1)} ORDER BY opidx",
+            f"WHERE data_id = {self._placeholder(1)} "
+            f"AND operation_type NOT IN "
+            f"('window_map', 'groupby_map', 'groupby_cum_map', 'groupby_win_map') "
+            f"ORDER BY opidx",
             data_id,
         )
         return [

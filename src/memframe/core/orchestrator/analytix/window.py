@@ -2,7 +2,9 @@ from typing import Any, Dict, List, Tuple, Union
 
 import numpy as np
 from memframe.core.analytix.window import WindowOps, make_window_ops
-from memframe.core.analytix._generated import make_sig, publish_row_aligned
+from memframe.core.analytix._generated import (
+    drop_table_if_exists, make_sig, publish_row_aligned,
+)
 from memframe.core.ingestion.datatype_detector import DatatypeDetector
 from memframe.cache import record_call
 
@@ -201,6 +203,7 @@ class WindowOrchestrator:
 
         # ---- CHAINING: each successful call updates the working table ----
         current_table = table
+        intermediates = []
         successful_funcs = []
         failed_funcs = {}
         generated_cols = []
@@ -238,6 +241,8 @@ class WindowOrchestrator:
             # **Critical fix**: move to the table that was just generated
             new_table = result.get("new_table")
             if new_table:
+                if new_table != current_table and current_table != table:
+                    intermediates.append(current_table)
                 current_table = new_table
 
         # If nothing succeeded, return error
@@ -307,10 +312,15 @@ class WindowOrchestrator:
             "failed_funcs": failed_funcs,
             "is_partial": is_partial,
         }
-        return await self._publish(
-            ops, table, schema, response, involved,
-            sig, "rolling", backend, data_id,
-        )
+        try:
+            return await self._publish(
+                ops, table, schema, response, involved,
+                sig, "rolling", backend, data_id,
+            )
+        finally:
+            for t in list(dict.fromkeys([*intermediates, current_table])):
+                if t != table:
+                    await drop_table_if_exists(ops.db, schema, t)
 
     # --------------------------------------------------
     # EXPANDING API (FIXED CHAINING)
@@ -407,6 +417,7 @@ class WindowOrchestrator:
 
         # ---- CHAINING ----
         current_table = table
+        intermediates = []
         successful_funcs = []
         failed_funcs = {}
         generated_cols = []
@@ -442,6 +453,8 @@ class WindowOrchestrator:
 
             new_table = result.get("new_table")
             if new_table:
+                if new_table != current_table and current_table != table:
+                    intermediates.append(current_table)
                 current_table = new_table
 
         if not successful_funcs:
@@ -503,10 +516,15 @@ class WindowOrchestrator:
             "is_partial": is_partial,
             "min_periods": min_periods,
         }
-        return await self._publish(
-            ops, table, schema, response, involved,
-            sig, "expanding", backend, data_id,
-        )
+        try:
+            return await self._publish(
+                ops, table, schema, response, involved,
+                sig, "expanding", backend, data_id,
+            )
+        finally:
+            for t in list(dict.fromkeys([*intermediates, current_table])):
+                if t != table:
+                    await drop_table_if_exists(ops.db, schema, t)
 
     # --------------------------------------------------
     # EWM API (already returns a single table; unchanged)

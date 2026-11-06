@@ -130,6 +130,14 @@ The fixed schemas/databases are `memframe_csv_registry`, `memframe_cache`, and
 `adelete_table(data_id)` performs the same cache cleanup and then removes the
 dataset itself.
 
+Internal operation markers (`window_map`, `groupby_map`, `groupby_cum_map`,
+`groupby_win_map`) are never treated as cache-owned tables, so clearing cache
+cannot drop `<data_id>__base` or its public view. Failed operations are not
+recorded in the cache registry.
+
+Result tables created by an operation (`new_table=...`, `owns_table = true`)
+are kept in `memframe_cache`, never in `memframe_upload`.
+
 ## Debugging hit/miss
 
 The cache logs through the `memFrame.cache` logger:
