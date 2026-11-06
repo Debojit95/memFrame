@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 from typing import Any, Dict, Iterable, List, Optional
 
+from memframe.core.indexing import MF_IDX
 from memframe.core.ingestion.datatype_detector import Backend
 from memframe.utils.helper import SQLIdentifierSanitizer
 
@@ -41,8 +42,9 @@ def make_sig(**kwargs: Any) -> str:
 
 async def swap_table_into_source(
     db, backend, schema: str, source: str, wide: str,
+    generated: Iterable[str] = (),
 ) -> None:
-    """Replace ``source`` with ``wide`` (one row per source row)."""
+    """Publish ``wide``'s generated columns into ``source``."""
     src_q = _qualified(db, schema, source)
     wide_q = _qualified(db, schema, wide)
     be = _backend_name(backend)
@@ -51,10 +53,39 @@ async def swap_table_into_source(
         await db.execute(f"EXCHANGE TABLES {src_q} AND {wide_q}")
         await db.execute(f"DROP TABLE {wide_q}")
     elif be == Backend.POSTGRES:
-        await db.execute(f"DROP TABLE {src_q}")
-        await db.execute(
-            f"ALTER TABLE {wide_q} RENAME TO {db.quote_identifier(_san(source))}"
-        )
+        # PostgreSQL views depend on the source table, so it cannot be
+        # dropped. Update the generated columns in place; the relation (and
+        # therefore the public view) stays valid.
+        cols = _dedupe(generated)
+        if cols:
+            try:
+                wide_types = await db.get_column_types(wide, schema) or {}
+                src_types = await db.get_column_types(source, schema) or {}
+            except Exception:
+                wide_types, src_types = {}, {}
+            for col in cols:
+                if col in src_types:
+                    continue
+                col_type = wide_types.get(col)
+                if not col_type:
+                    raise ValueError(
+                        f"cannot publish '{col}': unknown type in {schema}.{wide}"
+                    )
+                await db.execute(
+                    f"ALTER TABLE {src_q} ADD COLUMN IF NOT EXISTS "
+                    f"{db.quote_identifier(col)} {col_type}"
+                )
+            assignments = ", ".join(
+                f"{db.quote_identifier(c)} = w.{db.quote_identifier(c)}"
+                for c in cols
+            )
+            idx_q = db.quote_identifier(MF_IDX)
+            await db.execute(
+                f"UPDATE {src_q} AS s SET {assignments} "
+                f"FROM {wide_q} AS w "
+                f"WHERE s.{idx_q} = w.{idx_q}"
+            )
+        await db.execute(f"DROP TABLE {wide_q}")
     else:
         # DuckDB: CREATE OR REPLACE keeps the source name without a
         # drop/rename dance and works for the single-file adapter.
@@ -216,7 +247,30 @@ async def publish_row_aligned(
             "new_columns": [],
         }
 
-    await swap_table_into_source(ops.db, backend, schema, table, wide)
+    # Replay always uses _mf_idx order, so make the live preview match it.
+    df = result.get("result")
+    if df is not None and hasattr(df, "columns") and len(df):
+        try:
+            idx_rows = await ops.db.fetch(
+                f"SELECT {ops.db.quote_identifier(MF_IDX)} "
+                f"FROM {_qualified(ops.db, schema, wide)}"
+            )
+            order = [
+                r[MF_IDX] if hasattr(r, "keys") else r[0] for r in idx_rows
+            ]
+            if len(order) == len(df):
+                result["result"] = (
+                    df.assign(__mf_order=order)
+                    .sort_values("__mf_order")
+                    .drop(columns="__mf_order")
+                    .reset_index(drop=True)
+                )
+        except Exception:
+            pass
+
+    await swap_table_into_source(
+        ops.db, backend, schema, table, wide, generated=generated
+    )
     await _drop_columns(ops.db, backend, schema, table, temp_cols)
     marker = json.dumps(
         {"sig": sig, "new_columns": generated}, sort_keys=True,
@@ -237,6 +291,7 @@ async def publish_row_aligned(
     result["generated_cols"] = generated
     result["result_cols"] = cols
     result["mutates"] = True
+    result["order_kind"] = "mf_idx"
 
     # Make the first response match the cached replay order:
     # involved columns first, then generated columns.

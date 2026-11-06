@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import List
 
 from memframe.core.analytix.groupby_stats.base import GroupByStatsOps
+from memframe.core.analytix._generated import swap_table_into_source
 from memframe.utils.helper import SQLIdentifierSanitizer
 
 
@@ -47,8 +48,7 @@ class PostgresGroupByStatsOps(GroupByStatsOps):
                 SELECT o.*, {feats}
                 FROM {orig_q} o LEFT JOIN {group_q} g ON {cond}"""
         )
-        await self._exec(f"DROP TABLE {orig_q}")
-        await self._exec(
-            f"ALTER TABLE {tmp_q} RENAME TO {self.db.quote_identifier(SQLIdentifierSanitizer.sanitize(table))}"
+        await swap_table_into_source(
+            self.db, backend, schema, table, tmp, generated=new_columns
         )
         await self._record_map_marker(table, schema, backend, data_id, sig)

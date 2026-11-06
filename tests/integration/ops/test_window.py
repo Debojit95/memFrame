@@ -657,6 +657,54 @@ class TestWindowOperations:
             backend=backend_config["connection_type"],
         )
 
+    def test_rolling_multi_func_keeps_base_and_view(
+        self, uploaded_ctx, time_series_df, backend_config
+    ):
+        """Postgres must not drop <id>__base while its public view depends on it."""
+        first = get_result_df(
+            uploaded_ctx.rolling(
+                column="sales", window=3, func=["mean", "sum"], order_by="date"
+            )
+        )
+        second = get_result_df(
+            uploaded_ctx.rolling(
+                column="sales", window=3, func=["mean", "sum"], order_by="date"
+            )
+        )
+        assert list(first.columns) == list(second.columns)
+        assert first.equals(second)
+
+        mf = uploaded_ctx.memframe
+        did = uploaded_ctx._data_id
+        tables = asyncio.run(mf._backend.fetch(
+            "SELECT table_name, table_type FROM information_schema.tables "
+            "WHERE table_schema = 'memframe_upload'"
+        ))
+        kinds = {name: kind for name, kind in tables}
+        assert kinds.get(f"{did}__base") == "BASE TABLE"
+        assert kinds.get(did) == "VIEW"
+
+        view_cols = asyncio.run(mf._backend.fetch(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_schema = 'memframe_upload' AND table_name = "
+            f"{mf._backend.placeholder(1)}",
+            did,
+        ))
+        view_names = {r[0] for r in view_cols}
+        for col in ("sales_rolling_mean_w3", "sales_rolling_sum_w3"):
+            assert col in view_names
+        assert "_mf_idx" not in view_names
+
+        self._record_result(
+            test_name="rolling_multi_func_keeps_base_and_view",
+            method_call='rolling(column="sales", window=3, func=["mean", "sum"], order_by="date") twice',
+            pandas_call='_ordered(df)["sales"].rolling(3, min_periods=1).agg(["mean", "sum"])',
+            original_df=time_series_df,
+            memframe_df=second,
+            pandas_df=first,
+            backend=backend_config["connection_type"],
+        )
+
     # ----------------------------------------------------------------
     # Rolling (direct, no order_by — unordered physical order)
     # ----------------------------------------------------------------

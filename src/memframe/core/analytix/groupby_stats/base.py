@@ -358,11 +358,16 @@ class GroupByStatsOps:
         return select_parts, new_columns
 
     async def _fetch_preview(
-        self, output_table: str, schema: str, preview_cols: List[str]
+        self, output_table: str, schema: str, preview_cols: List[str],
+        order_by_index: bool = False,
     ) -> pd.DataFrame:
+        order = (
+            f' ORDER BY {self.db.quote_identifier("_mf_idx")}'
+            if order_by_index else ""
+        )
         rows = await self._fetch(
             f"""SELECT {', '.join(self.db.quote_identifier(c) for c in preview_cols)}
-                FROM {self._qualified_table(output_table, schema)}"""
+                FROM {self._qualified_table(output_table, schema)}{order}"""
         )
         return pd.DataFrame(rows, columns=preview_cols) if rows else pd.DataFrame(columns=preview_cols)
 
@@ -451,11 +456,13 @@ class GroupByStatsOps:
                     # Features live on the source; the group table is only
                     # the join input and is not worth caching.
                     await self._exec(f"DROP TABLE IF EXISTS {output_qualified}")
-                    df = await self._fetch_preview(table, schema, preview_cols)
+                    df = await self._fetch_preview(
+                        table, schema, preview_cols, order_by_index=True
+                    )
                     response_table = table
                     ref_meta.update(
                         cache_kind="ref", ref_schema=schema, ref_table=table,
-                        owns_table=False, mutates=True,
+                        owns_table=False, mutates=True, order_kind="mf_idx",
                     )
                 else:
                     df = await self._fetch_preview(output_table, schema, preview_cols)

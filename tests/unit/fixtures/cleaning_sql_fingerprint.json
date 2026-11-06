@@ -1008,22 +1008,7 @@
    ],
    [
     "exec",
-    "DROPTABLEIFEXISTS\"s\".\"t__fill_temp\"",
-    []
-   ],
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__fill_temp\"ASSELECT\"g\",\"ts\",COALESCE(\"ts\",filled_val)AS\"cleaned_ts_ffill_filled\"FROM(WITHbaseAS(SELECT*,ROW_NUMBER()OVER(ORDERBYctid)AS__idxFROM\"s\".\"t\"),filledAS(SELECT*,MAX(\"ts\")OVER(PARTITIONBY\"g\"ORDERBY__idxROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASfilled_valFROMbase)SELECT*FROMfilled)subORDERBY__idx",
-    []
-   ],
-   [
-    "exec",
-    "DROPTABLE\"s\".\"t\"",
-    []
-   ],
-   [
-    "exec",
-    "ALTERTABLE\"s\".\"t__fill_temp\"RENAMETO\"t\"",
+    "WITHfilledAS(SELECT*,MAX(\"ts\")OVER(PARTITIONBY\"g\"ORDERBY\"_mf_idx\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASfilled_valFROM\"s\".\"t\")UPDATE\"s\".\"t\"tSET\"cleaned_ts_ffill_filled\"=COALESCE(t.\"ts\",f.filled_val)FROMfilledfWHEREt.\"_mf_idx\"=f.\"_mf_idx\"",
     []
    ],
    [

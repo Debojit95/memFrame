@@ -63,11 +63,12 @@ class PostgresGroupByCleaningOps(PostgresCleaningOps, DuckDBGroupByCleaningOps):
 
             async def _apply(tq):
                 if mode in ["FFILL", "BFILL"]:
+                    idx_q = self.db.quote_identifier("_mf_idx")
                     if mode == "FFILL":
                         window_expr = f'''
                             MAX("{safe_col}") OVER (
                                 {partition}
-                                ORDER BY __idx
+                                ORDER BY {idx_q}
                                 ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
                             )
                         '''
@@ -75,35 +76,21 @@ class PostgresGroupByCleaningOps(PostgresCleaningOps, DuckDBGroupByCleaningOps):
                         window_expr = f'''
                             MIN("{safe_col}") OVER (
                                 {partition}
-                                ORDER BY __idx
+                                ORDER BY {idx_q}
                                 ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING
                             )
                         '''
 
-                    temp_table = f"{table}__fill_temp"
-                    qualified_temp = self._qualified_table(temp_table, schema)
-                    cols = ", ".join(f'"{c}"' for c in (safe_group_cols + [safe_col]))
-                    bare_name = f"{tq}".split(".", 1)[-1]
-                    await self._exec(f"DROP TABLE IF EXISTS {qualified_temp}")
                     await self._exec(f"""
-                        CREATE TABLE {qualified_temp} AS
-                        SELECT {cols}, COALESCE("{safe_col}", filled_val) AS "{safe_new}"
-                        FROM (
-                            WITH base AS (
-                                SELECT *,
-                                    ROW_NUMBER() OVER (ORDER BY ctid) AS __idx
-                                FROM {tq}
-                            ),
-                            filled AS (
-                                SELECT *, {window_expr} AS filled_val
-                                FROM base
-                            )
-                            SELECT * FROM filled
-                        ) sub
-                        ORDER BY __idx
+                        WITH filled AS (
+                            SELECT *, {window_expr} AS filled_val
+                            FROM {tq}
+                        )
+                        UPDATE {tq} t
+                        SET "{safe_new}" = COALESCE(t."{safe_col}", f.filled_val)
+                        FROM filled f
+                        WHERE t.{idx_q} = f.{idx_q}
                     """)
-                    await self._exec(f"DROP TABLE {tq}")
-                    await self._exec(f"ALTER TABLE {qualified_temp} RENAME TO {bare_name}")
 
                     return mode
 

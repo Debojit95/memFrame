@@ -5,8 +5,10 @@ Group-by fillna orchestrator (moved out of groupby_stats).
 from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
+import pandas as pd
 
 from memframe.core.analytix.groupby_cleaning import make_groupby_cleaning_ops
+from memframe.core.indexing import MF_IDX
 from memframe.core.ingestion.datatype_detector import DatatypeDetector
 from memframe.cache import record_call
 
@@ -38,14 +40,31 @@ class GroupByFillnaOrchestrator:
         data_id = self._data_id or self._memframe._active_id
         return {"backend": backend, "data_id": data_id}
 
-    def _as_source_ref(self, result, table, schema):
+    async def _as_source_ref(self, result, ops, table, schema):
         """Fillna writes a <col>_filled column into the source (Out_2)."""
-        if isinstance(result, dict) and not result.get("is_error"):
-            result["cache_kind"] = "ref"
-            result["ref_schema"] = schema
-            result["ref_table"] = table
-            result["owns_table"] = False
-            result["mutates"] = True
+        if not isinstance(result, dict) or result.get("is_error"):
+            return result
+        df = result.get("result")
+        if isinstance(df, pd.DataFrame) and len(df):
+            try:
+                idx_df = await ops._fetch_data(
+                    table, schema, columns=[MF_IDX]
+                )
+                if len(idx_df) == len(df):
+                    result["result"] = (
+                        df.assign(**{MF_IDX: idx_df[MF_IDX].values})
+                        .sort_values(MF_IDX)
+                        .drop(columns=[MF_IDX])
+                        .reset_index(drop=True)
+                    )
+            except Exception:
+                pass
+        result["cache_kind"] = "ref"
+        result["ref_schema"] = schema
+        result["ref_table"] = table
+        result["owns_table"] = False
+        result["mutates"] = True
+        result["order_kind"] = "mf_idx"
         return result
 
     async def _detect_fillna_dtype(self, ops, table, schema, column):
@@ -97,42 +116,42 @@ class GroupByFillnaOrchestrator:
             if detected_dtype != "datetime":
                 from memframe.core.analytix._response import fail as _fail
                 return _fail(f"Method '{method}' only valid for datetime columns (detected: {detected_dtype})", [column], [])
-            return self._as_source_ref(
+            return await self._as_source_ref(
                 await ops.datetime_fillna_groupby(
                     table, schema, column, group_cols=group_cols,
                     mode=method_lower.upper(), **persist
                 ),
-                table, schema,
+                ops, table, schema,
             )
 
         if detected_dtype == "numeric":
-            return self._as_source_ref(
+            return await self._as_source_ref(
                 await ops.numeric_fillna_groupby(
                     table, schema, column, group_cols=group_cols,
                     mode=method_lower.upper(), value=value, **persist
                 ),
-                table, schema,
+                ops, table, schema,
             )
 
         if detected_dtype == "datetime":
-            return self._as_source_ref(
+            return await self._as_source_ref(
                 await ops.datetime_fillna_groupby(
                     table, schema, column, group_cols=group_cols,
                     mode=method_lower.upper(), **persist
                 ),
-                table, schema,
+                ops, table, schema,
             )
 
         if method_lower in ("mean", "median", "std", "var", "min", "max"):
             from memframe.core.analytix._response import fail as _fail
             return _fail(f"Method '{method}' requires numeric column (detected: {detected_dtype})", [column], [])
 
-        return self._as_source_ref(
+        return await self._as_source_ref(
             await ops.categorical_fillna_groupby(
                 table, schema, column, group_cols=group_cols,
                 mode=method_lower.upper(), **persist
             ),
-            table, schema,
+            ops, table, schema,
         )
 
     def groupby(self, *columns: str) -> "GroupByFillna":

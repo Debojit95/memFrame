@@ -356,7 +356,7 @@
    ],
    [
     "fetch",
-    "SELECT`g`,`num_sum`,`num_mean`FROM`s`.`t`",
+    "SELECT`g`,`num_sum`,`num_mean`FROM`s`.`t`ORDERBY`_mf_idx`",
     []
    ]
   ],
@@ -405,7 +405,7 @@
    ],
    [
     "fetch",
-    "SELECT\"g\",\"num_sum\",\"num_mean\"FROM\"s\".\"t\"",
+    "SELECT\"g\",\"num_sum\",\"num_mean\"FROM\"s\".\"t\"ORDERBY\"_mf_idx\"",
     []
    ]
   ],
@@ -434,12 +434,12 @@
    ],
    [
     "exec",
-    "DROPTABLE\"s\".\"t\"",
+    "CREATEORREPLACETABLE\"s\".\"t\"ASSELECT*FROM\"s\".\"t__map_tmp\"",
     []
    ],
    [
     "exec",
-    "ALTERTABLE\"s\".\"t__map_tmp\"RENAMETO\"t\"",
+    "DROPTABLE\"s\".\"t__map_tmp\"",
     []
    ],
    [
@@ -469,7 +469,7 @@
    ],
    [
     "fetch",
-    "SELECT\"g\",\"num_sum\",\"num_mean\"FROM\"s\".\"t\"",
+    "SELECT\"g\",\"num_sum\",\"num_mean\"FROM\"s\".\"t\"ORDERBY\"_mf_idx\"",
     []
    ]
   ]

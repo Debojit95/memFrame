@@ -285,7 +285,7 @@ class CacheManager:
     async def _load_ref_table(
         self, backend, schema: str, table: str, columns: List[str],
         order_schema: Optional[str] = None, order_table: Optional[str] = None,
-        order_limit: Optional[int] = None,
+        order_limit: Optional[int] = None, order_kind: Optional[str] = None,
     ) -> Optional[pd.DataFrame]:
         if not columns:
             return None
@@ -308,6 +308,11 @@ class CacheManager:
                 )
                 if order_limit is not None:
                     sql += f" LIMIT {int(order_limit)}"
+            elif order_kind == "mf_idx":
+                sql = (
+                    f"SELECT {cols} FROM {qualified} "
+                    f"ORDER BY {self._quote_col(MF_IDX, backend)}"
+                )
             else:
                 sql = f"SELECT {cols} FROM {qualified}"
             rows = await backend.fetch(sql)
@@ -821,6 +826,7 @@ class CacheManager:
                                     order_schema=order_schema,
                                     order_table=order_table,
                                     order_limit=order_limit,
+                                    order_kind=order_kind,
                                 )
                                 if cached is not None:
                                     logger.info(

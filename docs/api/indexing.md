@@ -68,6 +68,10 @@ internal source used by memFrame.
 When an operation adds generated columns, the public view is re-created so
 those columns remain visible through raw SQL as well.
 
+On PostgreSQL, generated columns are written into the base with
+`ALTER TABLE ... ADD COLUMN` + `UPDATE ... FROM` keyed on `_mf_idx`. The base
+relation is never dropped, so the public view stays valid throughout.
+
 ## Derived datasets
 
 Merge, reshape, and `sort_values(..., upload_as_source=True)` create a new
