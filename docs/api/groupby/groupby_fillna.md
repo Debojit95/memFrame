@@ -13,6 +13,10 @@ result = dataset.groupby("department").fillna("salary", method="mean")
 result = await dataset.groupby("department").afillna("salary", method="mean")
 ```
 
+The filled `<column>_<method>_filled` column is written into the source
+dataset. Repeated calls are cached as a source **ref**; no group/cache copy is
+created.
+
 Parameters:
 
 | Parameter | Type | Description |

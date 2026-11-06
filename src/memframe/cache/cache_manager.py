@@ -371,7 +371,9 @@ class CacheManager:
             if ops_parent is not None and hasattr(ops_parent, "_get_active_context"):
                 return await ops_parent._get_active_context()
             row = await backend.fetch_row(
-                f"SELECT table_name, schema FROM {backend.csv_registry_table} "
+                f"SELECT COALESCE(base_table, table_name), "
+                f"COALESCE(base_schema, schema) "
+                f"FROM {backend.csv_registry_table} "
                 f"WHERE data_id = {backend.placeholder(1)}",
                 data_id,
             )
@@ -381,6 +383,23 @@ class CacheManager:
         except Exception:
             return None, None
 
+    async def _registered_base_ref(self, backend, bare_table: str):
+        """Resolve a name to the dataset base table it belongs to, if any."""
+        try:
+            row = await backend.fetch_row(
+                f"SELECT COALESCE(base_table, table_name), "
+                f"COALESCE(base_schema, schema) "
+                f"FROM {backend.csv_registry_table} "
+                f"WHERE base_table = {backend.placeholder(1)} "
+                f"OR table_name = {backend.placeholder(2)}",
+                bare_table, bare_table,
+            )
+        except Exception:
+            return None
+        if not row or not row[0]:
+            return None
+        return row[0], row[1] or backend.upload_schema
+
     async def _read_fingerprint(self, backend, data_id: str, ops_parent) -> Optional[str]:
         """Fingerprint of the table this op reads (override-aware). None if unresolvable."""
         try:
@@ -388,7 +407,9 @@ class CacheManager:
                 table, schema = await ops_parent._get_active_context()
             else:
                 row = await backend.fetch_row(
-                    f"SELECT table_name, schema FROM {backend.csv_registry_table} "
+                    f"SELECT COALESCE(base_table, table_name), "
+                    f"COALESCE(base_schema, schema) "
+                    f"FROM {backend.csv_registry_table} "
                     f"WHERE data_id = {backend.placeholder(1)}",
                     data_id,
                 )
@@ -949,7 +970,27 @@ class CacheManager:
                                 # Legacy unannotated path (removed once every op
                                 # declares cache_kind).
                                 elif bare_table and backend:
-                                    if await backend.table_exists(manager._qualify(backend.cache_schema, bare_table, backend)):
+                                    registered = await manager._registered_base_ref(
+                                        backend, bare_table
+                                    )
+                                    if registered:
+                                        # A dataset's base table is never a cache
+                                        # artifact — treat it as a source ref.
+                                        cache_kind = "ref"
+                                        ref_schema, ref_table = registered
+                                        involved_cols = json.dumps(
+                                            result.get("involved_cols") or []
+                                        )
+                                        generated_cols = json.dumps(
+                                            result.get("generated_cols")
+                                            or result.get("new_columns")
+                                            or []
+                                        )
+                                        result_cols = json.dumps(
+                                            manager._ref_columns(result)
+                                        )
+                                        owns_table = False
+                                    elif await backend.table_exists(manager._qualify(backend.cache_schema, bare_table, backend)):
                                         generated_table_name = bare_table
                                         schema = backend.cache_schema
                                     elif await backend.table_exists(manager._qualify(backend.upload_schema, bare_table, backend)):

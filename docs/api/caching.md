@@ -8,8 +8,8 @@ the source data is unchanged. Results fall into two kinds:
 
 | Kind | What it is | Stored as |
 | --- | --- | --- |
-| `ref` | A feature/projection that lives in a table (row-preserving generated columns, selected columns, grouped results) | Pointer: `ref_schema`, `ref_table`, `involved_cols`, `generated_cols`, `result_cols` |
-| `actual` | A standalone result that has no table (scalar, dict, list, correlation matrix, describe report) | Payload in `memframe_cache_payloads` |
+| `ref` | A feature/projection that lives in a table (row-preserving generated columns, selected columns, feature-mapped group results) | Pointer: `ref_schema`, `ref_table`, `involved_cols`, `generated_cols`, `result_cols` |
+| `actual` | A standalone result that has no table (aggregate-only group-by, scalar, dict, list, correlation matrix, describe report) | Payload in `memframe_cache_payloads` |
 
 A call is one kind or the other; the registry row carries `cache_kind`.
 
@@ -57,6 +57,21 @@ records the same source ref.
 
 `owns_table` is `false` for source refs. Cache clear/delete never drops a
 source table.
+
+### Group-by operations
+
+The cache kind follows whether the operation writes to the source:
+
+- **Aggregate only** (`map_feature=False`): the group table is the final
+  result. It is cached as `actual` and the temporary group table is dropped.
+- **Feature mapped** (`map_feature=True`): the feature columns are added to
+  the source. The cache stores a source `ref` with the generated columns; the
+  intermediate group table is dropped.
+- **`groupby().fillna()`**: always writes `<col>_filled` into the source, so
+  it is always a source `ref`.
+
+A registered dataset base table (`<data_id>__base`) is never relocated into
+the cache schema, even for unannotated operations.
 
 ## Actual results — payload table
 

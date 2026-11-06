@@ -38,6 +38,16 @@ class GroupByFillnaOrchestrator:
         data_id = self._data_id or self._memframe._active_id
         return {"backend": backend, "data_id": data_id}
 
+    def _as_source_ref(self, result, table, schema):
+        """Fillna writes a <col>_filled column into the source (Out_2)."""
+        if isinstance(result, dict) and not result.get("is_error"):
+            result["cache_kind"] = "ref"
+            result["ref_schema"] = schema
+            result["ref_table"] = table
+            result["owns_table"] = False
+            result["mutates"] = True
+        return result
+
     async def _detect_fillna_dtype(self, ops, table, schema, column):
         sql_type = (await ops._get_column_type(table, schema, column)).lower()
         if any(k in sql_type for k in ("timestamp", "datetime", "date", "time")):
@@ -87,19 +97,43 @@ class GroupByFillnaOrchestrator:
             if detected_dtype != "datetime":
                 from memframe.core.analytix._response import fail as _fail
                 return _fail(f"Method '{method}' only valid for datetime columns (detected: {detected_dtype})", [column], [])
-            return await ops.datetime_fillna_groupby(table, schema, column, group_cols=group_cols, mode=method_lower.upper(), **persist)
+            return self._as_source_ref(
+                await ops.datetime_fillna_groupby(
+                    table, schema, column, group_cols=group_cols,
+                    mode=method_lower.upper(), **persist
+                ),
+                table, schema,
+            )
 
         if detected_dtype == "numeric":
-            return await ops.numeric_fillna_groupby(table, schema, column, group_cols=group_cols, mode=method_lower.upper(), value=value, **persist)
+            return self._as_source_ref(
+                await ops.numeric_fillna_groupby(
+                    table, schema, column, group_cols=group_cols,
+                    mode=method_lower.upper(), value=value, **persist
+                ),
+                table, schema,
+            )
 
         if detected_dtype == "datetime":
-            return await ops.datetime_fillna_groupby(table, schema, column, group_cols=group_cols, mode=method_lower.upper(), **persist)
+            return self._as_source_ref(
+                await ops.datetime_fillna_groupby(
+                    table, schema, column, group_cols=group_cols,
+                    mode=method_lower.upper(), **persist
+                ),
+                table, schema,
+            )
 
         if method_lower in ("mean", "median", "std", "var", "min", "max"):
             from memframe.core.analytix._response import fail as _fail
             return _fail(f"Method '{method}' requires numeric column (detected: {detected_dtype})", [column], [])
 
-        return await ops.categorical_fillna_groupby(table, schema, column, group_cols=group_cols, mode=method_lower.upper(), **persist)
+        return self._as_source_ref(
+            await ops.categorical_fillna_groupby(
+                table, schema, column, group_cols=group_cols,
+                mode=method_lower.upper(), **persist
+            ),
+            table, schema,
+        )
 
     def groupby(self, *columns: str) -> "GroupByFillna":
         if not columns:
