@@ -66,6 +66,11 @@ def test_owned_tables_never_include_the_dataset():
 
         asyncio.run(mf.adelete_table(data_id=did))
         assert _upload_tables(mf) == set()
+        assert asyncio.run(mf._backend.fetchval(
+            f"SELECT COUNT(*) FROM {mf._backend.cache_markers_table} "
+            f"WHERE data_id = {mf._backend.placeholder(1)}",
+            did,
+        )) == 0
     finally:
         asyncio.run(mf.aclose())
 
@@ -178,6 +183,66 @@ def test_non_deep_source_writeback_keeps_the_dataset():
         assert _upload_tables(mf) == {did, f"{did}__base"}
         assert _cache_tables(mf) == set()
         assert len(ctx.head(n=1)) == 1
+    finally:
+        asyncio.run(mf.aclose())
+
+
+def test_cache_markers_are_not_registry_entries():
+    mf, ctx = _open()
+    did = ctx._data_id
+    try:
+        ctx.rolling(column="z", window=2, func="mean")
+        ctx.groupby("g").agg({"z": ["sum"]}, map_feature=True)
+
+        registry_types = asyncio.run(mf._backend.fetch(
+            "SELECT DISTINCT operation_type FROM "
+            f"{mf._backend.cache_registry_table} "
+            f"WHERE data_id = {mf._backend.placeholder(1)}",
+            did,
+        ))
+        assert [r[0] for r in registry_types] == ["method_call"]
+
+        markers = asyncio.run(mf._backend.fetch(
+            f"SELECT operation_type, source_table FROM {mf._backend.cache_markers_table} "
+            f"WHERE data_id = {mf._backend.placeholder(1)} ORDER BY operation_type",
+            did,
+        ))
+        assert {r[0] for r in markers} == {"groupby_map", "window_map"}
+        assert {r[1] for r in markers} == {f"{did}__base"}
+        assert _upload_tables(mf) == {did, f"{did}__base"}
+    finally:
+        asyncio.run(mf.aclose())
+
+
+def test_legacy_markers_migrate_out_of_the_registry():
+    mf, ctx = _open()
+    did = ctx._data_id
+    try:
+        asyncio.run(mf._backend.execute(
+            f"INSERT INTO {mf._backend.cache_registry_table} "
+            "(data_id, opidx, operation_type, class_name, method_name, "
+            "args, kwargs, generated_table_name, is_deep_cache, schema) "
+            f"VALUES ({mf._backend.placeholder(1)}, 999, 'window_map', "
+            "'WindowWrapper', 'rolling', '', '{}', "
+            f"{mf._backend.placeholder(2)}, FALSE, 'memframe_upload')",
+            did, f"{did}__base",
+        ))
+        asyncio.run(mf._backend._migrate_cache_markers())
+
+        legacy = asyncio.run(mf._backend.fetch(
+            f"SELECT count(*) FROM {mf._backend.cache_registry_table} "
+            f"WHERE data_id = {mf._backend.placeholder(1)} "
+            "AND operation_type = 'window_map'",
+            did,
+        ))
+        assert legacy[0][0] == 0
+
+        migrated = asyncio.run(mf._backend.fetch(
+            f"SELECT count(*) FROM {mf._backend.cache_markers_table} "
+            f"WHERE data_id = {mf._backend.placeholder(1)}",
+            did,
+        ))
+        assert migrated[0][0] == 1
     finally:
         asyncio.run(mf.aclose())
 
