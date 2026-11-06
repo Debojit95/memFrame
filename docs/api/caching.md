@@ -109,14 +109,29 @@ the current epoch. Actual results use the same rules.
 The registry lives in the backend `memframe_csv_registry` schema
 (DuckDB/PostgreSQL) or database (ClickHouse):
 
-| Backend | Registry table | Payload table | Cache schema/database |
-| --- | --- | --- | --- |
-| DuckDB | `memframe_csv_registry.memframe_cache_registry` | `memframe_csv_registry.memframe_cache_payloads` | `memframe_cache` |
-| PostgreSQL | `memframe_csv_registry.memframe_cache_registry` | `memframe_csv_registry.memframe_cache_payloads` | `memframe_cache` |
-| ClickHouse | `memframe_csv_registry.memframe_cache_registry` | `memframe_csv_registry.memframe_cache_payloads` | `memframe_cache` |
+| Backend | Registry table | Payload table | Marker table | Cache schema/database |
+| --- | --- | --- | --- | --- |
+| DuckDB | `memframe_csv_registry.memframe_cache_registry` | `memframe_csv_registry.memframe_cache_payloads` | `memframe_csv_registry.memframe_cache_markers` | `memframe_cache` |
+| PostgreSQL | `memframe_csv_registry.memframe_cache_registry` | `memframe_csv_registry.memframe_cache_payloads` | `memframe_csv_registry.memframe_cache_markers` | `memframe_cache` |
+| ClickHouse | `memframe_csv_registry.memframe_cache_registry` | `memframe_csv_registry.memframe_cache_payloads` | `memframe_csv_registry.memframe_cache_markers` | `memframe_cache` |
 
 The fixed schemas/databases are `memframe_csv_registry`, `memframe_cache`, and
 `memframe_upload`. ClickHouse payloads are stored base64-encoded in a `String`.
+
+### Internal markers
+
+`window_map`, `groupby_map`, `groupby_cum_map`, and `groupby_win_map` rows
+protect reruns from dropping columns they did not create. They are not cache
+results, so they live in `memframe_cache_markers`:
+
+```text
+data_id, operation_type, class_name, method_name,
+source_schema, source_table, sig, created_at
+```
+
+The cache registry therefore contains only `operation_type = 'method_call'`
+rows. Legacy marker rows found in an older registry are moved to the marker
+table on connect.
 
 ## Clearing
 
@@ -124,7 +139,7 @@ The fixed schemas/databases are `memframe_csv_registry`, `memframe_cache`, and
 
 1. Drops tables the cache owns (`owns_table = true`, legacy cache copies).
 2. Never drops a `ref_table` that is the user's source table.
-3. Deletes the dataset's actual payload rows.
+3. Deletes the dataset's actual payload rows and internal markers.
 4. Deletes its registry rows.
 
 `adelete_table(data_id)` performs the same cache cleanup and then removes the
