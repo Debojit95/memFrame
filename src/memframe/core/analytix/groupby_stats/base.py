@@ -268,7 +268,7 @@ class GroupByStatsOps:
     # ------------------------------------------------------------------
     # Response wrappers
     # ------------------------------------------------------------------
-    def _success_response(self, message: str, result: pd.DataFrame, new_table: str,
+    def _success_response(self, message: str, result: pd.DataFrame, new_table: Optional[str],
                           new_columns: List[str], group_cols: List[str], **extra) -> Dict[str, Any]:
         resp = {
             "is_error": False,
@@ -420,9 +420,11 @@ class GroupByStatsOps:
             select_clause = ", ".join(quoted_group_cols + select_parts)
 
             # Resolve output table name (supports chaining via new_table)
+            auto_output = new_table is None
             output_table = await self._resolve_output_table_name(
                 table, schema, backend=backend, data_id=data_id, new_table=new_table
             )
+            output_qualified = self._qualified_table(output_table, schema)
 
             create_sql = self._create_table_sql(
                 output_table,
@@ -434,25 +436,58 @@ class GroupByStatsOps:
             )
             await self._exec(create_sql)
 
+            preview_cols = safe_group_cols + new_columns
+            ref_meta: Dict[str, Any] = {
+                "involved_cols": safe_group_cols + list(agg_spec.keys()),
+                "result_cols": preview_cols,
+            }
+
             if map_feature:
                 await self._apply_map(
                     table, schema, output_table,
                     safe_group_cols, new_columns, backend, data_id, map_sig,
                 )
-
-            # Fetch preview (all rows)
-            preview_cols = safe_group_cols + new_columns
-            df = await self._fetch_preview(output_table, schema, preview_cols)
+                if auto_output:
+                    # Features live on the source; the group table is only
+                    # the join input and is not worth caching.
+                    await self._exec(f"DROP TABLE IF EXISTS {output_qualified}")
+                    df = await self._fetch_preview(table, schema, preview_cols)
+                    response_table = table
+                    ref_meta.update(
+                        cache_kind="ref", ref_schema=schema, ref_table=table,
+                        owns_table=False, mutates=True,
+                    )
+                else:
+                    df = await self._fetch_preview(output_table, schema, preview_cols)
+                    response_table = output_table
+                    ref_meta.update(
+                        cache_kind="ref", ref_schema=schema,
+                        ref_table=output_table, owns_table=True, mutates=True,
+                    )
+            else:
+                df = await self._fetch_preview(output_table, schema, preview_cols)
+                if auto_output:
+                    # Aggregate only: the payload is the result, no table.
+                    await self._exec(f"DROP TABLE IF EXISTS {output_qualified}")
+                    response_table = None
+                    ref_meta.update(cache_kind="actual", owns_table=False)
+                else:
+                    response_table = output_table
+                    ref_meta.update(
+                        cache_kind="ref", ref_schema=schema,
+                        ref_table=output_table, owns_table=True,
+                    )
 
             return self._success_response(
                 f"Group-by aggregation on {list(agg_spec.keys())}",
                 df,
-                new_table=output_table,
+                new_table=response_table,
                 new_columns=new_columns,
                 group_cols=safe_group_cols,
                 agg_spec=agg_spec,
                 mapped_table=table if map_feature else None,
                 mapped_columns=new_columns if map_feature else [],
+                **ref_meta,
             )
 
         except Exception as e:
@@ -488,9 +523,11 @@ class GroupByStatsOps:
             units = {"second": 1, "minute": 60, "hour": 3600, "day": 86400, "week": 604800}
             secs = units.get(unit.lower(), 86400)
 
+            auto_output = new_table is None
             output_table = await self._resolve_output_table_name(
                 table, schema, backend=backend, data_id=data_id, new_table=new_table
             )
+            output_qualified = self._qualified_table(output_table, schema)
 
             elapsed_seconds = self._elapsed_seconds_expr(qcol)
 
@@ -513,12 +550,23 @@ class GroupByStatsOps:
             preview_cols = safe_group_cols + new_columns
             df = await self._fetch_preview(output_table, schema, preview_cols)
 
+            if auto_output:
+                await self._exec(f"DROP TABLE IF EXISTS {output_qualified}")
+
             return self._success_response(
                 f"Event rate (per {unit}) grouped by {safe_group_cols}",
                 df,
-                new_table=output_table,
+                new_table=None if auto_output else output_table,
                 new_columns=new_columns,
                 group_cols=safe_group_cols,
+                **(
+                    {"cache_kind": "actual", "owns_table": False}
+                    if auto_output
+                    else {
+                        "cache_kind": "ref", "ref_schema": schema,
+                        "ref_table": output_table, "owns_table": True,
+                    }
+                ),
             )
 
         except Exception as e:

@@ -1073,7 +1073,7 @@ class TestGroupByStatsOperations:
         )
 
         assert result["is_error"] is False
-        assert result["new_table"]  # group table still produced
+        assert result["new_table"] is None  # aggregate payload, no table
         assert result["mapped_table"] is None
         assert result["mapped_columns"] == []
 
@@ -1105,7 +1105,7 @@ class TestGroupByStatsOperations:
             {"value": ["sum"]}, map_feature=False
         )
         assert second["is_error"] is False
-        assert second["new_table"]  # fresh group table either way
+        assert second["new_table"] is None  # aggregate payload, no table
 
         mapped = get_result_df(uploaded_ctx.head(n=len(sample_df)))
         assert "value_sum" in list(mapped.columns)  # True's column persists

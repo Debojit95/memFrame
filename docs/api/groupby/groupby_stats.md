@@ -115,8 +115,8 @@ result = dataset.groupby("region", "month").sum("sales")
 | `agg_dict` / `agg_spec` | `dict[str, list[str]]` | Value column → list of statistics (e.g. `{"sales": ["sum", "mean"]}`). |
 | `datetime_col` | `str` | Datetime column for `event_rate`. |
 | `unit` | `str` | Rate unit for `event_rate`: `second`, `minute`, `hour`, `day` (default), or `week`. |
-| `new_table` | `str` or `None` | Explicit name for the output table. Auto-generated as `<table>__op_<n>` (chained) when omitted. |
-| `map_feature` | `bool` | When `True` (default `False`), LEFT JOIN the new feature columns back onto the original table — one value per row, matched on the group keys. No extra result table is created; the envelope gains `mapped_table` / `mapped_columns`. Agg only (not `event_rate`). |
+| `new_table` | `str` or `None` | Optional explicit name for a result table. When omitted, the temporary group table is dropped and the aggregate is cached as an `actual` payload (or written to the source with `map_feature=True`). |
+| `map_feature` | `bool` | When `True` (default `False`), LEFT JOIN the new feature columns back onto the original table — one value per row, matched on the group keys. The intermediate group table is dropped and the envelope is a source ref (`ref_schema` / `ref_table` / `generated_cols`); `result` is the row-aligned source view. Agg only (not `event_rate`). |
 
 ## Aggregation Statistics
 
@@ -169,8 +169,12 @@ result = dataset.groupby("region").mean("sales")
 With `map_feature=True`, the new `<column>_<stat>` columns are LEFT JOINed
 back onto the original table — every original row gains its group's value
 (pandas: `df.merge(grouped)`). Only the feature columns are added; group
-keys are already on the original table and no extra result table is created.
-Only the group table is recorded by `@record_call`.
+keys are already on the original table. The temporary group table is dropped
+and the result is returned row-aligned with the source.
+
+The cache stores a source `ref`, not the intermediate group table. Without
+`map_feature`, the aggregate is returned as an `actual` payload and no table
+is retained.
 
 ```python
 result = dataset.groupby("region").agg({"sales": ["sum"]}, map_feature=True)

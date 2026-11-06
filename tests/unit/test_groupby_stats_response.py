@@ -40,7 +40,8 @@ def test_agg_multi_stat_returns_envelope_with_values(groupby_context):
     assert response["error_message"] is None
     assert isinstance(response["result"], pd.DataFrame)
     assert response["new_columns"] == ["sales_sum", "sales_mean"]
-    assert response["new_table"]
+    assert response["new_table"] is None
+    assert response["cache_kind"] == "actual"
     assert dict(
         zip(response["result"]["region"], response["result"]["sales_sum"])
     ) == {"a": 30, "b": 70}
@@ -81,7 +82,7 @@ def test_builder_single_stats_exact_values(groupby_context, stat, expected):
 
     assert response["is_error"] is False
     assert response["new_columns"] == [f"sales_{stat}"]
-    assert response["new_table"]
+    assert response["new_table"] is None
     assert (
         dict(zip(response["result"]["region"], response["result"][f"sales_{stat}"]))
         == expected
@@ -118,7 +119,7 @@ def test_builder_event_rate_shape(groupby_context):
 
     assert response["is_error"] is False
     assert response["new_columns"] == ["cnt", "event_rate"]
-    assert response["new_table"]
+    assert response["new_table"] is None
     assert dict(zip(response["result"]["region"], response["result"]["cnt"])) == {
         "a": 2,
         "b": 2,
@@ -246,3 +247,68 @@ def test_map_feature_second_spec_stacks(groupby_context):
         "a": 15.0,
         "b": 35.0,
     }
+
+
+def test_agg_caches_actual_without_intermediate_table(groupby_context):
+    mf = groupby_context.memframe
+    did = groupby_context._data_id
+    wrapper = GroupByStatsWrapper(groupby_context)
+
+    response = wrapper.groupby("region").agg({"sales": ["sum"]})
+    assert response["cache_kind"] == "actual"
+    assert response["new_table"] is None
+
+    row = asyncio.run(mf._backend.fetch_row(
+        f"SELECT cache_kind FROM {mf._backend.cache_registry_table} "
+        f"WHERE data_id = {mf._backend.placeholder(1)} "
+        "AND operation_type = 'method_call' ORDER BY opidx DESC LIMIT 1",
+        did,
+    ))
+    assert row[0] == "actual"
+
+    orphans = asyncio.run(mf._backend.fetch(
+        "SELECT table_name FROM information_schema.tables "
+        "WHERE table_schema = 'memframe_upload' AND table_name LIKE "
+        f"{mf._backend.placeholder(1)}",
+        "%__op_%",
+    ))
+    assert orphans == []
+
+    # A cache hit replays the aggregate payload.
+    again = wrapper.groupby("region").agg({"sales": ["sum"]})
+    assert again["result"].to_dict("records") == response["result"].to_dict("records")
+
+
+def test_map_feature_caches_source_ref_without_intermediate_table(groupby_context):
+    mf = groupby_context.memframe
+    did = groupby_context._data_id
+    wrapper = GroupByStatsWrapper(groupby_context)
+
+    response = wrapper.groupby("region").agg(
+        {"sales": ["sum"]}, map_feature=True
+    )
+    assert response["cache_kind"] == "ref"
+    assert response["new_table"] == f"{did}__base"
+    assert len(response["result"]) == len(groupby_context.head(n=10))
+
+    row = asyncio.run(mf._backend.fetch_row(
+        f"SELECT cache_kind, ref_table FROM {mf._backend.cache_registry_table} "
+        f"WHERE data_id = {mf._backend.placeholder(1)} "
+        "AND operation_type = 'method_call' ORDER BY opidx DESC LIMIT 1",
+        did,
+    ))
+    assert row[0] == "ref"
+    assert row[1] == f"{did}__base"
+
+    orphans = asyncio.run(mf._backend.fetch(
+        "SELECT table_name FROM information_schema.tables "
+        "WHERE table_schema = 'memframe_upload' AND table_name LIKE "
+        f"{mf._backend.placeholder(1)}",
+        "%__op_%",
+    ))
+    assert orphans == []
+
+    again = wrapper.groupby("region").agg(
+        {"sales": ["sum"]}, map_feature=True
+    )
+    pd.testing.assert_frame_equal(response["result"], again["result"])

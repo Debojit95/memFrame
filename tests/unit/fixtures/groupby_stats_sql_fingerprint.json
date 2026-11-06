@@ -17,6 +17,11 @@
     "fetch",
     "SELECT`g`,`num_product`,`num_median`,`num_mode`FROM`s`.`t__op_1`",
     []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS`s`.`t__op_1`",
+    []
    ]
   ],
   "duckdb": [
@@ -36,6 +41,11 @@
     "fetch",
     "SELECT\"g\",\"num_product\",\"num_median\",\"num_mode\"FROM\"s\".\"t__op_1\"",
     []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS\"s\".\"t__op_1\"",
+    []
    ]
   ],
   "postgres": [
@@ -54,6 +64,11 @@
    [
     "fetch",
     "SELECT\"g\",\"num_product\",\"num_median\",\"num_mode\"FROM\"s\".\"t__op_1\"",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS\"s\".\"t__op_1\"",
     []
    ]
   ]
@@ -76,6 +91,11 @@
     "fetch",
     "SELECT`g`,`num_count`,`num_sum`,`num_min`,`num_max`,`num_avg`,`num_mean`,`num_nunique`,`num_range`FROM`s`.`t__op_1`",
     []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS`s`.`t__op_1`",
+    []
    ]
   ],
   "duckdb": [
@@ -95,6 +115,11 @@
     "fetch",
     "SELECT\"g\",\"num_count\",\"num_sum\",\"num_min\",\"num_max\",\"num_avg\",\"num_mean\",\"num_nunique\",\"num_range\"FROM\"s\".\"t__op_1\"",
     []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS\"s\".\"t__op_1\"",
+    []
    ]
   ],
   "postgres": [
@@ -113,6 +138,11 @@
    [
     "fetch",
     "SELECT\"g\",\"num_count\",\"num_sum\",\"num_min\",\"num_max\",\"num_avg\",\"num_mean\",\"num_nunique\",\"num_range\"FROM\"s\".\"t__op_1\"",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS\"s\".\"t__op_1\"",
     []
    ]
   ]
@@ -135,6 +165,11 @@
     "fetch",
     "SELECT`g`,`cnt`,`event_rate`FROM`s`.`t__op_1`",
     []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS`s`.`t__op_1`",
+    []
    ]
   ],
   "duckdb": [
@@ -154,6 +189,11 @@
     "fetch",
     "SELECT\"g\",\"cnt\",\"event_rate\"FROM\"s\".\"t__op_1\"",
     []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS\"s\".\"t__op_1\"",
+    []
    ]
   ],
   "postgres": [
@@ -172,6 +212,11 @@
    [
     "fetch",
     "SELECT\"g\",\"cnt\",\"event_rate\"FROM\"s\".\"t__op_1\"",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS\"s\".\"t__op_1\"",
     []
    ]
   ]
@@ -194,6 +239,11 @@
     "fetch",
     "SELECT`g`,`cnt`,`event_rate`FROM`s`.`t__op_1`",
     []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS`s`.`t__op_1`",
+    []
    ]
   ],
   "duckdb": [
@@ -213,6 +263,11 @@
     "fetch",
     "SELECT\"g\",\"cnt\",\"event_rate\"FROM\"s\".\"t__op_1\"",
     []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS\"s\".\"t__op_1\"",
+    []
    ]
   ],
   "postgres": [
@@ -231,6 +286,11 @@
    [
     "fetch",
     "SELECT\"g\",\"cnt\",\"event_rate\"FROM\"s\".\"t__op_1\"",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS\"s\".\"t__op_1\"",
     []
    ]
   ]
@@ -290,8 +350,13 @@
     ]
    ],
    [
+    "exec",
+    "DROPTABLEIFEXISTS`s`.`t__op_1`",
+    []
+   ],
+   [
     "fetch",
-    "SELECT`g`,`num_sum`,`num_mean`FROM`s`.`t__op_1`",
+    "SELECT`g`,`num_sum`,`num_mean`FROM`s`.`t`",
     []
    ]
   ],
@@ -334,8 +399,13 @@
     ]
    ],
    [
+    "exec",
+    "DROPTABLEIFEXISTS\"s\".\"t__op_1\"",
+    []
+   ],
+   [
     "fetch",
-    "SELECT\"g\",\"num_sum\",\"num_mean\"FROM\"s\".\"t__op_1\"",
+    "SELECT\"g\",\"num_sum\",\"num_mean\"FROM\"s\".\"t\"",
     []
    ]
   ],
@@ -393,8 +463,13 @@
     ]
    ],
    [
+    "exec",
+    "DROPTABLEIFEXISTS\"s\".\"t__op_1\"",
+    []
+   ],
+   [
     "fetch",
-    "SELECT\"g\",\"num_sum\",\"num_mean\"FROM\"s\".\"t__op_1\"",
+    "SELECT\"g\",\"num_sum\",\"num_mean\"FROM\"s\".\"t\"",
     []
    ]
   ]
@@ -455,6 +530,11 @@
     "fetch",
     "SELECT`g`,`num_std`,`num_var`,`num_sem`FROM`s`.`t__op_1`",
     []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS`s`.`t__op_1`",
+    []
    ]
   ],
   "duckdb": [
@@ -474,6 +554,11 @@
     "fetch",
     "SELECT\"g\",\"num_std\",\"num_var\",\"num_sem\"FROM\"s\".\"t__op_1\"",
     []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS\"s\".\"t__op_1\"",
+    []
    ]
   ],
   "postgres": [
@@ -492,6 +577,11 @@
    [
     "fetch",
     "SELECT\"g\",\"num_std\",\"num_var\",\"num_sem\"FROM\"s\".\"t__op_1\"",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS\"s\".\"t__op_1\"",
     []
    ]
   ]
