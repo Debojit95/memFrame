@@ -215,6 +215,36 @@ class DatabaseBackend(ABC):
             except Exception:
                 pass
 
+        await self._migrate_cache_markers()
+
+    async def _migrate_cache_markers(self) -> None:
+        """Move internal map markers out of the public cache registry."""
+        markers = self.cache_markers_table
+        registry = self.cache_registry_table
+        types = "('window_map','groupby_map','groupby_cum_map','groupby_win_map')"
+        try:
+            await self.execute(
+                f"INSERT INTO {markers} "
+                f"(data_id, operation_type, class_name, method_name, "
+                f"source_schema, source_table, sig, created_at) "
+                f"SELECT data_id, operation_type, class_name, method_name, "
+                f"schema, generated_table_name, kwargs, created_at "
+                f"FROM {registry} WHERE operation_type IN {types}"
+            )
+        except Exception:
+            pass
+        try:
+            if self.backend == "clickhouse":
+                await self.execute(
+                    f"ALTER TABLE {registry} DELETE WHERE operation_type IN {types}"
+                )
+            else:
+                await self.execute(
+                    f"DELETE FROM {registry} WHERE operation_type IN {types}"
+                )
+        except Exception:
+            pass
+
     async def _migrate_csv_registry_schema(self) -> None:
         schema_name = self.registry_schema
         table_name = "memframe_csv_registry"
@@ -384,6 +414,10 @@ class DatabaseBackend(ABC):
     @property
     def cache_payloads_table(self) -> str:
         return f"{self.registry_schema}.memframe_cache_payloads"
+
+    @property
+    def cache_markers_table(self) -> str:
+        return f"{self.registry_schema}.memframe_cache_markers"
 
     @property
     @abstractmethod

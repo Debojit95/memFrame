@@ -159,6 +159,19 @@ class ClickHouseBackend(DatabaseBackend):
             ) ENGINE = MergeTree()
             ORDER BY (data_id, opidx)
         """)
+        await self.execute(f"""
+            CREATE TABLE IF NOT EXISTS {self.registry_schema}.memframe_cache_markers (
+                data_id String,
+                operation_type Nullable(String),
+                class_name Nullable(String),
+                method_name Nullable(String),
+                source_schema Nullable(String),
+                source_table Nullable(String),
+                sig Nullable(String),
+                created_at DateTime DEFAULT now()
+            ) ENGINE = MergeTree()
+            ORDER BY (data_id, operation_type, source_table)
+        """)
         await self._migrate_cache_registry_schema()
         await self._migrate_csv_registry_schema()
         # ponytail: index registry writes use a plain lightweight UPDATE,

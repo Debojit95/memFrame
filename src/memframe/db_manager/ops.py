@@ -225,6 +225,7 @@ class OpsMixin:
                 else:
                     await self._backend.drop_table(q_public)
             await self._delete_cache_payloads(data_id)
+            await self._delete_cache_markers(data_id)
             await self._backend.execute(
                 f"DELETE FROM {self._backend.csv_registry_table} WHERE data_id = {self._placeholder(1)}",
                 data_id,
@@ -278,6 +279,13 @@ class OpsMixin:
             data_id,
         )
 
+    async def _delete_cache_markers(self, data_id: str) -> None:
+        await self._backend.execute(
+            f"DELETE FROM {self._backend.cache_markers_table} "
+            f"WHERE data_id = {self._placeholder(1)}",
+            data_id,
+        )
+
     async def _aclear_cache(self, data_id: str) -> None:
         rows = await self._owned_cache_tables(data_id)
         async with self._backend.transaction():
@@ -286,6 +294,7 @@ class OpsMixin:
                     self._backend.qualify_table(sch or self._backend.cache_schema, bare)
                 )
             await self._delete_cache_payloads(data_id)
+            await self._delete_cache_markers(data_id)
             await self._backend.execute(
                 f"DELETE FROM {self._backend.cache_registry_table} WHERE data_id = {self._placeholder(1)}",
                 data_id,

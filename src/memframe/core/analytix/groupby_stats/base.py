@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 import pandas as pd
 
 from memframe.db_manager.adapters.base import DatabaseAdapter
+from memframe.core.analytix._generated import markers_table
 from memframe.utils.helper import SQLIdentifierSanitizer
 
 
@@ -201,10 +202,10 @@ class GroupByStatsOps:
             return None
         sig = self._map_sig(safe_group_cols, agg_spec, new_columns)
         rows = await self._fetch(
-            f"""SELECT kwargs FROM {backend.cache_registry_table}
+            f"""SELECT sig FROM {markers_table(backend)}
                 WHERE data_id = {backend.placeholder(1)}
                   AND operation_type = 'groupby_map'
-                  AND generated_table_name = {backend.placeholder(2)}""",
+                  AND source_table = {backend.placeholder(2)}""",
             data_id,
             table,
         )
@@ -212,7 +213,7 @@ class GroupByStatsOps:
             try:
                 # ponytail: adapters disagree (dicts on DuckDB, tuples on
                 # Postgres) — read both shapes.
-                stored = row.get("kwargs") if isinstance(row, dict) else row[0]
+                stored = row.get("sig") if isinstance(row, dict) else row[0]
                 if json.loads(stored or "{}") == json.loads(sig):
                     for col in clashes:
                         await self._exec(
@@ -243,26 +244,15 @@ class GroupByStatsOps:
         data_id: str,
         sig: str,
     ) -> None:
-        max_op = await self._backend_fetch_val(
-            backend,
-            f"""
-            SELECT COALESCE(MAX(opidx), 0)
-            FROM {backend.cache_registry_table}
-            WHERE data_id = {backend.placeholder(1)}
-            """,
-            data_id,
-        )
-        opidx = (max_op or 0) + 1
         await self._exec(
-            f"""INSERT INTO {backend.cache_registry_table}
-                (data_id, opidx, operation_type, class_name, method_name,
-                 args, kwargs, generated_table_name, is_deep_cache, schema)
-                VALUES ({backend.placeholder(1)}, {backend.placeholder(2)},
-                        'groupby_map', 'GroupByStatsOps', 'map_feature',
-                        {backend.placeholder(3)}, {backend.placeholder(4)},
-                        {backend.placeholder(5)}, {backend.placeholder(6)},
-                        {backend.placeholder(7)})""",
-            data_id, opidx, "", sig, table, False, schema,
+            f"""INSERT INTO {markers_table(backend)}
+                (data_id, operation_type, class_name, method_name,
+                 source_schema, source_table, sig)
+                VALUES ({backend.placeholder(1)}, 'groupby_map',
+                        'GroupByStatsOps', 'map_feature',
+                        {backend.placeholder(2)}, {backend.placeholder(3)},
+                        {backend.placeholder(4)})""",
+            data_id, schema, table, sig,
         )
 
     # ------------------------------------------------------------------

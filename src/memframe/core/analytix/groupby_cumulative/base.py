@@ -14,6 +14,7 @@ import pandas as pd
 from datetime import datetime, timezone
 
 from memframe.core.indexing import assert_user_column
+from memframe.core.analytix._generated import markers_table
 from memframe.db_manager.adapters.base import DatabaseAdapter
 from memframe.utils.helper import SQLIdentifierSanitizer
 
@@ -159,10 +160,10 @@ class GroupbyCumulativeOps:
         if not clashes:
             return None
         rows = await self._fetch(
-            f"""SELECT kwargs FROM {backend.cache_registry_table}
+            f"""SELECT sig FROM {markers_table(backend)}
                 WHERE data_id = {backend.placeholder(1)}
                   AND operation_type = 'groupby_cum_map'
-                  AND generated_table_name = {backend.placeholder(2)}""",
+                  AND source_table = {backend.placeholder(2)}""",
             data_id,
             table,
         )
@@ -170,7 +171,7 @@ class GroupbyCumulativeOps:
             try:
                 # ponytail: adapters disagree (dicts on DuckDB, tuples on
                 # Postgres) — read both shapes.
-                stored = row.get("kwargs") if isinstance(row, dict) else row[0]
+                stored = row.get("sig") if isinstance(row, dict) else row[0]
                 if json.loads(stored or "{}") == json.loads(sig):
                     for col in clashes:
                         await self._exec(

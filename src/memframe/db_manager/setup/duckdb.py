@@ -103,6 +103,18 @@ class DuckDBBackend(DatabaseBackend):
                 PRIMARY KEY (data_id, opidx)
             )
         """)
+        await self.execute(f"""
+            CREATE TABLE IF NOT EXISTS {self.registry_schema}.memframe_cache_markers (
+                data_id TEXT NOT NULL,
+                operation_type TEXT,
+                class_name TEXT,
+                method_name TEXT,
+                source_schema TEXT,
+                source_table TEXT,
+                sig TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
         await self._migrate_cache_registry_schema()
         await self._migrate_csv_registry_schema()
         await self.execute(

@@ -330,23 +330,13 @@
     []
    ],
    [
-    "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
-    [
-     "d1"
-    ]
-   ],
-   [
     "exec",
-    "INSERTINTOcache_registry(data_id,opidx,operation_type,class_name,method_name,args,kwargs,generated_table_name,is_deep_cache,schema)VALUES($1,$2,'groupby_map','GroupByStatsOps','map_feature',$3,$4,$5,$6,$7)",
+    "INSERTINTOcache_registry(data_id,operation_type,class_name,method_name,source_schema,source_table,sig)VALUES($1,'groupby_map','GroupByStatsOps','map_feature',$2,$3,$4)",
     [
      "d1",
-     "1",
-     "",
-     "{\"agg_spec\": {\"num\": [\"sum\", \"mean\"]}, \"group_cols\": [\"g\"], \"new_columns\": [\"num_sum\", \"num_mean\"]}",
+     "s",
      "t",
-     "False",
-     "s"
+     "{\"agg_spec\": {\"num\": [\"sum\", \"mean\"]}, \"group_cols\": [\"g\"], \"new_columns\": [\"num_sum\", \"num_mean\"]}"
     ]
    ],
    [
@@ -379,23 +369,13 @@
     []
    ],
    [
-    "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
-    [
-     "d1"
-    ]
-   ],
-   [
     "exec",
-    "INSERTINTOcache_registry(data_id,opidx,operation_type,class_name,method_name,args,kwargs,generated_table_name,is_deep_cache,schema)VALUES($1,$2,'groupby_map','GroupByStatsOps','map_feature',$3,$4,$5,$6,$7)",
+    "INSERTINTOcache_registry(data_id,operation_type,class_name,method_name,source_schema,source_table,sig)VALUES($1,'groupby_map','GroupByStatsOps','map_feature',$2,$3,$4)",
     [
      "d1",
-     "1",
-     "",
-     "{\"agg_spec\": {\"num\": [\"sum\", \"mean\"]}, \"group_cols\": [\"g\"], \"new_columns\": [\"num_sum\", \"num_mean\"]}",
+     "s",
      "t",
-     "False",
-     "s"
+     "{\"agg_spec\": {\"num\": [\"sum\", \"mean\"]}, \"group_cols\": [\"g\"], \"new_columns\": [\"num_sum\", \"num_mean\"]}"
     ]
    ],
    [
@@ -443,23 +423,13 @@
     []
    ],
    [
-    "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
-    [
-     "d1"
-    ]
-   ],
-   [
     "exec",
-    "INSERTINTOcache_registry(data_id,opidx,operation_type,class_name,method_name,args,kwargs,generated_table_name,is_deep_cache,schema)VALUES($1,$2,'groupby_map','GroupByStatsOps','map_feature',$3,$4,$5,$6,$7)",
+    "INSERTINTOcache_registry(data_id,operation_type,class_name,method_name,source_schema,source_table,sig)VALUES($1,'groupby_map','GroupByStatsOps','map_feature',$2,$3,$4)",
     [
      "d1",
-     "1",
-     "",
-     "{\"agg_spec\": {\"num\": [\"sum\", \"mean\"]}, \"group_cols\": [\"g\"], \"new_columns\": [\"num_sum\", \"num_mean\"]}",
+     "s",
      "t",
-     "False",
-     "s"
+     "{\"agg_spec\": {\"num\": [\"sum\", \"mean\"]}, \"group_cols\": [\"g\"], \"new_columns\": [\"num_sum\", \"num_mean\"]}"
     ]
    ],
    [

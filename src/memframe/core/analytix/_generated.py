@@ -136,20 +136,25 @@ async def _drop_columns(db, backend, schema: str, table: str, cols: List[str]) -
         await asyncio.sleep(0.1)
 
 
+def markers_table(backend) -> str:
+    """Internal marker table (falls back for test doubles)."""
+    return getattr(backend, "cache_markers_table", backend.cache_registry_table)
+
+
 async def _known_generated_columns(
     ops, table: str, op_type: str, backend, data_id: str,
 ) -> set:
     rows = await ops.db.fetch(
-        f"""SELECT kwargs FROM {backend.cache_registry_table}
+        f"""SELECT sig FROM {markers_table(backend)}
             WHERE data_id = {backend.placeholder(1)}
               AND operation_type = {backend.placeholder(2)}
-              AND generated_table_name = {backend.placeholder(3)}""",
+              AND source_table = {backend.placeholder(3)}""",
         data_id, op_type, table,
     )
     known = set()
     for row in rows or []:
         try:
-            stored = row.get("kwargs") if isinstance(row, dict) else row[0]
+            stored = row.get("sig") if isinstance(row, dict) else row[0]
             data = json.loads(stored or "{}")
             cols = data.get("new_columns") if isinstance(data, dict) else None
             if isinstance(cols, list):
@@ -186,25 +191,15 @@ async def record_marker(
     ops, table: str, schema: str, sig: str, op_type: str,
     class_name: str, method_name: str, backend, data_id: str,
 ) -> None:
-    max_op = await ops._backend_fetch_val(
-        backend,
-        f"""SELECT COALESCE(MAX(opidx), 0)
-            FROM {backend.cache_registry_table}
-            WHERE data_id = {backend.placeholder(1)}""",
-        data_id,
-    )
-    opidx = (max_op or 0) + 1
     await ops.db.execute(
-        f"""INSERT INTO {backend.cache_registry_table}
-            (data_id, opidx, operation_type, class_name, method_name,
-             args, kwargs, generated_table_name, is_deep_cache, schema)
+        f"""INSERT INTO {markers_table(backend)}
+            (data_id, operation_type, class_name, method_name,
+             source_schema, source_table, sig)
             VALUES ({backend.placeholder(1)}, {backend.placeholder(2)},
                     {backend.placeholder(3)}, {backend.placeholder(4)},
                     {backend.placeholder(5)}, {backend.placeholder(6)},
-                    {backend.placeholder(7)}, {backend.placeholder(8)},
-                    {backend.placeholder(9)}, {backend.placeholder(10)})""",
-        data_id, opidx, op_type, class_name, method_name,
-        "", sig, table, False, schema,
+                    {backend.placeholder(7)})""",
+        data_id, op_type, class_name, method_name, schema, table, sig,
     )
 
 

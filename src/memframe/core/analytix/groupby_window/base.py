@@ -13,6 +13,7 @@ import numpy as np
 import math
 
 from memframe.core.analytix.window import WindowOps
+from memframe.core.analytix._generated import markers_table
 from memframe.db_manager.adapters.duckdb import DuckDBAdapter
 from memframe.db_manager.adapters.postgresql import PostgresAdapter
 from memframe.utils.helper import SQLIdentifierSanitizer
@@ -71,10 +72,10 @@ class GroupbyWindowOps(WindowOps):
         if not clashes:
             return None
         rows = await self._fetch(
-            f"""SELECT kwargs FROM {backend.cache_registry_table}
+            f"""SELECT sig FROM {markers_table(backend)}
                 WHERE data_id = {backend.placeholder(1)}
                   AND operation_type = 'groupby_win_map'
-                  AND generated_table_name = {backend.placeholder(2)}""",
+                  AND source_table = {backend.placeholder(2)}""",
             data_id,
             table,
         )
@@ -82,7 +83,7 @@ class GroupbyWindowOps(WindowOps):
             try:
                 # ponytail: adapters disagree (dicts on DuckDB, tuples on
                 # Postgres) — read both shapes.
-                stored = row.get("kwargs") if isinstance(row, dict) else row[0]
+                stored = row.get("sig") if isinstance(row, dict) else row[0]
                 if json.loads(stored or "{}") == json.loads(sig):
                     for col in clashes:
                         await self._exec(
