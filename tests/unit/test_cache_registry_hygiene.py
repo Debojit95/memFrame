@@ -4,7 +4,9 @@ import asyncio
 
 import pandas as pd
 
+from memframe.core.indexing import MF_IDX
 from memframe.main import MemFrame
+from memframe.wrappers.analytix.filter import FilteringWrapper
 
 
 def _open():
@@ -243,6 +245,99 @@ def test_legacy_markers_migrate_out_of_the_registry():
             did,
         ))
         assert migrated[0][0] == 1
+    finally:
+        asyncio.run(mf.aclose())
+
+
+def test_filter_caches_a_mf_idx_selection():
+    mf, ctx = _open()
+    did = ctx._data_id
+    try:
+        wrapper = FilteringWrapper(ctx)
+        first = asyncio.run(wrapper.afilter("x >= 2"))
+        second = asyncio.run(wrapper.afilter("x >= 2"))
+
+        assert second["result_metadata"]["from_cache"] is True
+        assert first["result"].equals(second["result"])
+        assert len(_method_rows(mf, did)) == 1
+
+        row = asyncio.run(mf._backend.fetch_row(
+            f"SELECT cache_kind, order_kind, order_table, order_schema "
+            f"FROM {mf._backend.cache_registry_table} "
+            f"WHERE data_id = {mf._backend.placeholder(1)} "
+            "AND operation_type = 'method_call' ORDER BY opidx DESC LIMIT 1",
+            did,
+        ))
+        assert row[0] == "ref"
+        assert row[1] == "filter"
+        assert row[3] == "memframe_cache"
+
+        selection_cols = asyncio.run(mf._backend.fetch(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_schema = 'memframe_cache' AND table_name = "
+            f"{mf._backend.placeholder(1)}",
+            row[2],
+        ))
+        assert [r[0] for r in selection_cols] == ["position", "_mf_idx"]
+        assert _upload_tables(mf) == {did, f"{did}__base"}
+    finally:
+        asyncio.run(mf.aclose())
+
+
+def test_filter_create_flag_is_a_source_ref():
+    mf, ctx = _open()
+    did = ctx._data_id
+    try:
+        wrapper = FilteringWrapper(ctx)
+        first = asyncio.run(wrapper.afilter("x >= 2", create_flag=True))
+        assert first["flag_column"] == "filter_flag"
+        assert "filter_flag" in first["result"].columns
+
+        flags = asyncio.run(mf._backend.fetch(
+            f'SELECT "filter_flag" FROM memframe_upload."{did}__base" '
+            f'ORDER BY "{MF_IDX}"'
+        ))
+        assert [bool(r[0]) for r in flags] == [False, True, True, True]
+
+        second = asyncio.run(wrapper.afilter("x >= 2", create_flag=True))
+        assert second["result_metadata"]["from_cache"] is True
+
+        rows = _method_rows(mf, did)
+        assert len(rows) == 1
+        assert rows[0][2] == "ref"
+        assert rows[0][4] == '["filter_flag"]'
+        assert rows[0][8] >= 1
+    finally:
+        asyncio.run(mf.aclose())
+
+
+def test_filter_selection_does_not_leak_without_deep_cache():
+    mf = MemFrame(
+        connection_type="local", connection_params={"db_path": ":memory:"},
+        deep_cache=False,
+    )
+    asyncio.run(mf.aconnect())
+    try:
+        ctx = asyncio.run(mf.aupload_df(
+            pd.DataFrame({"x": [1, 2, 3]}), filename="filter_no_deep"
+        ))
+        did = ctx._data_id
+        asyncio.run(FilteringWrapper(ctx).afilter("x >= 2"))
+        assert _cache_tables(mf) == set()
+        assert _upload_tables(mf) == {did, f"{did}__base"}
+    finally:
+        asyncio.run(mf.aclose())
+
+
+def test_delete_drops_filter_selection():
+    mf, ctx = _open()
+    did = ctx._data_id
+    try:
+        asyncio.run(FilteringWrapper(ctx).afilter("x >= 2"))
+        assert _cache_tables(mf)
+        asyncio.run(mf.adelete_table(data_id=did))
+        assert _cache_tables(mf) == set()
+        assert mf._backend.cache_markers_table  # schema still valid
     finally:
         asyncio.run(mf.aclose())
 
