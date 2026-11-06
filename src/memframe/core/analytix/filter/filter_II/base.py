@@ -3,6 +3,10 @@ import traceback
 import pandas as pd
 
 from memframe.core.analytix.filter.filter_I import Predicate, SQLContext
+from memframe.core.indexing import (
+    MF_IDX, assert_user_columns, mf_idx_sql_type, select_mf_idx_dtype,
+    visible_columns,
+)
 from memframe.db_manager.adapters.base import DatabaseAdapter
 from memframe.db_manager.adapters.duckdb import DuckDBAdapter
 from memframe.db_manager.adapters.postgresql import PostgresAdapter
@@ -35,38 +39,6 @@ class DataFilteringOps:
 
     async def _fetch(self, sql: str, *args):
         return await self.db.fetch(sql, *args)
-
-    async def _fetch_sample(self, table: str, schema: str,
-                            columns: Union[str, List[str]] = "*") -> pd.DataFrame:
-        qualified = self._qualified_table(table, schema)
-        if columns == "*":
-            col_clause = "*"
-        else:
-            sanitized = [SQLIdentifierSanitizer.sanitize(c) for c in columns]
-            col_clause = ", ".join(self.db.quote_identifier(c) for c in sanitized)
-        rows = await self._fetch(f"SELECT {col_clause} FROM {qualified}")
-        return pd.DataFrame([dict(r) for r in rows])
-
-    async def _fetch_in_chunks(self, table: str, schema: str, chunk_size: int,
-                               columns: Union[str, List[str]] = "*"):
-        qualified = self._qualified_table(table, schema)
-        offset = 0
-        while True:
-            if columns == "*":
-                col_clause = "*"
-            else:
-                sanitized = [SQLIdentifierSanitizer.sanitize(c) for c in columns]
-                col_clause = ", ".join(self.db.quote_identifier(c) for c in sanitized)
-            query = f"""
-                SELECT {col_clause}
-                FROM {qualified}
-                LIMIT {chunk_size} OFFSET {offset}
-            """
-            rows = await self._fetch(query)
-            if not rows:
-                break
-            yield pd.DataFrame([dict(r) for r in rows])
-            offset += chunk_size
 
     def _qualified_table(self, table: str, schema: str) -> str:
         t = SQLIdentifierSanitizer.sanitize(table)
@@ -224,103 +196,139 @@ class DataFilteringOps:
                 ctx = BackendAwareSQLContext(self.db, self.backend, column_lookup)
                 where_clause = predicate.compile(ctx)
 
-                # Decide output columns
-                if columns == "*":
-                    select_clause = "*"
-                    output_cols = "*"
-                else:
-                    cols = list(dict.fromkeys(columns))
-                    sanitized = [
-                        self._resolve_column_name(c, column_lookup)
-                        for c in cols
-                    ]
-                    select_clause = ", ".join(
-                        self.db.quote_identifier(c) for c in sanitized
-                    )
-                    output_cols = sanitized
-
                 qualified = self._qualified_table(table, schema)
 
-                # Generate cache table name if not supplied
-                if new_table is None:
-                    if backend is None or data_id is None:
-                        return self._error_response(
-                            "backend and data_id are required to generate cache table"
-                        )
-                    new_table = await self._generate_cache_table_name(
-                        table, backend, data_id
-                    )
-                new_table_safe = SQLIdentifierSanitizer.sanitize(new_table)
-
-                # ──────────────────────────────────────────────────
-                # Backend-specific CREATE TABLE syntax
-                # ──────────────────────────────────────────────────
-                qualified_new = (
-                    f"{self.db.quote_identifier(schema)}"
-                    f".{self.db.quote_identifier(new_table_safe)}"
-                )
-
-                create_sql = f"""
-                    CREATE TABLE {qualified_new} {self._engine_clause()}
-                    AS SELECT {select_clause}
-                    FROM {qualified}
-                    WHERE {where_clause}
-                """
-
-                await self._exec(create_sql, *ctx.params)
-
-                # ──────────────────────────────────────────────────
-                # Optional in-place flag on the source table
-                # ──────────────────────────────────────────────────
+                # Optional in-place flag on the source table. Written before
+                # the result is selected so columns="*" includes it.
                 flag_column = await self._maybe_write_flag(
                     table, schema, qualified, where_clause, ctx.params,
                     column_lookup, create_flag,
                 )
 
-                # ──────────────────────────────────────────────────
-                # Return sample or streaming iterator
-                # ──────────────────────────────────────────────────
-                if chunk_size is None:
-                    sample = await self._fetch_sample(
-                        new_table_safe, schema, columns=output_cols
-                    )
-                    return self._success_response(
-                        "Filter applied successfully",
-                        sample,
-                        new_table=new_table_safe,
-                        where_clause=where_clause,
-                        params=ctx.params,
-                        flag_column=flag_column,
-                    )
+                # Resolve selected columns after any flag column was added.
+                try:
+                    column_types = await self.db.get_column_types(table, schema) or {}
+                except Exception:
+                    column_types = {}
+                lookup = {
+                    SQLIdentifierSanitizer.sanitize(str(c)).lower():
+                        SQLIdentifierSanitizer.sanitize(str(c))
+                    for c in column_types
+                }
+                if columns == "*":
+                    output_cols = visible_columns(column_types.keys())
                 else:
-                    # ponytail: deep_cache relocates the table to the cache
-                    # schema after this call returns; resolve the live location
-                    # on first pull so the lazy iterator reads the right place.
-                    cache_schema = (
-                        backend.cache_schema if backend is not None else None
+                    requested = (
+                        [columns] if isinstance(columns, str) else list(columns)
+                    )
+                    requested = list(dict.fromkeys(str(c) for c in requested))
+                    try:
+                        assert_user_columns(requested)
+                    except ValueError as exc:
+                        return self._error_response(str(exc))
+                    output_cols = [
+                        self._resolve_column_name(c, lookup) for c in requested
+                    ]
+                if not output_cols:
+                    return self._error_response("No columns selected")
+
+                if backend is None:
+                    return self._error_response(
+                        "backend is required to store a filter selection"
+                    )
+                cache_schema = backend.cache_schema
+
+                selection = new_table
+                if selection is None:
+                    if data_id is None:
+                        return self._error_response(
+                            "backend and data_id are required to generate "
+                            "the filter selection"
+                        )
+                    selection = await self._generate_cache_table_name(
+                        table, backend, data_id
+                    )
+                selection = SQLIdentifierSanitizer.sanitize(selection)
+                base_selection = selection
+                suffix = 1
+                while await self.db.table_exists(selection, cache_schema):
+                    selection = f"{base_selection}_{suffix}"
+                    suffix += 1
+                qualified_selection = self._qualified_table(
+                    selection, cache_schema
+                )
+
+                total = int(await self.db.fetchval(
+                    f"SELECT COUNT(*) FROM {qualified}"
+                ) or 0)
+                pos_dtype = select_mf_idx_dtype(total)
+                pos_sql = mf_idx_sql_type(pos_dtype, backend.backend)
+                idx_q = self.db.quote_identifier(MF_IDX)
+
+                await self._exec(
+                    f"CREATE TABLE {qualified_selection} "
+                    f"{self._engine_clause()} AS "
+                    f"SELECT CAST(ROW_NUMBER() OVER (ORDER BY {idx_q}) - 1 "
+                    f"AS {pos_sql}) AS \"position\", {idx_q} "
+                    f"FROM {qualified} WHERE {where_clause}",
+                    *ctx.params,
+                )
+
+                select_clause = ", ".join(
+                    f"s.{self.db.quote_identifier(str(c))}" for c in output_cols
+                )
+                join_sql = (
+                    f"SELECT {select_clause} FROM {qualified} s "
+                    f"JOIN {qualified_selection} o "
+                    f"ON s.{idx_q} = o.{idx_q} "
+                    f'ORDER BY o."position"'
+                )
+
+                extras = {
+                    "new_table": table,
+                    "where_clause": where_clause,
+                    "params": ctx.params,
+                    "flag_column": flag_column,
+                    "cache_kind": "ref",
+                    "ref_schema": schema,
+                    "ref_table": table,
+                    "order_schema": cache_schema,
+                    "order_table": selection,
+                    "order_position_dtype": pos_dtype,
+                    "order_kind": "filter",
+                    "involved_cols": output_cols,
+                    "result_cols": output_cols,
+                    "generated_cols": [flag_column] if flag_column else [],
+                    "owns_table": False,
+                    "mutates": bool(flag_column),
+                }
+
+                if chunk_size is None:
+                    rows = await self._fetch(join_sql)
+                    sample = pd.DataFrame([dict(r) for r in rows])
+                    return self._success_response(
+                        "Filter applied successfully", sample, **extras
                     )
 
-                    async def iterator():
-                        read_schema = schema
-                        if cache_schema and not await self.db.table_exists(
-                            new_table_safe, read_schema
-                        ):
-                            read_schema = cache_schema
-                        async for chunk in self._fetch_in_chunks(
-                            new_table_safe, read_schema, chunk_size,
-                            columns=output_cols,
-                        ):
-                            yield chunk
+                async def iterator():
+                    offset = 0
+                    while True:
+                        rows = await self._fetch(
+                            f"{join_sql} LIMIT {chunk_size} OFFSET {offset}"
+                        )
+                        if not rows:
+                            break
+                        yield pd.DataFrame([dict(r) for r in rows])
+                        offset += chunk_size
 
-                    return {
-                        "is_error": False,
-                        "message": "Filter applied (streaming)",
-                        "error_message": None,
-                        "iterator": iterator(),
-                        "chunk_size": chunk_size,
-                        "new_table": new_table_safe,
-                        "flag_column": flag_column,
-                    }
+                return {
+                    "is_error": False,
+                    "message": "Filter applied (streaming)",
+                    "error_message": None,
+                    "iterator": iterator(),
+                    "chunk_size": chunk_size,
+                    **extras,
+                }
             else:
                 raise self._unsupported_backend_error()
 

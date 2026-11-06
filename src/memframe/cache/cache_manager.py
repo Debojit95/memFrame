@@ -1114,6 +1114,35 @@ class CacheManager:
                     if is_error:
                         return result
 
+                    if not is_deep and isinstance(result, dict):
+                        order_schema = order_schema or result.get("order_schema")
+                        order_table = order_table or result.get("order_table")
+
+                    # Nobody will replay this selection/permutation when deep
+                    # caching is off; drop it unless an iterator still reads it.
+                    if (
+                        not store_deep
+                        and order_table
+                        and backend
+                        and not (
+                            isinstance(result, dict)
+                            and result.get("iterator") is not None
+                        )
+                    ):
+                        try:
+                            await backend.drop_table(
+                                manager._qualify(
+                                    order_schema or backend.cache_schema,
+                                    order_table, backend,
+                                )
+                            )
+                        except Exception as exc:
+                            logger.warning(
+                                "[cache] could not drop order table %s: %s",
+                                order_table, exc,
+                            )
+                        order_table = None
+
                     # ponytail: stamp the post-execute base state — a mutating op's
                     # repeat must see the mutated base, not the pre-state.
                     store_fp = None
