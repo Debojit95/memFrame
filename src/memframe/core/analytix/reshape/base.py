@@ -60,7 +60,7 @@ class ReshapingOps:
 
         q = self._qualified_table(table, schema)
         rows = await self._fetch(f"SELECT {cols} FROM {q}")
-        return pd.DataFrame([dict(r) for r in rows])
+        return strip_hidden(pd.DataFrame([dict(r) for r in rows]))
 
     async def _fetch_in_chunks(self, table, schema, chunk_size, columns="*", backend=None):
         # ponytail: iterator may be consumed after cache has moved the
@@ -96,7 +96,7 @@ class ReshapingOps:
                 break
             if not rows:
                 break
-            yield pd.DataFrame([dict(r) for r in rows])
+            yield strip_hidden(pd.DataFrame([dict(r) for r in rows]))
             offset += chunk_size
 
     async def _generate_cache_table_name(self, base_table, backend, data_id, schema=None):

@@ -443,7 +443,7 @@ class GeneralTableOps:
             else:
                 column_clause = "*"
 
-            order_clause = ' ORDER BY "_mf_idx" DESC' if "_mf_idx" in column_types else ""
+            order_clause = ' ORDER BY "_mf_idx"' if "_mf_idx" in column_types else ""
             query = (
                 f"SELECT {column_clause} FROM {qualified}{order_clause} "
                 f"{self._limit_offset(n, offset)}"
@@ -1409,7 +1409,16 @@ class GeneralTableOps:
             table = SQLIdentifierSanitizer.sanitize(table)
             qualified = self._qualified_table(table, schema)
 
-            columns = list((await self._get_column_types(table, schema)).keys())
+            columns = visible_columns(
+                (await self._get_column_types(table, schema)).keys()
+            )
+            col_clause = (
+                ", ".join(
+                    self.db.quote_identifier(SQLIdentifierSanitizer.sanitize(c))
+                    for c in columns
+                )
+                if columns else "*"
+            )
 
             if name is not None:
                 fields = ["Index"] + columns if index else columns
@@ -1421,7 +1430,7 @@ class GeneralTableOps:
                 idx = 0
 
                 async for row in self.db.fetch_iter(
-                    f"SELECT * FROM {qualified}",
+                    f"SELECT {col_clause} FROM {qualified}",
                     chunk_size=chunk_size
                 ):
                     values = self._row_to_list(row, columns)
