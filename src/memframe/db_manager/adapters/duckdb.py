@@ -15,7 +15,10 @@ class DuckDBAdapter(DatabaseAdapter):
         db_path = conn_params.get("db_path", "memFrame_new.duckdb")
         if db_path == ":memory:":
             return {"db_path": ":memory:"}
-        return {"db_path": db_path}
+        params = {"db_path": db_path}
+        if "lock_timeout" in conn_params:
+            params["lock_timeout"] = conn_params["lock_timeout"]
+        return params
 
     async def execute(self, sql: str, *args):
         async with self._ddb_pool._guarded():

@@ -1,11 +1,15 @@
 import asyncio
 import logging
+import re
+import time
 from abc import ABC, abstractmethod
 from contextlib import asynccontextmanager
 from typing import Any, List, Optional, Tuple
 
 from memframe.core.ingestion.datatype_detector import Backend
-from memframe.exceptions import BackendNotSupported, ConnectionNotReady
+from memframe.exceptions import (
+    BackendNotSupported, ConfigurationError, ConnectionNotReady,
+)
 
 
 logger = logging.getLogger("memFrame")
@@ -31,8 +35,9 @@ class BasePool(ABC):
 
 
 class DuckDBPool(BasePool):
-    def __init__(self, db_path: str):
+    def __init__(self, db_path: str, lock_timeout: float = 0.0):
         self.db_path = db_path
+        self.lock_timeout = max(float(lock_timeout or 0), 0.0)
         self._conn = None
         # ponytail: one connection serves every coroutine — serialize use so two
         # ops can't interleave on it (same pattern as PostgresPool._ensure_lock).
@@ -85,6 +90,28 @@ class DuckDBPool(BasePool):
     def conn(self):
         return self._conn
 
+    @staticmethod
+    def _lock_error(db_path: str, exc: Exception) -> ConfigurationError:
+        text = str(exc)
+        match = re.search(
+            r"Conflicting lock is held in (.+?) \(PID (\d+)\)", text
+        )
+        holder = (
+            f"{match.group(1)} (PID {match.group(2)})"
+            if match else "another process"
+        )
+        return ConfigurationError(
+            f"DuckDB database file '{db_path}' is locked by {holder}. "
+            "DuckDB allows only one read-write process per file, and "
+            "read-only opens also fail while a writer holds the lock. "
+            "Close the DuckDB UI/CLI or the other memFrame process, then "
+            "retry. To browse a snapshot in the UI, copy the file first:\n"
+            f"    cp '{db_path}' '{db_path}.ui'\n"
+            f"    duckdb -ui '{db_path}.ui'\n"
+            "For concurrent application + UI access, use PostgreSQL or "
+            "ClickHouse as the memFrame backend."
+        )
+
     async def connect(self):
         import duckdb
         # ponytail: close any prior handle first — DuckDB is single-writer, so
@@ -92,7 +119,21 @@ class DuckDBPool(BasePool):
         if self._conn is not None:
             self._conn.close()
             self._conn = None
-        self._conn = duckdb.connect(self.db_path)
+        deadline = time.monotonic() + self.lock_timeout
+        while True:
+            try:
+                self._conn = duckdb.connect(self.db_path)
+                break
+            except duckdb.IOException as exc:
+                if "Conflicting lock" not in str(exc):
+                    raise
+                if time.monotonic() >= deadline:
+                    raise self._lock_error(self.db_path, exc) from exc
+                logger.warning(
+                    "DuckDB file %s is locked; retrying for up to %.1fs",
+                    self.db_path, self.lock_timeout,
+                )
+                await asyncio.sleep(0.5)
         # ponytail: DuckDB draws a Jupyter progress-bar widget into the cell
         # output for queries >2s (a black bar whose injected JS errors on
         # Colab). Disable it for every session; config= at connect is rejected
@@ -411,7 +452,9 @@ class ClickHousePool(BasePool):
 
 def create_pool(backend: Backend, params: dict) -> BasePool:
     if backend == Backend.DUCKDB:
-        return DuckDBPool(params["db_path"])
+        return DuckDBPool(
+            params["db_path"], lock_timeout=params.get("lock_timeout", 0),
+        )
     elif backend == Backend.POSTGRES:
         return PostgresPool(
             host=params["host"], port=params.get("port", 5432),
