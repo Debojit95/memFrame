@@ -44,10 +44,34 @@ Parameters:
 | Parameter | Required | Default | Description |
 | --- | --- | --- | --- |
 | `db_path` | No | `memFrame_new.duckdb` | File path for the DuckDB database. Use `:memory:` for a temporary in-memory database (nothing is persisted to disk). |
+| `lock_timeout` | No | `0` | Seconds to keep retrying when another process holds the DuckDB file lock. |
 
 !!! note
     For a temporary in-memory database, pass `db_path=":memory:"`. The database
     lives and dies with the connection; data is not persisted to disk.
+
+### File locking (DuckDB UI / CLI)
+
+DuckDB allows **one read-write process per database file**. If the file is
+open in the DuckDB UI/CLI, `aconnect()` raises a `ConfigurationError` naming
+the blocking process instead of a raw `IOException`:
+
+```text
+DuckDB database file 'memdb.duckdb' is locked by /path/to/duckdb (PID 1234).
+...
+```
+
+Read-only opens also fail while a writer holds the lock, so memFrame cannot
+share the file. Either close the UI/CLI, retry briefly with
+`lock_timeout=5`, or let the UI browse a snapshot:
+
+```bash
+cp memdb.duckdb memdb_ui.duckdb
+duckdb -ui memdb_ui.duckdb
+```
+
+For truly concurrent application + UI access, use PostgreSQL or ClickHouse
+as the memFrame backend.
 
 ## PostgreSQL
 
