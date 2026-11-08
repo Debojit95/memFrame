@@ -162,11 +162,11 @@ class ClickHouseBackend(DatabaseBackend):
         await self.execute(f"""
             CREATE TABLE IF NOT EXISTS {self.registry_schema}.memframe_cache_markers (
                 data_id String,
-                operation_type Nullable(String),
+                operation_type String,
                 class_name Nullable(String),
                 method_name Nullable(String),
                 source_schema Nullable(String),
-                source_table Nullable(String),
+                source_table String,
                 sig Nullable(String),
                 created_at DateTime DEFAULT now()
             ) ENGINE = MergeTree()

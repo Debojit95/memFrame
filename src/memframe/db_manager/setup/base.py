@@ -228,7 +228,8 @@ class DatabaseBackend(ABC):
                 f"(data_id, operation_type, class_name, method_name, "
                 f"source_schema, source_table, sig, created_at) "
                 f"SELECT data_id, operation_type, class_name, method_name, "
-                f"schema, generated_table_name, kwargs, created_at "
+                f"coalesce(schema, ''), coalesce(generated_table_name, ''), "
+                f"coalesce(kwargs, '{{}}'), created_at "
                 f"FROM {registry} WHERE operation_type IN {types}"
             )
         except Exception:
