@@ -47,3 +47,27 @@ class TestPlaceholder:
             "host": "h", "port": 5432, "user": "u", "password": "p", "database": "d"
         })
         assert backend.placeholder(2) == "$2"
+
+
+def test_clickhouse_marker_sorting_keys_are_not_nullable():
+    import asyncio
+
+    backend = create_backend(Backend.CLICKHOUSE, {"host": "h"})
+    calls = []
+
+    async def fake_execute(sql, *args):
+        calls.append(sql)
+
+    async def noop():
+        return None
+
+    backend.execute = fake_execute
+    backend._migrate_cache_registry_schema = noop
+    backend._migrate_csv_registry_schema = noop
+    asyncio.run(backend._create_registry_tables())
+
+    ddl = next(sql for sql in calls if "memframe_cache_markers" in sql)
+    assert "operation_type String" in ddl
+    assert "source_table String" in ddl
+    assert "operation_type Nullable" not in ddl
+    assert "source_table Nullable" not in ddl
