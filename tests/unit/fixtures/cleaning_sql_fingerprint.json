@@ -96,7 +96,7 @@
    ],
    [
     "exec",
-    "ALTERTABLE\"s\".\"t\"UPDATE\"cleaned_cat_constant_filled\"=COALESCE(\"cat\",'x')WHERE1",
+    "ALTERTABLE\"s\".\"t\"UPDATE\"cleaned_cat_constant_filled\"=COALESCE(\"cat\",'x')WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
@@ -358,7 +358,7 @@
    ],
    [
     "exec",
-    "ALTERTABLE\"s\".\"t\"UPDATE\"cleaned_cat_mapped\"=COALESCE(CASEWHEN\"cat\"='a'THEN'b'ELSE\"cat\"END,\"cat\")WHERE1",
+    "ALTERTABLE\"s\".\"t\"UPDATE\"cleaned_cat_mapped\"=COALESCE(CASEWHEN\"cat\"='a'THEN'b'ELSE\"cat\"END,\"cat\")WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
@@ -426,7 +426,7 @@
    ],
    [
     "exec",
-    "ALTERTABLE\"s\".\"t\"UPDATE\"cleaned_cat_mode_filled\"=COALESCE(\"cat\",(SELECT\"cat\"FROM\"s\".\"t\"WHERE\"cat\"ISNOTNULLGROUPBY\"cat\"ORDERBYCOUNT(*)DESCLIMIT1))WHERE1",
+    "ALTERTABLE\"s\".\"t\"UPDATE\"cleaned_cat_mode_filled\"=COALESCE(\"cat\",(SELECT\"cat\"FROM\"s\".\"t\"WHERE\"cat\"ISNOTNULLGROUPBY\"cat\"ORDERBYCOUNT(*)DESCLIMIT1))WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
@@ -509,7 +509,7 @@
    ],
    [
     "exec",
-    "ALTERTABLE\"s\".\"t\"UPDATE\"cleaned_cat_valid_values_a_b\"=CASEWHEN\"cat\"IN('a','b')THEN\"cat\"ELSENULLENDWHERE1",
+    "ALTERTABLE\"s\".\"t\"UPDATE\"cleaned_cat_valid_values_a_b\"=CASEWHEN\"cat\"IN('a','b')THEN\"cat\"ELSENULLENDWHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
@@ -577,7 +577,7 @@
    ],
    [
     "exec",
-    "ALTERTABLE\"s\".\"t\"UPDATE\"cleaned_cat_mapped_a\"=CASEWHEN\"cat\"='a'THEN'b'ELSE\"cat\"ENDWHERE1",
+    "ALTERTABLE\"s\".\"t\"UPDATE\"cleaned_cat_mapped_a\"=CASEWHEN\"cat\"='a'THEN'b'ELSE\"cat\"ENDWHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
@@ -749,7 +749,7 @@
    ],
    [
     "exec",
-    "ALTERTABLE\"s\".\"t\"UPDATE\"cleaned_ts_constant_filled\"=COALESCE(\"ts\",CAST('2024-01-01'ASDateTime))WHERE1",
+    "ALTERTABLE\"s\".\"t\"UPDATE\"cleaned_ts_constant_filled\"=COALESCE(\"ts\",CAST('2024-01-01'ASDateTime))WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
@@ -1120,7 +1120,7 @@
    ],
    [
     "exec",
-    "ALTERTABLE\"s\".\"t\"UPDATE\"cleaned_ts_mean_filled\"=COALESCE(\"ts\",(SELECTtoDateTime(toUInt32(avg(toUnixTimestamp(\"ts\"))))FROM\"s\".\"t\"WHERE\"ts\"ISNOTNULL))WHERE1",
+    "ALTERTABLE\"s\".\"t\"UPDATE\"cleaned_ts_mean_filled\"=COALESCE(\"ts\",(SELECTtoDateTime(toUInt32(avg(toUnixTimestamp(\"ts\"))))FROM\"s\".\"t\"WHERE\"ts\"ISNOTNULL))WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
@@ -1228,7 +1228,7 @@
    ],
    [
     "exec",
-    "ALTERTABLE\"s\".\"t\"UPDATE\"cleaned_ts_now_filled\"=COALESCE(\"ts\",now())WHERE1",
+    "ALTERTABLE\"s\".\"t\"UPDATE\"cleaned_ts_now_filled\"=COALESCE(\"ts\",now())WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
@@ -1316,7 +1316,7 @@
    ],
    [
     "exec",
-    "ALTERTABLE\"s\".\"t\"UPDATE\"cleaned_ts_fixed\"=CASEWHENtoString(\"ts\")='0000-00-00'THENNULLELSE\"ts\"ENDWHERE1",
+    "ALTERTABLE\"s\".\"t\"UPDATE\"cleaned_ts_fixed\"=CASEWHENtoString(\"ts\")='0000-00-00'THENNULLELSE\"ts\"ENDWHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
@@ -1515,7 +1515,7 @@
    ],
    [
     "exec",
-    "ALTERTABLE\"s\".\"t\"UPDATE\"cleaned_num_zscore_filtered_2_5\"=CASEWHENABS((\"num\"-(SELECTAVG(\"num\")FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL))/NULLIF((SELECTstddevPop(\"num\")FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL),0))>2.5THENNULLELSE\"num\"ENDWHERE1",
+    "ALTERTABLE\"s\".\"t\"UPDATE\"cleaned_num_zscore_filtered_2_5\"=CASEWHENABS((\"num\"-(SELECTAVG(\"num\")FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL))/NULLIF((SELECTstddevPop(\"num\")FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL),0))>2.5THENNULLELSE\"num\"ENDWHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
@@ -1583,7 +1583,7 @@
    ],
    [
     "exec",
-    "ALTERTABLE\"s\".\"t\"UPDATE\"cleaned_num_range_2_8\"=CASEWHEN\"num\"<2THENNULLWHEN\"num\">8THENNULLELSE\"num\"ENDWHERE1",
+    "ALTERTABLE\"s\".\"t\"UPDATE\"cleaned_num_range_2_8\"=CASEWHEN\"num\"<2THENNULLWHEN\"num\">8THENNULLELSE\"num\"ENDWHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
@@ -1651,7 +1651,7 @@
    ],
    [
     "exec",
-    "ALTERTABLE\"s\".\"t\"UPDATE\"cleaned_num_constant_filled_5\"=COALESCE(\"num\",5)WHERE1",
+    "ALTERTABLE\"s\".\"t\"UPDATE\"cleaned_num_constant_filled_5\"=COALESCE(\"num\",5)WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
@@ -1913,7 +1913,7 @@
    ],
    [
     "exec",
-    "ALTERTABLE\"s\".\"t\"UPDATE\"cleaned_num_mean_filled\"=COALESCE(\"num\",(SELECTCOALESCE(AVG(\"num\"),0)FROM\"s\".\"t\"))WHERE1",
+    "ALTERTABLE\"s\".\"t\"UPDATE\"cleaned_num_mean_filled\"=COALESCE(\"num\",(SELECTCOALESCE(AVG(\"num\"),0)FROM\"s\".\"t\"))WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
@@ -1981,7 +1981,7 @@
    ],
    [
     "exec",
-    "ALTERTABLE\"s\".\"t\"UPDATE\"cleaned_num_mean_filled\"=COALESCE(\"num\",(SELECTCOALESCE(AVG(\"num\"),0)FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL))WHERE1",
+    "ALTERTABLE\"s\".\"t\"UPDATE\"cleaned_num_mean_filled\"=COALESCE(\"num\",(SELECTCOALESCE(AVG(\"num\"),0)FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL))WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
@@ -2064,7 +2064,7 @@
    ],
    [
     "exec",
-    "ALTERTABLE\"s\".\"t\"UPDATE\"cleaned_num_median_filled\"=COALESCE(\"num\",(SELECTCOALESCE(quantile(0.5)(\"num\"),0)FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL))WHERE1",
+    "ALTERTABLE\"s\".\"t\"UPDATE\"cleaned_num_median_filled\"=COALESCE(\"num\",(SELECTCOALESCE(quantile(0.5)(\"num\"),0)FROM\"s\".\"t\"WHERE\"num\"ISNOTNULL))WHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
@@ -2476,7 +2476,7 @@
    ],
    [
     "exec",
-    "ALTERTABLE\"s\".\"t\"UPDATE\"cleaned_num_replaced\"=CASEWHEN\"num\"=1THENCAST(2ASINTEGER)ELSE\"num\"ENDWHERE1",
+    "ALTERTABLE\"s\".\"t\"UPDATE\"cleaned_num_replaced\"=CASEWHEN\"num\"=1THENCAST(2ASINTEGER)ELSE\"num\"ENDWHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
@@ -2534,7 +2534,7 @@
    ],
    [
     "exec",
-    "ALTERTABLE\"s\".\"t\"UPDATE\"cleaned_cat_replaced\"=CASEWHEN\"cat\"='a'THENCAST('b'ASVARCHAR)ELSE\"cat\"ENDWHERE1",
+    "ALTERTABLE\"s\".\"t\"UPDATE\"cleaned_cat_replaced\"=CASEWHEN\"cat\"='a'THENCAST('b'ASVARCHAR)ELSE\"cat\"ENDWHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
@@ -2587,7 +2587,7 @@
    ],
    [
     "exec",
-    "ALTERTABLE\"s\".\"t\"UPDATE\"cleaned_num_replaced\"=CASEWHEN\"num\"=1THENCAST(3ASINTEGER)WHEN\"num\"=2THENCAST(4ASINTEGER)ELSE\"num\"ENDWHERE1",
+    "ALTERTABLE\"s\".\"t\"UPDATE\"cleaned_num_replaced\"=CASEWHEN\"num\"=1THENCAST(3ASINTEGER)WHEN\"num\"=2THENCAST(4ASINTEGER)ELSE\"num\"ENDWHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
@@ -2640,7 +2640,7 @@
    ],
    [
     "exec",
-    "ALTERTABLE\"s\".\"t\"UPDATE\"cleaned_num_replaced\"=CASEWHEN\"num\"=1THENCAST(2ASINTEGER)ELSE\"num\"ENDWHERE1",
+    "ALTERTABLE\"s\".\"t\"UPDATE\"cleaned_num_replaced\"=CASEWHEN\"num\"=1THENCAST(2ASINTEGER)ELSE\"num\"ENDWHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
@@ -2693,7 +2693,7 @@
    ],
    [
     "exec",
-    "ALTERTABLE\"s\".\"t\"UPDATE\"cleaned_cat_replaced\"=CASEWHENmatch(\"cat\",'^a$')THENreplaceRegexpAll(\"cat\",'^a$','z')ELSE\"cat\"ENDWHERE1",
+    "ALTERTABLE\"s\".\"t\"UPDATE\"cleaned_cat_replaced\"=CASEWHENmatch(\"cat\",'^a$')THENreplaceRegexpAll(\"cat\",'^a$','z')ELSE\"cat\"ENDWHERE1SETTINGSmutations_sync=1",
     []
    ],
    [
@@ -2746,7 +2746,7 @@
    ],
    [
     "exec",
-    "ALTERTABLE\"s\".\"t\"UPDATE\"cleaned_num_replaced\"=CASEWHEN\"num\"=1THENCAST(2ASINTEGER)ELSE\"num\"ENDWHERE1",
+    "ALTERTABLE\"s\".\"t\"UPDATE\"cleaned_num_replaced\"=CASEWHEN\"num\"=1THENCAST(2ASINTEGER)ELSE\"num\"ENDWHERE1SETTINGSmutations_sync=1",
     []
    ],
    [

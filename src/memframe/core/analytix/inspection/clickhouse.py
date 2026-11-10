@@ -109,7 +109,17 @@ class ClickHouseTableOps(GeneralTableOps):
             return _ch("Float64")
         if pd.api.types.is_datetime64_any_dtype(dtype):
             return _ch("DateTime")
+        if pd.api.types.is_object_dtype(dtype):
+            values = [v for v in series if not pd.isna(v)]
+            if values and all(isinstance(v, bool) for v in values):
+                return _ch("UInt8")
         return _ch("String")
+
+    def _normalize_cell_value(self, value: Any) -> Any:
+        value = super()._normalize_cell_value(value)
+        if isinstance(value, bool):
+            return int(value)
+        return value
 
     # ── whole-method overrides (different algorithm) ──────────────
     async def dataframe_insert(self, table: str, schema: str, column: str, value: Any, **kwargs) -> Dict[str, Any]:

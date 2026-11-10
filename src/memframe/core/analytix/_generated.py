@@ -222,7 +222,7 @@ async def publish_row_aligned(
         return result
 
     wide = result.get("new_table")
-    generated = result.get("new_columns")
+    generated = result.get("new_columns") or result.get("generated_cols")
     if not isinstance(generated, list) or not generated:
         generated = [result["new_column"]] if result.get("new_column") else []
     generated = _dedupe(generated)

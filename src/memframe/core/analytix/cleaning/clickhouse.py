@@ -30,7 +30,10 @@ class ClickHouseCleaningOps(DataCleaningOps):
         return f'toString("{col}")'
 
     def _update_stmt(self, tq: str, set_expr: str) -> str:
-        return f"ALTER TABLE {tq} UPDATE {set_expr} WHERE 1"
+        return (
+            f"ALTER TABLE {tq} UPDATE {set_expr} WHERE 1 "
+            f"SETTINGS mutations_sync = 1"
+        )
 
     def _timestamp_literal(self, value: Any) -> str:
         return f"toDateTime({_sql_literal(str(value))})"
@@ -113,7 +116,7 @@ class ClickHouseCleaningOps(DataCleaningOps):
                 if mode == "CONSTANT":
                     converted = _sql_literal(value)
                     await self._exec(
-                        f'ALTER TABLE {tq} UPDATE "{safe_new}" = COALESCE("{safe_col}", {converted}) WHERE 1'
+                        f'ALTER TABLE {tq} UPDATE "{safe_new}" = COALESCE("{safe_col}", {converted}) WHERE 1 SETTINGS mutations_sync = 1'
                     )
                     return value
                 elif mode in ["FFILL", "BFILL"]:
@@ -135,7 +138,7 @@ class ClickHouseCleaningOps(DataCleaningOps):
                     await self._exec(f"""
                         ALTER TABLE {tq}
                         UPDATE "{safe_new}" = COALESCE("{safe_col}", (SELECT COALESCE({stat_expr}, 0) FROM {tq} WHERE "{safe_col}" IS NOT NULL))
-                        WHERE 1
+                        WHERE 1 SETTINGS mutations_sync = 1
                     """)
                     return await self._fetchval(f"""
                         SELECT {stat_expr}
@@ -314,7 +317,7 @@ class ClickHouseCleaningOps(DataCleaningOps):
                              NULLIF((SELECT stddevPop("{safe_col}") FROM {tq} WHERE "{safe_col}" IS NOT NULL), 0)) > {z_thresh} THEN NULL
                         ELSE "{safe_col}"
                     END
-                    WHERE 1
+                    WHERE 1 SETTINGS mutations_sync = 1
                 """)
 
             await _apply(qualified)

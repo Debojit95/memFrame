@@ -68,7 +68,7 @@ class ClickHouseGroupByCleaningOps(ClickHouseCleaningOps):
                 if mode == "CONSTANT":
                     converted = _sql_literal(value)
                     await self._exec(
-                        f'ALTER TABLE {tq} UPDATE "{safe_new}" = COALESCE("{safe_col}", {converted}) WHERE 1'
+                        f'ALTER TABLE {tq} UPDATE "{safe_new}" = COALESCE("{safe_col}", {converted}) WHERE 1 SETTINGS mutations_sync = 1'
                     )
                     return value
                 elif mode in ["FFILL", "BFILL"]:
@@ -117,7 +117,7 @@ class ClickHouseGroupByCleaningOps(ClickHouseCleaningOps):
                         await self._exec(f"""
                             ALTER TABLE {tq}
                             UPDATE "{safe_new}" = COALESCE("{safe_col}", (SELECT COALESCE({stat_expr}, 0) FROM {tq}))
-                            WHERE 1
+                            WHERE 1 SETTINGS mutations_sync = 1
                         """)
 
                     return mode
@@ -197,7 +197,7 @@ class ClickHouseGroupByCleaningOps(ClickHouseCleaningOps):
                 if mode == "CONSTANT":
                     val_str = str(value).replace("'", "''")
                     await self._exec(
-                        f'ALTER TABLE {tq} UPDATE "{safe_new}" = COALESCE("{safe_col}", \'{val_str}\') WHERE 1'
+                        f'ALTER TABLE {tq} UPDATE "{safe_new}" = COALESCE("{safe_col}", \'{val_str}\') WHERE 1 SETTINGS mutations_sync = 1'
                     )
                     return value
                 elif mode in ["FFILL", "BFILL"]:
@@ -208,7 +208,7 @@ class ClickHouseGroupByCleaningOps(ClickHouseCleaningOps):
                         UPDATE "{safe_new}" = COALESCE(
                             "{safe_col}",
                             (SELECT "{safe_col}" FROM {tq} WHERE "{safe_col}" IS NOT NULL GROUP BY "{safe_col}" ORDER BY COUNT(*) DESC LIMIT 1)
-                        ) WHERE 1
+                        ) WHERE 1 SETTINGS mutations_sync = 1
                     """)
                     return await self._fetchval(f"""
                         SELECT "{safe_col}" AS mode_value
@@ -228,7 +228,7 @@ class ClickHouseGroupByCleaningOps(ClickHouseCleaningOps):
                     await self._exec(f"""
                         ALTER TABLE {tq}
                         UPDATE "{safe_new}" = COALESCE({case_expr}, "{safe_col}")
-                        WHERE 1
+                        WHERE 1 SETTINGS mutations_sync = 1
                     """)
                     return f"{len(mapping)} mappings applied"
 
@@ -336,7 +336,7 @@ class ClickHouseGroupByCleaningOps(ClickHouseCleaningOps):
                             UPDATE "{safe_new}" = COALESCE(
                                 "{safe_col}",
                                 (SELECT "{safe_col}" FROM {tq} WHERE "{safe_col}" IS NOT NULL GROUP BY "{safe_col}" ORDER BY COUNT(*) DESC LIMIT 1)
-                            ) WHERE 1
+                            ) WHERE 1 SETTINGS mutations_sync = 1
                         """)
 
                     return "group_mode" if group_cols else "mode"
@@ -415,12 +415,12 @@ class ClickHouseGroupByCleaningOps(ClickHouseCleaningOps):
             async def _apply(tq):
                 if mode == "CONSTANT":
                     await self._exec(
-                        f'ALTER TABLE {tq} UPDATE "{safe_new}" = COALESCE("{safe_col}", CAST(\'{value}\' AS DateTime)) WHERE 1'
+                        f'ALTER TABLE {tq} UPDATE "{safe_new}" = COALESCE("{safe_col}", CAST(\'{value}\' AS DateTime)) WHERE 1 SETTINGS mutations_sync = 1'
                     )
                     return value
                 elif mode == "NOW":
                     await self._exec(
-                        f'ALTER TABLE {tq} UPDATE "{safe_new}" = COALESCE("{safe_col}", now()) WHERE 1'
+                        f'ALTER TABLE {tq} UPDATE "{safe_new}" = COALESCE("{safe_col}", now()) WHERE 1 SETTINGS mutations_sync = 1'
                     )
                     return "CURRENT_TIMESTAMP"
                 elif mode in ["FFILL", "BFILL"]:
@@ -437,7 +437,7 @@ class ClickHouseGroupByCleaningOps(ClickHouseCleaningOps):
                     await self._exec(f"""
                         ALTER TABLE {tq}
                         UPDATE "{safe_new}" = COALESCE("{safe_col}", (SELECT {stat_expr} FROM {tq} WHERE "{safe_col}" IS NOT NULL))
-                        WHERE 1
+                        WHERE 1 SETTINGS mutations_sync = 1
                     """)
                     return await self._fetchval(f"""
                         SELECT {stat_expr}
@@ -614,7 +614,7 @@ class ClickHouseGroupByCleaningOps(ClickHouseCleaningOps):
                         await self._exec(f"""
                             ALTER TABLE {tq}
                             UPDATE "{safe_new}" = COALESCE("{safe_col}", (SELECT {stat_expr} FROM {tq} WHERE "{safe_col}" IS NOT NULL))
-                            WHERE 1
+                            WHERE 1 SETTINGS mutations_sync = 1
                         """)
                         return mode
 

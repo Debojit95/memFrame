@@ -22,7 +22,10 @@ class ClickHouseArithmeticOps(ArithmeticOps):
         return f"truncate({col}, {digits})"
 
     def _update_stmt(self, qualified: str, set_expr: str) -> str:
-        return f"ALTER TABLE {qualified} UPDATE {set_expr} WHERE 1"
+        return (
+            f"ALTER TABLE {qualified} UPDATE {set_expr} WHERE 1 "
+            f"SETTINGS mutations_sync = 1"
+        )
 
     async def _add_column_if_not_exists(self, table, schema, column, data_type="DOUBLE PRECISION"):
         qualified = self._qualified_table(table, schema)
