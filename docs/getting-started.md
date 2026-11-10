@@ -20,6 +20,26 @@ git clone https://github.com/Debojit95/memFrame.git
 uv build
 ```
 
+## Check the version
+
+```python
+import memframe
+
+print(memframe.__version__)
+```
+
+From a shell:
+
+```bash
+python -c "import memframe; print(memframe.__version__)"
+pip show memframe
+# or
+uv pip show memframe
+```
+
+Running from a source checkout without installed package metadata falls back
+to `0.0.0`; the source version is `[project].version` in `pyproject.toml`.
+
 ## Quick Start
 
 ```python
