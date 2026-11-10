@@ -71,3 +71,4 @@ def test_clickhouse_marker_sorting_keys_are_not_nullable():
     assert "source_table String" in ddl
     assert "operation_type Nullable" not in ddl
     assert "source_table Nullable" not in ddl
+    assert "allow_nullable_key = 1" in ddl
