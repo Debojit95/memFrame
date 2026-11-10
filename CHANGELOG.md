@@ -6,6 +6,79 @@ to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-11-10
+
+### Added
+- **Immutable positional index (`_mf_idx`)**: every dataset carries a hidden,
+  frozen row identity generated once and typed by row count. It is never
+  updated, renamed, dropped, or accepted as a write target. Public results,
+  metadata, statistics, masks, and cache hits strip it.
+- **Public dataset views**: uploads and derived datasets expose a physical
+  `<data_id>__base` table plus a `<data_id>` view containing only visible
+  columns, so raw `SELECT *` never returns `_mf_idx`.
+- **Derived datasets**: merge, reshape, and `sort_values(..., upload_as_source=True)`
+  create a new dataset with its own `<data_id>__base`, public view, and fresh
+  zero-based index space.
+- **Filter selection caching**: filters store only `(position, _mf_idx)` in
+  `memframe_cache` and replay by joining the source. No filtered copy is kept.
+  `create_flag=True` writes the boolean flag to the source and is cached as a
+  source ref.
+- **Internal marker table**: `window_map` / `groupby_map` / `groupby_cum_map` /
+  `groupby_win_map` rerun markers now live in
+  `memframe_csv_registry.memframe_cache_markers`, separate from cached calls.
+- **DuckDB `lock_timeout`**: `connection_params={"lock_timeout": seconds}`
+  retries a transiently locked database file. Lock conflicts raise an
+  actionable `ConfigurationError` naming the blocking process.
+
+### Changed
+- **Actual/ref cache model**: row-preserving feature operations write into the
+  source and store a `ref`; standalone results (stats, describe, corr/cov,
+  aggregate-only group-by) store an `actual` payload in
+  `memframe_cache_payloads`.
+- **Source write-back**: arithmetic, cleaning, datetime, transform, cumulative,
+  window, comparison, grouped window/cumulative, grouped fillna, and
+  `datetime_diff` mutate the source instead of producing wide cache copies.
+- **Group-by caching**: aggregate-only `agg` is cached as an actual payload and
+  drops its temporary table; `map_feature=True` is cached as a source ref with
+  the intermediate table removed.
+- **PostgreSQL write-back** adds and updates generated columns in place keyed
+  on `_mf_idx`, keeping the base relation and public view valid.
+- **Cache-owned result tables** (`owns_table=true`, explicit `new_table`) are
+  moved into `memframe_cache`.
+- **ClickHouse consistency**: mutations wait with `mutations_sync=1`;
+  comparison and cumulative results are published into the source; grouped
+  cumulative/window ordering uses `_mf_idx`.
+- **Cache hygiene**: failed operations are no longer recorded; source-mutating
+  refs bump the cache epoch; stale cache/order/selection tables are dropped.
+- **`insert`** aligns supplied values by `_mf_idx` rather than physical
+  `rowid`/`ctid`.
+- **SyncDB**: `set_active` creates `_mf_idx` idempotently for external tables.
+
+### Fixed
+- PostgreSQL feature write-back no longer drops a base table that the public
+  view depends on.
+- Repeated `groupby().fillna()` calls no longer move `<data_id>__base` into the
+  cache schema.
+- Comparison entries now record complete ref columns and replay instead of
+  re-executing on every call.
+- Cache-owned cleanup never mistakes internal markers or a dataset base for a
+  cache table.
+- `head`, `tail`, `sample`, `itertuples`, and reshape results no longer leak or
+  crash on `_mf_idx`.
+- ClickHouse marker tables are created with non-nullable key columns and
+  `allow_nullable_key=1`; legacy nullable-key tables are rebuilt on connect.
+- ClickHouse arithmetic/cleaning no longer return zeros, `None`, or epoch dates
+  from unapplied asynchronous mutations.
+- ClickHouse boolean columns are preserved as `UInt8` on insert instead of
+  being serialized as strings.
+- DuckDB lock conflicts produce the documented `ConfigurationError`.
+- SQL/JSON fingerprints and cache SQL are updated for the new write-back and
+  ordering paths.
+
+### Removed
+- Unused cache/table helpers and stale result-table relocation paths.
+
+
 ## [0.16.2] - 2026-11-01
 
 ### Added
