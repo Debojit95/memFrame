@@ -68,6 +68,8 @@ if $skip_bump; then
 else
   echo "==> Bumping version: $cur_version -> $new_version"
   sed -i "s/^version = \"$cur_version\"/version = \"$new_version\"/" pyproject.toml
+  echo "==> Refreshing uv.lock"
+  uv lock
 fi
 
 echo "==> Gate: ruff check src/"
@@ -87,14 +89,14 @@ if $dry_run; then
   if $skip_bump; then
     echo "(dry-run) Next: git tag v$new_version && git push origin main --tags"
   else
-    echo "(dry-run) Next: git add pyproject.toml && git commit -m '$commit_message'"
+    echo "(dry-run) Next: git add pyproject.toml uv.lock && git commit -m '$commit_message'"
     echo "(dry-run) Next: git tag v$new_version && git push origin main --tags"
   fi
   exit 0
 fi
 
 if ! $skip_bump; then
-  git add pyproject.toml
+  git add pyproject.toml uv.lock
   git commit -m "$commit_message"
 fi
 git tag "v$new_version"
