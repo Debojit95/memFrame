@@ -234,6 +234,56 @@ class DatabaseBackend(ABC):
             )
         except Exception:
             pass
+        if self.backend == "clickhouse":
+            # Older marker tables were created with Nullable key columns.
+            # ClickHouse cannot modify key columns, so rebuild and copy.
+            try:
+                cols = await self.fetch(
+                    "SELECT name, type FROM system.columns "
+                    f"WHERE database = {self.placeholder(1)} "
+                    f"AND table = {self.placeholder(2)} "
+                    "AND name IN ('operation_type','source_table')",
+                    self.registry_schema, "memframe_cache_markers",
+                )
+                nullable = [
+                    (row.get("name") if isinstance(row, dict) else row[0])
+                    for row in (cols or [])
+                    if "Nullable" in str(
+                        row.get("type") if isinstance(row, dict) else row[1]
+                    )
+                ]
+                if nullable:
+                    new = f"{markers}__new"
+                    old = f"{markers}__old"
+                    await self.execute(f"DROP TABLE IF EXISTS {new}")
+                    await self.execute(
+                        f"CREATE TABLE {new} ("
+                        f"data_id String, operation_type String, "
+                        f"class_name Nullable(String), "
+                        f"method_name Nullable(String), "
+                        f"source_schema Nullable(String), source_table String, "
+                        f"sig Nullable(String), "
+                        f"created_at DateTime DEFAULT now()"
+                        f") ENGINE = MergeTree() "
+                        f"ORDER BY (data_id, operation_type, source_table) "
+                        f"SETTINGS allow_nullable_key = 1"
+                    )
+                    await self.execute(
+                        f"INSERT INTO {new} (data_id, operation_type, "
+                        f"class_name, method_name, source_schema, source_table, "
+                        f"sig, created_at) "
+                        f"SELECT data_id, coalesce(operation_type, ''), "
+                        f"class_name, method_name, source_schema, "
+                        f"coalesce(source_table, ''), sig, created_at "
+                        f"FROM {markers}"
+                    )
+                    await self.execute(f"DROP TABLE IF EXISTS {old}")
+                    await self.execute(
+                        f"RENAME TABLE {markers} TO {old}, {new} TO {markers}"
+                    )
+                    await self.execute(f"DROP TABLE {old}")
+            except Exception:
+                pass
         try:
             if self.backend == "clickhouse":
                 await self.execute(

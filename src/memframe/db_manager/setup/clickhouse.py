@@ -171,6 +171,7 @@ class ClickHouseBackend(DatabaseBackend):
                 created_at DateTime DEFAULT now()
             ) ENGINE = MergeTree()
             ORDER BY (data_id, operation_type, source_table)
+            SETTINGS allow_nullable_key = 1
         """)
         await self._migrate_cache_registry_schema()
         await self._migrate_csv_registry_schema()
