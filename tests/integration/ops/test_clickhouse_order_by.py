@@ -26,6 +26,11 @@ def test_set_order_by_rebuild(backend_config):
                 ),
                 filename="ch_order_by",
             )
+            base = await instance._backend.fetchval(
+                f"SELECT base_table FROM {instance._backend.csv_registry_table} "
+                f"WHERE data_id = {instance._backend.placeholder(1)}",
+                ctx._data_id,
+            )
             await ctx.acreate_index(
                 columns=["id"], name="idx_before_rebuild", index_type="minmax"
             )
@@ -34,7 +39,7 @@ def test_set_order_by_rebuild(backend_config):
                 "SELECT sorting_key, primary_key FROM system.tables "
                 "WHERE database = ? AND name = ?",
                 instance._backend.upload_schema,
-                ctx._data_id,
+                base,
             )
             plan = await ctx.aset_order_by(columns=["id"], dry_run=True)
             assert plan["rebuilt"] is False
@@ -43,7 +48,7 @@ def test_set_order_by_rebuild(backend_config):
                 "SELECT sorting_key FROM system.tables "
                 "WHERE database = ? AND name = ?",
                 instance._backend.upload_schema,
-                ctx._data_id,
+                base,
             )
             assert before[0][0] == after_dry[0][0]
 
@@ -57,7 +62,7 @@ def test_set_order_by_rebuild(backend_config):
                 "SELECT sorting_key, primary_key FROM system.tables "
                 "WHERE database = ? AND name = ?",
                 instance._backend.upload_schema,
-                ctx._data_id,
+                base,
             )
             assert "id" in after[0][0]
             assert "id" in after[0][1]
