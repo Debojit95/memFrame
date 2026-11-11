@@ -249,6 +249,41 @@ def test_map_feature_second_spec_stacks(groupby_context):
     }
 
 
+def test_builder_sum_map_feature_caches_source_ref(groupby_context):
+    mf = groupby_context.memframe
+    did = groupby_context._data_id
+    wrapper = GroupByStatsWrapper(groupby_context)
+
+    first = wrapper.groupby("region").sum("sales", map_feature=True)
+    assert first["cache_kind"] == "ref"
+    assert first["new_table"] == f"{did}__base"
+    assert len(first["result"]) == len(groupby_context.head(n=10))
+    assert "sales_sum" in groupby_context.head(n=10).columns
+
+    second = wrapper.groupby("region").sum("sales", map_feature=True)
+    assert second["result_metadata"]["from_cache"] is True
+    pd.testing.assert_frame_equal(first["result"], second["result"])
+
+    row = asyncio.run(mf._backend.fetch_row(
+        f"SELECT cache_kind, ref_table, generated_cols "
+        f"FROM {mf._backend.cache_registry_table} "
+        f"WHERE data_id = {mf._backend.placeholder(1)} "
+        "AND operation_type = 'method_call' ORDER BY opidx DESC LIMIT 1",
+        did,
+    ))
+    assert row[0] == "ref"
+    assert row[1] == f"{did}__base"
+    assert "sales_sum" in row[2]
+
+    orphans = asyncio.run(mf._backend.fetch(
+        "SELECT table_name FROM information_schema.tables "
+        "WHERE table_schema = 'memframe_upload' AND table_name LIKE "
+        f"{mf._backend.placeholder(1)}",
+        "%__op_%",
+    ))
+    assert orphans == []
+
+
 def test_agg_caches_actual_without_intermediate_table(groupby_context):
     mf = groupby_context.memframe
     did = groupby_context._data_id
