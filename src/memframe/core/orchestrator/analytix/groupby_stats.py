@@ -178,56 +178,56 @@ class GroupBy:
     # convenience methods – always use the safe _agg
     # ------------------------------------------------------------------
     @record_call(deep_cache=True)
-    async def sum(self, column: str) -> Dict[str, Any]:
-        return await self._agg({column: ["sum"]})
+    async def sum(self, column: str, map_feature: bool = False) -> Dict[str, Any]:
+        return await self._agg({column: ["sum"]}, map_feature=map_feature)
 
     @record_call(deep_cache=True)
-    async def mean(self, column: str) -> Dict[str, Any]:
-        return await self._agg({column: ["mean"]})
+    async def mean(self, column: str, map_feature: bool = False) -> Dict[str, Any]:
+        return await self._agg({column: ["mean"]}, map_feature=map_feature)
 
     @record_call(deep_cache=True)
-    async def min(self, column: str) -> Dict[str, Any]:
-        return await self._agg({column: ["min"]})
+    async def min(self, column: str, map_feature: bool = False) -> Dict[str, Any]:
+        return await self._agg({column: ["min"]}, map_feature=map_feature)
 
     @record_call(deep_cache=True)
-    async def max(self, column: str) -> Dict[str, Any]:
-        return await self._agg({column: ["max"]})
+    async def max(self, column: str, map_feature: bool = False) -> Dict[str, Any]:
+        return await self._agg({column: ["max"]}, map_feature=map_feature)
 
     @record_call(deep_cache=True)
-    async def count(self, column: str) -> Dict[str, Any]:
-        return await self._agg({column: ["count"]})
+    async def count(self, column: str, map_feature: bool = False) -> Dict[str, Any]:
+        return await self._agg({column: ["count"]}, map_feature=map_feature)
 
     @record_call(deep_cache=True)
-    async def median(self, column: str) -> Dict[str, Any]:
-        return await self._agg({column: ["median"]})
+    async def median(self, column: str, map_feature: bool = False) -> Dict[str, Any]:
+        return await self._agg({column: ["median"]}, map_feature=map_feature)
 
     @record_call(deep_cache=True)
-    async def mode(self, column: str) -> Dict[str, Any]:
-        return await self._agg({column: ["mode"]})
+    async def mode(self, column: str, map_feature: bool = False) -> Dict[str, Any]:
+        return await self._agg({column: ["mode"]}, map_feature=map_feature)
 
     @record_call(deep_cache=True)
-    async def std(self, column: str) -> Dict[str, Any]:
-        return await self._agg({column: ["std"]})
+    async def std(self, column: str, map_feature: bool = False) -> Dict[str, Any]:
+        return await self._agg({column: ["std"]}, map_feature=map_feature)
 
     @record_call(deep_cache=True)
-    async def var(self, column: str) -> Dict[str, Any]:
-        return await self._agg({column: ["var"]})
+    async def var(self, column: str, map_feature: bool = False) -> Dict[str, Any]:
+        return await self._agg({column: ["var"]}, map_feature=map_feature)
 
     @record_call(deep_cache=True)
-    async def sem(self, column: str) -> Dict[str, Any]:
-        return await self._agg({column: ["sem"]})
+    async def sem(self, column: str, map_feature: bool = False) -> Dict[str, Any]:
+        return await self._agg({column: ["sem"]}, map_feature=map_feature)
 
     @record_call(deep_cache=True)
-    async def nunique(self, column: str) -> Dict[str, Any]:
-        return await self._agg({column: ["nunique"]})
+    async def nunique(self, column: str, map_feature: bool = False) -> Dict[str, Any]:
+        return await self._agg({column: ["nunique"]}, map_feature=map_feature)
 
     @record_call(deep_cache=True)
-    async def range(self, column: str) -> Dict[str, Any]:
-        return await self._agg({column: ["range"]})
+    async def range(self, column: str, map_feature: bool = False) -> Dict[str, Any]:
+        return await self._agg({column: ["range"]}, map_feature=map_feature)
 
     @record_call(deep_cache=True)
-    async def product(self, column: str) -> Dict[str, Any]:
-        return await self._agg({column: ["product"]})
+    async def product(self, column: str, map_feature: bool = False) -> Dict[str, Any]:
+        return await self._agg({column: ["product"]}, map_feature=map_feature)
 
     @record_call(deep_cache=True)
     async def event_rate(

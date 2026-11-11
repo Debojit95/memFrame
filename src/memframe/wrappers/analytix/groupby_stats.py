@@ -53,122 +53,122 @@ class GroupByWrapper(GroupBy):
     # convenience stats
     # ------------------------------------------------------------------
 
-    async def asum(self, column: str) -> Dict[str, Any]:
+    async def asum(self, column: str, map_feature: bool = False) -> Dict[str, Any]:
         """Asynchronously compute group-wise sum for a column."""
-        return await super().sum(column)
+        return await super().sum(column, map_feature=map_feature)
 
     @async_to_sync
-    async def sum(self, column: str) -> Dict[str, Any]:
+    async def sum(self, column: str, map_feature: bool = False) -> Dict[str, Any]:
         """Synchronously compute group-wise sum for a column."""
-        return await self.asum(column)
+        return await self.asum(column, map_feature=map_feature)
 
-    async def amean(self, column: str) -> Dict[str, Any]:
+    async def amean(self, column: str, map_feature: bool = False) -> Dict[str, Any]:
         """Asynchronously compute group-wise mean for a column."""
-        return await super().mean(column)
+        return await super().mean(column, map_feature=map_feature)
 
     @async_to_sync
-    async def mean(self, column: str) -> Dict[str, Any]:
+    async def mean(self, column: str, map_feature: bool = False) -> Dict[str, Any]:
         """Synchronously compute group-wise mean for a column."""
-        return await self.amean(column)
+        return await self.amean(column, map_feature=map_feature)
 
-    async def amin(self, column: str) -> Dict[str, Any]:
+    async def amin(self, column: str, map_feature: bool = False) -> Dict[str, Any]:
         """Asynchronously compute group-wise minimum for a column."""
-        return await super().min(column)
+        return await super().min(column, map_feature=map_feature)
 
     @async_to_sync
-    async def min(self, column: str) -> Dict[str, Any]:
+    async def min(self, column: str, map_feature: bool = False) -> Dict[str, Any]:
         """Synchronously compute group-wise minimum for a column."""
-        return await self.amin(column)
+        return await self.amin(column, map_feature=map_feature)
 
-    async def amax(self, column: str) -> Dict[str, Any]:
+    async def amax(self, column: str, map_feature: bool = False) -> Dict[str, Any]:
         """Asynchronously compute group-wise maximum for a column."""
-        return await super().max(column)
+        return await super().max(column, map_feature=map_feature)
 
     @async_to_sync
-    async def max(self, column: str) -> Dict[str, Any]:
+    async def max(self, column: str, map_feature: bool = False) -> Dict[str, Any]:
         """Synchronously compute group-wise maximum for a column."""
-        return await self.amax(column)
+        return await self.amax(column, map_feature=map_feature)
 
-    async def acount(self, column: str) -> Dict[str, Any]:
+    async def acount(self, column: str, map_feature: bool = False) -> Dict[str, Any]:
         """Asynchronously compute group-wise count for a column."""
-        return await super().count(column)
+        return await super().count(column, map_feature=map_feature)
 
     @async_to_sync
-    async def count(self, column: str) -> Dict[str, Any]:
+    async def count(self, column: str, map_feature: bool = False) -> Dict[str, Any]:
         """Synchronously compute group-wise count for a column."""
-        return await self.acount(column)
+        return await self.acount(column, map_feature=map_feature)
 
-    async def amedian(self, column: str) -> Dict[str, Any]:
+    async def amedian(self, column: str, map_feature: bool = False) -> Dict[str, Any]:
         """Asynchronously compute group-wise median for a column."""
-        return await super().median(column)
+        return await super().median(column, map_feature=map_feature)
 
     @async_to_sync
-    async def median(self, column: str) -> Dict[str, Any]:
+    async def median(self, column: str, map_feature: bool = False) -> Dict[str, Any]:
         """Synchronously compute group-wise median for a column."""
-        return await self.amedian(column)
+        return await self.amedian(column, map_feature=map_feature)
 
-    async def amode(self, column: str) -> Dict[str, Any]:
+    async def amode(self, column: str, map_feature: bool = False) -> Dict[str, Any]:
         """Asynchronously compute group-wise mode for a column."""
-        return await super().mode(column)
+        return await super().mode(column, map_feature=map_feature)
 
     @async_to_sync
-    async def mode(self, column: str) -> Dict[str, Any]:
+    async def mode(self, column: str, map_feature: bool = False) -> Dict[str, Any]:
         """Synchronously compute group-wise mode for a column."""
-        return await self.amode(column)
+        return await self.amode(column, map_feature=map_feature)
 
-    async def astd(self, column: str) -> Dict[str, Any]:
+    async def astd(self, column: str, map_feature: bool = False) -> Dict[str, Any]:
         """Asynchronously compute group-wise standard deviation."""
-        return await super().std(column)
+        return await super().std(column, map_feature=map_feature)
 
     @async_to_sync
-    async def std(self, column: str) -> Dict[str, Any]:
+    async def std(self, column: str, map_feature: bool = False) -> Dict[str, Any]:
         """Synchronously compute group-wise standard deviation."""
-        return await self.astd(column)
+        return await self.astd(column, map_feature=map_feature)
 
-    async def avar(self, column: str) -> Dict[str, Any]:
+    async def avar(self, column: str, map_feature: bool = False) -> Dict[str, Any]:
         """Asynchronously compute group-wise variance."""
-        return await super().var(column)
+        return await super().var(column, map_feature=map_feature)
 
     @async_to_sync
-    async def var(self, column: str) -> Dict[str, Any]:
+    async def var(self, column: str, map_feature: bool = False) -> Dict[str, Any]:
         """Synchronously compute group-wise variance."""
-        return await self.avar(column)
+        return await self.avar(column, map_feature=map_feature)
 
-    async def asem(self, column: str) -> Dict[str, Any]:
+    async def asem(self, column: str, map_feature: bool = False) -> Dict[str, Any]:
         """Asynchronously compute group-wise standard error of mean."""
-        return await super().sem(column)
+        return await super().sem(column, map_feature=map_feature)
 
     @async_to_sync
-    async def sem(self, column: str) -> Dict[str, Any]:
+    async def sem(self, column: str, map_feature: bool = False) -> Dict[str, Any]:
         """Synchronously compute group-wise standard error of mean."""
-        return await self.asem(column)
+        return await self.asem(column, map_feature=map_feature)
 
-    async def anunique(self, column: str) -> Dict[str, Any]:
+    async def anunique(self, column: str, map_feature: bool = False) -> Dict[str, Any]:
         """Asynchronously compute group-wise count of unique values."""
-        return await super().nunique(column)
+        return await super().nunique(column, map_feature=map_feature)
 
     @async_to_sync
-    async def nunique(self, column: str) -> Dict[str, Any]:
+    async def nunique(self, column: str, map_feature: bool = False) -> Dict[str, Any]:
         """Synchronously compute group-wise count of unique values."""
-        return await self.anunique(column)
+        return await self.anunique(column, map_feature=map_feature)
 
-    async def arange(self, column: str) -> Dict[str, Any]:
+    async def arange(self, column: str, map_feature: bool = False) -> Dict[str, Any]:
         """Asynchronously compute group-wise range (max-min)."""
-        return await super().range(column)
+        return await super().range(column, map_feature=map_feature)
 
     @async_to_sync
-    async def range(self, column: str) -> Dict[str, Any]:
+    async def range(self, column: str, map_feature: bool = False) -> Dict[str, Any]:
         """Synchronously compute group-wise range (max-min)."""
-        return await self.arange(column)
+        return await self.arange(column, map_feature=map_feature)
 
-    async def aproduct(self, column: str) -> Dict[str, Any]:
+    async def aproduct(self, column: str, map_feature: bool = False) -> Dict[str, Any]:
         """Asynchronously compute group-wise product for a column."""
-        return await super().product(column)
+        return await super().product(column, map_feature=map_feature)
 
     @async_to_sync
-    async def product(self, column: str) -> Dict[str, Any]:
+    async def product(self, column: str, map_feature: bool = False) -> Dict[str, Any]:
         """Synchronously compute group-wise product for a column."""
-        return await self.aproduct(column)
+        return await self.aproduct(column, map_feature=map_feature)
 
     # ------------------------------------------------------------------
     # event rate
