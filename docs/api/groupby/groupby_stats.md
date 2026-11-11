@@ -65,19 +65,19 @@ Each terminal method has a synchronous and asynchronous form:
 | Synchronous | Asynchronous | Purpose |
 | --- | --- | --- |
 | `agg(agg_dict, new_table=None, map_feature=False)` | `await aagg(...)` | Generic — any column → stats mapping |
-| `sum(column)` | `await asum(...)` | Group-wise sum |
-| `mean(column)` | `await amean(...)` | Group-wise mean |
-| `min(column)` | `await amin(...)` | Group-wise minimum |
-| `max(column)` | `await amax(...)` | Group-wise maximum |
-| `count(column)` | `await acount(...)` | Group-wise non-null count |
-| `median(column)` | `await amedian(...)` | Group-wise median |
-| `mode(column)` | `await amode(...)` | Group-wise mode |
-| `std(column)` | `await astd(...)` | Group-wise population standard deviation |
-| `var(column)` | `await avar(...)` | Group-wise population variance |
-| `sem(column)` | `await asem(...)` | Group-wise standard error of the mean |
-| `nunique(column)` | `await anunique(...)` | Group-wise distinct count |
-| `range(column)` | `await arange(...)` | Group-wise range (`max - min`) |
-| `product(column)` | `await aproduct(...)` | Group-wise product |
+| `sum(column, map_feature=False)` | `await asum(...)` | Group-wise sum |
+| `mean(column, map_feature=False)` | `await amean(...)` | Group-wise mean |
+| `min(column, map_feature=False)` | `await amin(...)` | Group-wise minimum |
+| `max(column, map_feature=False)` | `await amax(...)` | Group-wise maximum |
+| `count(column, map_feature=False)` | `await acount(...)` | Group-wise non-null count |
+| `median(column, map_feature=False)` | `await amedian(...)` | Group-wise median |
+| `mode(column, map_feature=False)` | `await amode(...)` | Group-wise mode |
+| `std(column, map_feature=False)` | `await astd(...)` | Group-wise population standard deviation |
+| `var(column, map_feature=False)` | `await avar(...)` | Group-wise population variance |
+| `sem(column, map_feature=False)` | `await asem(...)` | Group-wise standard error of the mean |
+| `nunique(column, map_feature=False)` | `await anunique(...)` | Group-wise distinct count |
+| `range(column, map_feature=False)` | `await arange(...)` | Group-wise range (`max - min`) |
+| `product(column, map_feature=False)` | `await aproduct(...)` | Group-wise product |
 | `event_rate(datetime_col, unit="day", new_table=None)` | `await aevent_rate(...)` | Grouped event rate |
 
 ## Usage Overview
@@ -88,6 +88,7 @@ dataset = mf.DataFrame(frame)
 sample = dataset.agg(group_cols="region", agg_dict={"sales": ["sum", "mean"]})
 sample = dataset.groupby("region").agg({"sales": ["sum"], "qty": ["max"]})
 sample = dataset.groupby("region").mean("sales")
+sample = dataset.groupby("region").sum("sales", map_feature=True)
 ```
 
 ```python
@@ -116,7 +117,7 @@ result = dataset.groupby("region", "month").sum("sales")
 | `datetime_col` | `str` | Datetime column for `event_rate`. |
 | `unit` | `str` | Rate unit for `event_rate`: `second`, `minute`, `hour`, `day` (default), or `week`. |
 | `new_table` | `str` or `None` | Optional explicit name for a result table. When omitted, the temporary group table is dropped and the aggregate is cached as an `actual` payload (or written to the source with `map_feature=True`). |
-| `map_feature` | `bool` | When `True` (default `False`), LEFT JOIN the new feature columns back onto the original table — one value per row, matched on the group keys. The intermediate group table is dropped and the envelope is a source ref (`ref_schema` / `ref_table` / `generated_cols`); `result` is the row-aligned source view. Agg only (not `event_rate`). |
+| `map_feature` | `bool` | When `True` (default `False`), LEFT JOIN the new feature columns back onto the original table — one value per row, matched on the group keys. The intermediate group table is dropped and the envelope is a source ref (`ref_schema` / `ref_table` / `generated_cols`); `result` is the row-aligned source view. Available on `agg` and every convenience statistic (`sum`, `mean`, …); not on `event_rate`. |
 
 ## Aggregation Statistics
 
@@ -179,6 +180,9 @@ is retained.
 ```python
 result = dataset.groupby("region").agg({"sales": ["sum"]}, map_feature=True)
 # original table now has: region, sales, sales_sum
+
+result = dataset.groupby("region").sum("sales", map_feature=True)
+# same row-aligned mapping for a single-statistic builder call
 ```
 
 ```python
