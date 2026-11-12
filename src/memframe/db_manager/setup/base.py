@@ -57,6 +57,11 @@ class DatabaseBackend(ABC):
             raise ConnectionNotReady("Backend pool not set. Call aconnect() first.")
         return await self.pool.fetch(query, *params)
 
+    async def fetch_df(self, query: str, *params):
+        if self.pool is None:
+            raise ConnectionNotReady("Backend pool not set. Call aconnect() first.")
+        return await self.pool.fetch_df(query, *params)
+
     async def fetch_row(self, query: str, *params) -> Optional[Tuple]:
         if self.pool is None:
             raise ConnectionNotReady("Backend pool not set. Call aconnect() first.")

@@ -3,8 +3,8 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 import traceback
 from datetime import datetime, timezone
-import pandas as pd
 
+from memframe.core.analytix._fetch import fetch_df as _fetch_df_rows
 from memframe.db_manager.adapters.base import DatabaseAdapter
 from memframe.utils.helper import SQLIdentifierSanitizer
 import math
@@ -89,11 +89,12 @@ class WindowOps:
         else:
             sanitized = [SQLIdentifierSanitizer.sanitize(c) for c in columns]
             col_clause = ", ".join(self.db.quote_identifier(c) for c in sanitized)
+        if limit is None:
+            limit = getattr(self.db, "preview_rows", None)
+        sql = f"SELECT {col_clause} FROM {qualified}"
         if limit:
-            rows = await self._fetch(f"SELECT {col_clause} FROM {qualified} LIMIT {limit}")
-        else:
-            rows = await self._fetch(f"SELECT {col_clause} FROM {qualified}")
-        return pd.DataFrame([dict(r) for r in rows])
+            sql += f" LIMIT {int(limit)}"
+        return await _fetch_df_rows(self.db, sql)
 
     async def _resolve_ordering(self, table: str, schema: str, order_by: str):
         """Resolve the ordering expression.

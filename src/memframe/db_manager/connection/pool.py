@@ -6,6 +6,8 @@ from abc import ABC, abstractmethod
 from contextlib import asynccontextmanager
 from typing import Any, List, Optional, Tuple
 
+import pandas as pd
+
 from memframe.core.ingestion.datatype_detector import Backend
 from memframe.exceptions import (
     BackendNotSupported, ConfigurationError, ConnectionNotReady,
@@ -32,6 +34,15 @@ class BasePool(ABC):
 
     @abstractmethod
     async def fetchval(self, sql: str, *args) -> Any: ...
+
+    async def fetch_df(self, sql: str, *args):
+        """Execute a SELECT and return a pandas DataFrame."""
+        import pandas as pd
+
+        rows = await self.fetch(sql, *args)
+        if not rows:
+            return pd.DataFrame()
+        return pd.DataFrame.from_records(rows)
 
 
 class DuckDBPool(BasePool):
@@ -174,6 +185,18 @@ class DuckDBPool(BasePool):
     async def fetchval(self, sql: str, *args) -> Any:
         row = await self.fetchrow(sql, *args)
         return row[0] if row else None
+
+    async def fetch_df(self, sql: str, *args):
+        async with self._guarded():
+            df = self._require_conn().execute(sql, list(args)).df()
+            for col in df.columns:
+                if not pd.api.types.is_datetime64_any_dtype(df[col]):
+                    continue
+                series = df[col]
+                if getattr(series.dt, "tz", None) is not None:
+                    series = series.dt.tz_convert("UTC").dt.tz_localize(None)
+                df[col] = series.astype("datetime64[ns]")
+            return df
 
 
 def _terminate_pool(pool) -> None:
@@ -440,6 +463,14 @@ class ClickHousePool(BasePool):
     async def fetchval(self, sql: str, *args) -> Any:
         row = await self.fetchrow(sql, *args)
         return row[0] if row else None
+
+    async def fetch_df(self, sql: str, *args):
+        import pandas as pd
+
+        await self._ensure()
+        result = await self._client.query(sql, parameters=args if args else None)
+        columns = getattr(result, "column_names", None)
+        return pd.DataFrame(result.result_rows, columns=columns)
 
     async def insert(self, table, rows, database=None, column_names=None):
         await self._ensure()

@@ -17,9 +17,14 @@ logger = logging.getLogger("memFrame")
 
 
 class MemFrame(ContextManager, OpsMixin):
-    def __init__(self, connection_type: str = "local", connection_params: Optional[Dict[str, Any]] = None, deep_cache: Optional[bool] = None):
+    def __init__(self, connection_type: str = "local", connection_params: Optional[Dict[str, Any]] = None, deep_cache: Optional[bool] = None, preview_rows: Optional[int] = None):
         super().__init__(self)
+        if preview_rows is not None:
+            preview_rows = int(preview_rows)
+            if preview_rows <= 0:
+                raise ConfigurationError("preview_rows must be a positive integer")
         self.deep_cache = deep_cache
+        self.preview_rows = preview_rows
         self._active_id: Optional[str] = None
         self._connector = ConnectorManager(
             connection_type,
@@ -59,6 +64,8 @@ class MemFrame(ContextManager, OpsMixin):
 
     async def aconnect(self) -> None:
         await self._connector.aconnect()
+        if self._backend is not None:
+            self._backend.preview_rows = self.preview_rows
 
     @async_to_sync
     async def connect(self) -> None:

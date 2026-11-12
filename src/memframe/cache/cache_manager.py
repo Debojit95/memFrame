@@ -282,6 +282,19 @@ class CacheManager:
                 ordered.append(col)
         return ordered
 
+    @staticmethod
+    def _remember_dtypes(result: Dict[str, Any]) -> None:
+        """Record result-frame dtypes so cache replay matches the first call."""
+        df = result.get("result")
+        if df is None or not hasattr(df, "columns") or not len(df):
+            return
+        try:
+            result["result_dtypes"] = {
+                str(c): str(df[c].dtype) for c in df.columns
+            }
+        except Exception:
+            pass
+
     async def _load_ref_table(
         self, backend, schema: str, table: str, columns: List[str],
         order_schema: Optional[str] = None, order_table: Optional[str] = None,
@@ -291,7 +304,9 @@ class CacheManager:
             return None
         qualified = self._qualify(schema, table, backend)
         cols = ", ".join(self._quote_col(c, backend) for c in columns)
+        preview = getattr(backend, "preview_rows", None)
         try:
+            limit = None
             if order_table:
                 qualified_order = self._qualify(
                     order_schema or schema, order_table, backend
@@ -306,8 +321,7 @@ class CacheManager:
                     f"o.{self._quote_col(MF_IDX, backend)} "
                     f'ORDER BY o."position"'
                 )
-                if order_limit is not None:
-                    sql += f" LIMIT {int(order_limit)}"
+                limit = order_limit
             elif order_kind == "mf_idx":
                 sql = (
                     f"SELECT {cols} FROM {qualified} "
@@ -315,11 +329,14 @@ class CacheManager:
                 )
             else:
                 sql = f"SELECT {cols} FROM {qualified}"
-            rows = await backend.fetch(sql)
-            records = [dict(r) if hasattr(r, "keys") else r for r in rows]
-            if records and isinstance(records[0], dict):
-                return pd.DataFrame(records, columns=columns)
-            return pd.DataFrame(rows, columns=columns)
+            if preview:
+                limit = min(int(preview), int(limit)) if limit else int(preview)
+            if limit is not None:
+                sql += f" LIMIT {int(limit)}"
+            df = await backend.fetch_df(sql)
+            if df.empty and not len(df.columns):
+                return pd.DataFrame(columns=columns)
+            return df
         except Exception as exc:
             logger.warning("[cache] ref reload failed for %s: %s", qualified, exc)
             return None
@@ -457,28 +474,13 @@ class CacheManager:
     async def _load_generated_table(self, backend, qualified: str) -> Optional[pd.DataFrame]:
         start = time.perf_counter()
         try:
-            # ponytail: no ORDER BY — the live path reads the same unordered
-            # way, so replay matches live; don't "fix" one side only.
-            rows = await backend.fetch(f"SELECT * FROM {qualified}")
-            if not rows:
+            preview = getattr(backend, "preview_rows", None)
+            sql = f"SELECT * FROM {qualified}"
+            if preview:
+                sql += f" LIMIT {int(preview)}"
+            df = await backend.fetch_df(sql)
+            if df.empty:
                 return None
-            # ponytail: per-backend column name query — real backend difference
-            be = getattr(backend, "backend", None)
-            if be == Backend.POSTGRES:
-                schema, table = qualified.replace('"', "").split(".")
-                col_rows = await backend.fetch(
-                    "SELECT column_name FROM information_schema.columns "
-                    "WHERE table_schema = $1 AND table_name = $2",
-                    schema.strip(), table.strip(),
-                )
-                col_names = [r[0] for r in col_rows]
-            elif be == Backend.CLICKHOUSE:
-                col_rows = await backend.fetch(f"DESCRIBE TABLE {qualified}")
-                col_names = [r[0] for r in col_rows]
-            else:
-                col_rows = await backend.fetch(f"DESCRIBE {qualified}")
-                col_names = [r[0] for r in col_rows]
-            df = pd.DataFrame(rows, columns=col_names)
             logger.debug(
                 "[cache] reloaded %s (%d rows, %.3fs)", qualified, len(df),
                 time.perf_counter() - start,
@@ -507,6 +509,15 @@ class CacheManager:
         if not isinstance(generated, list) or not generated:
             single = stored.get("new_column")
             generated = [single] if single else []
+
+        dtypes = stored.get("result_dtypes")
+        if isinstance(dtypes, dict) and isinstance(cached, pd.DataFrame):
+            for col, dtype in dtypes.items():
+                if col in cached.columns:
+                    try:
+                        cached[col] = cached[col].astype(dtype)
+                    except Exception:
+                        pass
 
         row_count = None
         column_count = None
@@ -920,6 +931,8 @@ class CacheManager:
                         if isinstance(result, dict)
                         else False
                     )
+                    if not is_error and isinstance(result, dict):
+                        manager._remember_dtypes(result)
 
                     # ponytail: one transaction — the stored table/payload and its
                     # registry row commit together, so a crash can't leave one

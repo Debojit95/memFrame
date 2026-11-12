@@ -33,6 +33,16 @@ class DatabaseAdapter(ABC):
         """Execute a SELECT and return a single row."""
         pass
 
+    async def fetch_df(self, sql: str, *args):
+        """Execute a SELECT and return a pandas DataFrame."""
+        pool = getattr(self, "_pool", None)
+        if pool is not None and hasattr(pool, "fetch_df"):
+            return await pool.fetch_df(sql, *args)
+        rows = await self.fetch(sql, *args)
+        import pandas as pd
+
+        return pd.DataFrame.from_records(rows)
+
     @abstractmethod
     async def get_column_types(self, table: str, schema: str) -> Dict[str, str]:
         """Return mapping of column name → data type."""

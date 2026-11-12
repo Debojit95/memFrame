@@ -36,6 +36,7 @@ def connect(
     connection_type: str = "local",
     connection_params: Optional[Dict[str, Any]] = None,
     deep_cache: Optional[bool] = None,
+    preview_rows: Optional[int] = None,
 ) -> MemFrame:
     """Connect the module-level default instance (sync form).
 
@@ -44,7 +45,7 @@ def connect(
     """
     global _default
     close()
-    instance = MemFrame(connection_type, connection_params, deep_cache)
+    instance = MemFrame(connection_type, connection_params, deep_cache, preview_rows)
     instance.connect()
     _default = instance
     return instance
@@ -54,11 +55,12 @@ async def aconnect(
     connection_type: str = "local",
     connection_params: Optional[Dict[str, Any]] = None,
     deep_cache: Optional[bool] = None,
+    preview_rows: Optional[int] = None,
 ) -> MemFrame:
     """Connect the module-level default instance (async form)."""
     global _default
     await aclose()
-    instance = MemFrame(connection_type, connection_params, deep_cache)
+    instance = MemFrame(connection_type, connection_params, deep_cache, preview_rows)
     await instance.aconnect()
     _default = instance
     return instance

@@ -5,6 +5,7 @@ import traceback
 from datetime import datetime, timezone
 import pandas as pd
 
+from memframe.core.analytix._fetch import fetch_df as _fetch_df_rows
 from memframe.db_manager.adapters.base import DatabaseAdapter
 from memframe.core.indexing import HIDDEN_COLUMNS
 from memframe.utils.helper import SQLIdentifierSanitizer
@@ -180,13 +181,12 @@ class DataCleaningOps:
             safe_col = SQLIdentifierSanitizer.sanitize(str(columns), allow_qualified=False)
             column_clause = self.db.quote_identifier(safe_col)
 
-        if limit > 0:
-            rows = await self._fetch(f"SELECT {column_clause} FROM {qualified} LIMIT {limit}")
-        else:
-            rows = await self._fetch(f"SELECT {column_clause} FROM {qualified}")
-
-        records = [dict(row) for row in rows]
-        return pd.DataFrame.from_records(records)
+        if limit <= 0:
+            limit = getattr(self.db, "preview_rows", None) or -1
+        sql = f"SELECT {column_clause} FROM {qualified}"
+        if limit and int(limit) > 0:
+            sql += f" LIMIT {int(limit)}"
+        return await _fetch_df_rows(self.db, sql)
 
     async def _get_column_type(self, table: str, schema: str, column: str) -> str:
         types = await self.db.get_column_types(table, schema)

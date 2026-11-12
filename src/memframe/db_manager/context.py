@@ -227,6 +227,7 @@ class ContextManager:
             self._adapter = ClickHouseAdapter(pool)
         else:
             raise BackendNotSupported("Unsupported backend")
+        self._adapter.preview_rows = getattr(self.memframe, "preview_rows", None)
 
     async def aclose(self):
         self._adapter = None

@@ -13,6 +13,7 @@ import traceback
 from datetime import datetime, timezone
 import pandas as pd
 
+from memframe.core.analytix._fetch import fetch_df as _fetch_df_rows
 from memframe.db_manager.adapters.base import DatabaseAdapter
 from memframe.core.analytix._generated import markers_table
 from memframe.utils.helper import SQLIdentifierSanitizer
@@ -355,11 +356,13 @@ class GroupByStatsOps:
             f' ORDER BY {self.db.quote_identifier("_mf_idx")}'
             if order_by_index else ""
         )
-        rows = await self._fetch(
+        limit = getattr(self.db, "preview_rows", None)
+        limit_sql = f" LIMIT {int(limit)}" if limit else ""
+        return await _fetch_df_rows(
+            self.db,
             f"""SELECT {', '.join(self.db.quote_identifier(c) for c in preview_cols)}
-                FROM {self._qualified_table(output_table, schema)}{order}"""
+                FROM {self._qualified_table(output_table, schema)}{order}{limit_sql}""",
         )
-        return pd.DataFrame(rows, columns=preview_cols) if rows else pd.DataFrame(columns=preview_cols)
 
     # ------------------------------------------------------------------
     # Main aggregation method (CREATES A TABLE)

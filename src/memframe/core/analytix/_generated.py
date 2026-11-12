@@ -13,6 +13,7 @@ import json
 from typing import Any, Dict, Iterable, List, Optional
 
 from memframe.core.indexing import MF_IDX
+from memframe.core.analytix._fetch import fetch_df as _fetch_df_rows
 from memframe.core.ingestion.datatype_detector import Backend
 from memframe.utils.helper import SQLIdentifierSanitizer
 
@@ -256,13 +257,17 @@ async def publish_row_aligned(
     df = result.get("result")
     if df is not None and hasattr(df, "columns") and len(df):
         try:
-            idx_rows = await ops.db.fetch(
+            idx_sql = (
                 f"SELECT {ops.db.quote_identifier(MF_IDX)} "
                 f"FROM {_qualified(ops.db, schema, wide)}"
             )
-            order = [
-                r[MF_IDX] if hasattr(r, "keys") else r[0] for r in idx_rows
-            ]
+            if getattr(ops.db, "preview_rows", None):
+                idx_sql += f" LIMIT {len(df)}"
+            idx_df = await _fetch_df_rows(ops.db, idx_sql)
+            order = (
+                idx_df[MF_IDX].tolist()
+                if MF_IDX in idx_df.columns else []
+            )
             if len(order) == len(df):
                 result["result"] = (
                     df.assign(__mf_order=order)

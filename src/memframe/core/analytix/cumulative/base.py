@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional, Union
 
 import pandas as pd
 
+from memframe.core.analytix._fetch import fetch_df as _fetch_df_rows
 from memframe.core.analytix._response import fail, ok
 from memframe.core.indexing import assert_user_column
 from memframe.db_manager.adapters.base import DatabaseAdapter
@@ -65,9 +66,11 @@ class CumulativeOps:
             for c in columns
         ]
         col_clause = ", ".join(self.db.quote_identifier(c) for c in sanitized)
-        rows = await self._fetch(f"SELECT {col_clause} FROM {qualified}")
-        records = [dict(row) for row in rows]
-        return pd.DataFrame.from_records(records)
+        limit = getattr(self.db, "preview_rows", None)
+        sql = f"SELECT {col_clause} FROM {qualified}"
+        if limit:
+            sql += f" LIMIT {int(limit)}"
+        return await _fetch_df_rows(self.db, sql)
 
     def _qualified_table(self, table: str, schema: str) -> str:
         safe_table = SQLIdentifierSanitizer.sanitize(table)
