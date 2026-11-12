@@ -1,9 +1,8 @@
 """Behavioral unit tests for the merge/join/concat wrapper stack.
 
 Runs against an in-memory DuckDB. Successful ``MergeWrapper`` calls return a
-live ``ContextManager`` bound to the new output table (chainable); error
-envelopes are returned unchanged as dicts. ``ContextManager`` dispatch
-(``left.merge(...)``) passes the context through unwrapped.
+live ``ContextManager`` bound to the new output table (chainable); public
+``ContextManager`` dispatch raises ``OperationError`` for error envelopes.
 """
 
 import asyncio
@@ -14,7 +13,7 @@ import pytest
 from memframe.core.analytix.merging import make_merge_ops
 from memframe.core.orchestrator.analytix.merging import MergeOrchestrator
 from memframe.db_manager.context import ContextManager
-from memframe.exceptions import DataNotFound
+from memframe.exceptions import DataNotFound, OperationError
 from memframe.main import MemFrame
 from memframe.wrappers.analytix.merging import MergeAccessor, MergeWrapper
 
@@ -307,11 +306,10 @@ def test_concat_bad_join(merge_contexts):
 # ── public API / core failure / orchestrator ─────────────────────────
 
 
-def test_merge_public_api_error_stays_dict(merge_contexts):
+def test_merge_public_api_error_raises(merge_contexts):
     left, right, _ = merge_contexts
-    result = left.merge(right, how="nonsense", on="id")
-    assert isinstance(result, dict)
-    assert result["is_error"] is True
+    with pytest.raises(OperationError, match="Unsupported join type"):
+        left.merge(right, how="nonsense", on="id")
 
 
 def test_merge_core_unsupported_backend():

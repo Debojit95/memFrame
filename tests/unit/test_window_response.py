@@ -3,6 +3,7 @@ import asyncio
 import pandas as pd
 import pytest
 
+from memframe.exceptions import OperationError
 from memframe.main import MemFrame
 from memframe.wrappers.analytix.window import WindowWrapper
 
@@ -60,6 +61,20 @@ def test_rolling_mean_values(window_context):
         35.0,
         45.0,
     ]
+
+
+def test_rolling_categorical_mean_raises_with_supported_funcs(window_context):
+    with pytest.raises(OperationError, match="Supported:"):
+        window_context.rolling(
+            column="cat", window=3, func="mean", order_by="day"
+        )
+
+
+def test_expanding_categorical_mean_raises(window_context):
+    with pytest.raises(OperationError, match="Supported:"):
+        window_context.expanding(
+            column="cat", func="mean", order_by="day"
+        )
 
 
 def test_rolling_multi_func_chains_single_table(window_context):

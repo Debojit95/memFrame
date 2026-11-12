@@ -49,8 +49,7 @@ def test_explode_result_hides_mf_idx():
     )
     try:
         response = ctx.explode("tags")
-        assert not response.get("is_error"), response.get("error_message")
-        result = response["result"]
+        result = response if isinstance(response, pd.DataFrame) else response["result"]
         assert "_mf_idx" not in result.columns
         assert set(result["tags"]) == {"a", "b", "c"}
     finally:
