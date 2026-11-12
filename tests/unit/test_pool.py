@@ -58,6 +58,14 @@ class TestDuckDBPool:
         asyncio.run(pool.execute("CREATE TABLE t (a INTEGER)"))
         assert asyncio.run(pool.fetchval("SELECT a FROM t")) is None
 
+    def test_fetch_df(self, pool):
+        import asyncio
+        asyncio.run(pool.execute("CREATE TABLE t (a INTEGER, b TEXT)"))
+        asyncio.run(pool.execute("INSERT INTO t VALUES (1, 'x'), (2, 'y')"))
+        df = asyncio.run(pool.fetch_df("SELECT * FROM t ORDER BY a"))
+        assert list(df.columns) == ["a", "b"]
+        assert df["a"].tolist() == [1, 2]
+
     def test_parameterized_query(self, pool):
         import asyncio
         asyncio.run(pool.execute("CREATE TABLE t (a INTEGER, b TEXT)"))

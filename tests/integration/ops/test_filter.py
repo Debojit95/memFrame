@@ -1054,13 +1054,11 @@ class TestFilteringOperations:
     # ------------------------------------------------------------------
     def test_chunk_streaming(self, uploaded_ctx_deep, backend_config):
         result = uploaded_ctx_deep.filter("B > 10", chunk_size=2)
-        assert not result.get("is_error"), result.get("error_message")
-        assert "iterator" in result
 
         async def _collect(it):
             return [chunk async for chunk in it]
 
-        chunks = asyncio.run(_collect(result["iterator"]))
+        chunks = asyncio.run(_collect(result))
         combined = pd.concat(chunks, ignore_index=True)
         assert sorted(combined["B"].tolist()) == [15, 20, 25]
         self._record_result(

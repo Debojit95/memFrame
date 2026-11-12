@@ -54,3 +54,51 @@ def test_explode_result_hides_mf_idx():
         assert set(result["tags"]) == {"a", "b", "c"}
     finally:
         asyncio.run(mf.aclose())
+
+
+def test_preview_rows_limits_feature_results_and_cache():
+    from memframe.wrappers.analytix.window import WindowWrapper
+
+    mf = MemFrame(
+        connection_type="local",
+        connection_params={"db_path": ":memory:"},
+        deep_cache=True,
+        preview_rows=5,
+    )
+    asyncio.run(mf.aconnect())
+    try:
+        ctx = asyncio.run(mf.aupload_df(
+            pd.DataFrame({
+                "amount": list(range(20)),
+                "created_at": pd.date_range("2024-01-01", periods=20, freq="D"),
+            }),
+            filename="preview_rows",
+        ))
+        wrapper = WindowWrapper(ctx)
+        first = wrapper.rolling(
+            column="amount", window=3, func="mean", order_by="created_at"
+        )
+        assert len(first["result"]) == 5
+        assert "amount_rolling_mean_w3" in ctx.head(n=1).columns
+
+        second = wrapper.rolling(
+            column="amount", window=3, func="mean", order_by="created_at"
+        )
+        assert second["result_metadata"]["from_cache"] is True
+        assert len(second["result"]) == 5
+    finally:
+        asyncio.run(mf.aclose())
+
+
+def test_preview_rows_must_be_positive():
+    from memframe.exceptions import ConfigurationError
+
+    try:
+        MemFrame(
+            connection_type="local",
+            connection_params={"db_path": ":memory:"},
+            preview_rows=0,
+        )
+    except ConfigurationError:
+        return
+    raise AssertionError("preview_rows=0 should raise ConfigurationError")
