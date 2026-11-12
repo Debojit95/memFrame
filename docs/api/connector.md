@@ -73,6 +73,25 @@ duckdb -ui memdb_ui.duckdb
 For truly concurrent application + UI access, use PostgreSQL or ClickHouse
 as the memFrame backend.
 
+## Result previews
+
+`MemFrame(..., preview_rows=N)` limits the rows materialized into `result`
+for feature-generating operations (window, cumulative, grouped cumulative,
+cleaning, grouped fillna, group-by). The source table still receives every
+row; only the returned preview is capped. Cache hits apply the same limit.
+
+```python
+mf = MemFrame(
+    connection_type="local",
+    connection_params={"db_path": "memframe.duckdb"},
+    preview_rows=1000,
+)
+```
+
+Default is `None`, which returns the full result frame. Use `preview_rows` for
+dashboards and benchmarks where scanning millions of rows into pandas is not
+needed; read explicit full tables via `head`/`full_table` when required.
+
 ## PostgreSQL
 
 PostgreSQL is configured as a remote backend.
