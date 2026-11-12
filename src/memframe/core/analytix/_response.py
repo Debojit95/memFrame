@@ -32,11 +32,9 @@ class OperationResponse(BaseModel):
 
 def is_operation_response(value: Any) -> bool:
     """Return whether a value is a canonical analytix response payload."""
-    return isinstance(value, dict) and {
-        "is_error",
-        "error_message",
-        "result",
-    }.issubset(value)
+    return isinstance(value, dict) and "is_error" in value and (
+        "result" in value or "error_message" in value
+    )
 
 
 def unwrap_response(value: Any) -> Any:

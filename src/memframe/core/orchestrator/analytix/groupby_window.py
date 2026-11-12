@@ -461,7 +461,11 @@ class GroupByWindowOrchestrator:
             return {
                 "is_error": True,
                 "message": "",
-                "error_message": f"No requested rolling function is supported for dtype '{dtype}'.",
+                "error_message": (
+                    f"No requested rolling function is supported for dtype '{dtype}'. "
+                    f"Supported: {', '.join(sorted(dtype_map)) or 'none'}. "
+                    f"Unsupported for this dtype: {unsupported_dtype}."
+                ),
                 "dtype": dtype,
                 "requested_funcs": requested_funcs,
                 "unsupported_unknown": unsupported_unknown,
@@ -640,7 +644,11 @@ class GroupByWindowOrchestrator:
         if not executable:
             return {
                 "is_error": True,
-                "error_message": f"No requested expanding function is supported for dtype '{dtype}'.",
+                "error_message": (
+                    f"No requested expanding function is supported for dtype '{dtype}'. "
+                    f"Supported: {', '.join(sorted(dtype_map)) or 'none'}. "
+                    f"Unsupported for this dtype: {unsupported_dtype}."
+                ),
                 "dtype": dtype,
                 "requested_funcs": requested_funcs,
                 "unsupported_unknown": unsupported_unknown,
