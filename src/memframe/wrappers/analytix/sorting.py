@@ -27,7 +27,7 @@ class SortingWrapper(SortingOrchestrator):
         na_position: str = "last",
         columns: Union[str, List[str]] = "*",
         chunk_size: int = None,
-        upload_as_source: bool = False,
+        return_ctx: bool = False,
     ) -> Dict[str, Any]:
         """Asynchronously sort rows by one or more columns."""
         result = await super().sort_values(
@@ -36,7 +36,7 @@ class SortingWrapper(SortingOrchestrator):
             na_position=na_position,
             columns=columns,
             chunk_size=chunk_size,
-            upload_as_source=upload_as_source,
+            return_ctx=return_ctx,
         )
         if isinstance(result, dict) and result.get("dataset_id"):
             return ContextManager(self._memframe, data_id=result["dataset_id"])
@@ -50,7 +50,7 @@ class SortingWrapper(SortingOrchestrator):
         na_position: str = "last",
         columns: Union[str, List[str]] = "*",
         chunk_size: int = None,
-        upload_as_source: bool = False,
+        return_ctx: bool = False,
     ) -> Dict[str, Any]:
         """Synchronously sort rows by one or more columns."""
         return await self.asort_values(
@@ -59,7 +59,7 @@ class SortingWrapper(SortingOrchestrator):
             na_position=na_position,
             columns=columns,
             chunk_size=chunk_size,
-            upload_as_source=upload_as_source,
+            return_ctx=return_ctx,
         )
 
 

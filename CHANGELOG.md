@@ -6,6 +6,10 @@ to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- **`sort_values(..., return_ctx=True)`**: renamed from `upload_as_source`.
+  Returns a `ContextManager` bound to the new sorted dataset.
+
 ## [0.17.0] - 2026-11-10
 
 ### Added

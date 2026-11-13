@@ -91,7 +91,7 @@ class SortingOrchestrator:
         na_position: str = "last",
         columns: Any = "*",
         chunk_size: int = None,
-        upload_as_source: bool = False,
+        return_ctx: bool = False,
     ) -> Dict[str, Any]:
         if isinstance(chunk_size, bool) or (
             chunk_size is not None and (not isinstance(chunk_size, int) or chunk_size <= 0)
@@ -119,7 +119,7 @@ class SortingOrchestrator:
             data_id=data_id,
             chunk_size=chunk_size,
         )
-        if upload_as_source and isinstance(result, dict) and not result.get("is_error"):
+        if return_ctx and isinstance(result, dict) and not result.get("is_error"):
             return await self._materialize_sorted(result, table, schema)
         return result
 

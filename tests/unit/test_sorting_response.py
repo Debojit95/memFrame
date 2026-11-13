@@ -64,11 +64,11 @@ def test_sorting_cache_hit_preserves_order(sorting_context):
     assert not asyncio.run(be.table_exists(be.qualify_table(be.cache_schema, order_table)))
 
 
-def test_sorting_upload_as_source(sorting_context):
+def test_sorting_return_ctx(sorting_context):
     mf = sorting_context.memframe
     original_id = sorting_context._data_id
     sorted_ctx = SortingWrapper(sorting_context).sort_values(
-        by="score", upload_as_source=True
+        by="score", return_ctx=True
     )
     assert isinstance(sorted_ctx, ContextManager)
     assert sorted_ctx._data_id != original_id
@@ -90,13 +90,13 @@ def test_sorting_upload_as_source(sorting_context):
     assert sorting_context.shape[0] == 5
 
 
-def test_sorting_upload_as_source_cache_hit(sorting_context):
+def test_sorting_return_ctx_cache_hit(sorting_context):
     orchestrator = SortingOrchestrator(sorting_context)
     first = asyncio.run(
-        orchestrator.sort_values(by="score", upload_as_source=True)
+        orchestrator.sort_values(by="score", return_ctx=True)
     )
     second = asyncio.run(
-        orchestrator.sort_values(by="score", upload_as_source=True)
+        orchestrator.sort_values(by="score", return_ctx=True)
     )
 
     assert second["result_metadata"]["from_cache"] is True
@@ -118,10 +118,10 @@ def test_sorting_upload_as_source_cache_hit(sorting_context):
     assert row[3] == be.upload_schema
 
 
-def test_upload_as_source_does_not_invalidate_other_cache_entries(sorting_context):
+def test_return_ctx_does_not_invalidate_other_cache_entries(sorting_context):
     orchestrator = SortingOrchestrator(sorting_context)
     asyncio.run(orchestrator.sort_values(by="score"))
-    asyncio.run(orchestrator.sort_values(by="score", upload_as_source=True))
+    asyncio.run(orchestrator.sort_values(by="score", return_ctx=True))
 
     again = asyncio.run(orchestrator.sort_values(by="score"))
     assert again["result_metadata"]["from_cache"] is True

@@ -20,7 +20,7 @@ database index.
 - Derived columns may be added; values may be updated.
 - Filtering/sorting may return subsets/permutations that retain the source
   `_mf_idx`.
-- New datasets (merge, reshape, `upload_as_source`) get a fresh `0..n-1`
+- New datasets (merge, reshape, `return_ctx`) get a fresh `0..n-1`
   identity space.
 - `_mf_idx` is hidden from public DataFrames and metadata.
 
@@ -74,7 +74,7 @@ relation is never dropped, so the public view stays valid throughout.
 
 ## Derived datasets
 
-Merge, reshape, and `sort_values(..., upload_as_source=True)` create a new
+Merge, reshape, and `sort_values(..., return_ctx=True)` create a new
 dataset rather than modifying the source. Each derived dataset gets:
 
 - a fresh `0..n-1` identity space, regardless of the inputs' indices;
@@ -104,7 +104,7 @@ The cache ref records `order_schema`, `order_table`, `order_position_dtype`,
 `order_kind='sort'` and `order_limit`. A cache hit joins the source with the
 permutation and orders by `position`.
 
-`sort_values(..., upload_as_source=True)` instead materializes the sorted
+`sort_values(..., return_ctx=True)` instead materializes the sorted
 result as a new upload dataset with a fresh `_mf_idx` and returns its
 `ContextManager`. The original dataset is left untouched. Its cache entry
 references that dataset's base table and replays with `ORDER BY _mf_idx`, so a
