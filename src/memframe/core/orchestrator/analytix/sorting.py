@@ -34,7 +34,7 @@ class SortingOrchestrator:
         return f"`{safe}`" if getattr(backend, "backend", None) == "clickhouse" else f'"{safe}"'
 
     async def _materialize_sorted(self, result, table, schema):
-        """Persist a sort permutation as a new upload dataset."""
+        """Materialize a sorted result as a new upload dataset."""
         backend = self._memframe._backend
         new_id = _generate_6char_id()
         cols = result["output_columns"]
@@ -82,25 +82,25 @@ class SortingOrchestrator:
         result["new_table"] = new_id
         return result
 
-    # --------------------------------------------------
-    @record_call(deep_cache=True)
-    async def sort_values(
+    async def _run_sort(
         self,
-        by: Union[str, list],
-        ascending: Union[bool, list] = True,
-        na_position: str = "last",
-        columns: Any = "*",
-        chunk_size: int = None,
-        return_ctx: bool = False,
-    ) -> Dict[str, Any]:
+        *,
+        by,
+        ascending,
+        na_position,
+        columns,
+        chunk_size,
+        return_ctx,
+        cache_snapshot,
+    ):
         if isinstance(chunk_size, bool) or (
             chunk_size is not None and (not isinstance(chunk_size, int) or chunk_size <= 0)
         ):
-            return fail("chunk_size must be a positive integer")
+            return fail("chunk_size must be a positive integer"), None, None
         try:
             assert_user_columns([by] if isinstance(by, str) else by)
         except ValueError as exc:
-            return fail(str(exc))
+            return fail(str(exc)), None, None
 
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
@@ -119,8 +119,57 @@ class SortingOrchestrator:
             data_id=data_id,
             chunk_size=chunk_size,
             return_ctx=return_ctx,
+            cache_snapshot=cache_snapshot,
         )
-        if return_ctx and isinstance(result, dict) and not result.get("is_error"):
+        return result, table, schema
+
+    # --------------------------------------------------
+    @record_call(deep_cache=True)
+    async def _cached_sort_values(
+        self,
+        by: Union[str, list],
+        ascending: Union[bool, list] = True,
+        na_position: str = "last",
+        columns: Any = "*",
+        chunk_size: int = None,
+    ) -> Dict[str, Any]:
+        result, _, _ = await self._run_sort(
+            by=by,
+            ascending=ascending,
+            na_position=na_position,
+            columns=columns,
+            chunk_size=chunk_size,
+            return_ctx=False,
+            cache_snapshot=getattr(self._memframe, "deep_cache", None) is not False,
+        )
+        return result
+
+    async def sort_values(
+        self,
+        by: Union[str, list],
+        ascending: Union[bool, list] = True,
+        na_position: str = "last",
+        columns: Any = "*",
+        chunk_size: int = None,
+        return_ctx: bool = False,
+    ) -> Dict[str, Any]:
+        if not return_ctx:
+            return await self._cached_sort_values(
+                by, ascending, na_position, columns, chunk_size
+            )
+
+        # return_ctx is a dataset workflow, not a cache: every call materializes
+        # a fresh csv_registry dataset and bypasses @record_call entirely.
+        result, table, schema = await self._run_sort(
+            by=by,
+            ascending=ascending,
+            na_position=na_position,
+            columns=columns,
+            chunk_size=chunk_size,
+            return_ctx=True,
+            cache_snapshot=False,
+        )
+        if isinstance(result, dict) and not result.get("is_error"):
             return await self._materialize_sorted(result, table, schema)
         return result
 

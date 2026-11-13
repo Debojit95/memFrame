@@ -173,6 +173,7 @@ class DataSortingOps:
         data_id: str = None,
         chunk_size: int = None,
         return_ctx: bool = False,
+        cache_snapshot: bool = False,
     ) -> Dict[str, Any]:
 
         try:
@@ -238,33 +239,29 @@ class DataSortingOps:
             pos_dtype = select_mf_idx_dtype(row_count)
             pos_sql = mf_idx_sql_type(pos_dtype, backend.backend)
 
-            order_table = await self._generate_cache_table_name(
-                table, backend, data_id,
-            )
-            order_table = SQLIdentifierSanitizer.sanitize(order_table)
-            suffix = 1
-            base_order = order_table
-            while await self.db.table_exists(order_table, backend.cache_schema):
-                order_table = f"{base_order}_{suffix}"
-                suffix += 1
-            qualified_order = self._qualified_table(
-                order_table, backend.cache_schema
-            )
-            await self._exec(
-                f"CREATE TABLE {qualified_order} AS "
-                f"SELECT CAST(ROW_NUMBER() OVER (ORDER BY {order_sql}) - 1 AS {pos_sql}) "
-                f'AS "position", {self.db.quote_identifier(MF_IDX)} '
-                f"FROM {qualified}"
-            )
+            order_table = None
+            qualified_order = None
+            if return_ctx or not cache_snapshot:
+                order_table = await self._generate_cache_table_name(
+                    table, backend, data_id,
+                )
+                order_table = SQLIdentifierSanitizer.sanitize(order_table)
+                suffix = 1
+                base_order = order_table
+                while await self.db.table_exists(order_table, backend.cache_schema):
+                    order_table = f"{base_order}_{suffix}"
+                    suffix += 1
+                qualified_order = self._qualified_table(
+                    order_table, backend.cache_schema
+                )
+                await self._exec(
+                    f"CREATE TABLE {qualified_order} AS "
+                    f"SELECT CAST(ROW_NUMBER() OVER (ORDER BY {order_sql}) - 1 AS {pos_sql}) "
+                    f'AS "position", {self.db.quote_identifier(MF_IDX)} '
+                    f"FROM {qualified}"
+                )
 
-            join_sql = (
-                f"SELECT {select_clause} FROM {qualified} s "
-                f"JOIN {qualified_order} o "
-                f"ON s.{self.db.quote_identifier(MF_IDX)} = o.{self.db.quote_identifier(MF_IDX)} "
-                f"ORDER BY o.\"position\""
-            )
-
-            def _response(sample, iterator=None):
+            def _response(sample, iterator=None, extra_override=None):
                 extra = {
                     "sorted_by": by,
                     "ascending": ascending,
@@ -274,15 +271,17 @@ class DataSortingOps:
                     "cache_kind": "ref",
                     "ref_schema": schema,
                     "ref_table": table,
-                    "order_schema": backend.cache_schema,
+                    "order_schema": backend.cache_schema if order_table else None,
                     "order_table": order_table,
                     "order_position_dtype": pos_dtype,
-                    "order_kind": "sort",
+                    "order_kind": "sort" if order_table else None,
                     "order_limit": None,
                     "result_cols": output_cols,
                     "owns_table": False,
                     "mutates": False,
                 }
+                if extra_override:
+                    extra.update(extra_override)
                 if iterator is not None:
                     extra["iterator"] = iterator
                 return ok(
@@ -294,6 +293,79 @@ class DataSortingOps:
                 # The caller materializes the dataset DB-side; no pandas sample
                 # is ever returned, so don't fetch millions of rows.
                 return _response(None)
+
+            plain_select = ", ".join(
+                self.db.quote_identifier(str(c)) for c in output_cols
+            )
+
+            if cache_snapshot:
+                # One write-once sorted snapshot replaces the permutation +
+                # join replay. Cache hits read this table directly.
+                snapshot = await self._generate_cache_table_name(
+                    table, backend, data_id,
+                )
+                snapshot = SQLIdentifierSanitizer.sanitize(snapshot)
+                suffix = 1
+                base_snapshot = snapshot
+                while await self.db.table_exists(snapshot, backend.cache_schema):
+                    snapshot = f"{base_snapshot}_{suffix}"
+                    suffix += 1
+                qualified_snapshot = self._qualified_table(
+                    snapshot, backend.cache_schema
+                )
+                # ponytail: the snapshot is write-once and never updated, so
+                # its physical order is the sort order. Ordering by an extra
+                # index column would re-sort on every read.
+                await self._exec(
+                    f"CREATE TABLE {qualified_snapshot} AS "
+                    f"SELECT {plain_select} FROM {qualified} "
+                    f"ORDER BY {order_sql}"
+                )
+                snapshot_sql = (
+                    f"SELECT {plain_select} FROM {qualified_snapshot}"
+                )
+                snapshot_meta = {
+                    "ref_schema": backend.cache_schema,
+                    "ref_table": snapshot,
+                    "order_schema": None,
+                    "order_table": None,
+                    "order_kind": None,
+                    "owns_table": True,
+                }
+
+                if chunk_size is None:
+                    limit = getattr(self.db, "preview_rows", None)
+                    if limit:
+                        snapshot_sql += f" LIMIT {int(limit)}"
+                    sample = await _fetch_df_rows(self.db, snapshot_sql)
+                    return _response(
+                        strip_hidden(sample), extra_override=snapshot_meta
+                    )
+
+                async def snapshot_iterator():
+                    offset = 0
+                    while True:
+                        df = await _fetch_df_rows(
+                            self.db,
+                            f"{snapshot_sql} LIMIT {chunk_size} OFFSET {offset}",
+                        )
+                        if df.empty:
+                            break
+                        yield strip_hidden(df)
+                        offset += chunk_size
+
+                resp = _response(
+                    None, snapshot_iterator(), extra_override=snapshot_meta
+                )
+                resp["chunk_size"] = chunk_size
+                return resp
+
+            join_sql = (
+                f"SELECT {select_clause} FROM {qualified} s "
+                f"JOIN {qualified_order} o "
+                f"ON s.{self.db.quote_identifier(MF_IDX)} = o.{self.db.quote_identifier(MF_IDX)} "
+                f"ORDER BY o.\"position\""
+            )
 
             if chunk_size is None:
                 sql = join_sql

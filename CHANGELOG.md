@@ -13,12 +13,16 @@ to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 - **`sort_values(..., return_ctx=True)`**: renamed from `upload_as_source`.
-  Returns a `ContextManager` bound to the new sorted dataset.
+  Returns a `ContextManager` bound to a new sorted dataset. Each call creates
+  a fresh `csv_registry` dataset and bypasses the cache; `return_ctx=False`
+  remains the cached path.
 
 ### Performance
 - Row-returning operations read results through the backend's Arrow-backed
   `fetch_df` instead of building a Python dict per row, substantially
   lowering peak RAM on million-row datasets.
+- Cached direct `sort_values` stores one write-once sorted snapshot and
+  replays with a plain scan instead of re-joining and re-sorting the source.
 - `preview_rows=N` now caps sort, filter, selection, merge, reshape, and
   mutating inspection results as well as the feature operations.
 

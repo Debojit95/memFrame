@@ -6,10 +6,13 @@ Source: `src/memframe/wrappers/analytix/sorting.py`
 `ContextManager`. It provides a pandas-like `sort_values` API backed by
 SQL `ORDER BY` across DuckDB, PostgreSQL, and ClickHouse.
 
-Sorting does not rewrite the source table. It stores a
-`(position, _mf_idx)` permutation and returns the ordered view. Pass
+Sorting does not rewrite the source table. Direct sorts are cached as a
+write-once sorted snapshot in `memframe_cache`; the public return is an ordered
+`DataFrame` (or an async iterator when `chunk_size` is set). Pass
 `return_ctx=True` to materialize a new sorted dataset with its own
-`data_id` and `ContextManager`.
+`data_id` and `ContextManager`. That dataset is registered in
+`memframe_csv_registry`; the call is not cached, so every call creates a
+fresh context.
 
 Users normally call sorting directly on a dataset context returned by an upload
 operation:
@@ -68,10 +71,10 @@ async for chunk in iterator:
     process(chunk)
 ```
 
-Sorting materializes a new cache table (`<table>__op_<n>`) that is a sorted
-clone of the source table. The public return is a sample `DataFrame` (or an
-async iterator when `chunk_size` is set); `new_table` metadata remains available
-to the cache layer.
+Sorting materializes a write-once sorted snapshot (`<table>__op_<n>`) in
+`memframe_cache` when the result is cached. The public return is a sample
+`DataFrame` (or an async iterator when `chunk_size` is set); `new_table`
+metadata remains available to the cache layer.
 
 ## Parameters
 

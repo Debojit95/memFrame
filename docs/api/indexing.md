@@ -93,22 +93,24 @@ the column already exists.
 
 ## Sorting
 
-`sort_values` does not materialize a sorted table. It stores a permutation in
-`memframe_cache`:
+`sort_values` leaves the source untouched. With deep cache enabled it stores a
+write-once sorted snapshot in `memframe_cache` and records a ref with
+`owns_table=true` and no order table; a cache hit scans the snapshot directly.
+Without deep cache it stores a `(position, <idxdtype>)` permutation and joins
+the source on replay:
 
 ```sql
 (position <posdtype>, mf_idx <idxdtype>)
 ```
 
-The cache ref records `order_schema`, `order_table`, `order_position_dtype`,
-`order_kind='sort'` and `order_limit`. A cache hit joins the source with the
-permutation and orders by `position`.
+The permutation ref records `order_schema`, `order_table`,
+`order_position_dtype`, `order_kind='sort'` and `order_limit`.
 
 `sort_values(..., return_ctx=True)` instead materializes the sorted
 result as a new upload dataset with a fresh `_mf_idx` and returns its
-`ContextManager`. The original dataset is left untouched. Its cache entry
-references that dataset's base table and replays with `ORDER BY _mf_idx`, so a
-cache hit is a single scan of the materialized table.
+`ContextManager`. The original dataset is left untouched. The new dataset is
+registered in `memframe_csv_registry`; this path bypasses the cache, so each
+call creates a fresh context.
 
 ## Ordering
 

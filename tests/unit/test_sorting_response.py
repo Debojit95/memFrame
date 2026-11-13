@@ -54,14 +54,22 @@ def test_sorting_cache_hit_preserves_order(sorting_context):
     pd.testing.assert_frame_equal(first["result"], second["result"])
 
     be = sorting_context.memframe._backend
-    order_table = asyncio.run(be.fetchval(
-        f"SELECT order_table FROM {be.cache_registry_table} "
-        f"WHERE data_id = {be.placeholder(1)} AND order_table IS NOT NULL",
+    row = asyncio.run(be.fetch_row(
+        f"SELECT order_kind, order_table, ref_schema, ref_table, owns_table "
+        f"FROM {be.cache_registry_table} "
+        f"WHERE data_id = {be.placeholder(1)} "
+        f"AND operation_type = 'method_call' ORDER BY opidx DESC LIMIT 1",
         sorting_context._data_id,
     ))
-    assert order_table
+    assert row[0] is None
+    assert row[1] is None
+    assert row[4] is True
+    snapshot = row[3]
+    assert asyncio.run(
+        be.table_exists(be.qualify_table(row[2], snapshot))
+    )
     asyncio.run(sorting_context.memframe._aclear_cache(sorting_context._data_id))
-    assert not asyncio.run(be.table_exists(be.qualify_table(be.cache_schema, order_table)))
+    assert not asyncio.run(be.table_exists(be.qualify_table(row[2], snapshot)))
 
 
 def test_sorting_return_ctx(sorting_context):
@@ -90,7 +98,7 @@ def test_sorting_return_ctx(sorting_context):
     assert sorting_context.shape[0] == 5
 
 
-def test_sorting_return_ctx_cache_hit(sorting_context):
+def test_sorting_return_ctx_creates_fresh_dataset(sorting_context):
     orchestrator = SortingOrchestrator(sorting_context)
     first = asyncio.run(
         orchestrator.sort_values(by="score", return_ctx=True)
@@ -99,29 +107,28 @@ def test_sorting_return_ctx_cache_hit(sorting_context):
         orchestrator.sort_values(by="score", return_ctx=True)
     )
 
-    assert second["result_metadata"]["from_cache"] is True
-    assert second["dataset_id"] == first["dataset_id"]
+    assert first["dataset_id"] != second["dataset_id"]
     assert first["result"] is None
-    assert second["result"]["score"].iloc[0] == 1.0
+    assert second["result"] is None
 
     mf = sorting_context.memframe
-    first_ctx = ContextManager(mf, data_id=first["dataset_id"])
-    second_ctx = ContextManager(mf, data_id=second["dataset_id"])
-    pd.testing.assert_frame_equal(first_ctx.head(n=5), second_ctx.head(n=5))
-    assert first_ctx.head(n=5)["score"].iloc[0] == 1.0
+    for result in (first, second):
+        ctx = ContextManager(mf, data_id=result["dataset_id"])
+        assert ctx.head(n=5)["score"].iloc[0] == 1.0
+        row = asyncio.run(mf._backend.fetch_row(
+            f"SELECT data_id FROM {mf._backend.csv_registry_table} "
+            f"WHERE data_id = {mf._backend.placeholder(1)}",
+            result["dataset_id"],
+        ))
+        assert row
 
-    be = sorting_context.memframe._backend
-    row = asyncio.run(be.fetch_row(
-        f"SELECT order_kind, order_table, ref_table, ref_schema "
-        f"FROM {be.cache_registry_table} "
-        f"WHERE data_id = {be.placeholder(1)} "
-        f"AND operation_type = 'method_call' ORDER BY opidx DESC LIMIT 1",
+    # return_ctx is not cached: no method_call entries for the source.
+    cache_rows = asyncio.run(mf._backend.fetch(
+        f"SELECT opidx FROM {mf._backend.cache_registry_table} "
+        f"WHERE data_id = {mf._backend.placeholder(1)}",
         sorting_context._data_id,
     ))
-    assert row[0] == "mf_idx"
-    assert row[1] is None
-    assert row[2] == f"{first['dataset_id']}__base"
-    assert row[3] == be.upload_schema
+    assert cache_rows == []
 
 
 def test_return_ctx_does_not_invalidate_other_cache_entries(sorting_context):
