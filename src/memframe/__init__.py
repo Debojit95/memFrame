@@ -14,7 +14,6 @@
 
 import logging
 from importlib.metadata import PackageNotFoundError, version as _package_version
-from typing import Any, Dict, List, Optional
 
 from .main import MemFrame
 from .core.ingestion.datatype_detector import Backend
@@ -27,113 +26,9 @@ try:
 except PackageNotFoundError:  # running from a source checkout
     __version__ = "0.0.0"
 
-# ponytail: one global default instance for the module API. It is unconnected
-# until connect()/aconnect(); construction performs no I/O, so importing the
-# package still has no side effects. Use MemFrame(...) for parallel instances.
-_default: MemFrame = MemFrame()
-
-
-def connect(
-    connection_type: str = "local",
-    connection_params: Optional[Dict[str, Any]] = None,
-    deep_cache: Optional[bool] = None,
-    preview_rows: Optional[int] = None,
-) -> MemFrame:
-    """Connect the module-level default instance (sync form).
-
-    Replaces any previous default connection. Returns the connected instance
-    so ``mf = memframe.connect(...)`` also works.
-    """
-    global _default
-    close()
-    instance = MemFrame(connection_type, connection_params, deep_cache, preview_rows)
-    instance.connect()
-    _default = instance
-    return instance
-
-
-async def aconnect(
-    connection_type: str = "local",
-    connection_params: Optional[Dict[str, Any]] = None,
-    deep_cache: Optional[bool] = None,
-    preview_rows: Optional[int] = None,
-) -> MemFrame:
-    """Connect the module-level default instance (async form)."""
-    global _default
-    await aclose()
-    instance = MemFrame(connection_type, connection_params, deep_cache, preview_rows)
-    await instance.aconnect()
-    _default = instance
-    return instance
-
-
-def close() -> None:
-    """Close the default connection and leave a fresh unconnected instance."""
-    global _default
-    current = _default
-    _default = MemFrame()
-    current.close()
-
-
-async def aclose() -> None:
-    """Async form of :func:`close`."""
-    global _default
-    current = _default
-    _default = MemFrame()
-    await current.aclose()
-
-
-def DataFrame(
-    data: Any = None,
-    index: Any = None,
-    columns: Optional[List] = None,
-    dtype: Any = None,
-    copy: Optional[bool] = None,
-    *,
-    filename: Optional[str] = None,
-    dtypes: Optional[Dict[str, str]] = None,
-) -> ContextManager:
-    """Pandas-style dataset constructor on the default connection.
-
-    Mirrors ``pd.DataFrame(...)`` and uploads the result as a new table.
-    ``MemFrame`` is the connection class; this is the dataset constructor.
-    """
-    return _default.DataFrame(
-        data, index=index, columns=columns, dtype=dtype, copy=copy,
-        filename=filename, dtypes=dtypes,
-    )
-
-
-async def aDataFrame(
-    data: Any = None,
-    index: Any = None,
-    columns: Optional[List] = None,
-    dtype: Any = None,
-    copy: Optional[bool] = None,
-    *,
-    filename: Optional[str] = None,
-    dtypes: Optional[Dict[str, str]] = None,
-) -> ContextManager:
-    """Async form of :func:`DataFrame`."""
-    return await _default.aDataFrame(
-        data, index=index, columns=columns, dtype=dtype, copy=copy,
-        filename=filename, dtypes=dtypes,
-    )
-
-
-def __getattr__(name: str) -> Any:
-    """Forward unknown module attributes to the default MemFrame instance."""
-    if name.startswith("_"):
-        raise AttributeError(name)
-    return getattr(_default, name)
-
-
-def __dir__() -> list[str]:
-    return sorted(set(globals()) | set(dir(_default)))
-
 # ponytail: libraries must not configure logging for the app. We set the
 # package logger to WARNING and attach a NullHandler so no per-operation INFO
-# lines leak to notebook stderr (Colab/Kaggle render those as error blocks)
+# lines leak into notebook stderr (Colab/Kaggle render those as error blocks)
 # while real warnings/errors still propagate. Opt in with enable_logging().
 _logger = logging.getLogger("memFrame")
 _logger.setLevel(logging.WARNING)
@@ -163,10 +58,4 @@ __all__ = [
     "ContextManager",
     "DashboardManager",
     "enable_logging",
-    "connect",
-    "aconnect",
-    "close",
-    "aclose",
-    "DataFrame",
-    "aDataFrame",
 ]
