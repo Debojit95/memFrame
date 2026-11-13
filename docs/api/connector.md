@@ -42,10 +42,35 @@ Parameters:
 | --- | --- | --- | --- |
 | `db_path` | No | `memFrame_new.duckdb` | File path for the DuckDB database. Use `:memory:` for a temporary in-memory database (nothing is persisted to disk). |
 | `lock_timeout` | No | `0` | Seconds to keep retrying when another process holds the DuckDB file lock. |
+| `memory_limit` | No | DuckDB default (80% RAM) | Cap DuckDB's working memory, e.g. `"2GB"`. Excess intermediate data spills to `temp_directory`. |
+| `temp_directory` | No | DuckDB default (`.tmp`) | Directory for spilling large sorts/joins. Point this at disk with free space. |
+| `threads` | No | all cores | DuckDB worker threads. Lowering it reduces peak memory. |
 
 !!! note
     For a temporary in-memory database, pass `db_path=":memory:"`. The database
     lives and dies with the connection; data is not persisted to disk.
+
+### Large datasets (Colab / small machines)
+
+DuckDB defaults to using up to 80% of system RAM. On a 12 GB Colab runtime
+that leaves little headroom for pandas results, and the kernel can be killed.
+Cap DuckDB and give it a disk spill directory:
+
+```python
+mf = MemFrame(
+    connection_type="local",
+    connection_params={
+        "db_path": "memFrame.duckdb",
+        "memory_limit": "2GB",
+        "temp_directory": "/content/duck_tmp",
+        "threads": 2,
+    },
+)
+```
+
+Use a file-backed database — `:memory:` cannot spill to disk. Pair this with
+`preview_rows=N` so row-returning operations materialize a small preview while
+the full result stays in DuckDB.
 
 ### File locking (DuckDB UI / CLI)
 

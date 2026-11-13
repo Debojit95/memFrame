@@ -6,6 +6,11 @@ to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **DuckDB resource controls**: `connection_params` accepts `memory_limit`,
+  `temp_directory`, and `threads` so large sorts/joins spill to disk instead
+  of exhausting RAM.
+
 ### Changed
 - **`sort_values(..., return_ctx=True)`**: renamed from `upload_as_source`.
   Returns a `ContextManager` bound to the new sorted dataset.

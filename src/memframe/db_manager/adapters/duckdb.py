@@ -16,8 +16,9 @@ class DuckDBAdapter(DatabaseAdapter):
         if db_path == ":memory:":
             return {"db_path": ":memory:"}
         params = {"db_path": db_path}
-        if "lock_timeout" in conn_params:
-            params["lock_timeout"] = conn_params["lock_timeout"]
+        for key in ("lock_timeout", "memory_limit", "temp_directory", "threads"):
+            if key in conn_params:
+                params[key] = conn_params[key]
         return params
 
     async def execute(self, sql: str, *args):

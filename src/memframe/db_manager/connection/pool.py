@@ -46,9 +46,19 @@ class BasePool(ABC):
 
 
 class DuckDBPool(BasePool):
-    def __init__(self, db_path: str, lock_timeout: float = 0.0):
+    def __init__(
+        self,
+        db_path: str,
+        lock_timeout: float = 0.0,
+        memory_limit: Optional[str] = None,
+        temp_directory: Optional[str] = None,
+        threads: Optional[int] = None,
+    ):
         self.db_path = db_path
         self.lock_timeout = max(float(lock_timeout or 0), 0.0)
+        self.memory_limit = memory_limit
+        self.temp_directory = temp_directory
+        self.threads = threads
         self._conn = None
         # ponytail: one connection serves every coroutine — serialize use so two
         # ops can't interleave on it (same pattern as PostgresPool._ensure_lock).
@@ -155,7 +165,46 @@ class DuckDBPool(BasePool):
             self._conn.execute("SET enable_progress_bar_print = false")
         except Exception as exc:
             logger.debug("DuckDB progress-bar disable skipped: %s", exc)
+        for name, value in (
+            ("memory_limit", self.memory_limit),
+            ("temp_directory", self.temp_directory),
+            ("threads", self.threads),
+        ):
+            if value is None:
+                continue
+            self._conn.execute(
+                f"SET {name} = {self._render_setting(name, value)}"
+            )
         logger.info(f"DuckDB connected: {self.db_path}")
+
+    @staticmethod
+    def _render_setting(name: str, value: Any) -> str:
+        """Render a SET value, rejecting anything that could break out of it."""
+        if name == "memory_limit":
+            text = str(value).strip()
+            if not re.fullmatch(
+                r"\d+(?:\.\d+)?\s*(?:B|KB|MB|GB|TB|KiB|MiB|GiB|TiB)?",
+                text,
+                re.IGNORECASE,
+            ):
+                raise ConfigurationError(
+                    f"Invalid memory_limit {value!r}; use e.g. '2GB'"
+                )
+            return f"'{text}'"
+        if name == "threads":
+            try:
+                count = int(value)
+            except (TypeError, ValueError) as exc:
+                raise ConfigurationError(
+                    f"Invalid threads {value!r}; use a positive integer"
+                ) from exc
+            if count <= 0:
+                raise ConfigurationError(
+                    f"Invalid threads {value!r}; use a positive integer"
+                )
+            return str(count)
+        # temp_directory is a path string.
+        return "'" + str(value).replace("'", "''") + "'"
 
     async def close(self):
         if self._conn:
@@ -485,6 +534,9 @@ def create_pool(backend: Backend, params: dict) -> BasePool:
     if backend == Backend.DUCKDB:
         return DuckDBPool(
             params["db_path"], lock_timeout=params.get("lock_timeout", 0),
+            memory_limit=params.get("memory_limit"),
+            temp_directory=params.get("temp_directory"),
+            threads=params.get("threads"),
         )
     elif backend == Backend.POSTGRES:
         return PostgresPool(

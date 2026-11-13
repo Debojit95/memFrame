@@ -85,3 +85,34 @@ class TestDuckDBPool:
         # and its injected JS errors on Colab; must stay off.
         assert asyncio.run(pool.fetchval("SELECT current_setting('enable_progress_bar')")) is False
         assert asyncio.run(pool.fetchval("SELECT current_setting('enable_progress_bar_print')")) is False
+
+    def test_connect_applies_resource_settings(self):
+        p = DuckDBPool(
+            ":memory:",
+            memory_limit="512MB",
+            temp_directory="/tmp/opencode/duck_tmp",
+            threads=1,
+        )
+        asyncio.run(p.connect())
+        try:
+            assert float(
+                asyncio.run(
+                    p.fetchval("SELECT current_setting('memory_limit')")
+                ).split()[0]
+            ) == pytest.approx(488.28, abs=0.1)
+            assert asyncio.run(
+                p.fetchval("SELECT current_setting('threads')")
+            ) == 1
+            assert "duck_tmp" in asyncio.run(
+                p.fetchval("SELECT current_setting('temp_directory')")
+            )
+        finally:
+            asyncio.run(p.close())
+
+    def test_invalid_memory_limit_rejected(self):
+        from memframe.exceptions import ConfigurationError
+
+        p = DuckDBPool(":memory:", memory_limit="2GB; DROP TABLE x")
+        with pytest.raises(ConfigurationError):
+            asyncio.run(p.connect())
+        asyncio.run(p.close())
