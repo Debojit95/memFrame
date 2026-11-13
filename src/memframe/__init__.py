@@ -1,14 +1,15 @@
 """memFrame - Database-backed DataFrame operations.
 
-The module itself is a facade over one process-global ``MemFrame`` instance::
+``MemFrame`` owns the connection and the dataset API::
 
-    import memframe as mf
-    mf.connect(connection_type="local", connection_params={"db_path": "db.duckdb"})
-    ctx = mf.upload_df(df, filename="customers")
+    from memframe import MemFrame
 
-Any ``MemFrame`` attribute not defined here is forwarded to that default
-instance. Use the ``MemFrame`` class directly when you need more than one
-connection.
+    mf = MemFrame(
+        connection_type="local",
+        connection_params={"db_path": "db.duckdb"},
+    )
+    await mf.aconnect()
+    ctx = await mf.aupload_df(df, filename="customers")
 """
 
 import logging

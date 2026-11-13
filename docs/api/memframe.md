@@ -72,7 +72,8 @@ dataset = mf.DataFrame({"id": [1]}, filename="built.csv", dtypes={"id": "BIGINT"
 
 !!! note
     `MemFrame` is the connection class; `mf.DataFrame` is the pandas-style
-    dataset constructor. Use `MemFrame(...)` directly for multiple connections.
+    dataset constructor. Construct a `MemFrame(...)` instance and connect it
+    before calling `mf.DataFrame(...)`.
 
 Supported dtypes: integers (`int8`–`int64`, unsigned variants) → integer
 columns (`uint64` values past 9.2e18 overflow at insert); `float32`/`float64`,

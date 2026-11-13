@@ -9,8 +9,14 @@ or records operation history. Each public method has an asynchronous
 `OpsMixin` (`src/memframe/db_manager/ops.py`), which `MemFrame` inherits, and
 the connection lifecycle lives on its `ConnectorManager`.
 
-Examples below assume `import memframe as mf` and an active
-`mf.connect(...)` / `await mf.aconnect(...)`.
+Examples below assume an active `MemFrame` connection:
+
+```python
+from memframe import MemFrame
+
+mf = MemFrame(connection_type="local", connection_params={"db_path": "memframe.duckdb"})
+mf.connect()
+```
 
 ## Public API
 

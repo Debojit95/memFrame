@@ -7,8 +7,14 @@ DuckDB, PostgreSQL, or ClickHouse database into `memframe_csv_registry`, so they
 exactly like uploaded datasets — activatable, queryable, and deletable through
 the normal dataset APIs, with no re-ingestion.
 
-Examples below assume `import memframe as mf` and an active
-`mf.connect(...)` / `await mf.aconnect(...)`.
+Examples below assume an active `MemFrame` connection:
+
+```python
+from memframe import MemFrame
+
+mf = MemFrame(connection_type="local", connection_params={"db_path": "memframe.duckdb"})
+mf.connect()
+```
 
 ## Public API
 

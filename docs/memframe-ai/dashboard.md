@@ -47,8 +47,14 @@ html = dm.render(design)          # or: dm.save(design, "dashboard.html")
 
 ## One-shot from a sentence
 
-Examples below assume `import memframe as mf` and an active
-`mf.connect(...)` / `await mf.aconnect(...)`.
+Examples below assume an active `MemFrame` connection:
+
+```python
+from memframe import MemFrame
+
+mf = MemFrame(connection_type="local", connection_params={"db_path": "memframe.duckdb"})
+mf.connect()
+```
 
 `MemFrame.adashboard(sentence)` collapses the whole flow into one call: it
 reuses the existing planner + specialist pipeline (`.achat()`) to decompose a

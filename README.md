@@ -55,14 +55,15 @@ uv build
 ```python
 import asyncio
 
-import memframe as mf
+from memframe import MemFrame
 
 
 async def main():
-    await mf.aconnect(
+    mf = MemFrame(
         connection_type="local",
         connection_params={"db_path": "memFrame.duckdb"},
     )
+    await mf.aconnect()
 
     customers = await mf.aDataFrame(
         {
@@ -83,24 +84,13 @@ async def main():
 asyncio.run(main())
 ```
 
-`memframe` itself is the connection facade: `mf.connect(...)` / `await
-mf.aconnect(...)` configure one default connection, and every instance method
-(`upload_df`, `list_tables`, `set_active`, `mean`, `chat`, …) is available
-directly on the module. Each upload returns a dataset context; chain
-inspection, selection, cleaning, arithmetic, statistics, and plotting on it.
-Sync methods drop the `a` prefix (`head`, `iloc`, `fillna`, …).
-
-Need more than one connection? Use the class directly:
-
-```python
-from memframe import MemFrame
-
-analytics = MemFrame(
-    connection_type="local",
-    connection_params={"db_path": "analytics.duckdb"},
-)
-analytics.connect()
-```
+`MemFrame` owns the connection and the dataset API. Pass `connection_type` and
+`connection_params` (plus optional `deep_cache` / `preview_rows`) to the
+constructor, call `connect()` or `await aconnect()` once, then use the same
+instance for uploads (`upload_df`, `list_tables`, `set_active`, `mean`, `chat`,
+…). Each upload returns a dataset context; chain inspection, selection,
+cleaning, arithmetic, statistics, and plotting on it. Sync methods drop the `a`
+prefix (`head`, `iloc`, `fillna`, …).
 
 Build a dataset from in-memory data with the pandas-style constructor:
 
@@ -110,7 +100,7 @@ dataset = mf.DataFrame(existing_dataset)   # snapshot into a new dataset
 ```
 
 Already have tables in your database? Register them as datasets without
-re-uploading (after `mf.connect(...)`):
+re-uploading (after connecting):
 
 ```python
 registered = mf.register_tables()
@@ -142,14 +132,15 @@ queries that decompose into specialist tools and return typed response blocks.
 ```python
 import asyncio
 
-import memframe as mf
+from memframe import MemFrame
 
 
 async def main():
-    await mf.aconnect(
+    mf = MemFrame(
         connection_type="local",
         connection_params={"db_path": "memFrame.duckdb"},
     )
+    await mf.aconnect()
 
     await mf.aenable_agent(
         provider="openai",

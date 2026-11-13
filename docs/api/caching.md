@@ -28,7 +28,7 @@ are decorated with it:
 Resolution order:
 
 1. Decorator argument, e.g. `@record_call(deep_cache=True)`.
-2. `mf.connect(deep_cache=...)` / `MemFrame(deep_cache=...)`.
+2. `MemFrame(deep_cache=...)`.
 3. `False`.
 
 `deep_cache=False` disables replay for that call. It does not change the

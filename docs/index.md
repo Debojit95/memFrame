@@ -23,12 +23,13 @@
 ## Start Here
 
 ```python
-import memframe as mf
+from memframe import MemFrame
 
-mf.connect(
+mf = MemFrame(
     connection_type="local",
     connection_params={"db_path": "memframe.duckdb"},
 )
+mf.connect()
 ctx = mf.upload_csv("data/sales.csv")
 print(ctx.head())
 mf.close()

@@ -4,39 +4,36 @@ Source: `src/memframe/db_manager/connection/connector.py`
 
 The connection lifecycle (pool, backend and uploader) is owned by a
 `ConnectorManager` instance; `MemFrame` holds one and delegates to it.
-The module-level facade configures one default `MemFrame`; use the class
-directly when you need more than one connection. memFrame supports three
-database backends:
+`MemFrame` also owns uploads and dataset operations, so one instance is the
+whole public surface. memFrame supports three database backends:
 
 - DuckDB through `connection_type="local"`.
 - PostgreSQL through `connection_type="remote"` and `backend="postgres"`.
 - ClickHouse through `connection_type="remote"` and `backend="clickhouse"`.
 
-Call `mf.connect(...)` (or `await mf.aconnect(...)`) before upload or
-dataset-management APIs.
+Construct `MemFrame(...)` and call `connect()` (or `await aconnect()`) before
+upload or dataset-management APIs.
 
 ## DuckDB
 
 DuckDB is the local backend.
 
 ```python
-import memframe as mf
+from memframe import MemFrame
 
-mf.connect(
+mf = MemFrame(
     connection_type="local",
     connection_params={
         "db_path": "memframe.duckdb",
     },
 )
+mf.connect()
 ```
 
 In async code:
 
 ```python
-await mf.aconnect(
-    connection_type="local",
-    connection_params={"db_path": "memframe.duckdb"},
-)
+await mf.aconnect()
 ```
 
 Parameters:
@@ -97,9 +94,9 @@ needed; read explicit full tables via `head`/`full_table` when required.
 PostgreSQL is configured as a remote backend.
 
 ```python
-import memframe as mf
+from memframe import MemFrame
 
-mf.connect(
+mf = MemFrame(
     connection_type="remote",
     connection_params={
         "backend": "postgres",
@@ -110,6 +107,7 @@ mf.connect(
         "database": "memframe",
     },
 )
+mf.connect()
 ```
 
 Parameters:
@@ -128,9 +126,9 @@ Parameters:
 ClickHouse is configured as a remote backend and uses the HTTP interface.
 
 ```python
-import memframe as mf
+from memframe import MemFrame
 
-mf.connect(
+mf = MemFrame(
     connection_type="remote",
     connection_params={
         "backend": "clickhouse",
@@ -143,6 +141,7 @@ mf.connect(
         "timeout": 10.0,
     },
 )
+mf.connect()
 ```
 
 Parameters:
@@ -163,19 +162,20 @@ Parameters:
 Connect and close explicitly:
 
 ```python
-import memframe as mf
+from memframe import MemFrame
 
-await mf.aconnect(
+mf = MemFrame(
     connection_type="local",
     connection_params={"db_path": "memframe.duckdb"},
 )
+await mf.aconnect()
 try:
     dataset = await mf.aupload_csv("data/sales.csv")
 finally:
     await mf.aclose()
 ```
 
-Or manage an explicit instance with an async context manager:
+Or let the instance manage the lifecycle with an async context manager:
 
 ```python
 from memframe import MemFrame
