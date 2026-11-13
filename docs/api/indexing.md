@@ -106,7 +106,9 @@ permutation and orders by `position`.
 
 `sort_values(..., upload_as_source=True)` instead materializes the sorted
 result as a new upload dataset with a fresh `_mf_idx` and returns its
-`ContextManager`. The original dataset is left untouched.
+`ContextManager`. The original dataset is left untouched. Its cache entry
+references that dataset's base table and replays with `ORDER BY _mf_idx`, so a
+cache hit is a single scan of the materialized table.
 
 ## Ordering
 

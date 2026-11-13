@@ -4,6 +4,7 @@ import pandas as pd
 import pytest
 
 from memframe.core.analytix.sorting import DataSortingOps
+from memframe.core.orchestrator.analytix.sorting import SortingOrchestrator
 from memframe.db_manager.context import ContextManager
 from memframe.exceptions import OperationError
 from memframe.main import MemFrame
@@ -87,6 +88,43 @@ def test_sorting_upload_as_source(sorting_context):
     assert head["score"].iloc[0] == 1.0
     # original dataset is unchanged
     assert sorting_context.shape[0] == 5
+
+
+def test_sorting_upload_as_source_cache_hit(sorting_context):
+    orchestrator = SortingOrchestrator(sorting_context)
+    first = asyncio.run(
+        orchestrator.sort_values(by="score", upload_as_source=True)
+    )
+    second = asyncio.run(
+        orchestrator.sort_values(by="score", upload_as_source=True)
+    )
+
+    assert second["result_metadata"]["from_cache"] is True
+    assert second["dataset_id"] == first["dataset_id"]
+    pd.testing.assert_frame_equal(first["result"], second["result"])
+    assert second["result"]["score"].iloc[0] == 1.0
+
+    be = sorting_context.memframe._backend
+    row = asyncio.run(be.fetch_row(
+        f"SELECT order_kind, order_table, ref_table, ref_schema "
+        f"FROM {be.cache_registry_table} "
+        f"WHERE data_id = {be.placeholder(1)} "
+        f"AND operation_type = 'method_call' ORDER BY opidx DESC LIMIT 1",
+        sorting_context._data_id,
+    ))
+    assert row[0] == "mf_idx"
+    assert row[1] is None
+    assert row[2] == f"{first['dataset_id']}__base"
+    assert row[3] == be.upload_schema
+
+
+def test_upload_as_source_does_not_invalidate_other_cache_entries(sorting_context):
+    orchestrator = SortingOrchestrator(sorting_context)
+    asyncio.run(orchestrator.sort_values(by="score"))
+    asyncio.run(orchestrator.sort_values(by="score", upload_as_source=True))
+
+    again = asyncio.run(orchestrator.sort_values(by="score"))
+    assert again["result_metadata"]["from_cache"] is True
 
 
 def test_sorting_single_desc_first(sorting_context):

@@ -50,8 +50,7 @@ class SortingOrchestrator:
             f'ORDER BY o."position"'
         )
         await backend.execute(f"CREATE TABLE {dst} AS {join}")
-        sample = result.get("result")
-        row_count = len(sample) if sample is not None else 0
+        row_count = int(await backend.fetchval(f"SELECT COUNT(*) FROM {dst}") or 0)
         await backend.execute(
             f"INSERT INTO {backend.csv_registry_table} "
             f"(data_id, filename, table_name, row_count, is_upload_success, schema, mf_source_id) "
@@ -69,6 +68,16 @@ class SortingOrchestrator:
             await backend.drop_table(order)
         except Exception:
             pass
+        # The permutation table is gone, but the materialized dataset is
+        # already in sorted order. Point the cache ref at its base table and
+        # replay via _mf_idx instead of the dropped order table.
+        result["ref_schema"] = backend.upload_schema
+        result["ref_table"] = f"{new_id}__base"
+        result["order_schema"] = None
+        result["order_table"] = None
+        result["order_position_dtype"] = None
+        result["order_kind"] = "mf_idx"
+        result["order_limit"] = None
         result["dataset_id"] = new_id
         result["new_table"] = new_id
         return result

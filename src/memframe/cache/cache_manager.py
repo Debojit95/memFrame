@@ -1114,10 +1114,21 @@ class CacheManager:
                                                 break
 
                         if backend:
+                            active_table = None
+                            if (
+                                cache_kind == "ref"
+                                and not owns_table
+                                and not order_table
+                            ):
+                                active_table, _ = await manager._active_context(
+                                    backend, data_id, ops_parent
+                                )
                             source_mutated = bool(mutates) or (
                                 cache_kind == "ref"
                                 and not owns_table
                                 and not order_table
+                                and ref_table is not None
+                                and ref_table == active_table
                             )
                             if source_mutated:
                                 epoch = await manager._bump_epoch(backend, data_id)
