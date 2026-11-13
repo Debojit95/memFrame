@@ -102,3 +102,36 @@ def test_preview_rows_must_be_positive():
     except ConfigurationError:
         return
     raise AssertionError("preview_rows=0 should raise ConfigurationError")
+
+
+def test_preview_rows_limits_sort_and_filter():
+    mf = MemFrame(
+        connection_type="local",
+        connection_params={"db_path": ":memory:"},
+        deep_cache=True,
+        preview_rows=5,
+    )
+    asyncio.run(mf.aconnect())
+    try:
+        ctx = asyncio.run(mf.aupload_df(
+            pd.DataFrame({"x": list(range(100))}), filename="preview_rows_ops"
+        ))
+
+        first = ctx.sort_values(by="x", ascending=False)
+        assert len(first) == 5
+        assert first["x"].iloc[0] == 99
+
+        cached = ctx.sort_values(by="x", ascending=False)
+        assert len(cached) == 5
+        assert cached["x"].iloc[0] == 99
+
+        filtered = ctx.filter("x >= 50")
+        assert len(filtered) == 5
+
+        sliced = ctx.iloc(row_indexer=slice(0, 50))
+        assert len(sliced) == 5
+
+        # Full data is still in DuckDB.
+        assert ctx.shape[0] == 100
+    finally:
+        asyncio.run(mf.aclose())

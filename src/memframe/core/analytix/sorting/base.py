@@ -2,6 +2,7 @@ from typing import Any, Dict, List, Union
 import traceback
 import pandas as pd
 
+from memframe.core.analytix._fetch import fetch_df as _fetch_df_rows
 from memframe.db_manager.adapters.base import DatabaseAdapter
 from memframe.core.indexing import (
     HIDDEN_COLUMNS, MF_IDX, mf_idx_sql_type, select_mf_idx_dtype, strip_hidden,
@@ -39,8 +40,11 @@ class DataSortingOps:
             ]
             col_clause = ", ".join(self.db.quote_identifier(c) for c in sanitized)
 
-        rows = await self._fetch(f"SELECT {col_clause} FROM {qualified}")
-        return pd.DataFrame([dict(r) for r in rows])
+        sql = f"SELECT {col_clause} FROM {qualified}"
+        limit = getattr(self.db, "preview_rows", None)
+        if limit:
+            sql += f" LIMIT {int(limit)}"
+        return await _fetch_df_rows(self.db, sql)
 
     def _qualified_table(self, table: str, schema: str) -> str:
         t = SQLIdentifierSanitizer.sanitize(table)
@@ -87,8 +91,8 @@ class DataSortingOps:
                 ]
                 col_clause = ", ".join(self.db.quote_identifier(c) for c in sanitized)
 
-            rows = None
             last_exc = None
+            df = None
             for qualified in _quals():
                 query = f"""
                     SELECT {col_clause}
@@ -96,7 +100,7 @@ class DataSortingOps:
                     LIMIT {chunk_size} OFFSET {offset}
                 """
                 try:
-                    rows = await self._fetch(query)
+                    df = await _fetch_df_rows(self.db, query)
                     break
                 except Exception as exc:
                     # ponytail: only fall back on "table does not exist"
@@ -104,13 +108,12 @@ class DataSortingOps:
                         last_exc = exc
                         continue
                     raise
-            if rows is None:
+            if df is None:
                 if last_exc is not None:
                     raise last_exc
                 break
-            if not rows:
+            if df.empty:
                 break
-            df = pd.DataFrame([dict(r) for r in rows])
             yield df
             offset += chunk_size
 
@@ -169,6 +172,7 @@ class DataSortingOps:
         backend=None,
         data_id: str = None,
         chunk_size: int = None,
+        return_ctx: bool = False,
     ) -> Dict[str, Any]:
 
         try:
@@ -286,20 +290,28 @@ class DataSortingOps:
                     involved_cols=by, **extra,
                 )
 
+            if return_ctx:
+                # The caller materializes the dataset DB-side; no pandas sample
+                # is ever returned, so don't fetch millions of rows.
+                return _response(None)
+
             if chunk_size is None:
-                rows = await self.db.fetch(join_sql)
-                sample = pd.DataFrame([dict(r) for r in rows])
+                sql = join_sql
+                limit = getattr(self.db, "preview_rows", None)
+                if limit:
+                    sql += f" LIMIT {int(limit)}"
+                sample = await _fetch_df_rows(self.db, sql)
                 return _response(strip_hidden(sample))
 
             async def iterator():
                 offset = 0
                 while True:
-                    rows = await self.db.fetch(
+                    df = await _fetch_df_rows(self.db, 
                         f"{join_sql} LIMIT {chunk_size} OFFSET {offset}"
                     )
-                    if not rows:
+                    if df.empty:
                         break
-                    yield strip_hidden(pd.DataFrame([dict(r) for r in rows]))
+                    yield strip_hidden(df)
                     offset += chunk_size
 
             resp = _response(None, iterator())

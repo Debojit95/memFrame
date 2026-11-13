@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Optional, Union
 import pandas as pd
 from datetime import datetime, timezone
 
+from memframe.core.analytix._fetch import fetch_df as _fetch_df_rows
 from memframe.core.indexing import assert_user_column
 from memframe.core.analytix._generated import markers_table
 from memframe.db_manager.adapters.base import DatabaseAdapter
@@ -413,11 +414,16 @@ class GroupbyCumulativeOps:
                 cols_to_fetch += safe_orders
             cols_to_fetch.append(tgt_safe)
             cols_to_fetch = list(dict.fromkeys(cols_to_fetch))
-            rows = await self._fetch(
+            sql = (
                 f"SELECT {', '.join(self.db.quote_identifier(c) for c in cols_to_fetch)} "
                 f"FROM {output_qualified}"
             )
-            sample = pd.DataFrame(rows, columns=cols_to_fetch) if rows else pd.DataFrame(columns=cols_to_fetch)
+            limit = getattr(self.db, "preview_rows", None)
+            if limit:
+                sql += f" LIMIT {int(limit)}"
+            sample = await _fetch_df_rows(self.db, sql)
+            if sample.empty and not len(sample.columns):
+                sample = pd.DataFrame(columns=cols_to_fetch)
 
             order_desc = ", ".join(safe_orders) if order_cols else "default row order"
             group_desc = ", ".join(safe_groups)

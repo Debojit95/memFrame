@@ -3,6 +3,7 @@ import traceback
 from datetime import datetime, timezone
 import pandas as pd
 
+from memframe.core.analytix._fetch import fetch_df as _fetch_df_rows
 from memframe.db_manager.adapters.base import DatabaseAdapter
 from memframe.db_manager.adapters.duckdb import DuckDBAdapter
 from memframe.db_manager.adapters.postgresql import PostgresAdapter
@@ -46,8 +47,11 @@ class ComparisonOps:
         else:
             sanitized = [SQLIdentifierSanitizer.sanitize(str(c)) for c in columns]
             col_clause = ", ".join(self.db.quote_identifier(c) for c in sanitized)
-        rows = await self._fetch(f"SELECT {col_clause} FROM {qualified}")
-        return pd.DataFrame([dict(r) for r in rows])
+        sql = f"SELECT {col_clause} FROM {qualified}"
+        limit = getattr(self.db, "preview_rows", None)
+        if limit:
+            sql += f" LIMIT {int(limit)}"
+        return await _fetch_df_rows(self.db, sql)
 
     async def _get_column_type(self, table: str, schema: str, column: str) -> str:
         types = await self.db.get_column_types(table, schema)

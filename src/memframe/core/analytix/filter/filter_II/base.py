@@ -1,7 +1,7 @@
 from typing import Any, Dict, List, Optional, Union, TYPE_CHECKING
 import traceback
-import pandas as pd
 
+from memframe.core.analytix._fetch import fetch_df as _fetch_df_rows
 from memframe.core.analytix.filter.filter_I import Predicate, SQLContext
 from memframe.core.indexing import (
     MF_IDX, assert_user_columns, mf_idx_sql_type, select_mf_idx_dtype,
@@ -304,8 +304,11 @@ class DataFilteringOps:
                 }
 
                 if chunk_size is None:
-                    rows = await self._fetch(join_sql)
-                    sample = pd.DataFrame([dict(r) for r in rows])
+                    sql = join_sql
+                    limit = getattr(self.db, "preview_rows", None)
+                    if limit:
+                        sql += f" LIMIT {int(limit)}"
+                    sample = await _fetch_df_rows(self.db, sql)
                     return self._success_response(
                         "Filter applied successfully", sample, **extras
                     )
@@ -313,12 +316,12 @@ class DataFilteringOps:
                 async def iterator():
                     offset = 0
                     while True:
-                        rows = await self._fetch(
+                        df = await _fetch_df_rows(self.db, 
                             f"{join_sql} LIMIT {chunk_size} OFFSET {offset}"
                         )
-                        if not rows:
+                        if df.empty:
                             break
-                        yield pd.DataFrame([dict(r) for r in rows])
+                        yield df
                         offset += chunk_size
 
                 return {

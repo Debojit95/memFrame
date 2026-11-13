@@ -8,10 +8,10 @@ from __future__ import annotations
 import json
 import traceback
 from typing import Any, Dict, List, Union
-import pandas as pd
 import numpy as np
 import math
 
+from memframe.core.analytix._fetch import fetch_df as _fetch_df_rows
 from memframe.core.analytix.window import WindowOps
 from memframe.core.analytix._generated import markers_table
 from memframe.db_manager.adapters.duckdb import DuckDBAdapter
@@ -1852,11 +1852,10 @@ class GroupbyWindowOps(WindowOps):
             qualified = self._qualified_table(working_table, schema)
 
             cols_to_fetch = [safe_col] + safe_groups + safe_orders
-            rows = await self._fetch(
+            df = await _fetch_df_rows(self.db, 
                 f"SELECT {', '.join(self.db.quote_identifier(c) for c in cols_to_fetch)} FROM {qualified} "
                 f"ORDER BY {partition_sql}, {order_sql}"
             )
-            df = pd.DataFrame(rows, columns=cols_to_fetch)
 
             new_table_name = await self._resolve_output_table_name(
                 table, schema, backend=backend, data_id=data_id, new_table=new_table

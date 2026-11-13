@@ -15,6 +15,7 @@ from datetime import date, datetime
 
 import pandas as pd
 
+from memframe.core.analytix._fetch import fetch_df as _fetch_df_rows
 from memframe.db_manager.adapters.base import DatabaseAdapter
 from memframe.core.indexing import HIDDEN_COLUMNS
 from memframe.utils.helper import SQLIdentifierSanitizer
@@ -96,8 +97,11 @@ class DataSelectionOps:
                 columns = [columns]
             sanitized = [SQLIdentifierSanitizer.sanitize(c) for c in columns]
             col_clause = ", ".join(self._quote(c) for c in sanitized)
-        rows = await self._fetch(f"SELECT {col_clause} FROM {qualified}")
-        return pd.DataFrame([dict(r) for r in rows])
+        sql = f"SELECT {col_clause} FROM {qualified}"
+        limit = getattr(self.db, "preview_rows", None)
+        if limit:
+            sql += f" LIMIT {int(limit)}"
+        return await _fetch_df_rows(self.db, sql)
 
     async def _fetch_in_chunks(
         self,
@@ -117,10 +121,10 @@ class DataSelectionOps:
         offset = 0
         while True:
             query = f"SELECT {col_clause} FROM {qualified} LIMIT {chunk_size} OFFSET {offset}"
-            rows = await self._fetch(query)
-            if not rows:
+            df = await _fetch_df_rows(self.db, query)
+            if df.empty:
                 break
-            yield pd.DataFrame([dict(r) for r in rows])
+            yield df
             offset += chunk_size
 
     async def _generate_cache_table_name(
@@ -440,8 +444,7 @@ class DataSelectionOps:
                 )
             quoted_cols = ", ".join(self._quote(c) for c in valid)
             sql = f"SELECT {quoted_cols} FROM {self._qualified_table(table, schema)}"
-            rows = await self._fetch(sql)
-            df = pd.DataFrame([dict(r) for r in rows])
+            df = await _fetch_df_rows(self.db, sql)
             for k in keys:
                 if k not in valid:
                     df[k] = default
@@ -520,8 +523,7 @@ class DataSelectionOps:
                 )
             else:
                 sql = f"SELECT {quoted_cols} FROM {self._qualified_table(table, schema)}"
-                rows = await self._fetch(sql)
-                df = pd.DataFrame([dict(r) for r in rows])
+                df = await _fetch_df_rows(self.db, sql)
                 return self._success_response(
                     f"select_dtypes (read-only) include={include} exclude={exclude}",
                     sample_df=df,
@@ -603,8 +605,7 @@ class DataSelectionOps:
                         new_table=new_table,
                         row_filter=row_where,
                     )
-                rows = await self._fetch(sql, *row_params)
-                df = pd.DataFrame([dict(r) for r in rows])
+                df = await _fetch_df_rows(self.db, sql, *row_params)
                 return self._success_response(
                     "iloc selection (read-only, filtered)", sample_df=df
                 )
@@ -700,8 +701,7 @@ class DataSelectionOps:
                 col_indices=col_pos,
             )
         else:
-            rows = await self._fetch(sql)
-            df = pd.DataFrame([dict(r) for r in rows])
+            df = await _fetch_df_rows(self.db, sql)
             return self._success_response(
                 f"iloc rows {row_pos} cols {col_pos} (read-only)",
                 sample_df=df,

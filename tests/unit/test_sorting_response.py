@@ -101,8 +101,14 @@ def test_sorting_return_ctx_cache_hit(sorting_context):
 
     assert second["result_metadata"]["from_cache"] is True
     assert second["dataset_id"] == first["dataset_id"]
-    pd.testing.assert_frame_equal(first["result"], second["result"])
+    assert first["result"] is None
     assert second["result"]["score"].iloc[0] == 1.0
+
+    mf = sorting_context.memframe
+    first_ctx = ContextManager(mf, data_id=first["dataset_id"])
+    second_ctx = ContextManager(mf, data_id=second["dataset_id"])
+    pd.testing.assert_frame_equal(first_ctx.head(n=5), second_ctx.head(n=5))
+    assert first_ctx.head(n=5)["score"].iloc[0] == 1.0
 
     be = sorting_context.memframe._backend
     row = asyncio.run(be.fetch_row(

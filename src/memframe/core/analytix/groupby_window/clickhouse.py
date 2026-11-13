@@ -8,9 +8,9 @@ from __future__ import annotations
 import traceback
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Union
-import pandas as pd
 import numpy as np
 
+from memframe.core.analytix._fetch import fetch_df as _fetch_df_rows
 from memframe.core.analytix.groupby_window.base import GroupbyWindowOps
 from memframe.db_manager.adapters.clickhouse import ClickHouseAdapter
 from memframe.utils.helper import SQLIdentifierSanitizer
@@ -1546,12 +1546,11 @@ class ClickHouseGroupbyWindowOps(GroupbyWindowOps):
             seen = set()
             cols_to_fetch = [c for c in cols_to_fetch if not (c in seen or seen.add(c))]
 
-            rows = await self._fetch(
+            df = await _fetch_df_rows(self.db, 
                 f"SELECT {', '.join(self.db.quote_identifier(c) for c in cols_to_fetch)} "
                 f"FROM {working_qualified} "
                 f"ORDER BY {full_order_sql}"
             )
-            df = pd.DataFrame(rows, columns=cols_to_fetch)
 
             # ---- Compute EWM per group (offloaded to thread) ----
             alpha_val = self._alpha_from_params(com, span, halflife, alpha)

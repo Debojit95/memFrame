@@ -12,8 +12,7 @@ from typing import Any, Dict, List, Optional, Union
 import traceback
 from datetime import datetime, timezone
 
-import pandas as pd
-
+from memframe.core.analytix._fetch import fetch_df as _fetch_df_rows
 from memframe.core.indexing import visible_columns
 from memframe.db_manager.adapters.base import DatabaseAdapter
 from memframe.utils.helper import SQLIdentifierSanitizer
@@ -68,8 +67,11 @@ class DataMergeOps:
         }
 
     async def _fetch_data(self, table: str, schema: str):
-        rows = await self._fetch(f"SELECT * FROM {self._qualified(table, schema)}")
-        return pd.DataFrame([dict(r) for r in rows])
+        sql = f"SELECT * FROM {self._qualified(table, schema)}"
+        limit = getattr(self.db, "preview_rows", None)
+        if limit:
+            sql += f" LIMIT {int(limit)}"
+        return await _fetch_df_rows(self.db, sql)
 
     async def _fetch_in_chunks(
         self,
@@ -91,11 +93,11 @@ class DataMergeOps:
         offset = 0
 
         while True:
-            rows = None
+            df = None
             last_exc = None
             for qualified in _quals():
                 try:
-                    rows = await self._fetch(
+                    df = await _fetch_df_rows(self.db, 
                         f"SELECT * FROM {qualified} LIMIT {chunk_size} OFFSET {offset}"
                     )
                     break
@@ -105,13 +107,13 @@ class DataMergeOps:
                         last_exc = exc
                         continue
                     raise
-            if rows is None:
+            if df is None:
                 if last_exc is not None:
                     raise last_exc
                 break
-            if not rows:
+            if df.empty:
                 break
-            yield pd.DataFrame([dict(r) for r in rows])
+            yield df
             offset += chunk_size
 
     async def _generate_cache_table_name(self, base_table, backend, data_id):

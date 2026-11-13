@@ -175,7 +175,11 @@ class GeneralTableOps:
         else:
             column_clause = "*"
 
-        rows = await self._fetch(f"SELECT {column_clause} FROM {qualified}")
+        sql = f"SELECT {column_clause} FROM {qualified}"
+        limit = getattr(self.db, "preview_rows", None)
+        if limit:
+            sql += f" LIMIT {int(limit)}"
+        rows = await self._fetch(sql)
         records = self._rows_to_records(rows)
         records = await self._normalize_records_by_type(records, table, schema)
         return pd.DataFrame.from_records(records)
@@ -1031,7 +1035,11 @@ class GeneralTableOps:
 
             await self._exec(f"DROP TABLE {temp_table}")
 
-            rows = await self._fetch(f"SELECT * FROM {qualified}")
+            sql = f"SELECT * FROM {qualified}"
+            limit = getattr(self.db, "preview_rows", None)
+            if limit:
+                sql += f" LIMIT {int(limit)}"
+            rows = await self._fetch(sql)
             records = self._rows_to_records(rows)
             records = await self._normalize_records_by_type(records, table, schema)
             current_df = pd.DataFrame.from_records(records)
@@ -1154,6 +1162,9 @@ class GeneralTableOps:
                 return self._error_response("No columns compatible with the given expression")
 
             query = f"SELECT {', '.join(select_parts)} FROM {qualified}"
+            limit = getattr(self.db, "preview_rows", None)
+            if limit:
+                query += f" LIMIT {int(limit)}"
 
             rows = await self._fetch(query)
             records = self._rows_to_records(rows)

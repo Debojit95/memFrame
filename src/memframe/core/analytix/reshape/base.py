@@ -1,6 +1,6 @@
 from typing import List, Union
-import pandas as pd
 
+from memframe.core.analytix._fetch import fetch_df as _fetch_df_rows
 from memframe.db_manager.adapters.base import DatabaseAdapter
 from memframe.db_manager.adapters.duckdb import DuckDBAdapter
 from memframe.db_manager.adapters.postgresql import PostgresAdapter
@@ -59,8 +59,11 @@ class ReshapingOps:
             cols = ", ".join(self.db.quote_identifier(c) for c in sanitized)
 
         q = self._qualified_table(table, schema)
-        rows = await self._fetch(f"SELECT {cols} FROM {q}")
-        return strip_hidden(pd.DataFrame([dict(r) for r in rows]))
+        sql = f"SELECT {cols} FROM {q}"
+        limit = getattr(self.db, "preview_rows", None)
+        if limit:
+            sql += f" LIMIT {int(limit)}"
+        return strip_hidden(await _fetch_df_rows(self.db, sql))
 
     async def _fetch_in_chunks(self, table, schema, chunk_size, columns="*", backend=None):
         # ponytail: iterator may be consumed after cache has moved the
@@ -76,11 +79,11 @@ class ReshapingOps:
         offset = 0
 
         while True:
-            rows = None
+            df = None
             last_exc = None
             for qualified in _quals():
                 try:
-                    rows = await self._fetch(
+                    df = await _fetch_df_rows(self.db, 
                         f"SELECT {columns} FROM {qualified} LIMIT {chunk_size} OFFSET {offset}"
                     )
                     break
@@ -90,13 +93,13 @@ class ReshapingOps:
                         last_exc = exc
                         continue
                     raise
-            if rows is None:
+            if df is None:
                 if last_exc is not None:
                     raise last_exc
                 break
-            if not rows:
+            if df.empty:
                 break
-            yield strip_hidden(pd.DataFrame([dict(r) for r in rows]))
+            yield strip_hidden(df)
             offset += chunk_size
 
     async def _generate_cache_table_name(self, base_table, backend, data_id, schema=None):

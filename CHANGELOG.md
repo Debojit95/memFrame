@@ -15,6 +15,13 @@ to [Semantic Versioning](https://semver.org/).
 - **`sort_values(..., return_ctx=True)`**: renamed from `upload_as_source`.
   Returns a `ContextManager` bound to the new sorted dataset.
 
+### Performance
+- Row-returning operations read results through the backend's Arrow-backed
+  `fetch_df` instead of building a Python dict per row, substantially
+  lowering peak RAM on million-row datasets.
+- `preview_rows=N` now caps sort, filter, selection, merge, reshape, and
+  mutating inspection results as well as the feature operations.
+
 ## [0.17.0] - 2026-11-10
 
 ### Added

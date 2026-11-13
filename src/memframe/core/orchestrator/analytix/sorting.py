@@ -118,6 +118,7 @@ class SortingOrchestrator:
             backend=backend,
             data_id=data_id,
             chunk_size=chunk_size,
+            return_ctx=return_ctx,
         )
         if return_ctx and isinstance(result, dict) and not result.get("is_error"):
             return await self._materialize_sorted(result, table, schema)
