@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 
 from memframe.main import MemFrame
+from memframe.exceptions import OperationError
 
 # ----------------------------------------------------------------------
 # Backend configuration – set environment variables for PostgreSQL
@@ -696,17 +697,15 @@ class TestCompareOperations:
     # Error: invalid operator
     # ------------------------------------------------------------------
     def test_invalid_operator(self, uploaded_ctx, sample_df, backend_config):
-        result = uploaded_ctx.compare("val_a", "val_b", "?")
-        assert result.get("is_error")
-        assert "Invalid operator" in result["error_message"]
+        with pytest.raises(OperationError, match="Invalid operator"):
+            uploaded_ctx.compare("val_a", "val_b", "?")
 
     # ------------------------------------------------------------------
     # Error: datatype mismatch
     # ------------------------------------------------------------------
     def test_dtype_mismatch(self, uploaded_ctx, sample_df, backend_config):
-        result = uploaded_ctx.compare("val_a", "cat_a", "==")
-        assert result.get("is_error")
-        assert "Datatype mismatch" in result["error_message"] or "mismatch" in result["error_message"]
+        with pytest.raises(OperationError, match="[Dd]atatype mismatch"):
+            uploaded_ctx.compare("val_a", "cat_a", "==")
 
     # ------------------------------------------------------------------
     # Mutation safety
