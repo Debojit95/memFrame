@@ -21,6 +21,21 @@ def test_create_pool_duckdb():
     assert isinstance(create_pool(Backend.DUCKDB, {"db_path": ":memory:"}), DuckDBPool)
 
 
+def test_postgres_fetch_df_keeps_column_names():
+    from memframe.db_manager.adapters.postgresql import PostgresAdapter
+
+    class _Stub(PostgresAdapter):
+        def __init__(self):
+            pass
+
+        async def fetch(self, sql, *args):
+            return [{"a": 1, "b": "x"}, {"a": 2, "b": "y"}]
+
+    df = asyncio.run(_Stub().fetch_df("SELECT a, b FROM t"))
+    assert list(df.columns) == ["a", "b"]
+    assert df["a"].tolist() == [1, 2]
+
+
 class TestDuckDBPool:
     def test_connect_sets_conn(self):
         import asyncio

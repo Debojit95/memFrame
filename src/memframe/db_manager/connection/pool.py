@@ -407,6 +407,23 @@ class PostgresPool(BasePool):
             row = await conn.fetchrow(sql, *args)
             return tuple(row) if row else None
 
+    async def fetch_df(self, sql: str, *args):
+        import pandas as pd
+
+        await self._ensure()
+        owned = self._txn_conn_for_current()
+        if owned is not None:
+            rows = await owned.fetch(sql, *args)
+        else:
+            async with self._pool.acquire() as conn:
+                rows = await conn.fetch(sql, *args)
+        if not rows:
+            return pd.DataFrame()
+        columns = list(rows[0].keys())
+        return pd.DataFrame.from_records(
+            [tuple(r) for r in rows], columns=columns
+        )
+
     async def fetchval(self, sql: str, *args) -> Any:
         row = await self.fetchrow(sql, *args)
         return row[0] if row else None
