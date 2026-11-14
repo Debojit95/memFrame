@@ -6,6 +6,13 @@ to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.17.2] - 2026-11-14
+
+### Fixed
+- **PostgreSQL result reads**: `fetch_df` preserves result column names instead
+  of returning positional `0..n-1` columns, so generated columns and cache
+  replays keep their names.
+
 ## [0.17.1] - 2026-11-14
 
 ### Added
