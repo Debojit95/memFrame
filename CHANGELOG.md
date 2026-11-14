@@ -6,16 +6,27 @@ to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.17.1] - 2026-11-14
+
 ### Added
 - **DuckDB resource controls**: `connection_params` accepts `memory_limit`,
   `temp_directory`, and `threads` so large sorts/joins spill to disk instead
   of exhausting RAM.
+- **`MemFrame(preview_rows=N)`**: caps the rows materialized into `result` for
+  row-returning and feature operations while source/cache tables stay complete.
 
 ### Changed
+- **Explicit connection only (breaking)**: removed the module-level facade
+  (`memframe.connect` / `aconnect` / `close` / `aclose` / `DataFrame` /
+  `aDataFrame` and attribute forwarding). Construct `MemFrame(...)` and call
+  `connect()` or `await aconnect()`.
 - **`sort_values(..., return_ctx=True)`**: renamed from `upload_as_source`.
-  Returns a `ContextManager` bound to a new sorted dataset. Each call creates
-  a fresh `csv_registry` dataset and bypasses the cache; `return_ctx=False`
-  remains the cached path.
+  Each call creates a fresh `csv_registry` dataset and bypasses the cache;
+  `return_ctx=False` remains the cached path.
+- **`map_feature` on group-by builders**: every convenience statistic (`sum`,
+  `mean`, `min`, `max`, `count`, `median`, `mode`, `std`, `var`, `sem`,
+  `nunique`, `range`, `product`) accepts it and writes the feature column back
+  to the source.
 
 ### Performance
 - Row-returning operations read results through the backend's Arrow-backed
@@ -23,8 +34,12 @@ to [Semantic Versioning](https://semver.org/).
   lowering peak RAM on million-row datasets.
 - Cached direct `sort_values` stores one write-once sorted snapshot and
   replays with a plain scan instead of re-joining and re-sorting the source.
-- `preview_rows=N` now caps sort, filter, selection, merge, reshape, and
-  mutating inspection results as well as the feature operations.
+
+### Fixed
+- Public dispatch raises `OperationError` for any error envelope, including
+  ones that omit a `result` key.
+- Unsupported window dtype errors list the functions that are valid for the
+  detected dtype.
 
 ## [0.17.0] - 2026-11-10
 
