@@ -60,7 +60,20 @@ class _Recording:
         return None
 
     async def get_column_types(self, table, schema=None):
-        return {}
+        # The aggregate output table carries the mapped feature columns;
+        # the source table must not, or the collision check trips.
+        if table.endswith("__op_1"):
+            return {
+                "g": "VARCHAR",
+                "num_sum": "DOUBLE PRECISION",
+                "num_mean": "DOUBLE PRECISION",
+            }
+        return {
+            "g": "VARCHAR",
+            "g1": "VARCHAR",
+            "g2": "VARCHAR",
+            "num": "DOUBLE PRECISION",
+        }
 
     async def get_table_info(self, table, schema=None):
         return {}

@@ -150,20 +150,27 @@ class GroupByStatsOps:
         data_id: str,
         sig: str,
     ) -> None:
+        quote = self.db.quote_identifier
         orig_q = self._qualified_table(table, schema)
         group_q = self._qualified_table(group_table, schema)
         cond = " AND ".join(
-            f'o.{self.db.quote_identifier(c)} = g.{self.db.quote_identifier(c)}'
-            for c in safe_group_cols
+            f"{orig_q}.{quote(c)} = g.{quote(c)}" for c in safe_group_cols
         )
-        feats = ", ".join(
-            f'g.{self.db.quote_identifier(c)} AS {self.db.quote_identifier(c)}'
-            for c in new_columns
+        types = await self.db.get_column_types(group_table, schema) or {}
+        for col in new_columns:
+            col_type = types.get(col)
+            if not col_type:
+                raise ValueError(
+                    f"Cannot resolve type for mapped column '{col}'"
+                )
+            await self._exec(
+                f"ALTER TABLE {orig_q} ADD COLUMN {quote(col)} {col_type}"
+            )
+        assignments = ", ".join(
+            f"{quote(c)} = g.{quote(c)}" for c in new_columns
         )
         await self._exec(
-            f"""CREATE OR REPLACE TABLE {orig_q} AS
-                SELECT o.*, {feats}
-                FROM {orig_q} o LEFT JOIN {group_q} g ON {cond}"""
+            f"UPDATE {orig_q} SET {assignments} FROM {group_q} g WHERE {cond}"
         )
         await self._record_map_marker(table, schema, backend, data_id, sig)
 

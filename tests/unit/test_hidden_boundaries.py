@@ -137,6 +137,45 @@ def test_preview_rows_limits_sort_and_filter():
         asyncio.run(mf.aclose())
 
 
+def test_preview_rows_limits_map_feature():
+    mf = MemFrame(
+        connection_type="local",
+        connection_params={"db_path": ":memory:"},
+        deep_cache=True,
+        preview_rows=5,
+    )
+    asyncio.run(mf.aconnect())
+    try:
+        ctx = asyncio.run(mf.aupload_df(
+            pd.DataFrame({
+                "category": ["a", "b"] * 50,
+                "amount": list(range(100)),
+            }),
+            filename="map_feature_preview",
+        ))
+
+        first = asyncio.run(ctx.aagg(
+            group_cols="category",
+            agg_dict={"amount": ["median"]},
+            map_feature=True,
+        ))
+        second = asyncio.run(ctx.aagg(
+            group_cols="category",
+            agg_dict={"amount": ["median"]},
+            map_feature=True,
+        ))
+        assert len(first) == 5
+        assert len(second) == 5
+        assert "amount_median" in first.columns
+        pd.testing.assert_frame_equal(first, second)
+
+        full = ctx.head(n=100)
+        assert len(full) == 100
+        assert "amount_median" in full.columns
+    finally:
+        asyncio.run(mf.aclose())
+
+
 def test_preview_rows_limits_datetime_diff():
     mf = MemFrame(
         connection_type="local",

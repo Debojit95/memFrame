@@ -94,6 +94,85 @@ class ClickHouseGroupByStatsOps(GroupByStatsOps):
         data_id: str,
         sig: str,
     ) -> None:
+        source_types = await self.db.get_column_types(table, schema) or {}
+        if any(
+            "Nullable" in str(source_types.get(c, ""))
+            for c in safe_group_cols
+        ):
+            # Join engine keys cannot be Nullable; keep LEFT JOIN semantics.
+            await self._apply_map_swap(
+                table, schema, group_table,
+                safe_group_cols, new_columns,
+            )
+        else:
+            await self._apply_map_join(
+                table, schema, group_table,
+                safe_group_cols, new_columns, backend,
+            )
+        await self._record_map_marker(table, schema, backend, data_id, sig)
+
+    async def _apply_map_join(
+        self,
+        table: str,
+        schema: str,
+        group_table: str,
+        safe_group_cols: List[str],
+        new_columns: List[str],
+        backend,
+    ) -> None:
+        quote = self.db.quote_identifier
+        orig_q = self._qualified_table(table, schema)
+        group_q = self._qualified_table(group_table, schema)
+        group_types = await self.db.get_column_types(group_table, schema) or {}
+        cache_schema = getattr(backend, "cache_schema", schema)
+        map_table = SQLIdentifierSanitizer.sanitize(f"{table}__map_join")
+        map_q = self._qualified_table(map_table, cache_schema)
+        map_ref = f"{cache_schema}.{map_table}".replace("'", "''")
+        keys = ", ".join(quote(c) for c in safe_group_cols)
+        key_defs = ", ".join(
+            f"{quote(c)} {group_types.get(c) or 'String'}"
+            for c in safe_group_cols
+        )
+        feat_defs = ", ".join(
+            f"{quote(c)} {group_types.get(c) or 'Float64'}"
+            for c in new_columns
+        )
+        await self._exec(f"DROP TABLE IF EXISTS {map_q}")
+        try:
+            await self._exec(
+                f"CREATE TABLE {map_q} ({key_defs}, {feat_defs}) "
+                f"ENGINE = Join(ANY, LEFT, {keys})"
+            )
+            await self._exec(
+                f"INSERT INTO {map_q} SELECT "
+                f"{', '.join(quote(c) for c in safe_group_cols + new_columns)} "
+                f"FROM {group_q}"
+            )
+            for col in new_columns:
+                await self._exec(
+                    f"ALTER TABLE {orig_q} ADD COLUMN {quote(col)} "
+                    f"{group_types.get(col) or 'Float64'}"
+                )
+            assignments = ", ".join(
+                f"{quote(c)} = joinGet('{map_ref}', "
+                f"'{c.replace(chr(39), chr(39) * 2)}', {keys})"
+                for c in new_columns
+            )
+            await self._exec(
+                f"ALTER TABLE {orig_q} UPDATE {assignments} "
+                f"WHERE 1 SETTINGS mutations_sync = 1"
+            )
+        finally:
+            await self._exec(f"DROP TABLE IF EXISTS {map_q}")
+
+    async def _apply_map_swap(
+        self,
+        table: str,
+        schema: str,
+        group_table: str,
+        safe_group_cols: List[str],
+        new_columns: List[str],
+    ) -> None:
         orig_q = self._qualified_table(table, schema)
         group_q = self._qualified_table(group_table, schema)
         cond = " AND ".join(
@@ -116,4 +195,3 @@ class ClickHouseGroupByStatsOps(GroupByStatsOps):
         )
         await self._exec(f"EXCHANGE TABLES {orig_q} AND {tmp_q}")
         await self._exec(f"DROP TABLE {tmp_q}")
-        await self._record_map_marker(table, schema, backend, data_id, sig)

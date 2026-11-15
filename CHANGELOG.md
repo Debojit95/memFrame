@@ -12,6 +12,11 @@ to [Semantic Versioning](https://semver.org/).
   two Python dicts per row, which previously exhausted RAM on tens of millions
   of rows.
 
+### Performance
+- `map_feature` group-by mappings update the feature column in place on
+  DuckDB/PostgreSQL and use a Join-engine mutation on ClickHouse, instead of
+  copying the whole source table.
+
 ## [0.17.2] - 2026-11-14
 
 ### Fixed

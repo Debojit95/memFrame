@@ -311,22 +311,37 @@
    ],
    [
     "exec",
-    "DROPTABLEIFEXISTS`s`.`t__map_tmp`",
+    "DROPTABLEIFEXISTS`s`.`t__map_join`",
     []
    ],
    [
     "exec",
-    "CREATETABLE`s`.`t__map_tmp`ENGINE=MergeTree()ORDERBYtuple()ASSELECTo.*,g.`num_sum`AS`num_sum`,g.`num_mean`AS`num_mean`FROM`s`.`t`oLEFTJOIN`s`.`t__op_1`gONo.`g`=g.`g`",
+    "CREATETABLE`s`.`t__map_join`(`g`VARCHAR,`num_sum`DOUBLEPRECISION,`num_mean`DOUBLEPRECISION)ENGINE=Join(ANY,LEFT,`g`)",
     []
    ],
    [
     "exec",
-    "EXCHANGETABLES`s`.`t`AND`s`.`t__map_tmp`",
+    "INSERTINTO`s`.`t__map_join`SELECT`g`,`num_sum`,`num_mean`FROM`s`.`t__op_1`",
     []
    ],
    [
     "exec",
-    "DROPTABLE`s`.`t__map_tmp`",
+    "ALTERTABLE`s`.`t`ADDCOLUMN`num_sum`DOUBLEPRECISION",
+    []
+   ],
+   [
+    "exec",
+    "ALTERTABLE`s`.`t`ADDCOLUMN`num_mean`DOUBLEPRECISION",
+    []
+   ],
+   [
+    "exec",
+    "ALTERTABLE`s`.`t`UPDATE`num_sum`=joinGet('s.t__map_join','num_sum',`g`),`num_mean`=joinGet('s.t__map_join','num_mean',`g`)WHERE1SETTINGSmutations_sync=1",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS`s`.`t__map_join`",
     []
    ],
    [
@@ -365,7 +380,17 @@
    ],
    [
     "exec",
-    "CREATEORREPLACETABLE\"s\".\"t\"ASSELECTo.*,g.\"num_sum\"AS\"num_sum\",g.\"num_mean\"AS\"num_mean\"FROM\"s\".\"t\"oLEFTJOIN\"s\".\"t__op_1\"gONo.\"g\"=g.\"g\"",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"num_sum\"DOUBLEPRECISION",
+    []
+   ],
+   [
+    "exec",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"num_mean\"DOUBLEPRECISION",
+    []
+   ],
+   [
+    "exec",
+    "UPDATE\"s\".\"t\"SET\"num_sum\"=g.\"num_sum\",\"num_mean\"=g.\"num_mean\"FROM\"s\".\"t__op_1\"gWHERE\"s\".\"t\".\"g\"=g.\"g\"",
     []
    ],
    [
@@ -404,22 +429,17 @@
    ],
    [
     "exec",
-    "DROPTABLEIFEXISTS\"s\".\"t__map_tmp\"",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"num_sum\"DOUBLEPRECISION",
     []
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__map_tmp\"ASSELECTo.*,g.\"num_sum\"AS\"num_sum\",g.\"num_mean\"AS\"num_mean\"FROM\"s\".\"t\"oLEFTJOIN\"s\".\"t__op_1\"gONo.\"g\"=g.\"g\"",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMN\"num_mean\"DOUBLEPRECISION",
     []
    ],
    [
     "exec",
-    "CREATEORREPLACETABLE\"s\".\"t\"ASSELECT*FROM\"s\".\"t__map_tmp\"",
-    []
-   ],
-   [
-    "exec",
-    "DROPTABLE\"s\".\"t__map_tmp\"",
+    "UPDATE\"s\".\"t\"SET\"num_sum\"=g.\"num_sum\",\"num_mean\"=g.\"num_mean\"FROM\"s\".\"t__op_1\"gWHERE\"s\".\"t\".\"g\"=g.\"g\"",
     []
    ],
    [

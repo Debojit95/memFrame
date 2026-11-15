@@ -108,6 +108,13 @@ result = dataset.agg(
 result = dataset.groupby("region", "month").sum("sales")
 ```
 
+With `map_feature=True`, the feature is written back to the source and the
+result has one row per source row. On large datasets pass `preview_rows=N` to
+`MemFrame(...)` so only a preview is materialized; the full feature column
+stays in the database. DuckDB/PostgreSQL update the column in place and
+ClickHouse applies a Join-engine mutation, rather than copying the whole
+source table.
+
 ## Common Parameters
 
 | Parameter | Type | Description |
