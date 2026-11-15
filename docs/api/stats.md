@@ -417,12 +417,12 @@ Datetime stats operate on non-null date or timestamp values.
 `datetime_diff` sorts the column and computes the difference in seconds between
 each row and the previous row (pandas `.diff()` style; the first row is `NULL`),
 writes it to a new `{column}__diff_seconds` column on the source table, and
-returns a two-column result table containing only the involved datetime column
-and the generated diff column. The result table is also the deep-cache payload,
-so a cached rerun returns the same narrow table without recomputing the diff.
-If the target column already exists (for example after clearing the cache), the
-diff is not recalculated; the existing column is returned in a fresh narrow
-result table.
+returns a two-column preview containing only the involved datetime column and
+the generated diff. The full diff column remains on the source; the cache
+stores a source ref, so a cached rerun reads the preview without recomputing.
+With `preview_rows=N`, the returned preview is capped (the source keeps every
+row). If the target column already exists (for example after clearing the
+cache), the diff is not recalculated.
 
 ```python
 result = dataset.datetime_diff(column="last_login")

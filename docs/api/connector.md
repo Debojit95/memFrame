@@ -99,10 +99,11 @@ as the memFrame backend.
 
 `MemFrame(..., preview_rows=N)` limits the rows materialized into `result`
 for row-returning operations (sort, filter, selection, merge, reshape,
-window, cumulative, grouped cumulative, cleaning, grouped fillna, group-by,
-and the mutating inspection methods). The source or generated table still
-contains every row; only the returned preview is capped. Cache hits apply the
-same limit.
+arithmetic, comparison, datetime including `datetime_diff`, window,
+cumulative, grouped cumulative, cleaning, grouped fillna, group-by, and the
+mutating inspection methods). The source or generated table still contains
+every row; only the returned preview is capped. Cache hits apply the same
+limit.
 
 ```python
 mf = MemFrame(

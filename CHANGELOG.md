@@ -6,6 +6,12 @@ to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- **`datetime_diff` result reads**: the two-column preview now uses the
+  Arrow-backed `fetch_df` path and honors `preview_rows` instead of building
+  two Python dicts per row, which previously exhausted RAM on tens of millions
+  of rows.
+
 ## [0.17.2] - 2026-11-14
 
 ### Fixed

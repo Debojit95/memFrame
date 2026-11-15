@@ -135,3 +135,35 @@ def test_preview_rows_limits_sort_and_filter():
         assert ctx.shape[0] == 100
     finally:
         asyncio.run(mf.aclose())
+
+
+def test_preview_rows_limits_datetime_diff():
+    mf = MemFrame(
+        connection_type="local",
+        connection_params={"db_path": ":memory:"},
+        deep_cache=True,
+        preview_rows=5,
+    )
+    asyncio.run(mf.aconnect())
+    try:
+        ctx = asyncio.run(mf.aupload_df(
+            pd.DataFrame({
+                "ts": pd.date_range("2024-01-01", periods=100, freq="min"),
+                "v": list(range(100)),
+            }),
+            filename="datetime_diff_preview",
+        ))
+
+        first = ctx.datetime_diff("ts")
+        second = ctx.datetime_diff("ts")
+        assert len(first) == 5
+        assert len(second) == 5
+        assert "ts__diff_seconds" in first.columns
+        pd.testing.assert_frame_equal(first, second)
+
+        # The generated column and full row set remain in the source.
+        full = ctx.head(n=100)
+        assert len(full) == 100
+        assert "ts__diff_seconds" in full.columns
+    finally:
+        asyncio.run(mf.aclose())

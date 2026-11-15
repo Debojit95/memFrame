@@ -5,6 +5,7 @@ import traceback
 
 import numpy as np
 import pandas as pd
+from memframe.core.analytix._fetch import fetch_df as _fetch_df_rows
 from memframe.db_manager.adapters.base import DatabaseAdapter
 from memframe.core.indexing import assert_user_column
 from memframe.utils.helper import SQLIdentifierSanitizer
@@ -44,10 +45,12 @@ class DataStatsOps:
         else:
             safe_col = SQLIdentifierSanitizer.sanitize(str(columns), allow_qualified=False)
             column_clause = self.db.quote_identifier(safe_col)
-        limit_clause = f' LIMIT {int(limit)}' if limit is not None else ''
-        rows = await self._fetch(f'SELECT {column_clause} FROM {qualified}{limit_clause}')
-        records = [dict(row) for row in rows]
-        return pd.DataFrame.from_records(records)
+        if limit is None:
+            limit = getattr(self.db, "preview_rows", None)
+        sql = f'SELECT {column_clause} FROM {qualified}'
+        if limit is not None:
+            sql += f' LIMIT {int(limit)}'
+        return await _fetch_df_rows(self.db, sql)
 
     def _success_response(self, message: str, involved_cols: Optional[List[str]]=None, generated_cols: Optional[List[str]]=None, result: Any=None, **extra) -> Dict[str, Any]:
         return ok(message, involved_cols, generated_cols, result, **extra)
