@@ -28,11 +28,23 @@ to [Semantic Versioning](https://semver.org/).
   accepts `right` (default), `left`, `both`, `neither`; `center` shifts the
   frame forward by `(window - 1) // 2`. Applies to every rolling aggregate and
   special.
+- **Method-level pandas parameters**: `ddof` for `std`/`var`/`sem`,
+  `method`/`ascending`/`pct` for `rank`, and `q` for `quantile`, exposed on the
+  builders and via `func_kwargs` for the generic `func=` path.
+- **Numeric `median`**: rolling and expanding median (ungrouped and grouped)
+  now run through the window percentile pipeline. Rolling/expanding `rank`
+  gained `method`/`ascending`/`pct`.
 
 ### Changed
 - **Rolling default now needs a full window**: `min_periods` defaults to
   `window`, so the first `window - 1` rows are `NULL` instead of partial-window
   values. Port pre-0.18 code by passing `min_periods=1`.
+- **`std` is now sample**: rolling `std` uses `ddof=1` (was population);
+  `ddof` is configurable.
+- **`sem` matches pandas**: sample standard deviation over `sqrt(n - ddof)`
+  (was `sqrt(n)`).
+- **`rank` default**: `method="average"` (was max-rank). Pass
+  `method="max"` to restore the old values.
 - **`count` gate**: rolling `count` is masked by the rows in the frame (pandas
   behaviour), not by the non-null observations. `min_periods=0` returns `0`
   for an empty `sum` window.

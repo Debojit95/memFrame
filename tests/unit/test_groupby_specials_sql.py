@@ -63,7 +63,7 @@ def _sem_expected(frame, window=None):
             if len(vals) < 2:
                 out.append(np.nan)
             else:
-                out.append(np.std(vals, ddof=1) / np.sqrt(len(vals)))
+                out.append(np.std(vals, ddof=1) / np.sqrt(len(vals) - 1))
     return np.asarray(out)
 
 
@@ -140,7 +140,7 @@ def test_grouped_rolling_rank_matches_manual(grouped_context, order_by):
         GroupByWindowStatsWrapper(ctx)
         .groupby("g")
         .rolling(3, order_by=order_by, min_periods=1)
-        .rank("x")
+        .rank("x", method="max")
     )
     got = _sorted_tile(_aligned(response), order_by)
     ordered = _pandas_frame(frame, order_by)

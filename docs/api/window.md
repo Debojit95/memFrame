@@ -68,11 +68,12 @@ named shorthands fix `func`. Builders accept `min_periods` at construction:
 | `.min(...)` / `.amin(...)` | Rolling minimum |
 | `.max(...)` / `.amax(...)` | Rolling maximum |
 | `.count(...)` / `.acount(...)` | Rolling non-null count |
-| `.std(...)` / `.astd(...)` | Rolling population standard deviation |
+| `.std(...)` / `.astd(...)` | Rolling sample standard deviation (`ddof=1`) |
 | `.var(...)` / `.avar(...)` | Rolling sample variance |
 | `.quantile(q=0.5, order_by=None)` / `.aquantile(...)` | Rolling quantile |
+| `.median(...)` / `.amedian(...)` | Rolling median |
 | `.sem(...)` / `.asem(...)` | Rolling standard error |
-| `.rank(...)` / `.arank(...)` | Rolling rank within the window |
+| `.rank(method='average', ascending=True, pct=False)` / `.arank(...)` | Rolling rank within the window |
 | `.nunique(...)` / `.anunique(...)` | Rolling distinct count |
 | `.first(...)` / `.afirst(...)` | First value in the window |
 | `.last(...)` / `.alast(...)` | Last value in the window |
@@ -93,8 +94,9 @@ Expanding methods mirror rolling but have no `window`; they add `min_periods`
 | `.std(...)` / `.astd(...)` | Running sample standard deviation |
 | `.var(...)` / `.avar(...)` | Running sample variance |
 | `.quantile(q=0.5, min_periods=1)` / `.aquantile(...)` | Running quantile |
+| `.median(...)` / `.amedian(...)` | Running median |
 | `.sem(...)` / `.asem(...)` | Running standard error |
-| `.rank(...)` / `.arank(...)` | Running rank |
+| `.rank(method='average', ascending=True, pct=False)` / `.arank(...)` | Running rank |
 | `.nunique(...)` / `.anunique(...)` | Running distinct count |
 | `.first(...)` / `.afirst(...)` | Running first value |
 | `.last(...)` / `.alast(...)` | Running last value |
@@ -149,6 +151,7 @@ sample = dataset.ewm(column="sales", span=3, func="mean")
 | `order_by` | `str`, `list[str]`, or `None` | Row ordering for the window. `None` (default) uses the immutable upload order (`_mf_idx`). A list orders by multiple columns. |
 | `q` | `float` | Quantile in `[0, 1]` for `quantile` (default `0.5`). |
 | `center` | `bool` | Rolling only — centre the frame on the current row by shifting it forward `(window - 1) // 2` rows (default `False`). |
+| `func_kwargs` | `dict` or `None` | Per-function keyword arguments, e.g. `{"std": {"ddof": 0}, "rank": {"method": "dense"}}`. |
 | `closed` | `str` or `None` | Rolling only — which frame edges are included: `right` (default), `left`, `both`, `neither`. |
 | `min_periods` | `int` or `None` | Minimum observations in the frame before a value is emitted. Rolling default `None` → `window` (pandas parity); expanding default `1`; EWM default `0`. Must satisfy `0 <= min_periods <= window`. |
 
@@ -175,6 +178,23 @@ capped.
 > `order_by` and once without. On a freshly uploaded frame the physical order
 > matches insertion order, so both forms produce the same values; they diverge
 > only once rows have been reordered (for example by a prior sort or merge).
+
+## Aggregation Parameters
+
+Method-level pandas parameters are available on the builders, and through
+`func_kwargs` for the generic `func=` path:
+
+```python
+dataset.on("sales").rolling(7, min_periods=1).std(ddof=0)
+dataset.on("sales").rolling(7).rank(method="dense", ascending=False, pct=True)
+dataset.rolling(
+    column="sales", window=7, func=["std", "quantile"],
+    func_kwargs={"std": {"ddof": 0}, "quantile": {"q": 0.9}},
+)
+```
+
+Supported per-function parameters: `ddof` for `std`/`var`/`sem`, `q` for
+`quantile`/`median`, and `method`/`ascending`/`pct` for `rank`.
 
 ## Type Support
 
@@ -298,7 +318,8 @@ Both forms → `[NULL, NULL, 3, 3, 3]`.
 
 ### `std`
 
-**Population** standard deviation over the window. Result column
+**Sample** standard deviation (`ddof=1`) over the window. Pass `ddof=0` for the
+population figure, or any other integer for the unbiased form. Result column
 `sales_rolling_std_w3`.
 
 ```python
@@ -306,12 +327,12 @@ result = dataset.rolling(column="sales", window=3, func="std", order_by="day")
 result = dataset.rolling(column="sales", window=3, func="std")
 ```
 
-Both forms → `[NULL, NULL, 8.165, 8.165, 8.165]`.
+Both forms → `[NULL, NULL, 10, 10, 10]`.
 
 ### `var`
 
-**Sample** variance over the window. A single-row window yields `NULL`.
-Result column `sales_rolling_var_w3`.
+**Sample** variance (`ddof=1`) over the window. A single-row window yields
+`NULL`. `ddof` is configurable per call. Result column `sales_rolling_var_w3`.
 
 ```python
 result = dataset.rolling(column="sales", window=3, func="var", order_by="day")
@@ -322,9 +343,9 @@ Both forms → `[NULL, NULL, 100, 100, 100]`.
 
 ### `quantile`
 
-Interpolated quantile `q` (default `0.5`, the median) over the window. Unlike
-the other rolling functions, it returns `NULL` until the window holds at least
-`window` non-null values. Result column `sales_rolling_q0.5_w3`.
+Interpolated quantile `q` (default `0.5`, the median) over the window and gated
+by the same `min_periods` rule as the other functions. Result column
+`sales_rolling_q0.5_w3`.
 
 Parameters: `column`, `window`, `q` (default `0.5`), `order_by`.
 
@@ -335,10 +356,22 @@ result = dataset.rolling(column="sales", window=3, func="quantile", q=0.5)
 
 Both forms → `[NULL, NULL, 20, 30, 40]`.
 
+### `median`
+
+Median of the window (quantile `0.5`, linear interpolation). Result column
+`sales_rolling_median_w3`.
+
+```python
+result = dataset.rolling(column="sales", window=3, func="median", order_by="day")
+result = dataset.rolling(column="sales", window=3, func="median")
+```
+
+Both forms → `[NULL, NULL, 20, 30, 40]`.
+
 ### `sem`
 
-Standard error of the mean: the **sample** standard deviation divided by the
-square root of the non-null count over the window. Result column
+Standard error of the mean, matching pandas: the sample standard deviation
+divided by `sqrt(count - ddof)` (`ddof=1` by default). Result column
 `sales_rolling_sem_w3`.
 
 ```python
@@ -346,13 +379,14 @@ result = dataset.rolling(column="sales", window=3, func="sem", order_by="day")
 result = dataset.rolling(column="sales", window=3, func="sem")
 ```
 
-Both forms → `[NULL, NULL, 5.774, 5.774, 5.774]`.
+Both forms → `[NULL, NULL, 7.071, 7.071, 7.071]`.
 
 ### `rank`
 
-Number of rows in the window whose value is `<=` the current value (so the
-largest value in a full window gets rank `w`). Result column
-`sales_rolling_rank_w3`.
+Rank of the current row inside the window. `method` is `average` (default),
+`min`, `max`, `first`, or `dense`; `ascending=False` ranks descending and
+`pct=True` divides by the non-null count. A null current value yields `NULL`.
+Result column `sales_rolling_rank_w3`.
 
 ```python
 result = dataset.rolling(column="sales", window=3, func="rank", order_by="day")
@@ -557,22 +591,33 @@ result = dataset.expanding(column="sales", func="quantile", q=0.5)
 Both forms → `[10, 15, 20, 25, 30]`; with `min_periods=3` →
 `[NULL, NULL, 20, 25, 30]`.
 
+### `median`
+
+Running median. Result column `sales_expanding_median`.
+
+```python
+result = dataset.expanding(column="sales", func="median", order_by="day")
+result = dataset.expanding(column="sales", func="median")
+```
+
+Both forms → `[10, 15, 20, 25, 30]`.
+
 ### `sem`
 
-Running standard error of the mean (sample standard deviation over the square
-root of the non-null count). Result column `sales_expanding_sem`.
+Running standard error of the mean, matching pandas: sample standard deviation
+over `sqrt(count - ddof)`. Result column `sales_expanding_sem`.
 
 ```python
 result = dataset.expanding(column="sales", func="sem", order_by="day")
 result = dataset.expanding(column="sales", func="sem")
 ```
 
-Both forms → `[NULL, 5, 5.774, 6.455, 7.071]`.
+Both forms → `[NULL, 7.071, 7.071, 7.454, 7.905]`.
 
 ### `rank`
 
-Running rank — the count of rows seen so far whose value is `<=` the current
-value. Result column `sales_expanding_rank`.
+Running rank of the current row. `method`, `ascending`, and `pct` work as in
+the rolling case. Result column `sales_expanding_rank`.
 
 ```python
 result = dataset.expanding(column="sales", func="rank", order_by="day")

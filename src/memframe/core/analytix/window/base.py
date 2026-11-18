@@ -115,6 +115,106 @@ class WindowOps:
             safe.append("_mf_idx")
         return safe
 
+    def _std_pop_agg(self) -> str:
+        return "STDDEV_POP"
+
+    def _std_samp_agg(self) -> str:
+        return "STDDEV_SAMP"
+
+    def _var_pop_agg(self) -> str:
+        return "VAR_POP"
+
+    def _var_samp_agg(self) -> str:
+        return "VAR_SAMP"
+
+    @staticmethod
+    def _resolve_ddof(ddof) -> int:
+        if isinstance(ddof, bool) or not isinstance(ddof, int) or ddof < 0:
+            raise ValueError("ddof must be an integer >= 0")
+        return ddof
+
+    def _std_over(self, col, order_sql, frame, part="", ddof=1) -> str:
+        """Windowed standard deviation for any ddof (0/1 native)."""
+        over = f"OVER ({part}ORDER BY {order_sql} {frame})"
+        if ddof == 0:
+            return f"{self._std_pop_agg()}({col}) {over}"
+        if ddof == 1:
+            return f"{self._std_samp_agg()}({col}) {over}"
+        return f"SQRT({self._var_over(col, order_sql, frame, part, ddof)})"
+
+    def _var_over(self, col, order_sql, frame, part="", ddof=1) -> str:
+        """Windowed variance for any ddof (0/1 native, else the moment form)."""
+        over = f"OVER ({part}ORDER BY {order_sql} {frame})"
+        if ddof == 0:
+            return f"{self._var_pop_agg()}({col}) {over}"
+        if ddof == 1:
+            return f"{self._var_samp_agg()}({col}) {over}"
+        n = f"{self._count_expr(col)} {over}"
+        s1 = f"SUM({col}) {over}"
+        s2 = f"SUM(({col}) * ({col})) {over}"
+        moment = (
+            f"(({s2}) - ({s1}) * ({s1}) / ({n})) / (({n}) - {ddof})"
+        )
+        # pandas needs n > ddof; NULL otherwise (no negative variances).
+        return f"CASE WHEN ({n}) > {ddof} THEN {moment} ELSE NULL END"
+
+    _RANK_METHODS = ("average", "min", "max", "first", "dense")
+
+    def _rank_sql(self, frame_where, count_sql, method="average",
+                  ascending=True, pct=False) -> str:
+        """Rank of the current row inside the frame, pandas semantics."""
+        method = (method or "average").lower()
+        if method not in self._RANK_METHODS:
+            raise ValueError(
+                f"rank method must be one of {self._RANK_METHODS}"
+            )
+
+        def cnt(cond: str) -> str:
+            return (
+                f"(SELECT COUNT(*) FROM __base r WHERE {frame_where} "
+                f"AND {cond})"
+            )
+
+        lt, leq = ("<", "<=") if ascending else (">", ">=")
+        if method == "min":
+            value = f"({cnt(f'r.v {lt} b.v')} + 1)"
+        elif method == "max":
+            value = cnt(f"r.v {leq} b.v")
+        elif method == "average":
+            value = (
+                f"({cnt(f'r.v {lt} b.v')} "
+                f"+ ({cnt('r.v = b.v')} + 1) / 2.0)"
+            )
+        elif method == "first":
+            value = (
+                f"({cnt(f'r.v {lt} b.v')} "
+                f"+ {cnt('r.v = b.v AND r.__rn < b.__rn')} + 1)"
+            )
+        else:  # dense
+            value = (
+                f"(SELECT COUNT(DISTINCT r.v) FROM __base r "
+                f"WHERE {frame_where} AND r.v {leq} b.v)"
+            )
+        if pct:
+            value = f"({value} / NULLIF({count_sql}, 0))"
+        return f"CASE WHEN b.v IS NULL THEN NULL ELSE {value} END"
+
+    def _rank_type(self, method, pct):
+        method = (method or "average").lower()
+        if pct or method == "average":
+            return self._ewm_float_type()
+        return self._ewm_int_type()
+
+    def _sem_over(self, col, order_sql, frame, part="", ddof=1) -> str:
+        """pandas: sem(ddof) is std(sample) / sqrt(n - ddof)."""
+        over = f"OVER ({part}ORDER BY {order_sql} {frame})"
+        n = f"{self._count_expr(col)} {over}"
+        std = self._std_over(col, order_sql, frame, part, 1)
+        denom = (
+            f"CASE WHEN ({n}) > {ddof} THEN SQRT(({n}) - {ddof}) ELSE NULL END"
+        )
+        return f"({std} / {denom})"
+
     def _pop_std_agg(self) -> str:
         # Rolling std is population; expanding std is sample (see _std_agg).
         return "STDDEV_POP"
@@ -534,6 +634,7 @@ class WindowOps:
     min_periods: Optional[int] = None,
     center: bool = False,
     closed: Optional[str] = None,
+    ddof: int = 1,
     new_table: Optional[str] = None) -> Dict[str, Any]:
         try:
             if backend is None or data_id is None:
@@ -556,6 +657,7 @@ class WindowOps:
 
             # --- 1. Narrow ordering: explicit keys, else the upload index ---
             min_p = self._resolve_min_periods(min_periods, window)
+            ddof = self._resolve_ddof(ddof)
             safe_orders = self._order_keys(order_by)
             order_sql = ", ".join(self.db.quote_identifier(c) for c in safe_orders)
             frame = self._rolling_frame(window, center, closed)
@@ -586,10 +688,10 @@ class WindowOps:
                     sql_agg = agg_map[key]
                     alias_key = key
                 elif key in ("std", "stddev", "stddev_pop", "stddev_samp"):
-                    sql_agg = self._pop_std_agg()
+                    sql_agg = self._std_samp_agg()
                     alias_key = "std"
                 elif key in ("var", "variance", "var_samp"):
-                    sql_agg = self._var_agg()
+                    sql_agg = self._var_samp_agg()
                     alias_key = "var"
                 else:
                     return self._error_response(f"Unsupported aggregation '{raw}' for _rolling_agg")
@@ -607,7 +709,12 @@ class WindowOps:
                     if alias_key == "count"
                     else f"{sql_agg}({q_col})"
                 )
-                value_sql = f"{agg_call} OVER (ORDER BY {order_sql} {frame})"
+                if alias_key == "std":
+                    value_sql = self._std_over(q_col, order_sql, frame, "", ddof)
+                elif alias_key == "var":
+                    value_sql = self._var_over(q_col, order_sql, frame, "", ddof)
+                else:
+                    value_sql = f"{agg_call} OVER (ORDER BY {order_sql} {frame})"
                 # pandas gates count on the rows in the frame, not on the
                 # non-null observations; other aggs are already NULL when the
                 # frame is empty, so they only need the gate above one.
@@ -699,6 +806,7 @@ class WindowOps:
         min_periods: Optional[int] = None,
         center: bool = False,
         closed: Optional[str] = None,
+        label: Optional[str] = None,
     ):
         try:
             if backend is None or data_id is None:
@@ -712,7 +820,7 @@ class WindowOps:
             q_col = self.db.quote_identifier(safe_col)
             rn_lo, rn_hi = self._rolling_rn(window, center, closed)
             frame = self._rolling_frame(window, center, closed)
-            new_col = f"{safe_col}_rolling_q{q}_w{window}"
+            new_col = f"{safe_col}_rolling_{label or f'q{q}'}_w{window}"
 
             if isinstance(self.db, DuckDBAdapter):
                 count_over = (
@@ -761,6 +869,11 @@ class WindowOps:
         except Exception as e:
             return self._error_response(str(e))
 
+    async def rolling_median(self, *args, **kwargs):
+        kwargs.setdefault("q", 0.5)
+        kwargs.setdefault("label", "median")
+        return await self.rolling_quantile(*args, **kwargs)
+
     async def rolling_sem(
         self,
         table,
@@ -772,6 +885,7 @@ class WindowOps:
         min_periods: Optional[int] = None,
         center: bool = False,
         closed: Optional[str] = None,
+        ddof: int = 1,
     ):
         try:
             if backend is None or data_id is None:
@@ -779,6 +893,7 @@ class WindowOps:
             if int(window) < 1:
                 return self._error_response("window must be >= 1")
             min_p = self._resolve_min_periods(min_periods, window)
+            ddof = self._resolve_ddof(ddof)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
             orders = self._order_keys(order_by)
             order_sql = ", ".join(self.db.quote_identifier(c) for c in orders)
@@ -789,10 +904,7 @@ class WindowOps:
                 f"{self._count_expr(q_col)} OVER "
                 f"(ORDER BY {order_sql} {frame})"
             )
-            sem_sql = (
-                f"({self._std_agg()}({q_col}) OVER (ORDER BY {order_sql} {frame}) "
-                f"/ SQRT({count_over}))"
-            )
+            sem_sql = self._sem_over(q_col, order_sql, frame, "", ddof)
             expr = self._min_periods_gate(sem_sql, count_over, min_p)
             feature_sql = (
                 f'SELECT {self.db.quote_identifier("_mf_idx")}, '
@@ -895,6 +1007,9 @@ class WindowOps:
         min_periods: Optional[int] = None,
         center: bool = False,
         closed: Optional[str] = None,
+        method: str = "average",
+        ascending: bool = True,
+        pct: bool = False,
     ):
         try:
             if backend is None or data_id is None:
@@ -907,20 +1022,14 @@ class WindowOps:
             rn_lo, rn_hi = self._rolling_rn(window, center, closed)
             new_col = f"{safe_col}_rolling_rank_w{window}"
             base = self._window_base_cte(table, schema, safe_col, orders)
-            count_subq = f"""
-                SELECT COUNT(r.v)
-                FROM __base r
-                WHERE r.__rn BETWEEN {rn_lo} AND {rn_hi}
-            """
-            rank_subq = f"""
-                SELECT COUNT(*)
-                FROM __base r
-                WHERE r.__rn BETWEEN {rn_lo} AND {rn_hi}
-                  AND r.v <= b.v
-            """
-            expr = self._min_periods_gate(
-                f"({rank_subq})", f"({count_subq})", min_p,
+            frame_where = f"r.__rn BETWEEN {rn_lo} AND {rn_hi}"
+            count_sql = (
+                f"(SELECT COUNT(r.v) FROM __base r WHERE {frame_where})"
             )
+            rank_expr = self._rank_sql(
+                frame_where, count_sql, method, ascending, pct,
+            )
+            expr = self._min_periods_gate(rank_expr, count_sql, min_p)
             feature_sql = f"""
                 WITH {base}
                 SELECT b.{self.db.quote_identifier("_mf_idx")},
@@ -929,9 +1038,10 @@ class WindowOps:
             """
             return await self._finish_window_special(
                 table, schema, column, new_col, feature_sql,
-                self._ewm_int_type(), backend, data_id, order_by,
+                self._rank_type(method, pct), backend, data_id, order_by,
                 "Rolling rank",
                 window=window, min_periods=min_p,
+                rank_method=method, ascending=ascending, pct=pct,
             )
         except Exception as e:
             return self._error_response(str(e))
@@ -973,6 +1083,7 @@ class WindowOps:
         backend=None,
         data_id=None,
         min_periods: int = 1,
+        ddof: int = 1,
         new_table: Optional[str] = None,
     ) -> Dict[str, Any]:
         try:
@@ -990,6 +1101,7 @@ class WindowOps:
                 return self._error_response("At least one aggregation function is required")
 
             # --- 1. Narrow ordering: explicit keys, else the upload index ---
+            ddof = self._resolve_ddof(ddof)
             safe_orders = self._order_keys(order_by)
             order_sql = ", ".join(self.db.quote_identifier(c) for c in safe_orders)
             qualified = self._qualified_table(table, schema)
@@ -1041,9 +1153,18 @@ class WindowOps:
                     if alias_key == "count"
                     else f"{sql_agg}({q_col})"
                 )
-                agg_over = (
-                    f"{agg_call} OVER (ORDER BY {order_sql} {window_frame})"
-                )
+                if alias_key == "std":
+                    agg_over = self._std_over(
+                        q_col, order_sql, window_frame, "", ddof,
+                    )
+                elif alias_key == "var":
+                    agg_over = self._var_over(
+                        q_col, order_sql, window_frame, "", ddof,
+                    )
+                else:
+                    agg_over = (
+                        f"{agg_call} OVER (ORDER BY {order_sql} {window_frame})"
+                    )
                 if min_periods > 1:
                     agg_with_null = (
                         f"CASE WHEN {count_over} >= {min_periods} "
@@ -1145,6 +1266,7 @@ class WindowOps:
         order_by=None, q=0.5, min_periods=1,
         backend=None, data_id=None,
         new_table: Optional[str] = None,
+        label: Optional[str] = None,
     ):
         try:
             if backend is None or data_id is None:
@@ -1153,7 +1275,7 @@ class WindowOps:
             orders = self._order_keys(order_by)
             order_sql = ", ".join(self.db.quote_identifier(c) for c in orders)
             q_col = self.db.quote_identifier(safe_col)
-            new_col = f"{safe_col}_expanding_q{q}"
+            new_col = f"{safe_col}_expanding_{label or f'q{q}'}"
             frame = "ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW"
 
             if isinstance(self.db, DuckDBAdapter):
@@ -1211,15 +1333,21 @@ class WindowOps:
         except Exception as e:
             return self._error_response(str(e))
 
+    async def expanding_median(self, *args, **kwargs):
+        kwargs.setdefault("q", 0.5)
+        kwargs.setdefault("label", "median")
+        return await self.expanding_quantile(*args, **kwargs)
+
     async def expanding_sem(
         self, table, schema, column,
-        order_by=None, min_periods=1,
+        order_by=None, min_periods=1, ddof=1,
         backend=None, data_id=None,
         new_table: Optional[str] = None,
     ):
         try:
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
+            ddof = self._resolve_ddof(ddof)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
             orders = self._order_keys(order_by)
             order_sql = ", ".join(self.db.quote_identifier(c) for c in orders)
@@ -1230,10 +1358,7 @@ class WindowOps:
                 f"{self._count_expr(q_col)} OVER "
                 f"(ORDER BY {order_sql} {frame})"
             )
-            sem_base = (
-                f"({self._std_agg()}({q_col}) OVER "
-                f"(ORDER BY {order_sql} {frame}) / SQRT({count_over}))"
-            )
+            sem_base = self._sem_over(q_col, order_sql, frame, "", ddof)
             if min_periods > 1:
                 expr = (
                     f"CASE WHEN {count_over} >= {min_periods} "
@@ -1259,6 +1384,9 @@ class WindowOps:
         order_by=None, min_periods=1,
         backend=None, data_id=None,
         new_table: Optional[str] = None,
+        method: str = "average",
+        ascending: bool = True,
+        pct: bool = False,
     ):
         try:
             if backend is None or data_id is None:
@@ -1267,23 +1395,16 @@ class WindowOps:
             orders = self._order_keys(order_by)
             new_col = f"{safe_col}_expanding_rank"
             base = self._window_base_cte(table, schema, safe_col, orders)
-            rank_subq = """
-                SELECT COUNT(*)
-                FROM __base r
-                WHERE r.__rn <= b.__rn
-                  AND r.v <= b.v
-            """
-            count_subq = """
-                SELECT COUNT(r.v) FROM __base r
-                WHERE r.__rn <= b.__rn
-            """
-            if min_periods > 1:
-                expr = (
-                    f"CASE WHEN ({count_subq}) >= {min_periods} "
-                    f"THEN ({rank_subq}) ELSE NULL END"
-                )
-            else:
-                expr = f"({rank_subq})"
+            frame_where = "r.__rn <= b.__rn"
+            count_sql = (
+                f"(SELECT COUNT(r.v) FROM __base r WHERE {frame_where})"
+            )
+            rank_expr = self._rank_sql(
+                frame_where, count_sql, method, ascending, pct,
+            )
+            expr = self._min_periods_gate(
+                rank_expr, count_sql, int(min_periods or 0),
+            )
             feature_sql = f"""
                 WITH {base}
                 SELECT b.{self.db.quote_identifier("_mf_idx")},
@@ -1292,8 +1413,9 @@ class WindowOps:
             """
             return await self._finish_window_special(
                 table, schema, column, new_col, feature_sql,
-                self._ewm_int_type(), backend, data_id, order_by,
+                self._rank_type(method, pct), backend, data_id, order_by,
                 "Expanding rank", min_periods=min_periods,
+                rank_method=method, ascending=ascending, pct=pct,
             )
         except Exception as e:
             return self._error_response(str(e))

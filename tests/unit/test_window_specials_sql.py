@@ -57,12 +57,7 @@ def test_rolling_specials_match_pandas(window_context):
         wrapper, "rolling", "x", window=3, func="sem", order_by="o",
         min_periods=1,
     )
-    expected_sem = (
-        x.rolling(3, min_periods=1).apply(
-            lambda v: np.std(v, ddof=1) / np.sqrt(len(v)) if len(v) > 1 else np.nan,
-            raw=True,
-        ).to_numpy()
-    )
+    expected_sem = x.rolling(3, min_periods=1).sem().to_numpy()
     np.testing.assert_allclose(
         sem["x_rolling_sem_w3"], expected_sem, equal_nan=True, rtol=1e-12
     )
@@ -80,7 +75,7 @@ def test_rolling_specials_match_pandas(window_context):
 
     rank = _run(
         wrapper, "rolling", "x", window=3, func="rank", order_by="o",
-        min_periods=1,
+        min_periods=1, func_kwargs={"rank": {"method": "max"}},
     )
     values = x.to_numpy()
     expected_rank = []
@@ -110,10 +105,7 @@ def test_expanding_specials_match_pandas(window_context):
     sem = _run(
         wrapper, "expanding", "x", func="sem", min_periods=1, order_by="o"
     )
-    expected_sem = x.expanding(min_periods=1).apply(
-        lambda v: np.std(v, ddof=1) / np.sqrt(len(v)) if len(v) > 1 else np.nan,
-        raw=True,
-    ).to_numpy()
+    expected_sem = x.expanding(min_periods=1).sem().to_numpy()
     np.testing.assert_allclose(
         sem["x_expanding_sem"], expected_sem, equal_nan=True, rtol=1e-12
     )
@@ -129,7 +121,8 @@ def test_expanding_specials_match_pandas(window_context):
     )
 
     rank = _run(
-        wrapper, "expanding", "x", func="rank", min_periods=1, order_by="o"
+        wrapper, "expanding", "x", func="rank", min_periods=1, order_by="o",
+        func_kwargs={"rank": {"method": "max"}},
     )
     values = x.to_numpy()
     expected_rank = [

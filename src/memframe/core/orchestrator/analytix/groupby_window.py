@@ -349,6 +349,7 @@ class GroupByWindowOrchestrator:
                 "std": "rolling_std_groupby",
                 "var": "rolling_var_groupby",
                 "quantile": "rolling_quantile_groupby",
+                "median": "rolling_median_groupby",
                 "sem": "rolling_sem_groupby",
                 "rank": "rolling_rank_groupby",
                 "nunique": "rolling_nunique_groupby",
@@ -386,6 +387,7 @@ class GroupByWindowOrchestrator:
                 "std": "expanding_std_groupby",
                 "var": "expanding_var_groupby",
                 "quantile": "expanding_quantile_groupby",
+                "median": "expanding_median_groupby",
                 "sem": "expanding_sem_groupby",
                 "rank": "expanding_rank_groupby",
                 "nunique": "expanding_nunique_groupby",
@@ -436,6 +438,7 @@ class GroupByWindowOrchestrator:
         min_periods: int = None,
         center: bool = False,
         closed: str = None,
+        func_kwargs: dict = None,
         map_feature: bool = False,
     ) -> Dict[str, Any]:
         ops = await self._ensure_ops()
@@ -514,6 +517,7 @@ class GroupByWindowOrchestrator:
             )
             if func_key == "quantile":
                 call_kwargs["q"] = q
+            call_kwargs.update((func_kwargs or {}).get(func_key, {}))
 
             result = await method(**call_kwargs)
             if result.get("is_error"):
@@ -544,6 +548,7 @@ class GroupByWindowOrchestrator:
             group_cols=group_cols, func=requested_funcs, order_by=order_by,
             window=locals().get("window"),
             min_periods=min_periods, center=center, closed=closed,
+            func_kwargs=func_kwargs,
         )
         involved = self._involved_cols(column, group_cols, order_by)
 
@@ -630,6 +635,7 @@ class GroupByWindowOrchestrator:
         order_by: Union[str, List[str]] = None,
         q: float = 0.5,
         min_periods: int = 1,
+        func_kwargs: dict = None,
         map_feature: bool = False,
     ) -> Dict[str, Any]:
         ops = await self._ensure_ops()
@@ -704,6 +710,7 @@ class GroupByWindowOrchestrator:
             )
             if func_key == "quantile":
                 call_kwargs["q"] = q
+            call_kwargs.update((func_kwargs or {}).get(func_key, {}))
 
             result = await method(**call_kwargs)
             if result.get("is_error"):
@@ -734,6 +741,7 @@ class GroupByWindowOrchestrator:
             group_cols=group_cols, func=requested_funcs, order_by=order_by,
             window=locals().get("window"),
             min_periods=locals().get("min_periods"),
+            func_kwargs=func_kwargs,
         )
         involved = self._involved_cols(column, group_cols, order_by)
 

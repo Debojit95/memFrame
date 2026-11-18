@@ -141,6 +141,7 @@ class GroupbyWindowOps(WindowOps):
         min_periods: Optional[int] = None,
         center: bool = False,
         closed: Optional[str] = None,
+        ddof: int = 1,
         new_table: str = None,
     ) -> Dict[str, Any]:
         """Generic rolling aggregation with PARTITION BY group_cols."""
@@ -161,6 +162,7 @@ class GroupbyWindowOps(WindowOps):
                 return self._error_response("At least one aggregation function is required")
 
             min_p = self._resolve_min_periods(min_periods, window)
+            ddof = self._resolve_ddof(ddof)
             orders = self._order_keys(order_by)
             order_sql = ", ".join(self.db.quote_identifier(c) for c in orders)
             part = self._ewm_partition(safe_groups)
@@ -201,7 +203,18 @@ class GroupbyWindowOps(WindowOps):
                     if alias_key == "count"
                     else f"{sql_agg}({q_col})"
                 )
-                value_sql = f"{agg_call} OVER ({part}ORDER BY {order_sql} {frame})"
+                if alias_key == "std":
+                    value_sql = self._std_over(
+                        q_col, order_sql, frame, part, ddof,
+                    )
+                elif alias_key == "var":
+                    value_sql = self._var_over(
+                        q_col, order_sql, frame, part, ddof,
+                    )
+                else:
+                    value_sql = (
+                        f"{agg_call} OVER ({part}ORDER BY {order_sql} {frame})"
+                    )
                 gate_count = rows_over if alias_key == "count" else count_over
                 gate_at = min_p if (alias_key == "count" or min_p > 1) else 0
                 value_sql = self._min_periods_gate(
@@ -300,6 +313,7 @@ class GroupbyWindowOps(WindowOps):
         self, table, schema, column, group_cols, order_by=None, window=3,
         q=0.5, backend=None, data_id=None, new_table=None, min_periods=None,
         center: bool = False, closed: Optional[str] = None,
+        label: Optional[str] = None,
     ):
         try:
             if backend is None or data_id is None:
@@ -316,7 +330,8 @@ class GroupbyWindowOps(WindowOps):
             q_col = self.db.quote_identifier(safe_col)
             rn_lo, rn_hi = self._rolling_rn(window, center, closed)
             frame = self._rolling_frame(window, center, closed)
-            new_col = f"{safe_col}_rolling_q{q}_w{window}_by_{'_'.join(safe_groups)}"
+            tag = label or f"q{q}"
+            new_col = f"{safe_col}_rolling_{tag}_w{window}_by_{'_'.join(safe_groups)}"
 
             if isinstance(self.db, DuckDBAdapter):
                 count_over = (
@@ -371,10 +386,15 @@ class GroupbyWindowOps(WindowOps):
         except Exception as e:
             return self._error_response(f"rolling quantile group-by error: {str(e)}")
 
+    async def rolling_median_groupby(self, *args, **kwargs):
+        kwargs.setdefault("q", 0.5)
+        kwargs.setdefault("label", "median")
+        return await self.rolling_quantile_groupby(*args, **kwargs)
+
     async def rolling_sem_groupby(
         self, table, schema, column, group_cols, order_by=None, window=3,
         backend=None, data_id=None, new_table=None, min_periods=None,
-        center: bool = False, closed: Optional[str] = None,
+        center: bool = False, closed: Optional[str] = None, ddof: int = 1,
     ):
         try:
             if backend is None or data_id is None:
@@ -384,6 +404,7 @@ class GroupbyWindowOps(WindowOps):
             if int(window) < 1:
                 return self._error_response("window must be >= 1")
             min_p = self._resolve_min_periods(min_periods, window)
+            ddof = self._resolve_ddof(ddof)
 
             orders = self._order_keys(order_by)
             order_sql = ", ".join(self.db.quote_identifier(c) for c in orders)
@@ -391,15 +412,11 @@ class GroupbyWindowOps(WindowOps):
             q_col = self.db.quote_identifier(safe_col)
             frame = self._rolling_frame(window, center, closed)
             new_col = f"{safe_col}_rolling_sem_w{window}_by_{'_'.join(safe_groups)}"
-            std_func = self._std_agg()
             count_over = (
                 f"{self._count_expr(q_col)} "
                 f"OVER ({part}ORDER BY {order_sql} {frame})"
             )
-            sem_sql = (
-                f"({std_func}({q_col}) OVER ({part}ORDER BY {order_sql} {frame}) "
-                f"/ SQRT({count_over}))"
-            )
+            sem_sql = self._sem_over(q_col, order_sql, frame, part, ddof)
             expr = self._min_periods_gate(sem_sql, count_over, min_p)
             feature_sql = (
                 f'SELECT {self.db.quote_identifier("_mf_idx")}, '
@@ -497,6 +514,7 @@ class GroupbyWindowOps(WindowOps):
         self, table, schema, column, group_cols, order_by=None, window=3,
         backend=None, data_id=None, new_table=None, min_periods=None,
         center: bool = False, closed: Optional[str] = None,
+        method: str = "average", ascending: bool = True, pct: bool = False,
     ):
         try:
             if backend is None or data_id is None:
@@ -514,22 +532,16 @@ class GroupbyWindowOps(WindowOps):
                 table, schema, safe_col, safe_groups, orders,
             )
             group_eq = self._group_eq(safe_groups)
-            count_subq = f"""
-                SELECT COUNT(r.v)
-                FROM __base r
-                WHERE r.__rn BETWEEN {rn_lo} AND {rn_hi}
-                  {group_eq}
-            """
-            rank_subq = f"""
-                SELECT COUNT(*)
-                FROM __base r
-                WHERE r.__rn BETWEEN {rn_lo} AND {rn_hi}
-                  {group_eq}
-                  AND r.v <= b.v
-            """
-            expr = self._min_periods_gate(
-                f"({rank_subq})", f"({count_subq})", min_p,
+            frame_where = (
+                f"r.__rn BETWEEN {rn_lo} AND {rn_hi}{group_eq}"
             )
+            count_sql = (
+                f"(SELECT COUNT(r.v) FROM __base r WHERE {frame_where})"
+            )
+            rank_expr = self._rank_sql(
+                frame_where, count_sql, method, ascending, pct,
+            )
+            expr = self._min_periods_gate(rank_expr, count_sql, min_p)
             feature_sql = f"""
                 WITH {base}
                 SELECT b.{self.db.quote_identifier("_mf_idx")},
@@ -538,11 +550,12 @@ class GroupbyWindowOps(WindowOps):
             """
             return await self._finish_grouped_special(
                 table, schema, column, new_col, feature_sql,
-                self._ewm_int_type(), backend, data_id,
+                self._rank_type(method, pct), backend, data_id,
                 safe_groups, order_by,
                 f"Rolling rank on '{column}' grouped by {safe_groups} "
                 f"(window={window}, min_periods={min_p})",
                 window=window, min_periods=min_p,
+                rank_method=method, ascending=ascending, pct=pct,
             )
         except Exception as e:
             return self._error_response(f"rolling rank group-by error: {str(e)}")
@@ -690,7 +703,7 @@ class GroupbyWindowOps(WindowOps):
     async def _expanding_agg_with_partition(
         self,
         table, schema, column, group_cols,
-        order_by=None, agg="SUM", min_periods=1,
+        order_by=None, agg="SUM", min_periods=1, ddof=1,
         backend=None, data_id=None, new_table=None,
     ) -> Dict[str, Any]:
         try:
@@ -706,6 +719,7 @@ class GroupbyWindowOps(WindowOps):
             if not raw_aggs:
                 return self._error_response("At least one aggregation function is required")
 
+            ddof = self._resolve_ddof(ddof)
             orders = self._order_keys(order_by)
             order_sql = ", ".join(self.db.quote_identifier(c) for c in orders)
             part = self._ewm_partition(safe_groups)
@@ -745,9 +759,18 @@ class GroupbyWindowOps(WindowOps):
                     if alias_key == "count"
                     else f"{sql_agg}({q_col})"
                 )
-                agg_over = (
-                    f"{agg_call} OVER ({part}ORDER BY {order_sql} {window_frame})"
-                )
+                if alias_key == "std":
+                    agg_over = self._std_over(
+                        q_col, order_sql, window_frame, part, ddof,
+                    )
+                elif alias_key == "var":
+                    agg_over = self._var_over(
+                        q_col, order_sql, window_frame, part, ddof,
+                    )
+                else:
+                    agg_over = (
+                        f"{agg_call} OVER ({part}ORDER BY {order_sql} {window_frame})"
+                    )
                 if min_periods > 1:
                     agg_with_null = (
                         f"CASE WHEN {count_over} >= {min_periods} "
@@ -917,13 +940,19 @@ class GroupbyWindowOps(WindowOps):
         except Exception as e:
             return self._error_response(f"expanding quantile group-by error: {str(e)}")
 
+    async def expanding_median_groupby(self, *args, **kwargs):
+        kwargs.setdefault("q", 0.5)
+        kwargs.setdefault("label", "median")
+        return await self.expanding_quantile_groupby(*args, **kwargs)
+
     async def expanding_sem_groupby(
         self, table, schema, column, group_cols, order_by=None,
-        min_periods=1, backend=None, data_id=None, new_table=None,
+        min_periods=1, ddof=1, backend=None, data_id=None, new_table=None,
     ):
         try:
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
+            ddof = self._resolve_ddof(ddof)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
             safe_groups = [SQLIdentifierSanitizer.sanitize(c) for c in group_cols]
             orders = self._order_keys(order_by)
@@ -932,15 +961,11 @@ class GroupbyWindowOps(WindowOps):
             q_col = self.db.quote_identifier(safe_col)
             new_col = f"{safe_col}_expanding_sem_by_{'_'.join(safe_groups)}"
             frame = "ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW"
-            std_func = self._std_agg()
             count_over = (
                 f"{self._count_expr(q_col)} OVER "
                 f"({part}ORDER BY {order_sql} {frame})"
             )
-            sem_base = (
-                f"({std_func}({q_col}) OVER "
-                f"({part}ORDER BY {order_sql} {frame}) / SQRT({count_over}))"
-            )
+            sem_base = self._sem_over(q_col, order_sql, frame, part, ddof)
             if min_periods > 1:
                 sem_expr = (
                     f"CASE WHEN {count_over} >= {min_periods} "
@@ -967,6 +992,7 @@ class GroupbyWindowOps(WindowOps):
     async def expanding_rank_groupby(
         self, table, schema, column, group_cols, order_by=None,
         min_periods=1, backend=None, data_id=None, new_table=None,
+        method: str = "average", ascending: bool = True, pct: bool = False,
     ):
         try:
             if backend is None or data_id is None:
@@ -979,38 +1005,30 @@ class GroupbyWindowOps(WindowOps):
                 table, schema, safe_col, safe_groups, orders,
             )
             group_eq = self._group_eq(safe_groups)
-            rank_subq = f"""
-                SELECT COUNT(*)
-                FROM __base r
-                WHERE r.__rn <= b.__rn
-                  {group_eq}
-                  AND r.v <= b.v
-            """
-            count_subq = f"""
-                SELECT COUNT(r.v)
-                FROM __base r
-                WHERE r.__rn <= b.__rn
-                  {group_eq}
-            """
-            if min_periods > 1:
-                rank_expr = (
-                    f"CASE WHEN ({count_subq}) >= {min_periods} "
-                    f"THEN ({rank_subq}) ELSE NULL END"
-                )
-            else:
-                rank_expr = f"({rank_subq})"
+            frame_where = f"r.__rn <= b.__rn{group_eq}"
+            count_sql = (
+                f"(SELECT COUNT(r.v) FROM __base r WHERE {frame_where})"
+            )
+            rank_expr = self._rank_sql(
+                frame_where, count_sql, method, ascending, pct,
+            )
+            expr = self._min_periods_gate(
+                rank_expr, count_sql, int(min_periods or 0),
+            )
             feature_sql = f"""
                 WITH {base}
                 SELECT b.{self.db.quote_identifier("_mf_idx")},
-                    {rank_expr} AS {self.db.quote_identifier(new_col)}
+                    {expr} AS {self.db.quote_identifier(new_col)}
                 FROM __base b
             """
             return await self._finish_grouped_special(
                 table, schema, column, new_col, feature_sql,
-                self._ewm_int_type(), backend, data_id, safe_groups, order_by,
+                self._rank_type(method, pct), backend, data_id,
+                safe_groups, order_by,
                 f"Expanding rank on '{column}' grouped by {safe_groups} "
                 f"(min_periods={min_periods})",
                 min_periods=min_periods,
+                rank_method=method, ascending=ascending, pct=pct,
             )
         except Exception as e:
             return self._error_response(f"expanding rank group-by error: {str(e)}")

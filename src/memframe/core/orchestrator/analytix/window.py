@@ -103,6 +103,7 @@ class WindowOrchestrator:
             "std": "rolling_std",
             "var": "rolling_var",
             "quantile": "rolling_quantile",
+            "median": "rolling_median",
             "sem": "rolling_sem",
             "rank": "rolling_rank",
             "nunique": "rolling_nunique",
@@ -154,6 +155,7 @@ class WindowOrchestrator:
         min_periods: int = None,
         center: bool = False,
         closed: str = None,
+        func_kwargs: dict = None,
     ):
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
@@ -232,6 +234,7 @@ class WindowOrchestrator:
             )
             if func_key == "quantile":
                 call_kwargs["q"] = q
+            call_kwargs.update((func_kwargs or {}).get(func_key, {}))
 
             result = await method(**call_kwargs)
 
@@ -278,6 +281,7 @@ class WindowOrchestrator:
             op="window.rolling", column=column, window=window,
             func=requested_funcs, order_by=order_by,
             min_periods=min_periods, center=center, closed=closed,
+            func_kwargs=func_kwargs,
         )
         involved = self._involved_cols(column, order_by)
 
@@ -352,6 +356,7 @@ class WindowOrchestrator:
         order_by: Union[str, List[str]] = None,
         q: float = 0.5,
         min_periods: int = 1,
+        func_kwargs: dict = None,
     ):
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
@@ -376,6 +381,7 @@ class WindowOrchestrator:
             "std": "expanding_std",
             "var": "expanding_var",
             "quantile": "expanding_quantile",
+            "median": "expanding_median",
             "sem": "expanding_sem",
             "rank": "expanding_rank",
             "nunique": "expanding_nunique",
@@ -461,6 +467,7 @@ class WindowOrchestrator:
             )
             if func_key == "quantile":
                 call_kwargs["q"] = q
+            call_kwargs.update((func_kwargs or {}).get(func_key, {}))
 
             result = await method(**call_kwargs)
 
@@ -500,6 +507,7 @@ class WindowOrchestrator:
         sig = make_sig(
             op="window.expanding", column=column, min_periods=min_periods,
             func=requested_funcs, order_by=order_by,
+            func_kwargs=func_kwargs,
         )
         involved = self._involved_cols(column, order_by)
 

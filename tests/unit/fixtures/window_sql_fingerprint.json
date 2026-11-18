@@ -562,7 +562,7 @@
    ],
    [
     "exec",
-    "CREATETABLE`s`.`t__op_1__feat`ENGINE=MergeTree()ORDERBYtuple()ASSELECT`_mf_idx`,CASEWHENsum(if(isNull(`num`),0,1))OVER(ORDERBY`g`,`_mf_idx`ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)>=2THEN(stddevSamp(`num`)OVER(ORDERBY`g`,`_mf_idx`ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)/SQRT(sum(if(isNull(`num`),0,1))OVER(ORDERBY`g`,`_mf_idx`ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)))ELSENULLENDAS`num_expanding_sem`FROM`s`.`t`",
+    "CREATETABLE`s`.`t__op_1__feat`ENGINE=MergeTree()ORDERBYtuple()ASSELECT`_mf_idx`,CASEWHENsum(if(isNull(`num`),0,1))OVER(ORDERBY`g`,`_mf_idx`ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)>=2THEN(STDDEV_SAMP(`num`)OVER(ORDERBY`g`,`_mf_idx`ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)/CASEWHEN(sum(if(isNull(`num`),0,1))OVER(ORDERBY`g`,`_mf_idx`ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW))>1THENSQRT((sum(if(isNull(`num`),0,1))OVER(ORDERBY`g`,`_mf_idx`ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW))-1)ELSENULLEND)ELSENULLENDAS`num_expanding_sem`FROM`s`.`t`",
     []
    ],
    [
@@ -604,7 +604,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"num_expanding_sem\"=s.\"num_expanding_sem\"FROM(SELECT\"_mf_idx\",CASEWHENCOUNT(\"num\")OVER(ORDERBY\"g\",\"_mf_idx\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)>=2THEN(STDDEV_SAMP(\"num\")OVER(ORDERBY\"g\",\"_mf_idx\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)/SQRT(COUNT(\"num\")OVER(ORDERBY\"g\",\"_mf_idx\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)))ELSENULLENDAS\"num_expanding_sem\"FROM\"s\".\"t\")ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
+    "UPDATE\"s\".\"t\"AStSET\"num_expanding_sem\"=s.\"num_expanding_sem\"FROM(SELECT\"_mf_idx\",CASEWHENCOUNT(\"num\")OVER(ORDERBY\"g\",\"_mf_idx\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)>=2THEN(STDDEV_SAMP(\"num\")OVER(ORDERBY\"g\",\"_mf_idx\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)/CASEWHEN(COUNT(\"num\")OVER(ORDERBY\"g\",\"_mf_idx\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW))>1THENSQRT((COUNT(\"num\")OVER(ORDERBY\"g\",\"_mf_idx\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW))-1)ELSENULLEND)ELSENULLENDAS\"num_expanding_sem\"FROM\"s\".\"t\")ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
     []
    ],
    [
@@ -621,7 +621,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"num_expanding_sem\"=s.\"num_expanding_sem\"FROM(SELECT\"_mf_idx\",CASEWHENCOUNT(\"num\")OVER(ORDERBY\"g\",\"_mf_idx\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)>=2THEN(STDDEV(\"num\")OVER(ORDERBY\"g\",\"_mf_idx\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)/SQRT(COUNT(\"num\")OVER(ORDERBY\"g\",\"_mf_idx\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)))ELSENULLENDAS\"num_expanding_sem\"FROM\"s\".\"t\")ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
+    "UPDATE\"s\".\"t\"AStSET\"num_expanding_sem\"=s.\"num_expanding_sem\"FROM(SELECT\"_mf_idx\",CASEWHENCOUNT(\"num\")OVER(ORDERBY\"g\",\"_mf_idx\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)>=2THEN(STDDEV_SAMP(\"num\")OVER(ORDERBY\"g\",\"_mf_idx\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)/CASEWHEN(COUNT(\"num\")OVER(ORDERBY\"g\",\"_mf_idx\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW))>1THENSQRT((COUNT(\"num\")OVER(ORDERBY\"g\",\"_mf_idx\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW))-1)ELSENULLEND)ELSENULLENDAS\"num_expanding_sem\"FROM\"s\".\"t\")ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
     []
    ],
    [
@@ -642,7 +642,7 @@
    ],
    [
     "exec",
-    "CREATETABLE`s`.`t__op_1__feat`ENGINE=MergeTree()ORDERBYtuple()ASSELECT`_mf_idx`,CASEWHENsum(if(isNull(`num`),0,1))OVER(ORDERBY`g`,`_mf_idx`ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)>=2THENstddevSamp(`num`)OVER(ORDERBY`g`,`_mf_idx`ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ELSENULLENDAS`num_expanding_std`FROM`s`.`t`",
+    "CREATETABLE`s`.`t__op_1__feat`ENGINE=MergeTree()ORDERBYtuple()ASSELECT`_mf_idx`,CASEWHENsum(if(isNull(`num`),0,1))OVER(ORDERBY`g`,`_mf_idx`ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)>=2THENSTDDEV_SAMP(`num`)OVER(ORDERBY`g`,`_mf_idx`ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ELSENULLENDAS`num_expanding_std`FROM`s`.`t`",
     []
    ],
    [
@@ -701,7 +701,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"num_expanding_std\"=s.\"num_expanding_std\"FROM(SELECT\"_mf_idx\",CASEWHENCOUNT(\"num\")OVER(ORDERBY\"g\",\"_mf_idx\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)>=2THENSTDDEV(\"num\")OVER(ORDERBY\"g\",\"_mf_idx\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ELSENULLENDAS\"num_expanding_std\"FROM\"s\".\"t\")ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
+    "UPDATE\"s\".\"t\"AStSET\"num_expanding_std\"=s.\"num_expanding_std\"FROM(SELECT\"_mf_idx\",CASEWHENCOUNT(\"num\")OVER(ORDERBY\"g\",\"_mf_idx\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)>=2THENSTDDEV_SAMP(\"num\")OVER(ORDERBY\"g\",\"_mf_idx\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ELSENULLENDAS\"num_expanding_std\"FROM\"s\".\"t\")ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
     []
    ],
    [
@@ -1452,7 +1452,7 @@
    ],
    [
     "exec",
-    "CREATETABLE`s`.`t__op_1__feat`ENGINE=MergeTree()ORDERBYtuple()ASWITH__baseAS(SELECT`_mf_idx`,`num`ASv,ROW_NUMBER()OVER(ORDERBY`g`,`_mf_idx`)AS__rnFROM`s`.`t`)SELECTb.`_mf_idx`,CASEWHEN(SELECTCOUNT(r.v)FROM__baserWHEREr.__rnBETWEENb.__rn+(-2)ANDb.__rn+(0))>=3THEN(SELECTCOUNT(*)FROM__baserWHEREr.__rnBETWEENb.__rn+(-2)ANDb.__rn+(0)ANDr.v<=b.v)ELSENULLENDAS`num_rolling_rank_w3`FROM__baseb",
+    "CREATETABLE`s`.`t__op_1__feat`ENGINE=MergeTree()ORDERBYtuple()ASWITH__baseAS(SELECT`_mf_idx`,`num`ASv,ROW_NUMBER()OVER(ORDERBY`g`,`_mf_idx`)AS__rnFROM`s`.`t`)SELECTb.`_mf_idx`,CASEWHEN(SELECTCOUNT(r.v)FROM__baserWHEREr.__rnBETWEENb.__rn+(-2)ANDb.__rn+(0))>=3THENCASEWHENb.vISNULLTHENNULLELSE((SELECTCOUNT(*)FROM__baserWHEREr.__rnBETWEENb.__rn+(-2)ANDb.__rn+(0)ANDr.v<b.v)+((SELECTCOUNT(*)FROM__baserWHEREr.__rnBETWEENb.__rn+(-2)ANDb.__rn+(0)ANDr.v=b.v)+1)/2.0)ENDELSENULLENDAS`num_rolling_rank_w3`FROM__baseb",
     []
    ],
    [
@@ -1489,12 +1489,12 @@
   "duckdb": [
    [
     "exec",
-    "ALTERTABLE\"s\".\"t\"ADDCOLUMNIFNOTEXISTS\"num_rolling_rank_w3\"BIGINT",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMNIFNOTEXISTS\"num_rolling_rank_w3\"DOUBLEPRECISION",
     []
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"num_rolling_rank_w3\"=s.\"num_rolling_rank_w3\"FROM(WITH__baseAS(SELECT\"_mf_idx\",\"num\"ASv,ROW_NUMBER()OVER(ORDERBY\"g\",\"_mf_idx\")AS__rnFROM\"s\".\"t\")SELECTb.\"_mf_idx\",CASEWHEN(SELECTCOUNT(r.v)FROM__baserWHEREr.__rnBETWEENb.__rn+(-2)ANDb.__rn+(0))>=3THEN(SELECTCOUNT(*)FROM__baserWHEREr.__rnBETWEENb.__rn+(-2)ANDb.__rn+(0)ANDr.v<=b.v)ELSENULLENDAS\"num_rolling_rank_w3\"FROM__baseb)ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
+    "UPDATE\"s\".\"t\"AStSET\"num_rolling_rank_w3\"=s.\"num_rolling_rank_w3\"FROM(WITH__baseAS(SELECT\"_mf_idx\",\"num\"ASv,ROW_NUMBER()OVER(ORDERBY\"g\",\"_mf_idx\")AS__rnFROM\"s\".\"t\")SELECTb.\"_mf_idx\",CASEWHEN(SELECTCOUNT(r.v)FROM__baserWHEREr.__rnBETWEENb.__rn+(-2)ANDb.__rn+(0))>=3THENCASEWHENb.vISNULLTHENNULLELSE((SELECTCOUNT(*)FROM__baserWHEREr.__rnBETWEENb.__rn+(-2)ANDb.__rn+(0)ANDr.v<b.v)+((SELECTCOUNT(*)FROM__baserWHEREr.__rnBETWEENb.__rn+(-2)ANDb.__rn+(0)ANDr.v=b.v)+1)/2.0)ENDELSENULLENDAS\"num_rolling_rank_w3\"FROM__baseb)ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
     []
    ],
    [
@@ -1506,12 +1506,12 @@
   "postgres": [
    [
     "exec",
-    "ALTERTABLE\"s\".\"t\"ADDCOLUMNIFNOTEXISTS\"num_rolling_rank_w3\"BIGINT",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMNIFNOTEXISTS\"num_rolling_rank_w3\"DOUBLEPRECISION",
     []
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"num_rolling_rank_w3\"=s.\"num_rolling_rank_w3\"FROM(WITH__baseAS(SELECT\"_mf_idx\",\"num\"ASv,ROW_NUMBER()OVER(ORDERBY\"g\",\"_mf_idx\")AS__rnFROM\"s\".\"t\")SELECTb.\"_mf_idx\",CASEWHEN(SELECTCOUNT(r.v)FROM__baserWHEREr.__rnBETWEENb.__rn+(-2)ANDb.__rn+(0))>=3THEN(SELECTCOUNT(*)FROM__baserWHEREr.__rnBETWEENb.__rn+(-2)ANDb.__rn+(0)ANDr.v<=b.v)ELSENULLENDAS\"num_rolling_rank_w3\"FROM__baseb)ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
+    "UPDATE\"s\".\"t\"AStSET\"num_rolling_rank_w3\"=s.\"num_rolling_rank_w3\"FROM(WITH__baseAS(SELECT\"_mf_idx\",\"num\"ASv,ROW_NUMBER()OVER(ORDERBY\"g\",\"_mf_idx\")AS__rnFROM\"s\".\"t\")SELECTb.\"_mf_idx\",CASEWHEN(SELECTCOUNT(r.v)FROM__baserWHEREr.__rnBETWEENb.__rn+(-2)ANDb.__rn+(0))>=3THENCASEWHENb.vISNULLTHENNULLELSE((SELECTCOUNT(*)FROM__baserWHEREr.__rnBETWEENb.__rn+(-2)ANDb.__rn+(0)ANDr.v<b.v)+((SELECTCOUNT(*)FROM__baserWHEREr.__rnBETWEENb.__rn+(-2)ANDb.__rn+(0)ANDr.v=b.v)+1)/2.0)ENDELSENULLENDAS\"num_rolling_rank_w3\"FROM__baseb)ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
     []
    ],
    [
@@ -1532,7 +1532,7 @@
    ],
    [
     "exec",
-    "CREATETABLE`s`.`t__op_1__feat`ENGINE=MergeTree()ORDERBYtuple()ASSELECT`_mf_idx`,CASEWHENsum(if(isNull(`num`),0,1))OVER(ORDERBY`g`,`_mf_idx`ROWSBETWEEN2PRECEDINGANDCURRENTROW)>=3THEN(stddevSamp(`num`)OVER(ORDERBY`g`,`_mf_idx`ROWSBETWEEN2PRECEDINGANDCURRENTROW)/SQRT(sum(if(isNull(`num`),0,1))OVER(ORDERBY`g`,`_mf_idx`ROWSBETWEEN2PRECEDINGANDCURRENTROW)))ELSENULLENDAS`num_rolling_sem_w3`FROM`s`.`t`",
+    "CREATETABLE`s`.`t__op_1__feat`ENGINE=MergeTree()ORDERBYtuple()ASSELECT`_mf_idx`,CASEWHENsum(if(isNull(`num`),0,1))OVER(ORDERBY`g`,`_mf_idx`ROWSBETWEEN2PRECEDINGANDCURRENTROW)>=3THEN(STDDEV_SAMP(`num`)OVER(ORDERBY`g`,`_mf_idx`ROWSBETWEEN2PRECEDINGANDCURRENTROW)/CASEWHEN(sum(if(isNull(`num`),0,1))OVER(ORDERBY`g`,`_mf_idx`ROWSBETWEEN2PRECEDINGANDCURRENTROW))>1THENSQRT((sum(if(isNull(`num`),0,1))OVER(ORDERBY`g`,`_mf_idx`ROWSBETWEEN2PRECEDINGANDCURRENTROW))-1)ELSENULLEND)ELSENULLENDAS`num_rolling_sem_w3`FROM`s`.`t`",
     []
    ],
    [
@@ -1574,7 +1574,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"num_rolling_sem_w3\"=s.\"num_rolling_sem_w3\"FROM(SELECT\"_mf_idx\",CASEWHENCOUNT(\"num\")OVER(ORDERBY\"g\",\"_mf_idx\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)>=3THEN(STDDEV_SAMP(\"num\")OVER(ORDERBY\"g\",\"_mf_idx\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)/SQRT(COUNT(\"num\")OVER(ORDERBY\"g\",\"_mf_idx\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)))ELSENULLENDAS\"num_rolling_sem_w3\"FROM\"s\".\"t\")ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
+    "UPDATE\"s\".\"t\"AStSET\"num_rolling_sem_w3\"=s.\"num_rolling_sem_w3\"FROM(SELECT\"_mf_idx\",CASEWHENCOUNT(\"num\")OVER(ORDERBY\"g\",\"_mf_idx\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)>=3THEN(STDDEV_SAMP(\"num\")OVER(ORDERBY\"g\",\"_mf_idx\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)/CASEWHEN(COUNT(\"num\")OVER(ORDERBY\"g\",\"_mf_idx\"ROWSBETWEEN2PRECEDINGANDCURRENTROW))>1THENSQRT((COUNT(\"num\")OVER(ORDERBY\"g\",\"_mf_idx\"ROWSBETWEEN2PRECEDINGANDCURRENTROW))-1)ELSENULLEND)ELSENULLENDAS\"num_rolling_sem_w3\"FROM\"s\".\"t\")ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
     []
    ],
    [
@@ -1591,7 +1591,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"num_rolling_sem_w3\"=s.\"num_rolling_sem_w3\"FROM(SELECT\"_mf_idx\",CASEWHENCOUNT(\"num\")OVER(ORDERBY\"g\",\"_mf_idx\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)>=3THEN(STDDEV(\"num\")OVER(ORDERBY\"g\",\"_mf_idx\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)/SQRT(COUNT(\"num\")OVER(ORDERBY\"g\",\"_mf_idx\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)))ELSENULLENDAS\"num_rolling_sem_w3\"FROM\"s\".\"t\")ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
+    "UPDATE\"s\".\"t\"AStSET\"num_rolling_sem_w3\"=s.\"num_rolling_sem_w3\"FROM(SELECT\"_mf_idx\",CASEWHENCOUNT(\"num\")OVER(ORDERBY\"g\",\"_mf_idx\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)>=3THEN(STDDEV_SAMP(\"num\")OVER(ORDERBY\"g\",\"_mf_idx\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)/CASEWHEN(COUNT(\"num\")OVER(ORDERBY\"g\",\"_mf_idx\"ROWSBETWEEN2PRECEDINGANDCURRENTROW))>1THENSQRT((COUNT(\"num\")OVER(ORDERBY\"g\",\"_mf_idx\"ROWSBETWEEN2PRECEDINGANDCURRENTROW))-1)ELSENULLEND)ELSENULLENDAS\"num_rolling_sem_w3\"FROM\"s\".\"t\")ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
     []
    ],
    [
@@ -1612,7 +1612,7 @@
    ],
    [
     "exec",
-    "CREATETABLE`s`.`t__op_1__feat`ENGINE=MergeTree()ORDERBYtuple()ASSELECT`_mf_idx`,CASEWHENsum(if(isNull(`num`),0,1))OVER(ORDERBY`g`,`_mf_idx`ROWSBETWEEN2PRECEDINGANDCURRENTROW)>=3THENstddevPop(`num`)OVER(ORDERBY`g`,`_mf_idx`ROWSBETWEEN2PRECEDINGANDCURRENTROW)ELSENULLENDAS`num_rolling_std_w3`FROM`s`.`t`",
+    "CREATETABLE`s`.`t__op_1__feat`ENGINE=MergeTree()ORDERBYtuple()ASSELECT`_mf_idx`,CASEWHENsum(if(isNull(`num`),0,1))OVER(ORDERBY`g`,`_mf_idx`ROWSBETWEEN2PRECEDINGANDCURRENTROW)>=3THENSTDDEV_SAMP(`num`)OVER(ORDERBY`g`,`_mf_idx`ROWSBETWEEN2PRECEDINGANDCURRENTROW)ELSENULLENDAS`num_rolling_std_w3`FROM`s`.`t`",
     []
    ],
    [
@@ -1654,7 +1654,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"num_rolling_std_w3\"=s.\"num_rolling_std_w3\"FROM(SELECT\"_mf_idx\",CASEWHENCOUNT(\"num\")OVER(ORDERBY\"g\",\"_mf_idx\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)>=3THENSTDDEV_POP(\"num\")OVER(ORDERBY\"g\",\"_mf_idx\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)ELSENULLENDAS\"num_rolling_std_w3\"FROM\"s\".\"t\")ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
+    "UPDATE\"s\".\"t\"AStSET\"num_rolling_std_w3\"=s.\"num_rolling_std_w3\"FROM(SELECT\"_mf_idx\",CASEWHENCOUNT(\"num\")OVER(ORDERBY\"g\",\"_mf_idx\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)>=3THENSTDDEV_SAMP(\"num\")OVER(ORDERBY\"g\",\"_mf_idx\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)ELSENULLENDAS\"num_rolling_std_w3\"FROM\"s\".\"t\")ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
     []
    ],
    [
@@ -1671,7 +1671,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"num_rolling_std_w3\"=s.\"num_rolling_std_w3\"FROM(SELECT\"_mf_idx\",CASEWHENCOUNT(\"num\")OVER(ORDERBY\"g\",\"_mf_idx\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)>=3THENSTDDEV_POP(\"num\")OVER(ORDERBY\"g\",\"_mf_idx\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)ELSENULLENDAS\"num_rolling_std_w3\"FROM\"s\".\"t\")ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
+    "UPDATE\"s\".\"t\"AStSET\"num_rolling_std_w3\"=s.\"num_rolling_std_w3\"FROM(SELECT\"_mf_idx\",CASEWHENCOUNT(\"num\")OVER(ORDERBY\"g\",\"_mf_idx\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)>=3THENSTDDEV_SAMP(\"num\")OVER(ORDERBY\"g\",\"_mf_idx\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)ELSENULLENDAS\"num_rolling_std_w3\"FROM\"s\".\"t\")ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
     []
    ],
    [
@@ -1852,7 +1852,7 @@
    ],
    [
     "exec",
-    "CREATETABLE`s`.`t__op_1__feat`ENGINE=MergeTree()ORDERBYtuple()ASSELECT`_mf_idx`,CASEWHENsum(if(isNull(`num`),0,1))OVER(ORDERBY`g`,`_mf_idx`ROWSBETWEEN2PRECEDINGANDCURRENTROW)>=3THENvarSamp(`num`)OVER(ORDERBY`g`,`_mf_idx`ROWSBETWEEN2PRECEDINGANDCURRENTROW)ELSENULLENDAS`num_rolling_var_w3`FROM`s`.`t`",
+    "CREATETABLE`s`.`t__op_1__feat`ENGINE=MergeTree()ORDERBYtuple()ASSELECT`_mf_idx`,CASEWHENsum(if(isNull(`num`),0,1))OVER(ORDERBY`g`,`_mf_idx`ROWSBETWEEN2PRECEDINGANDCURRENTROW)>=3THENVAR_SAMP(`num`)OVER(ORDERBY`g`,`_mf_idx`ROWSBETWEEN2PRECEDINGANDCURRENTROW)ELSENULLENDAS`num_rolling_var_w3`FROM`s`.`t`",
     []
    ],
    [
@@ -1911,7 +1911,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"num_rolling_var_w3\"=s.\"num_rolling_var_w3\"FROM(SELECT\"_mf_idx\",CASEWHENCOUNT(\"num\")OVER(ORDERBY\"g\",\"_mf_idx\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)>=3THENVARIANCE(\"num\")OVER(ORDERBY\"g\",\"_mf_idx\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)ELSENULLENDAS\"num_rolling_var_w3\"FROM\"s\".\"t\")ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
+    "UPDATE\"s\".\"t\"AStSET\"num_rolling_var_w3\"=s.\"num_rolling_var_w3\"FROM(SELECT\"_mf_idx\",CASEWHENCOUNT(\"num\")OVER(ORDERBY\"g\",\"_mf_idx\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)>=3THENVAR_SAMP(\"num\")OVER(ORDERBY\"g\",\"_mf_idx\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)ELSENULLENDAS\"num_rolling_var_w3\"FROM\"s\".\"t\")ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
     []
    ],
    [

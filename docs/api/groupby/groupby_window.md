@@ -135,9 +135,10 @@ sample = dataset.groupby("region").expanding().sum("sales")
 | `column` | `str` | Value column the window runs over. |
 | `group_cols` | `str` or `list[str]` | Column(s) partitioning the window. At least one is required. |
 | `window` | `int` | Rolling window size in rows (`ROWS BETWEEN window-1 PRECEDING AND CURRENT ROW`). |
-| `func` | `str` or `list[str]` | Aggregation(s): `sum`, `mean`/`avg`, `min`, `max`, `count`, `std`/`stddev`/`stddev_samp`, `var`/`variance`/`var_samp`, `quantile`, `sem`, `rank`, `nunique`, `first`/`first_value`, `last`/`last_value`. |
+| `func` | `str` or `list[str]` | Aggregation(s): `sum`, `mean`/`avg`, `min`, `max`, `count`, `std`/`stddev`/`stddev_samp`, `var`/`variance`/`var_samp`, `quantile`, `median`, `sem`, `rank`, `nunique`, `first`/`first_value`, `last`/`last_value`. |
 | `order_by` | `str`, `list[str]`, or `None` | Row ordering inside each group. `None` (default) uses the immutable upload order (`_mf_idx`). |
 | `q` | `float` | Quantile level for `quantile` (default `0.5`). |
+| `func_kwargs` | `dict` or `None` | Per-function keyword arguments (`ddof`, rank `method`/`ascending`/`pct`, `q`). |
 | `center` | `bool` | Rolling only — centre the frame on the current row (default `False`). |
 | `closed` | `str` or `None` | Rolling only — `right` (default), `left`, `both`, `neither`. |
 | `min_periods` | `int` or `None` | Minimum observations before a value is produced. Rolling default `None` → `window`; expanding default `1`. Must satisfy `0 <= min_periods <= window`. |
@@ -212,6 +213,15 @@ result = dataset.groupby("region").rolling(7, order_by="month").quantile("sales"
 `center=True` shifts the frame forward `(window - 1) // 2` rows and `closed`
 selects the included edges (`right` default, `left`, `both`, `neither`); both
 apply per group. `closed="neither"` needs `window >= 2`.
+
+`std`/`var`/`sem` take `ddof` (default `1`, matching pandas), and `rank` takes
+`method` (`average` default, `min`, `max`, `first`, `dense`), `ascending`, and
+`pct`:
+
+```python
+dataset.groupby("region").rolling(7, order_by="month").std("sales", ddof=0)
+dataset.groupby("region").rolling(7, order_by="month").rank("sales", method="dense")
+```
 
 `func` also accepts backend spellings directly (`AVG`, `STDDEV_SAMP`,
 `first_value`, …); unknown names fail the whole call with `is_error

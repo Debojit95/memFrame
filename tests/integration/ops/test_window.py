@@ -378,9 +378,9 @@ def _pandas_rolling_oracle(func: str, series: pd.Series, window: int) -> pd.Seri
     if func == "sum":
         return r.sum()
     if func == "std":
-        return r.std(ddof=0)  # engine rolling std is population
+        return r.std()
     if func == "sem":
-        return r.std(ddof=1) / r.count().pow(0.5)
+        return r.sem()
     if func == "rank":
         return r.rank()
     if func == "nunique":
@@ -807,12 +807,12 @@ class TestWindowOperations:
     def test_fluent_rolling_std(self, uploaded_ctx, time_series_df, backend_config):
         result = uploaded_ctx.on("sales").rolling(3).std(order_by="date")
         res_df = get_result_df(result)
-        expected = _ordered(time_series_df)["sales"].rolling(3).std(ddof=0)
+        expected = _ordered(time_series_df)["sales"].rolling(3).std()
         _assert_ordered_result(res_df, _generated_col(res_df, "sales"), expected)
         self._record_result(
             test_name="fluent_rolling_std",
             method_call='on("sales").rolling(3).std(order_by="date")',
-            pandas_call='_ordered(df)["sales"].rolling(3).std(ddof=0)',
+            pandas_call='_ordered(df)["sales"].rolling(3).std()',
             original_df=time_series_df,
             memframe_df=res_df,
             pandas_df=expected,

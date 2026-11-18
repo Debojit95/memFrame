@@ -41,7 +41,7 @@ class GroupByRollingWrapper(GroupByRolling):
             min_periods=self.min_periods,
             center=self.center,
             closed=self.closed,
-            **extra,
+            func_kwargs={func_name: extra} if extra else None,
         )
 
     # --- individual stats ---
@@ -81,23 +81,23 @@ class GroupByRollingWrapper(GroupByRolling):
         """Synchronously compute grouped rolling maximum."""
         return await self.amax(column)
 
-    async def astd(self, column: str) -> Dict[str, Any]:
+    async def astd(self, column: str, ddof: int = 1) -> Dict[str, Any]:
         """Asynchronously compute grouped rolling standard deviation."""
-        return await self._call_core("std", column)
+        return await self._call_core("std", column, ddof=ddof)
 
     @async_to_sync
-    async def std(self, column: str) -> Dict[str, Any]:
+    async def std(self, column: str, ddof: int = 1) -> Dict[str, Any]:
         """Synchronously compute grouped rolling standard deviation."""
-        return await self.astd(column)
+        return await self.astd(column, ddof=ddof)
 
-    async def avar(self, column: str) -> Dict[str, Any]:
+    async def avar(self, column: str, ddof: int = 1) -> Dict[str, Any]:
         """Asynchronously compute grouped rolling variance."""
-        return await self._call_core("var", column)
+        return await self._call_core("var", column, ddof=ddof)
 
     @async_to_sync
-    async def var(self, column: str) -> Dict[str, Any]:
+    async def var(self, column: str, ddof: int = 1) -> Dict[str, Any]:
         """Synchronously compute grouped rolling variance."""
-        return await self.avar(column)
+        return await self.avar(column, ddof=ddof)
 
     async def acount(self, column: str) -> Dict[str, Any]:
         """Asynchronously compute grouped rolling count."""
@@ -144,23 +144,38 @@ class GroupByRollingWrapper(GroupByRolling):
         """Synchronously compute grouped rolling quantile."""
         return await self.aquantile(column, q)
 
-    async def arank(self, column: str) -> Dict[str, Any]:
+    async def arank(self, column: str, method: str = "average",
+                    ascending: bool = True, pct: bool = False) -> Dict[str, Any]:
         """Asynchronously compute grouped rolling rank."""
-        return await self._call_core("rank", column)
+        return await self._call_core(
+            "rank", column, method=method, ascending=ascending, pct=pct,
+        )
 
     @async_to_sync
-    async def rank(self, column: str) -> Dict[str, Any]:
+    async def rank(self, column: str, method: str = "average",
+                   ascending: bool = True, pct: bool = False) -> Dict[str, Any]:
         """Synchronously compute grouped rolling rank."""
-        return await self.arank(column)
+        return await self.arank(
+            column, method=method, ascending=ascending, pct=pct,
+        )
 
-    async def asem(self, column: str) -> Dict[str, Any]:
-        """Asynchronously compute grouped rolling standard error."""
-        return await self._call_core("sem", column)
+    async def amedian(self, column: str) -> Dict[str, Any]:
+        """Asynchronously compute grouped rolling median."""
+        return await self._call_core("median", column)
 
     @async_to_sync
-    async def sem(self, column: str) -> Dict[str, Any]:
+    async def median(self, column: str) -> Dict[str, Any]:
+        """Synchronously compute grouped rolling median."""
+        return await self.amedian(column)
+
+    async def asem(self, column: str, ddof: int = 1) -> Dict[str, Any]:
+        """Asynchronously compute grouped rolling standard error."""
+        return await self._call_core("sem", column, ddof=ddof)
+
+    @async_to_sync
+    async def sem(self, column: str, ddof: int = 1) -> Dict[str, Any]:
         """Synchronously compute grouped rolling standard error."""
-        return await self.asem(column)
+        return await self.asem(column, ddof=ddof)
 
     async def aagg(self, column: str, funcs: List[str], **kwargs) -> Dict[str, Any]:
         """Asynchronously compute grouped rolling multi-aggregation."""
@@ -202,7 +217,7 @@ class GroupByExpandingWrapper(GroupByExpanding):
             group_cols=self._gw.group_cols,
             order_by=self.order_by,
             min_periods=self.min_periods,
-            **extra,
+            func_kwargs={func_name: extra} if extra else None,
         )
 
     # individual stats
@@ -238,21 +253,21 @@ class GroupByExpandingWrapper(GroupByExpanding):
         """Synchronously compute grouped expanding maximum."""
         return await self.amax(column)
 
-    async def astd(self, column: str) -> Dict[str, Any]:
+    async def astd(self, column: str, ddof: int = 1) -> Dict[str, Any]:
         """Asynchronously compute grouped expanding standard deviation."""
-        return await self._call_core("std", column)
+        return await self._call_core("std", column, ddof=ddof)
     @async_to_sync
-    async def std(self, column: str) -> Dict[str, Any]:
+    async def std(self, column: str, ddof: int = 1) -> Dict[str, Any]:
         """Synchronously compute grouped expanding standard deviation."""
-        return await self.astd(column)
+        return await self.astd(column, ddof=ddof)
 
-    async def avar(self, column: str) -> Dict[str, Any]:
+    async def avar(self, column: str, ddof: int = 1) -> Dict[str, Any]:
         """Asynchronously compute grouped expanding variance."""
-        return await self._call_core("var", column)
+        return await self._call_core("var", column, ddof=ddof)
     @async_to_sync
-    async def var(self, column: str) -> Dict[str, Any]:
+    async def var(self, column: str, ddof: int = 1) -> Dict[str, Any]:
         """Synchronously compute grouped expanding variance."""
-        return await self.avar(column)
+        return await self.avar(column, ddof=ddof)
 
     async def acount(self, column: str) -> Dict[str, Any]:
         """Asynchronously compute grouped expanding count."""
@@ -294,21 +309,36 @@ class GroupByExpandingWrapper(GroupByExpanding):
         """Synchronously compute grouped expanding quantile."""
         return await self.aquantile(column, q)
 
-    async def arank(self, column: str) -> Dict[str, Any]:
+    async def arank(self, column: str, method: str = "average",
+                    ascending: bool = True, pct: bool = False) -> Dict[str, Any]:
         """Asynchronously compute grouped expanding rank."""
-        return await self._call_core("rank", column)
+        return await self._call_core(
+            "rank", column, method=method, ascending=ascending, pct=pct,
+        )
     @async_to_sync
-    async def rank(self, column: str) -> Dict[str, Any]:
+    async def rank(self, column: str, method: str = "average",
+                   ascending: bool = True, pct: bool = False) -> Dict[str, Any]:
         """Synchronously compute grouped expanding rank."""
-        return await self.arank(column)
+        return await self.arank(
+            column, method=method, ascending=ascending, pct=pct,
+        )
 
-    async def asem(self, column: str) -> Dict[str, Any]:
-        """Asynchronously compute grouped expanding standard error."""
-        return await self._call_core("sem", column)
+    async def amedian(self, column: str) -> Dict[str, Any]:
+        """Asynchronously compute grouped expanding median."""
+        return await self._call_core("median", column)
+
     @async_to_sync
-    async def sem(self, column: str) -> Dict[str, Any]:
+    async def median(self, column: str) -> Dict[str, Any]:
+        """Synchronously compute grouped expanding median."""
+        return await self.amedian(column)
+
+    async def asem(self, column: str, ddof: int = 1) -> Dict[str, Any]:
+        """Asynchronously compute grouped expanding standard error."""
+        return await self._call_core("sem", column, ddof=ddof)
+    @async_to_sync
+    async def sem(self, column: str, ddof: int = 1) -> Dict[str, Any]:
         """Synchronously compute grouped expanding standard error."""
-        return await self.asem(column)
+        return await self.asem(column, ddof=ddof)
 
     async def aagg(self, column: str, funcs: List[str], **kwargs) -> Dict[str, Any]:
         """Asynchronously compute grouped expanding multi-aggregation."""
@@ -461,6 +491,7 @@ class GroupByWindowStatsWrapper(GroupByWindowOrchestrator):
         min_periods: int = None,
         center: bool = False,
         closed: str = None,
+        func_kwargs: dict = None,
         map_feature: bool = False,
     ) -> Dict[str, Any]:
         """Asynchronously run grouped rolling window operation directly."""
@@ -468,6 +499,7 @@ class GroupByWindowStatsWrapper(GroupByWindowOrchestrator):
                                      group_cols=group_cols, order_by=order_by, q=q,
                                      min_periods=min_periods,
                                      center=center, closed=closed,
+                                     func_kwargs=func_kwargs,
                                      map_feature=map_feature)
 
     @async_to_sync
@@ -482,6 +514,7 @@ class GroupByWindowStatsWrapper(GroupByWindowOrchestrator):
         min_periods: int = None,
         center: bool = False,
         closed: str = None,
+        func_kwargs: dict = None,
         map_feature: bool = False,
     ) -> Dict[str, Any]:
         """Synchronously run grouped rolling window operation directly."""
@@ -489,6 +522,7 @@ class GroupByWindowStatsWrapper(GroupByWindowOrchestrator):
                                    group_cols=group_cols, order_by=order_by, q=q,
                                    min_periods=min_periods,
                                    center=center, closed=closed,
+                                   func_kwargs=func_kwargs,
                                    map_feature=map_feature)
 
     async def aexpanding(
@@ -499,11 +533,13 @@ class GroupByWindowStatsWrapper(GroupByWindowOrchestrator):
         order_by=None,
         q: float = 0.5,
         min_periods: int = 1,
+        func_kwargs: dict = None,
         map_feature: bool = False,
     ) -> Dict[str, Any]:
         """Asynchronously run grouped expanding window operation directly."""
         return await super().expanding(column=column, func=func, group_cols=group_cols,
                                        order_by=order_by, q=q, min_periods=min_periods,
+                                       func_kwargs=func_kwargs,
                                        map_feature=map_feature)
 
     @async_to_sync
@@ -515,11 +551,13 @@ class GroupByWindowStatsWrapper(GroupByWindowOrchestrator):
         order_by=None,
         q: float = 0.5,
         min_periods: int = 1,
+        func_kwargs: dict = None,
         map_feature: bool = False,
     ) -> Dict[str, Any]:
         """Synchronously run grouped expanding window operation directly."""
         return await self.aexpanding(column=column, func=func, group_cols=group_cols,
                                      order_by=order_by, q=q, min_periods=min_periods,
+                                     func_kwargs=func_kwargs,
                                      map_feature=map_feature)
 
     async def aewm(

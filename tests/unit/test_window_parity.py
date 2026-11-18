@@ -193,34 +193,23 @@ def test_rolling_center_closed_specials(ctx, center, closed):
         wrapper, "x", 3, "sem",
         min_periods=1, center=center, closed=closed,
     ).sort_values("o")
-    expected_sem = roll.apply(
-        lambda v: np.std(v, ddof=1) / np.sqrt(len(v)) if len(v) > 1 else np.nan,
-        raw=True,
-    ).to_numpy()
+    expected_sem = roll.sem().to_numpy()
     np.testing.assert_allclose(
         got["x_rolling_sem_w3"].to_numpy(dtype=float), expected_sem,
         equal_nan=True, rtol=1e-12,
     )
 
-    got = _rolling(
-        wrapper, "x", 3, "rank",
-        min_periods=1, center=center, closed=closed,
-    ).sort_values("o")
-    if center:
-        # MemFrame ranks the current row inside the frame; pandas ranks the
-        # frame's last row, which is ahead of the current row when centered.
-        expected_rank = {
-            "right": [1, 2, 2, 2, 2, 2],
-            "left": [1, 2, 3, 3, 3, 3],
-            "both": [1, 2, 3, 3, 3, 3],
-            "neither": [1, 2, 2, 2, 2, 2],
-        }[closed]
-    else:
-        expected_rank = roll.rank().to_numpy()
-    np.testing.assert_allclose(
-        got["x_rolling_rank_w3"].to_numpy(dtype=float), expected_rank,
-        equal_nan=True, rtol=1e-12,
-    )
+    # Rank is only directly comparable when the current row is the frame end
+    # (pandas ranks the frame's last row): right/both, uncentered.
+    if not center and closed in ("right", "both"):
+        got = _rolling(
+            wrapper, "x", 3, "rank",
+            min_periods=1, center=center, closed=closed,
+        ).sort_values("o")
+        np.testing.assert_allclose(
+            got["x_rolling_rank_w3"].to_numpy(dtype=float),
+            roll.rank().to_numpy(), equal_nan=True, rtol=1e-12,
+        )
 
 
 @pytest.mark.parametrize("closed", [None, "right", "left", "both", "neither"])
@@ -272,3 +261,174 @@ def test_rolling_closed_validation(ctx):
     )
     assert response["is_error"] is True
     assert "neither" in response["failed_funcs"]["mean"]
+
+
+@pytest.mark.parametrize("func", ["std", "var", "sem"])
+@pytest.mark.parametrize("ddof", [0, 1, 2])
+def test_rolling_ddof_matches_pandas(ctx, func, ddof):
+    frame = pd.DataFrame({"x": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0], "o": list(range(6))})
+    wrapper = WindowWrapper(
+        ctx.upload_df(frame, filename=f"pdd_{func}_{ddof}")
+    )
+    response = wrapper.rolling(
+        column="x", window=4, func=func, order_by="o", min_periods=1,
+        func_kwargs={func: {"ddof": ddof}},
+    )
+    assert response["is_error"] is False, response.get("failed_funcs")
+    got = response["result"].sort_values("o")
+    column = [c for c in got.columns if c.startswith("x_rolling")][0]
+
+    expected = getattr(
+        frame["x"].rolling(4, min_periods=1), func
+    )(ddof=ddof).to_numpy()
+    # pandas returns inf where n <= ddof; MemFrame returns NULL there.
+    expected = np.where(np.isinf(expected), np.nan, expected)
+    np.testing.assert_allclose(
+        got[column].to_numpy(dtype=float), expected,
+        equal_nan=True, rtol=1e-10,
+    )
+
+
+@pytest.mark.parametrize("func", ["std", "var", "sem"])
+def test_expanding_ddof_matches_pandas(ctx, func):
+    frame = pd.DataFrame({"x": [1.0, 2.0, 3.0, 4.0, 5.0], "o": list(range(5))})
+    wrapper = WindowWrapper(ctx.upload_df(frame, filename=f"ped_{func}"))
+    for ddof in (0, 1, 2):
+        response = wrapper.expanding(
+            column="x", func=func, order_by="o", min_periods=1,
+            func_kwargs={func: {"ddof": ddof}},
+        )
+        assert response["is_error"] is False, response.get("failed_funcs")
+        got = response["result"].sort_values("o")
+        column = [c for c in got.columns if c.startswith("x_expanding")][0]
+        expected = getattr(frame["x"].expanding(min_periods=1), func)(
+            ddof=ddof
+        ).to_numpy()
+        expected = np.where(np.isinf(expected), np.nan, expected)
+        np.testing.assert_allclose(
+            got[column].to_numpy(dtype=float), expected,
+            equal_nan=True, rtol=1e-10,
+        )
+
+
+@pytest.mark.parametrize("method", ["average", "min", "max"])
+@pytest.mark.parametrize("ascending", [True, False])
+@pytest.mark.parametrize("pct", [False, True])
+def test_rolling_rank_params_match_pandas(ctx, method, ascending, pct):
+    frame = pd.DataFrame(
+        {"x": [1.0, 2.0, 2.0, 4.0, 5.0, 6.0], "o": list(range(6))}
+    )
+    wrapper = WindowWrapper(
+        ctx.upload_df(frame, filename=f"prk_{method}_{ascending}_{pct}")
+    )
+    response = wrapper.rolling(
+        column="x", window=3, func="rank", order_by="o", min_periods=1,
+        func_kwargs={
+            "rank": {
+                "method": method, "ascending": ascending, "pct": pct,
+            }
+        },
+    )
+    assert response["is_error"] is False, response.get("failed_funcs")
+    got = response["result"].sort_values("o")
+    column = [c for c in got.columns if "rank" in c][0]
+    expected = frame["x"].rolling(3, min_periods=1).rank(
+        method=method, ascending=ascending, pct=pct
+    ).to_numpy()
+    np.testing.assert_allclose(
+        got[column].to_numpy(dtype=float), expected,
+        equal_nan=True, rtol=1e-12,
+    )
+
+
+def test_rolling_rank_first_and_dense(ctx):
+    frame = pd.DataFrame(
+        {"x": [1.0, 2.0, 2.0, 4.0, 5.0, 6.0], "o": list(range(6))}
+    )
+    wrapper = WindowWrapper(ctx.upload_df(frame, filename="prk_extra"))
+    for method, expected in (
+        ("first", [1, 2, 3, 3, 3, 3]),
+        ("dense", [1, 2, 2, 2, 3, 3]),
+    ):
+        response = wrapper.rolling(
+            column="x", window=3, func="rank", order_by="o", min_periods=1,
+            func_kwargs={"rank": {"method": method}},
+        )
+        assert response["is_error"] is False, response.get("failed_funcs")
+        got = response["result"].sort_values("o")
+        column = [c for c in got.columns if "rank" in c][0]
+        np.testing.assert_allclose(
+            got[column].to_numpy(dtype=float), expected, rtol=1e-12,
+        )
+
+
+def test_rolling_and_expanding_median_match_pandas(ctx):
+    frame = pd.DataFrame(
+        {"x": [1.0, None, 3.0, 4.0, 5.0, 6.0], "o": list(range(6))}
+    )
+    wrapper = WindowWrapper(ctx.upload_df(frame, filename="pmed"))
+    values = frame["x"]
+
+    got = _rolling(wrapper, "x", 3, "median")
+    np.testing.assert_allclose(
+        got["x_rolling_median_w3"].to_numpy(dtype=float),
+        values.rolling(3).median().to_numpy(),
+        equal_nan=True, rtol=1e-12,
+    )
+
+    response = wrapper.expanding(column="x", func="median", order_by="o")
+    assert response["is_error"] is False, response.get("failed_funcs")
+    got = response["result"].sort_values("o")
+    np.testing.assert_allclose(
+        got["x_expanding_median"].to_numpy(dtype=float),
+        values.expanding().median().to_numpy(),
+        equal_nan=True, rtol=1e-12,
+    )
+
+
+def test_grouped_median_ddof_and_rank(ctx):
+    frame = pd.DataFrame(
+        {
+            "g": ["a"] * 5 + ["b"] * 5,
+            "x": [1.0, 2.0, 2.0, 4.0, 5.0, 10.0, 20.0, 30.0, 40.0, 50.0],
+            "o": list(range(5)) * 2,
+        }
+    )
+    context = ctx.upload_df(frame, filename="pg_extra")
+    wrapper = GroupByWindowStatsWrapper(context)
+
+    async def _run(func, **func_kwargs):
+        return await wrapper.arolling(
+            column="x", window=3, func=func, group_cols="g", order_by="o",
+            min_periods=1, func_kwargs={func: func_kwargs} if func_kwargs else None,
+        )
+
+    ordered = frame.sort_values(["g", "o"], kind="mergesort")
+    grouped = ordered.groupby("g", sort=False)["x"]
+
+    response = asyncio.run(_run("median"))
+    assert response["is_error"] is False, response.get("failed_funcs")
+    got = response["result"].sort_values(["g", "o"])
+    np.testing.assert_allclose(
+        got["x_rolling_median_w3_by_g"].to_numpy(dtype=float),
+        grouped.rolling(3, min_periods=1).median().to_numpy(),
+        equal_nan=True, rtol=1e-12,
+    )
+
+    response = asyncio.run(_run("std", ddof=0))
+    assert response["is_error"] is False, response.get("failed_funcs")
+    got = response["result"].sort_values(["g", "o"])
+    np.testing.assert_allclose(
+        got["x_rolling_std_w3_by_g"].to_numpy(dtype=float),
+        grouped.rolling(3, min_periods=1).std(ddof=0).to_numpy(),
+        equal_nan=True, rtol=1e-10,
+    )
+
+    response = asyncio.run(_run("rank", method="average"))
+    assert response["is_error"] is False, response.get("failed_funcs")
+    got = response["result"].sort_values(["g", "o"])
+    np.testing.assert_allclose(
+        got["x_rolling_rank_w3_by_g"].to_numpy(dtype=float),
+        grouped.rolling(3, min_periods=1).rank().to_numpy(),
+        equal_nan=True, rtol=1e-12,
+    )

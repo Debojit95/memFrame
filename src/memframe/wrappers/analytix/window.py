@@ -118,8 +118,14 @@ class RollingWindowBuilderWrapper:
         func: Union[str, List[str]],
         order_by: Union[str, List[str]] = None,
         q: float = 0.5,
+        **func_kwargs,
     ) -> Dict[str, Any]:
         """Asynchronously execute a generic rolling aggregation."""
+        kwargs = None
+        if func_kwargs:
+            if not isinstance(func, str):
+                raise ValueError("func_kwargs requires a single function name")
+            kwargs = {func: func_kwargs}
         return await self._parent.arolling(
             column=self.column,
             window=self.window,
@@ -129,6 +135,7 @@ class RollingWindowBuilderWrapper:
             min_periods=self.min_periods,
             center=self.center,
             closed=self.closed,
+            func_kwargs=kwargs,
         )
 
     @async_to_sync
@@ -219,32 +226,36 @@ class RollingWindowBuilderWrapper:
     async def astd(
         self,
         order_by: Union[str, List[str]] = None,
+        ddof: int = 1,
     ):
         """Asynchronously compute rolling standard deviation."""
-        return await self.aapply("std", order_by)
+        return await self.aapply("std", order_by, ddof=ddof)
 
     @async_to_sync
     async def std(
         self,
         order_by: Union[str, List[str]] = None,
+        ddof: int = 1,
     ):
         """Synchronously compute rolling standard deviation."""
-        return await self.astd(order_by)
+        return await self.astd(order_by, ddof=ddof)
 
     async def avar(
         self,
         order_by: Union[str, List[str]] = None,
+        ddof: int = 1,
     ):
         """Asynchronously compute rolling variance."""
-        return await self.aapply("var", order_by)
+        return await self.aapply("var", order_by, ddof=ddof)
 
     @async_to_sync
     async def var(
         self,
         order_by: Union[str, List[str]] = None,
+        ddof: int = 1,
     ):
         """Synchronously compute rolling variance."""
-        return await self.avar(order_by)
+        return await self.avar(order_by, ddof=ddof)
 
     async def aquantile(
         self,
@@ -263,35 +274,62 @@ class RollingWindowBuilderWrapper:
         """Synchronously compute rolling quantile."""
         return await self.aquantile(q, order_by)
 
-    async def asem(
+    async def amedian(
         self,
         order_by: Union[str, List[str]] = None,
     ):
+        """Asynchronously compute rolling median."""
+        return await self.aapply("median", order_by)
+
+    @async_to_sync
+    async def median(
+        self,
+        order_by: Union[str, List[str]] = None,
+    ):
+        """Synchronously compute rolling median."""
+        return await self.amedian(order_by)
+
+    async def asem(
+        self,
+        order_by: Union[str, List[str]] = None,
+        ddof: int = 1,
+    ):
         """Asynchronously compute rolling standard error."""
-        return await self.aapply("sem", order_by)
+        return await self.aapply("sem", order_by, ddof=ddof)
 
     @async_to_sync
     async def sem(
         self,
         order_by: Union[str, List[str]] = None,
+        ddof: int = 1,
     ):
         """Synchronously compute rolling standard error."""
-        return await self.asem(order_by)
+        return await self.asem(order_by, ddof=ddof)
 
     async def arank(
         self,
         order_by: Union[str, List[str]] = None,
+        method: str = "average",
+        ascending: bool = True,
+        pct: bool = False,
     ):
         """Asynchronously compute rolling rank."""
-        return await self.aapply("rank", order_by)
+        return await self.aapply(
+            "rank", order_by, method=method, ascending=ascending, pct=pct,
+        )
 
     @async_to_sync
     async def rank(
         self,
         order_by: Union[str, List[str]] = None,
+        method: str = "average",
+        ascending: bool = True,
+        pct: bool = False,
     ):
         """Synchronously compute rolling rank."""
-        return await self.arank(order_by)
+        return await self.arank(
+            order_by, method=method, ascending=ascending, pct=pct,
+        )
 
     async def anunique(
         self,
@@ -363,14 +401,21 @@ class ExpandingWindowBuilderWrapper:
         func: Union[str, List[str]],
         order_by: Union[str, List[str]] = None,
         q: float = 0.5,
+        **func_kwargs,
     ) -> Dict[str, Any]:
         """Asynchronously execute a generic expanding aggregation."""
+        kwargs = None
+        if func_kwargs:
+            if not isinstance(func, str):
+                raise ValueError("func_kwargs requires a single function name")
+            kwargs = {func: func_kwargs}
         return await self._parent.aexpanding(
             column=self.column,
             func=func,
             order_by=order_by,
             q=q,
             min_periods=self.min_periods,
+            func_kwargs=kwargs,
         )
 
     @async_to_sync
@@ -461,32 +506,36 @@ class ExpandingWindowBuilderWrapper:
     async def astd(
         self,
         order_by: Union[str, List[str]] = None,
+        ddof: int = 1,
     ):
         """Asynchronously compute expanding standard deviation."""
-        return await self.aapply("std", order_by)
+        return await self.aapply("std", order_by, ddof=ddof)
 
     @async_to_sync
     async def std(
         self,
         order_by: Union[str, List[str]] = None,
+        ddof: int = 1,
     ):
         """Synchronously compute expanding standard deviation."""
-        return await self.astd(order_by)
+        return await self.astd(order_by, ddof=ddof)
 
     async def avar(
         self,
         order_by: Union[str, List[str]] = None,
+        ddof: int = 1,
     ):
         """Asynchronously compute expanding variance."""
-        return await self.aapply("var", order_by)
+        return await self.aapply("var", order_by, ddof=ddof)
 
     @async_to_sync
     async def var(
         self,
         order_by: Union[str, List[str]] = None,
+        ddof: int = 1,
     ):
         """Synchronously compute expanding variance."""
-        return await self.avar(order_by)
+        return await self.avar(order_by, ddof=ddof)
 
     async def aquantile(
         self,
@@ -505,35 +554,62 @@ class ExpandingWindowBuilderWrapper:
         """Synchronously compute expanding quantile."""
         return await self.aquantile(q, order_by)
 
-    async def asem(
+    async def amedian(
         self,
         order_by: Union[str, List[str]] = None,
     ):
+        """Asynchronously compute expanding median."""
+        return await self.aapply("median", order_by)
+
+    @async_to_sync
+    async def median(
+        self,
+        order_by: Union[str, List[str]] = None,
+    ):
+        """Synchronously compute expanding median."""
+        return await self.amedian(order_by)
+
+    async def asem(
+        self,
+        order_by: Union[str, List[str]] = None,
+        ddof: int = 1,
+    ):
         """Asynchronously compute expanding standard error."""
-        return await self.aapply("sem", order_by)
+        return await self.aapply("sem", order_by, ddof=ddof)
 
     @async_to_sync
     async def sem(
         self,
         order_by: Union[str, List[str]] = None,
+        ddof: int = 1,
     ):
         """Synchronously compute expanding standard error."""
-        return await self.asem(order_by)
+        return await self.asem(order_by, ddof=ddof)
 
     async def arank(
         self,
         order_by: Union[str, List[str]] = None,
+        method: str = "average",
+        ascending: bool = True,
+        pct: bool = False,
     ):
         """Asynchronously compute expanding rank."""
-        return await self.aapply("rank", order_by)
+        return await self.aapply(
+            "rank", order_by, method=method, ascending=ascending, pct=pct,
+        )
 
     @async_to_sync
     async def rank(
         self,
         order_by: Union[str, List[str]] = None,
+        method: str = "average",
+        ascending: bool = True,
+        pct: bool = False,
     ):
         """Synchronously compute expanding rank."""
-        return await self.arank(order_by)
+        return await self.arank(
+            order_by, method=method, ascending=ascending, pct=pct,
+        )
 
     async def anunique(
         self,
@@ -725,6 +801,7 @@ class WindowWrapper(WindowOrchestrator):
         min_periods: int = None,
         center: bool = False,
         closed: str = None,
+        func_kwargs: dict = None,
     ) -> Dict[str, Any]:
         """Asynchronously run direct rolling window operation."""
         return await super().rolling(
@@ -736,6 +813,7 @@ class WindowWrapper(WindowOrchestrator):
             min_periods=min_periods,
             center=center,
             closed=closed,
+            func_kwargs=func_kwargs,
         )
 
     @overload
@@ -774,6 +852,7 @@ class WindowWrapper(WindowOrchestrator):
         min_periods: int = None,
         center: bool = False,
         closed: str = None,
+        func_kwargs: dict = None,
     ) -> Union[RollingWindowBuilderWrapper, Dict[str, Any]]:
         """Run a rolling operation directly, or return a fluent builder."""
         if func is None:
@@ -782,6 +861,7 @@ class WindowWrapper(WindowOrchestrator):
             )
         return async_to_sync(self.arolling)(
             column, window, func, order_by, q, min_periods, center, closed,
+            func_kwargs,
         )
 
     async def aexpanding(
@@ -791,6 +871,7 @@ class WindowWrapper(WindowOrchestrator):
         order_by: Union[str, List[str]] = None,
         q: float = 0.5,
         min_periods: int = 1,
+        func_kwargs: dict = None,
     ) -> Dict[str, Any]:
         """Asynchronously run direct expanding window operation."""
         return await super().expanding(
@@ -799,6 +880,7 @@ class WindowWrapper(WindowOrchestrator):
             order_by=order_by,
             q=q,
             min_periods=min_periods,
+            func_kwargs=func_kwargs,
         )
 
     @overload
@@ -828,11 +910,14 @@ class WindowWrapper(WindowOrchestrator):
         order_by: Union[str, List[str], None] = None,
         q: float = 0.5,
         min_periods: int = 1,
+        func_kwargs: dict = None,
     ) -> Union[ExpandingWindowBuilderWrapper, Dict[str, Any]]:
         """Run an expanding operation directly, or return a fluent builder."""
         if func is None:
             return ExpandingWindowBuilderWrapper(self, column, min_periods)
-        return async_to_sync(self.aexpanding)(column, func, order_by, q, min_periods)
+        return async_to_sync(self.aexpanding)(
+            column, func, order_by, q, min_periods, func_kwargs,
+        )
 
     async def aewm(
         self,
