@@ -62,7 +62,7 @@ named shorthands fix `func`. Builders accept `min_periods` at construction:
 
 | Synchronous (via builder or `rolling`) | Purpose |
 | --- | --- |
-| `rolling(column, window, func, order_by=None, q=0.5, min_periods=None)` / `await arolling(...)` | Generic — `func` may be a string or list |
+| `rolling(column, window, func, order_by=None, q=0.5, min_periods=None, center=False, closed=None)` / `await arolling(...)` | Generic — `func` may be a string or list |
 | `.rolling(column, window).sum(order_by=None)` / `.asum(...)` | Rolling sum |
 | `.mean(...)` / `.amean(...)` | Rolling mean |
 | `.min(...)` / `.amin(...)` | Rolling minimum |
@@ -148,6 +148,8 @@ sample = dataset.ewm(column="sales", span=3, func="mean")
 | `func` | `str` or `list[str]` | Aggregation(s) to apply. A list chains them into a single output table. |
 | `order_by` | `str`, `list[str]`, or `None` | Row ordering for the window. `None` (default) uses the immutable upload order (`_mf_idx`). A list orders by multiple columns. |
 | `q` | `float` | Quantile in `[0, 1]` for `quantile` (default `0.5`). |
+| `center` | `bool` | Rolling only — centre the frame on the current row by shifting it forward `(window - 1) // 2` rows (default `False`). |
+| `closed` | `str` or `None` | Rolling only — which frame edges are included: `right` (default), `left`, `both`, `neither`. |
 | `min_periods` | `int` or `None` | Minimum observations in the frame before a value is emitted. Rolling default `None` → `window` (pandas parity); expanding default `1`; EWM default `0`. Must satisfy `0 <= min_periods <= window`. |
 
 `order_by` accepts a single column or a list:
@@ -210,6 +212,26 @@ partial = dataset.rolling(
 `count` is gated on the rows in the frame rather than on the non-null
 observations, matching pandas. `min_periods=0` additionally returns `0` for an
 empty `sum` window.
+
+`center` and `closed` change the frame itself, with the same offsets pandas
+uses (`w = window`):
+
+| `closed` | frame (`center=False`) | frame (`center=True`) |
+| --- | --- | --- |
+| `right` / `None` | `w-1 PRECEDING … CURRENT ROW` | shift forward `(w-1)//2` |
+| `left` | `w PRECEDING … 1 PRECEDING` | shift forward `(w-1)//2` |
+| `both` | `w PRECEDING … CURRENT ROW` | shift forward `(w-1)//2` |
+| `neither` | `w-1 PRECEDING … 1 PRECEDING` | shift forward `(w-1)//2` |
+
+```python
+dataset.rolling(column="sales", window=3, func="mean", order_by="day", center=True)
+dataset.rolling(column="sales", window=3, func="sum", order_by="day", closed="both")
+```
+
+`closed="neither"` needs `window >= 2` — with `window=1` the frame would hold no
+rows and SQL cannot express it. `rank` always ranks the **current** row inside
+the frame; pandas ranks the frame's last row, which only differs under
+`center=True`.
 
 All examples in this section use a numeric frame
 `sales = [10, 20, 30, 40, 50]`, `day = [1, 2, 3, 4, 5]`, `window = 3`.

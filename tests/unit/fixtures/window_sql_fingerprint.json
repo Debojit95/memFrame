@@ -802,7 +802,7 @@
    ],
    [
     "exec",
-    "CREATETABLE`s`.`t__op_1__feat`ENGINE=MergeTree()ORDERBYtuple()ASWITH__baseAS(SELECT`_mf_idx`,`ts`ASv,ROW_NUMBER()OVER(ORDERBY`_mf_idx`)AS__rnFROM`s`.`t`)SELECTb.`_mf_idx`,CASEWHEN(SELECTCOUNT(r.v)FROM__baserWHEREr.__rnBETWEENb.__rn-2ANDb.__rn)>=3THEN(SELECTtoDateTime(__agg.value_epoch)FROM(SELECTavg(toUnixTimestamp(r.v))ASvalue_epochFROM__baserWHEREr.__rnBETWEENb.__rn-2ANDb.__rnANDr.vISNOTNULL)__agg)ELSENULLENDAS`ts_rolling_mean_w3`FROM__baseb",
+    "CREATETABLE`s`.`t__op_1__feat`ENGINE=MergeTree()ORDERBYtuple()ASWITH__baseAS(SELECT`_mf_idx`,`ts`ASv,ROW_NUMBER()OVER(ORDERBY`_mf_idx`)AS__rnFROM`s`.`t`)SELECTb.`_mf_idx`,CASEWHEN(SELECTCOUNT(r.v)FROM__baserWHEREr.__rnBETWEENb.__rn+(-2)ANDb.__rn+(0))>=3THEN(SELECTtoDateTime(__agg.value_epoch)FROM(SELECTavg(toUnixTimestamp(r.v))ASvalue_epochFROM__baserWHEREr.__rnBETWEENb.__rn+(-2)ANDb.__rn+(0)ANDr.vISNOTNULL)__agg)ELSENULLENDAS`ts_rolling_mean_w3`FROM__baseb",
     []
    ],
    [
@@ -844,7 +844,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"ts_rolling_mean_w3\"=s.\"ts_rolling_mean_w3\"FROM(WITH__baseAS(SELECT\"_mf_idx\",\"ts\"ASv,ROW_NUMBER()OVER(ORDERBY\"_mf_idx\")AS__rnFROM\"s\".\"t\")SELECTb.\"_mf_idx\",CASEWHEN(SELECTCOUNT(r.v)FROM__baserWHEREr.__rnBETWEENb.__rn-2ANDb.__rn)>=3THEN(SELECTTO_TIMESTAMP(__agg.value_epoch)FROM(SELECTAVG(EPOCH(CAST(r.vASTIMESTAMP)))ASvalue_epochFROM__baserWHEREr.__rnBETWEENb.__rn-2ANDb.__rnANDr.vISNOTNULL)__agg)ELSENULLENDAS\"ts_rolling_mean_w3\"FROM__baseb)ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
+    "UPDATE\"s\".\"t\"AStSET\"ts_rolling_mean_w3\"=s.\"ts_rolling_mean_w3\"FROM(WITH__baseAS(SELECT\"_mf_idx\",\"ts\"ASv,ROW_NUMBER()OVER(ORDERBY\"_mf_idx\")AS__rnFROM\"s\".\"t\")SELECTb.\"_mf_idx\",CASEWHEN(SELECTCOUNT(r.v)FROM__baserWHEREr.__rnBETWEENb.__rn+(-2)ANDb.__rn+(0))>=3THEN(SELECTTO_TIMESTAMP(__agg.value_epoch)FROM(SELECTAVG(EPOCH(CAST(r.vASTIMESTAMP)))ASvalue_epochFROM__baserWHEREr.__rnBETWEENb.__rn+(-2)ANDb.__rn+(0)ANDr.vISNOTNULL)__agg)ELSENULLENDAS\"ts_rolling_mean_w3\"FROM__baseb)ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
     []
    ],
    [
@@ -861,7 +861,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"ts_rolling_mean_w3\"=s.\"ts_rolling_mean_w3\"FROM(WITH__baseAS(SELECT\"_mf_idx\",\"ts\"ASv,ROW_NUMBER()OVER(ORDERBY\"_mf_idx\")AS__rnFROM\"s\".\"t\")SELECTb.\"_mf_idx\",CASEWHEN(SELECTCOUNT(r.v)FROM__baserWHEREr.__rnBETWEENb.__rn-2ANDb.__rn)>=3THEN(SELECTTO_TIMESTAMP(__agg.value_epoch)FROM(SELECTAVG(EXTRACT(EPOCHFROMr.v))ASvalue_epochFROM__baserWHEREr.__rnBETWEENb.__rn-2ANDb.__rnANDr.vISNOTNULL)__agg)ELSENULLENDAS\"ts_rolling_mean_w3\"FROM__baseb)ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
+    "UPDATE\"s\".\"t\"AStSET\"ts_rolling_mean_w3\"=s.\"ts_rolling_mean_w3\"FROM(WITH__baseAS(SELECT\"_mf_idx\",\"ts\"ASv,ROW_NUMBER()OVER(ORDERBY\"_mf_idx\")AS__rnFROM\"s\".\"t\")SELECTb.\"_mf_idx\",CASEWHEN(SELECTCOUNT(r.v)FROM__baserWHEREr.__rnBETWEENb.__rn+(-2)ANDb.__rn+(0))>=3THEN(SELECTTO_TIMESTAMP(__agg.value_epoch)FROM(SELECTAVG(EXTRACT(EPOCHFROMr.v))ASvalue_epochFROM__baserWHEREr.__rnBETWEENb.__rn+(-2)ANDb.__rn+(0)ANDr.vISNOTNULL)__agg)ELSENULLENDAS\"ts_rolling_mean_w3\"FROM__baseb)ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
     []
    ],
    [
@@ -882,7 +882,7 @@
    ],
    [
     "exec",
-    "CREATETABLE`s`.`t__op_1__feat`ENGINE=MergeTree()ORDERBYtuple()ASWITH__baseAS(SELECT`_mf_idx`,`ts`ASv,ROW_NUMBER()OVER(ORDERBY`g`,`_mf_idx`)AS__rnFROM`s`.`t`)SELECTb.`_mf_idx`,CASEWHEN(SELECTCOUNT(r.v)FROM__baserWHEREr.__rnBETWEENb.__rn-2ANDb.__rn)>=3THEN(SELECTtoDateTime(__agg.value_epoch)FROM(SELECTquantile(0.5)(toUnixTimestamp(r.v))ASvalue_epochFROM__baserWHEREr.__rnBETWEENb.__rn-2ANDb.__rnANDr.vISNOTNULL)__agg)ELSENULLENDAS`ts_rolling_median_w3`FROM__baseb",
+    "CREATETABLE`s`.`t__op_1__feat`ENGINE=MergeTree()ORDERBYtuple()ASWITH__baseAS(SELECT`_mf_idx`,`ts`ASv,ROW_NUMBER()OVER(ORDERBY`g`,`_mf_idx`)AS__rnFROM`s`.`t`)SELECTb.`_mf_idx`,CASEWHEN(SELECTCOUNT(r.v)FROM__baserWHEREr.__rnBETWEENb.__rn+(-2)ANDb.__rn+(0))>=3THEN(SELECTtoDateTime(__agg.value_epoch)FROM(SELECTquantile(0.5)(toUnixTimestamp(r.v))ASvalue_epochFROM__baserWHEREr.__rnBETWEENb.__rn+(-2)ANDb.__rn+(0)ANDr.vISNOTNULL)__agg)ELSENULLENDAS`ts_rolling_median_w3`FROM__baseb",
     []
    ],
    [
@@ -924,7 +924,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"ts_rolling_median_w3\"=s.\"ts_rolling_median_w3\"FROM(WITH__baseAS(SELECT\"_mf_idx\",\"ts\"ASv,ROW_NUMBER()OVER(ORDERBY\"g\",\"_mf_idx\")AS__rnFROM\"s\".\"t\")SELECTb.\"_mf_idx\",CASEWHEN(SELECTCOUNT(r.v)FROM__baserWHEREr.__rnBETWEENb.__rn-2ANDb.__rn)>=3THEN(SELECTTO_TIMESTAMP(__agg.value_epoch)FROM(SELECTMEDIAN(EPOCH(CAST(r.vASTIMESTAMP)))ASvalue_epochFROM__baserWHEREr.__rnBETWEENb.__rn-2ANDb.__rnANDr.vISNOTNULL)__agg)ELSENULLENDAS\"ts_rolling_median_w3\"FROM__baseb)ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
+    "UPDATE\"s\".\"t\"AStSET\"ts_rolling_median_w3\"=s.\"ts_rolling_median_w3\"FROM(WITH__baseAS(SELECT\"_mf_idx\",\"ts\"ASv,ROW_NUMBER()OVER(ORDERBY\"g\",\"_mf_idx\")AS__rnFROM\"s\".\"t\")SELECTb.\"_mf_idx\",CASEWHEN(SELECTCOUNT(r.v)FROM__baserWHEREr.__rnBETWEENb.__rn+(-2)ANDb.__rn+(0))>=3THEN(SELECTTO_TIMESTAMP(__agg.value_epoch)FROM(SELECTMEDIAN(EPOCH(CAST(r.vASTIMESTAMP)))ASvalue_epochFROM__baserWHEREr.__rnBETWEENb.__rn+(-2)ANDb.__rn+(0)ANDr.vISNOTNULL)__agg)ELSENULLENDAS\"ts_rolling_median_w3\"FROM__baseb)ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
     []
    ],
    [
@@ -941,7 +941,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"ts_rolling_median_w3\"=s.\"ts_rolling_median_w3\"FROM(WITH__baseAS(SELECT\"_mf_idx\",\"ts\"ASv,ROW_NUMBER()OVER(ORDERBY\"g\",\"_mf_idx\")AS__rnFROM\"s\".\"t\")SELECTb.\"_mf_idx\",CASEWHEN(SELECTCOUNT(r.v)FROM__baserWHEREr.__rnBETWEENb.__rn-2ANDb.__rn)>=3THEN(SELECTTO_TIMESTAMP(__agg.value_epoch)FROM(SELECTPERCENTILE_CONT(0.5)WITHINGROUP(ORDERBYEXTRACT(EPOCHFROMr.v))ASvalue_epochFROM__baserWHEREr.__rnBETWEENb.__rn-2ANDb.__rnANDr.vISNOTNULL)__agg)ELSENULLENDAS\"ts_rolling_median_w3\"FROM__baseb)ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
+    "UPDATE\"s\".\"t\"AStSET\"ts_rolling_median_w3\"=s.\"ts_rolling_median_w3\"FROM(WITH__baseAS(SELECT\"_mf_idx\",\"ts\"ASv,ROW_NUMBER()OVER(ORDERBY\"g\",\"_mf_idx\")AS__rnFROM\"s\".\"t\")SELECTb.\"_mf_idx\",CASEWHEN(SELECTCOUNT(r.v)FROM__baserWHEREr.__rnBETWEENb.__rn+(-2)ANDb.__rn+(0))>=3THEN(SELECTTO_TIMESTAMP(__agg.value_epoch)FROM(SELECTPERCENTILE_CONT(0.5)WITHINGROUP(ORDERBYEXTRACT(EPOCHFROMr.v))ASvalue_epochFROM__baserWHEREr.__rnBETWEENb.__rn+(-2)ANDb.__rn+(0)ANDr.vISNOTNULL)__agg)ELSENULLENDAS\"ts_rolling_median_w3\"FROM__baseb)ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
     []
    ],
    [
@@ -962,7 +962,7 @@
    ],
    [
     "exec",
-    "CREATETABLE`s`.`t__op_1__feat`ENGINE=MergeTree()ORDERBYtuple()ASWITH__baseAS(SELECT`_mf_idx`,`ts`ASv,ROW_NUMBER()OVER(ORDERBY`g`,`_mf_idx`)AS__rnFROM`s`.`t`)SELECTb.`_mf_idx`,CASEWHEN(SELECTCOUNT(r.v)FROM__baserWHEREr.__rnBETWEENb.__rn-2ANDb.__rn)>=3THEN(SELECTargMin(v,(-cnt,v))FROM(SELECTr.vASv,COUNT(*)AScntFROM__baserWHEREr.__rnBETWEENb.__rn-2ANDb.__rnANDr.vISNOTNULLGROUPBYr.v))ELSENULLENDAS`ts_rolling_mode_w3`FROM__baseb",
+    "CREATETABLE`s`.`t__op_1__feat`ENGINE=MergeTree()ORDERBYtuple()ASWITH__baseAS(SELECT`_mf_idx`,`ts`ASv,ROW_NUMBER()OVER(ORDERBY`g`,`_mf_idx`)AS__rnFROM`s`.`t`)SELECTb.`_mf_idx`,CASEWHEN(SELECTCOUNT(r.v)FROM__baserWHEREr.__rnBETWEENb.__rn+(-2)ANDb.__rn+(0))>=3THEN(SELECTargMin(v,(-cnt,v))FROM(SELECTr.vASv,COUNT(*)AScntFROM__baserWHEREr.__rnBETWEENb.__rn+(-2)ANDb.__rn+(0)ANDr.vISNOTNULLGROUPBYr.v))ELSENULLENDAS`ts_rolling_mode_w3`FROM__baseb",
     []
    ],
    [
@@ -1004,7 +1004,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"ts_rolling_mode_w3\"=s.\"ts_rolling_mode_w3\"FROM(WITH__baseAS(SELECT\"_mf_idx\",\"ts\"ASv,ROW_NUMBER()OVER(ORDERBY\"g\",\"_mf_idx\")AS__rnFROM\"s\".\"t\")SELECTb.\"_mf_idx\",CASEWHEN(SELECTCOUNT(r.v)FROM__baserWHEREr.__rnBETWEENb.__rn-2ANDb.__rn)>=3THEN(SELECTr.vFROM__baserWHEREr.__rnBETWEENb.__rn-2ANDb.__rnANDr.vISNOTNULLGROUPBYr.vORDERBYCOUNT(*)DESC,r.vLIMIT1)ELSENULLENDAS\"ts_rolling_mode_w3\"FROM__baseb)ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
+    "UPDATE\"s\".\"t\"AStSET\"ts_rolling_mode_w3\"=s.\"ts_rolling_mode_w3\"FROM(WITH__baseAS(SELECT\"_mf_idx\",\"ts\"ASv,ROW_NUMBER()OVER(ORDERBY\"g\",\"_mf_idx\")AS__rnFROM\"s\".\"t\")SELECTb.\"_mf_idx\",CASEWHEN(SELECTCOUNT(r.v)FROM__baserWHEREr.__rnBETWEENb.__rn+(-2)ANDb.__rn+(0))>=3THEN(SELECTr.vFROM__baserWHEREr.__rnBETWEENb.__rn+(-2)ANDb.__rn+(0)ANDr.vISNOTNULLGROUPBYr.vORDERBYCOUNT(*)DESC,r.vLIMIT1)ELSENULLENDAS\"ts_rolling_mode_w3\"FROM__baseb)ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
     []
    ],
    [
@@ -1021,7 +1021,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"ts_rolling_mode_w3\"=s.\"ts_rolling_mode_w3\"FROM(WITH__baseAS(SELECT\"_mf_idx\",\"ts\"ASv,ROW_NUMBER()OVER(ORDERBY\"g\",\"_mf_idx\")AS__rnFROM\"s\".\"t\")SELECTb.\"_mf_idx\",CASEWHEN(SELECTCOUNT(r.v)FROM__baserWHEREr.__rnBETWEENb.__rn-2ANDb.__rn)>=3THEN(SELECTr.vFROM__baserWHEREr.__rnBETWEENb.__rn-2ANDb.__rnANDr.vISNOTNULLGROUPBYr.vORDERBYCOUNT(*)DESC,r.vLIMIT1)ELSENULLENDAS\"ts_rolling_mode_w3\"FROM__baseb)ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
+    "UPDATE\"s\".\"t\"AStSET\"ts_rolling_mode_w3\"=s.\"ts_rolling_mode_w3\"FROM(WITH__baseAS(SELECT\"_mf_idx\",\"ts\"ASv,ROW_NUMBER()OVER(ORDERBY\"g\",\"_mf_idx\")AS__rnFROM\"s\".\"t\")SELECTb.\"_mf_idx\",CASEWHEN(SELECTCOUNT(r.v)FROM__baserWHEREr.__rnBETWEENb.__rn+(-2)ANDb.__rn+(0))>=3THEN(SELECTr.vFROM__baserWHEREr.__rnBETWEENb.__rn+(-2)ANDb.__rn+(0)ANDr.vISNOTNULLGROUPBYr.vORDERBYCOUNT(*)DESC,r.vLIMIT1)ELSENULLENDAS\"ts_rolling_mode_w3\"FROM__baseb)ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
     []
    ],
    [
@@ -1292,7 +1292,7 @@
    ],
    [
     "exec",
-    "CREATETABLE`s`.`t__op_1__feat`ENGINE=MergeTree()ORDERBYtuple()ASWITH__baseAS(SELECT`_mf_idx`,`num`ASv,ROW_NUMBER()OVER(ORDERBY`g`,`_mf_idx`)AS__rnFROM`s`.`t`)SELECTb.`_mf_idx`,CASEWHEN(SELECTCOUNT(r.v)FROM__baserWHEREr.__rnBETWEENb.__rn-2ANDb.__rn)>=3THEN(SELECTcountDistinct(r.v)FROM__baserWHEREr.__rnBETWEENb.__rn-2ANDb.__rn)ELSENULLENDAS`num_rolling_nunique_w3`FROM__baseb",
+    "CREATETABLE`s`.`t__op_1__feat`ENGINE=MergeTree()ORDERBYtuple()ASWITH__baseAS(SELECT`_mf_idx`,`num`ASv,ROW_NUMBER()OVER(ORDERBY`g`,`_mf_idx`)AS__rnFROM`s`.`t`)SELECTb.`_mf_idx`,CASEWHEN(SELECTCOUNT(r.v)FROM__baserWHEREr.__rnBETWEENb.__rn+(-2)ANDb.__rn+(0))>=3THEN(SELECTcountDistinct(r.v)FROM__baserWHEREr.__rnBETWEENb.__rn+(-2)ANDb.__rn+(0))ELSENULLENDAS`num_rolling_nunique_w3`FROM__baseb",
     []
    ],
    [
@@ -1351,7 +1351,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"num_rolling_nunique_w3\"=s.\"num_rolling_nunique_w3\"FROM(WITH__baseAS(SELECT\"_mf_idx\",\"num\"ASv,ROW_NUMBER()OVER(ORDERBY\"g\",\"_mf_idx\")AS__rnFROM\"s\".\"t\")SELECTb.\"_mf_idx\",CASEWHEN(SELECTCOUNT(r.v)FROM__baserWHEREr.__rnBETWEENb.__rn-2ANDb.__rn)>=3THEN(SELECTCOUNT(DISTINCTr.v)FROM__baserWHEREr.__rnBETWEENb.__rn-2ANDb.__rn)ELSENULLENDAS\"num_rolling_nunique_w3\"FROM__baseb)ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
+    "UPDATE\"s\".\"t\"AStSET\"num_rolling_nunique_w3\"=s.\"num_rolling_nunique_w3\"FROM(WITH__baseAS(SELECT\"_mf_idx\",\"num\"ASv,ROW_NUMBER()OVER(ORDERBY\"g\",\"_mf_idx\")AS__rnFROM\"s\".\"t\")SELECTb.\"_mf_idx\",CASEWHEN(SELECTCOUNT(r.v)FROM__baserWHEREr.__rnBETWEENb.__rn+(-2)ANDb.__rn+(0))>=3THEN(SELECTCOUNT(DISTINCTr.v)FROM__baserWHEREr.__rnBETWEENb.__rn+(-2)ANDb.__rn+(0))ELSENULLENDAS\"num_rolling_nunique_w3\"FROM__baseb)ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
     []
    ],
    [
@@ -1372,7 +1372,7 @@
    ],
    [
     "exec",
-    "CREATETABLE`s`.`t__op_1__feat`ENGINE=MergeTree()ORDERBYtuple()ASWITH__baseAS(SELECT`_mf_idx`,`num`ASv,ROW_NUMBER()OVER(ORDERBY`g`,`_mf_idx`)AS__rnFROM`s`.`t`)SELECTb.`_mf_idx`,CASEWHEN(SELECTCOUNT(r.v)FROM__baserWHEREr.__rnBETWEENb.__rn-2ANDb.__rn)>=3THEN(SELECTquantile(0.5)(r.v)FROM__baserWHEREr.__rnBETWEENb.__rn-2ANDb.__rnANDr.vISNOTNULL)ELSENULLENDAS`num_rolling_q0.5_w3`FROM__baseb",
+    "CREATETABLE`s`.`t__op_1__feat`ENGINE=MergeTree()ORDERBYtuple()ASWITH__baseAS(SELECT`_mf_idx`,`num`ASv,ROW_NUMBER()OVER(ORDERBY`g`,`_mf_idx`)AS__rnFROM`s`.`t`)SELECTb.`_mf_idx`,CASEWHEN(SELECTCOUNT(r.v)FROM__baserWHEREr.__rnBETWEENb.__rn+(-2)ANDb.__rn+(0))>=3THEN(SELECTquantile(0.5)(r.v)FROM__baserWHEREr.__rnBETWEENb.__rn+(-2)ANDb.__rn+(0)ANDr.vISNOTNULL)ELSENULLENDAS`num_rolling_q0.5_w3`FROM__baseb",
     []
    ],
    [
@@ -1431,7 +1431,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"num_rolling_q0.5_w3\"=s.\"num_rolling_q0.5_w3\"FROM(WITH__baseAS(SELECT\"_mf_idx\",\"num\"ASv,ROW_NUMBER()OVER(ORDERBY\"g\",\"_mf_idx\")AS__rnFROM\"s\".\"t\")SELECTb.\"_mf_idx\",CASEWHEN(SELECTCOUNT(r.v)FROM__baserWHEREr.__rnBETWEENb.__rn-2ANDb.__rn)>=3THEN(SELECTPERCENTILE_CONT(0.5)WITHINGROUP(ORDERBYr.v)FROM__baserWHEREr.__rnBETWEENb.__rn-2ANDb.__rnANDr.vISNOTNULL)ELSENULLENDAS\"num_rolling_q0.5_w3\"FROM__baseb)ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
+    "UPDATE\"s\".\"t\"AStSET\"num_rolling_q0.5_w3\"=s.\"num_rolling_q0.5_w3\"FROM(WITH__baseAS(SELECT\"_mf_idx\",\"num\"ASv,ROW_NUMBER()OVER(ORDERBY\"g\",\"_mf_idx\")AS__rnFROM\"s\".\"t\")SELECTb.\"_mf_idx\",CASEWHEN(SELECTCOUNT(r.v)FROM__baserWHEREr.__rnBETWEENb.__rn+(-2)ANDb.__rn+(0))>=3THEN(SELECTPERCENTILE_CONT(0.5)WITHINGROUP(ORDERBYr.v)FROM__baserWHEREr.__rnBETWEENb.__rn+(-2)ANDb.__rn+(0)ANDr.vISNOTNULL)ELSENULLENDAS\"num_rolling_q0.5_w3\"FROM__baseb)ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
     []
    ],
    [
@@ -1452,7 +1452,7 @@
    ],
    [
     "exec",
-    "CREATETABLE`s`.`t__op_1__feat`ENGINE=MergeTree()ORDERBYtuple()ASWITH__baseAS(SELECT`_mf_idx`,`num`ASv,ROW_NUMBER()OVER(ORDERBY`g`,`_mf_idx`)AS__rnFROM`s`.`t`)SELECTb.`_mf_idx`,CASEWHEN(SELECTCOUNT(r.v)FROM__baserWHEREr.__rnBETWEENb.__rn-2ANDb.__rn)>=3THEN(SELECTCOUNT(*)FROM__baserWHEREr.__rnBETWEENb.__rn-2ANDb.__rnANDr.v<=b.v)ELSENULLENDAS`num_rolling_rank_w3`FROM__baseb",
+    "CREATETABLE`s`.`t__op_1__feat`ENGINE=MergeTree()ORDERBYtuple()ASWITH__baseAS(SELECT`_mf_idx`,`num`ASv,ROW_NUMBER()OVER(ORDERBY`g`,`_mf_idx`)AS__rnFROM`s`.`t`)SELECTb.`_mf_idx`,CASEWHEN(SELECTCOUNT(r.v)FROM__baserWHEREr.__rnBETWEENb.__rn+(-2)ANDb.__rn+(0))>=3THEN(SELECTCOUNT(*)FROM__baserWHEREr.__rnBETWEENb.__rn+(-2)ANDb.__rn+(0)ANDr.v<=b.v)ELSENULLENDAS`num_rolling_rank_w3`FROM__baseb",
     []
    ],
    [
@@ -1494,7 +1494,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"num_rolling_rank_w3\"=s.\"num_rolling_rank_w3\"FROM(WITH__baseAS(SELECT\"_mf_idx\",\"num\"ASv,ROW_NUMBER()OVER(ORDERBY\"g\",\"_mf_idx\")AS__rnFROM\"s\".\"t\")SELECTb.\"_mf_idx\",CASEWHEN(SELECTCOUNT(r.v)FROM__baserWHEREr.__rnBETWEENb.__rn-2ANDb.__rn)>=3THEN(SELECTCOUNT(*)FROM__baserWHEREr.__rnBETWEENb.__rn-2ANDb.__rnANDr.v<=b.v)ELSENULLENDAS\"num_rolling_rank_w3\"FROM__baseb)ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
+    "UPDATE\"s\".\"t\"AStSET\"num_rolling_rank_w3\"=s.\"num_rolling_rank_w3\"FROM(WITH__baseAS(SELECT\"_mf_idx\",\"num\"ASv,ROW_NUMBER()OVER(ORDERBY\"g\",\"_mf_idx\")AS__rnFROM\"s\".\"t\")SELECTb.\"_mf_idx\",CASEWHEN(SELECTCOUNT(r.v)FROM__baserWHEREr.__rnBETWEENb.__rn+(-2)ANDb.__rn+(0))>=3THEN(SELECTCOUNT(*)FROM__baserWHEREr.__rnBETWEENb.__rn+(-2)ANDb.__rn+(0)ANDr.v<=b.v)ELSENULLENDAS\"num_rolling_rank_w3\"FROM__baseb)ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
     []
    ],
    [
@@ -1511,7 +1511,7 @@
    ],
    [
     "exec",
-    "UPDATE\"s\".\"t\"AStSET\"num_rolling_rank_w3\"=s.\"num_rolling_rank_w3\"FROM(WITH__baseAS(SELECT\"_mf_idx\",\"num\"ASv,ROW_NUMBER()OVER(ORDERBY\"g\",\"_mf_idx\")AS__rnFROM\"s\".\"t\")SELECTb.\"_mf_idx\",CASEWHEN(SELECTCOUNT(r.v)FROM__baserWHEREr.__rnBETWEENb.__rn-2ANDb.__rn)>=3THEN(SELECTCOUNT(*)FROM__baserWHEREr.__rnBETWEENb.__rn-2ANDb.__rnANDr.v<=b.v)ELSENULLENDAS\"num_rolling_rank_w3\"FROM__baseb)ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
+    "UPDATE\"s\".\"t\"AStSET\"num_rolling_rank_w3\"=s.\"num_rolling_rank_w3\"FROM(WITH__baseAS(SELECT\"_mf_idx\",\"num\"ASv,ROW_NUMBER()OVER(ORDERBY\"g\",\"_mf_idx\")AS__rnFROM\"s\".\"t\")SELECTb.\"_mf_idx\",CASEWHEN(SELECTCOUNT(r.v)FROM__baserWHEREr.__rnBETWEENb.__rn+(-2)ANDb.__rn+(0))>=3THEN(SELECTCOUNT(*)FROM__baserWHEREr.__rnBETWEENb.__rn+(-2)ANDb.__rn+(0)ANDr.v<=b.v)ELSENULLENDAS\"num_rolling_rank_w3\"FROM__baseb)ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
     []
    ],
    [

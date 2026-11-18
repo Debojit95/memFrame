@@ -152,6 +152,8 @@ class WindowOrchestrator:
         order_by: Union[str, List[str]] = None,
         q: float = 0.5,
         min_periods: int = None,
+        center: bool = False,
+        closed: str = None,
     ):
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
@@ -223,6 +225,8 @@ class WindowOrchestrator:
                 order_by=order_by,
                 window=window,
                 min_periods=min_periods,
+                center=center,
+                closed=closed,
                 backend=backend,
                 data_id=data_id,
             )
@@ -273,7 +277,7 @@ class WindowOrchestrator:
         sig = make_sig(
             op="window.rolling", column=column, window=window,
             func=requested_funcs, order_by=order_by,
-            min_periods=min_periods,
+            min_periods=min_periods, center=center, closed=closed,
         )
         involved = self._involved_cols(column, order_by)
 

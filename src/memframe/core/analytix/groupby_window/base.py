@@ -139,6 +139,8 @@ class GroupbyWindowOps(WindowOps):
         backend=None,
         data_id=None,
         min_periods: Optional[int] = None,
+        center: bool = False,
+        closed: Optional[str] = None,
         new_table: str = None,
     ) -> Dict[str, Any]:
         """Generic rolling aggregation with PARTITION BY group_cols."""
@@ -165,7 +167,7 @@ class GroupbyWindowOps(WindowOps):
             qualified = self._qualified_table(table, schema)
             q_col = self.db.quote_identifier(safe_col)
             source_type = await self._get_column_sql_type(table, schema, safe_col)
-            frame = self._rolling_frame(window)
+            frame = self._rolling_frame(window, center, closed)
             count_over = (
                 f"{self._count_expr(q_col)} "
                 f"OVER ({part}ORDER BY {order_sql} {frame})"
@@ -201,8 +203,9 @@ class GroupbyWindowOps(WindowOps):
                 )
                 value_sql = f"{agg_call} OVER ({part}ORDER BY {order_sql} {frame})"
                 gate_count = rows_over if alias_key == "count" else count_over
+                gate_at = min_p if (alias_key == "count" or min_p > 1) else 0
                 value_sql = self._min_periods_gate(
-                    value_sql, gate_count, min_p,
+                    value_sql, gate_count, gate_at,
                 )
                 if alias_key == "sum" and min_p == 0:
                     value_sql = f"COALESCE({value_sql}, 0)"
@@ -296,6 +299,7 @@ class GroupbyWindowOps(WindowOps):
     async def rolling_quantile_groupby(
         self, table, schema, column, group_cols, order_by=None, window=3,
         q=0.5, backend=None, data_id=None, new_table=None, min_periods=None,
+        center: bool = False, closed: Optional[str] = None,
     ):
         try:
             if backend is None or data_id is None:
@@ -310,8 +314,8 @@ class GroupbyWindowOps(WindowOps):
             order_sql = ", ".join(self.db.quote_identifier(c) for c in orders)
             part = self._ewm_partition(safe_groups)
             q_col = self.db.quote_identifier(safe_col)
-            w = int(window) - 1
-            frame = self._rolling_frame(window)
+            rn_lo, rn_hi = self._rolling_rn(window, center, closed)
+            frame = self._rolling_frame(window, center, closed)
             new_col = f"{safe_col}_rolling_q{q}_w{window}_by_{'_'.join(safe_groups)}"
 
             if isinstance(self.db, DuckDBAdapter):
@@ -336,13 +340,13 @@ class GroupbyWindowOps(WindowOps):
                 group_eq = self._group_eq(safe_groups)
                 count_subq = f"""
                     SELECT COUNT(r.v) FROM __base r
-                    WHERE r.__rn BETWEEN b.__rn - {w} AND b.__rn
+                    WHERE r.__rn BETWEEN {rn_lo} AND {rn_hi}
                       {group_eq}
                 """
                 quantile_subq = f"""
                     SELECT {self._quantile_cont_sql("r.v", q)}
                     FROM __base r
-                    WHERE r.__rn BETWEEN b.__rn - {w} AND b.__rn
+                    WHERE r.__rn BETWEEN {rn_lo} AND {rn_hi}
                       {group_eq}
                       AND r.v IS NOT NULL
                 """
@@ -370,6 +374,7 @@ class GroupbyWindowOps(WindowOps):
     async def rolling_sem_groupby(
         self, table, schema, column, group_cols, order_by=None, window=3,
         backend=None, data_id=None, new_table=None, min_periods=None,
+        center: bool = False, closed: Optional[str] = None,
     ):
         try:
             if backend is None or data_id is None:
@@ -384,7 +389,7 @@ class GroupbyWindowOps(WindowOps):
             order_sql = ", ".join(self.db.quote_identifier(c) for c in orders)
             part = self._ewm_partition(safe_groups)
             q_col = self.db.quote_identifier(safe_col)
-            frame = self._rolling_frame(window)
+            frame = self._rolling_frame(window, center, closed)
             new_col = f"{safe_col}_rolling_sem_w{window}_by_{'_'.join(safe_groups)}"
             std_func = self._std_agg()
             count_over = (
@@ -415,6 +420,7 @@ class GroupbyWindowOps(WindowOps):
     async def rolling_nunique_groupby(
         self, table, schema, column, group_cols, order_by=None, window=3,
         backend=None, data_id=None, new_table=None, min_periods=None,
+        center: bool = False, closed: Optional[str] = None,
     ):
         try:
             if backend is None or data_id is None:
@@ -429,8 +435,8 @@ class GroupbyWindowOps(WindowOps):
             order_sql = ", ".join(self.db.quote_identifier(c) for c in orders)
             part = self._ewm_partition(safe_groups)
             q_col = self.db.quote_identifier(safe_col)
-            w = int(window) - 1
-            frame = self._rolling_frame(window)
+            rn_lo, rn_hi = self._rolling_rn(window, center, closed)
+            frame = self._rolling_frame(window, center, closed)
             new_col = f"{safe_col}_rolling_nunique_w{window}_by_{'_'.join(safe_groups)}"
 
             if isinstance(self.db, DuckDBAdapter):
@@ -457,13 +463,13 @@ class GroupbyWindowOps(WindowOps):
                 group_eq = self._group_eq(safe_groups)
                 count_subq = f"""
                     SELECT COUNT(r.v) FROM __base r
-                    WHERE r.__rn BETWEEN b.__rn - {w} AND b.__rn
+                    WHERE r.__rn BETWEEN {rn_lo} AND {rn_hi}
                       {group_eq}
                 """
                 distinct_subq = f"""
                     SELECT {self._distinct_count_sql("r.v")}
                     FROM __base r
-                    WHERE r.__rn BETWEEN b.__rn - {w} AND b.__rn
+                    WHERE r.__rn BETWEEN {rn_lo} AND {rn_hi}
                       {group_eq}
                 """
                 expr = self._min_periods_gate(
@@ -490,6 +496,7 @@ class GroupbyWindowOps(WindowOps):
     async def rolling_rank_groupby(
         self, table, schema, column, group_cols, order_by=None, window=3,
         backend=None, data_id=None, new_table=None, min_periods=None,
+        center: bool = False, closed: Optional[str] = None,
     ):
         try:
             if backend is None or data_id is None:
@@ -501,7 +508,7 @@ class GroupbyWindowOps(WindowOps):
             min_p = self._resolve_min_periods(min_periods, window)
 
             orders = self._order_keys(order_by)
-            w = int(window) - 1
+            rn_lo, rn_hi = self._rolling_rn(window, center, closed)
             new_col = f"{safe_col}_rolling_rank_w{window}_by_{'_'.join(safe_groups)}"
             base = self._group_base_cte(
                 table, schema, safe_col, safe_groups, orders,
@@ -510,13 +517,13 @@ class GroupbyWindowOps(WindowOps):
             count_subq = f"""
                 SELECT COUNT(r.v)
                 FROM __base r
-                WHERE r.__rn BETWEEN b.__rn - {w} AND b.__rn
+                WHERE r.__rn BETWEEN {rn_lo} AND {rn_hi}
                   {group_eq}
             """
             rank_subq = f"""
                 SELECT COUNT(*)
                 FROM __base r
-                WHERE r.__rn BETWEEN b.__rn - {w} AND b.__rn
+                WHERE r.__rn BETWEEN {rn_lo} AND {rn_hi}
                   {group_eq}
                   AND r.v <= b.v
             """
@@ -546,26 +553,27 @@ class GroupbyWindowOps(WindowOps):
     async def rolling_max_datetime_groupby(self, *args, **kwargs):
         return await self._rolling_agg_with_partition(*args, agg="MAX", **kwargs)
     async def rolling_mean_datetime_groupby(
-        self, table, schema, column, group_cols, order_by=None, window=3, backend=None, data_id=None, new_table=None, min_periods=None,
+        self, table, schema, column, group_cols, order_by=None, window=3, backend=None, data_id=None, new_table=None, min_periods=None, center=False, closed=None,
     ):
         return await self._rolling_datetime_stat_with_partition(
-            table, schema, column, group_cols, order_by, window, stat="mean", backend=backend, data_id=data_id, new_table=new_table, min_periods=min_periods,
+            table, schema, column, group_cols, order_by, window, stat="mean", backend=backend, data_id=data_id, new_table=new_table, min_periods=min_periods, center=center, closed=closed,
         )
     async def rolling_median_datetime_groupby(
-        self, table, schema, column, group_cols, order_by=None, window=3, backend=None, data_id=None, new_table=None, min_periods=None,
+        self, table, schema, column, group_cols, order_by=None, window=3, backend=None, data_id=None, new_table=None, min_periods=None, center=False, closed=None,
     ):
         return await self._rolling_datetime_stat_with_partition(
-            table, schema, column, group_cols, order_by, window, stat="median", backend=backend, data_id=data_id, new_table=new_table, min_periods=min_periods,
+            table, schema, column, group_cols, order_by, window, stat="median", backend=backend, data_id=data_id, new_table=new_table, min_periods=min_periods, center=center, closed=closed,
         )
     async def rolling_mode_datetime_groupby(
-        self, table, schema, column, group_cols, order_by=None, window=3, backend=None, data_id=None, new_table=None, min_periods=None,
+        self, table, schema, column, group_cols, order_by=None, window=3, backend=None, data_id=None, new_table=None, min_periods=None, center=False, closed=None,
     ):
         return await self._rolling_datetime_stat_with_partition(
-            table, schema, column, group_cols, order_by, window, stat="mode", backend=backend, data_id=data_id, new_table=new_table, min_periods=min_periods,
+            table, schema, column, group_cols, order_by, window, stat="mode", backend=backend, data_id=data_id, new_table=new_table, min_periods=min_periods, center=center, closed=closed,
         )
     async def _rolling_datetime_stat_with_partition(
         self, table, schema, column, group_cols, order_by, window, stat,
         backend, data_id, new_table=None, min_periods=None,
+        center: bool = False, closed: Optional[str] = None,
     ):
         try:
             if backend is None or data_id is None:
@@ -577,7 +585,7 @@ class GroupbyWindowOps(WindowOps):
             min_p = self._resolve_min_periods(min_periods, window)
 
             orders = self._order_keys(order_by)
-            w = int(window) - 1
+            rn_lo, rn_hi = self._rolling_rn(window, center, closed)
             stat_key = stat.lower()
             new_col = (
                 f"{safe_col}_rolling_{stat_key}_w{window}_by_"
@@ -599,7 +607,7 @@ class GroupbyWindowOps(WindowOps):
                     FROM (
                         SELECT {inner} AS value_epoch
                         FROM __base r
-                        WHERE r.__rn BETWEEN b.__rn - {w} AND b.__rn
+                        WHERE r.__rn BETWEEN {rn_lo} AND {rn_hi}
                           {group_eq}
                           AND r.v IS NOT NULL
                     ) __agg
@@ -612,7 +620,7 @@ class GroupbyWindowOps(WindowOps):
                     FROM (
                         SELECT {inner} AS value_epoch
                         FROM __base r
-                        WHERE r.__rn BETWEEN b.__rn - {w} AND b.__rn
+                        WHERE r.__rn BETWEEN {rn_lo} AND {rn_hi}
                           {group_eq}
                           AND r.v IS NOT NULL
                     ) __agg
@@ -624,7 +632,7 @@ class GroupbyWindowOps(WindowOps):
                         FROM (
                             SELECT r.v AS v, COUNT(*) AS cnt
                             FROM __base r
-                            WHERE r.__rn BETWEEN b.__rn - {w} AND b.__rn
+                            WHERE r.__rn BETWEEN {rn_lo} AND {rn_hi}
                               {group_eq}
                               AND r.v IS NOT NULL
                             GROUP BY r.v
@@ -634,7 +642,7 @@ class GroupbyWindowOps(WindowOps):
                     value_sql = f"""
                         SELECT r.v
                         FROM __base r
-                        WHERE r.__rn BETWEEN b.__rn - {w} AND b.__rn
+                        WHERE r.__rn BETWEEN {rn_lo} AND {rn_hi}
                           {group_eq}
                           AND r.v IS NOT NULL
                         GROUP BY r.v
@@ -648,7 +656,7 @@ class GroupbyWindowOps(WindowOps):
 
             count_subq = f"""
                 SELECT COUNT(r.v) FROM __base r
-                WHERE r.__rn BETWEEN b.__rn - {w} AND b.__rn
+                WHERE r.__rn BETWEEN {rn_lo} AND {rn_hi}
                   {group_eq}
             """
             expr = self._min_periods_gate(

@@ -133,3 +133,142 @@ def test_grouped_rolling_min_periods_matches_pandas(ctx):
             got["x_rolling_mean_w3_by_g"].to_numpy(dtype=float), expected,
             equal_nan=True, rtol=1e-12,
         )
+
+
+@pytest.mark.parametrize("window", [2, 3, 4, 5])
+@pytest.mark.parametrize("center", [False, True])
+@pytest.mark.parametrize("closed", [None, "right", "left", "both", "neither"])
+def test_rolling_center_closed_matches_pandas(ctx, window, center, closed):
+    frame = pd.DataFrame({"x": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0], "o": list(range(6))})
+    wrapper = WindowWrapper(
+        ctx.upload_df(frame, filename=f"pf_{window}_{center}_{closed}")
+    )
+    for func in ("sum", "mean", "min", "max", "count"):
+        response = wrapper.rolling(
+            column="x", window=window, func=func, order_by="o",
+            min_periods=1, center=center, closed=closed,
+        )
+        assert response["is_error"] is False, response.get("failed_funcs")
+        got = response["result"].sort_values("o")
+        column = [c for c in got.columns if c.startswith("x_rolling")][0]
+
+        roll = frame["x"].rolling(
+            window, min_periods=1, center=center, closed=closed
+        )
+        expected = getattr(roll, func)().to_numpy()
+        np.testing.assert_allclose(
+            got[column].to_numpy(dtype=float), expected,
+            equal_nan=True, rtol=1e-12,
+        )
+
+
+@pytest.mark.parametrize("closed", ["right", "left", "both", "neither"])
+@pytest.mark.parametrize("center", [False, True])
+def test_rolling_center_closed_specials(ctx, center, closed):
+    frame = pd.DataFrame({"x": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0], "o": list(range(6))})
+    wrapper = WindowWrapper(ctx.upload_df(frame, filename=f"ps_{center}_{closed}"))
+    values = frame["x"]
+    roll = values.rolling(3, min_periods=1, center=center, closed=closed)
+
+    got = _rolling(
+        wrapper, "x", 3, "quantile",
+        min_periods=1, center=center, closed=closed,
+    ).sort_values("o")
+    np.testing.assert_allclose(
+        got["x_rolling_q0.5_w3"].to_numpy(dtype=float),
+        roll.quantile(0.5).to_numpy(), equal_nan=True, rtol=1e-12,
+    )
+
+    got = _rolling(
+        wrapper, "x", 3, "nunique",
+        min_periods=1, center=center, closed=closed,
+    ).sort_values("o")
+    np.testing.assert_allclose(
+        got["x_rolling_nunique_w3"].to_numpy(dtype=float),
+        roll.apply(lambda v: v.nunique(), raw=False).to_numpy(),
+        equal_nan=True, rtol=1e-12,
+    )
+
+    got = _rolling(
+        wrapper, "x", 3, "sem",
+        min_periods=1, center=center, closed=closed,
+    ).sort_values("o")
+    expected_sem = roll.apply(
+        lambda v: np.std(v, ddof=1) / np.sqrt(len(v)) if len(v) > 1 else np.nan,
+        raw=True,
+    ).to_numpy()
+    np.testing.assert_allclose(
+        got["x_rolling_sem_w3"].to_numpy(dtype=float), expected_sem,
+        equal_nan=True, rtol=1e-12,
+    )
+
+    got = _rolling(
+        wrapper, "x", 3, "rank",
+        min_periods=1, center=center, closed=closed,
+    ).sort_values("o")
+    if center:
+        # MemFrame ranks the current row inside the frame; pandas ranks the
+        # frame's last row, which is ahead of the current row when centered.
+        expected_rank = {
+            "right": [1, 2, 2, 2, 2, 2],
+            "left": [1, 2, 3, 3, 3, 3],
+            "both": [1, 2, 3, 3, 3, 3],
+            "neither": [1, 2, 2, 2, 2, 2],
+        }[closed]
+    else:
+        expected_rank = roll.rank().to_numpy()
+    np.testing.assert_allclose(
+        got["x_rolling_rank_w3"].to_numpy(dtype=float), expected_rank,
+        equal_nan=True, rtol=1e-12,
+    )
+
+
+@pytest.mark.parametrize("closed", [None, "right", "left", "both", "neither"])
+@pytest.mark.parametrize("center", [False, True])
+def test_grouped_rolling_center_closed_matches_pandas(ctx, center, closed):
+    frame = pd.DataFrame(
+        {
+            "g": ["a"] * 5 + ["b"] * 5,
+            "x": [1.0, 2.0, None, 4.0, 5.0, 10.0, 20.0, 30.0, 40.0, 50.0],
+            "o": list(range(5)) * 2,
+        }
+    )
+    context = ctx.upload_df(frame, filename=f"pg_{center}_{closed}")
+    wrapper = GroupByWindowStatsWrapper(context)
+
+    response = asyncio.run(
+        wrapper.arolling(
+            column="x", window=3, func="mean", group_cols="g",
+            order_by="o", min_periods=1, center=center, closed=closed,
+        )
+    )
+    assert response["is_error"] is False, response.get("failed_funcs")
+    got = response["result"].sort_values(["g", "o"]).reset_index(drop=True)
+
+    expected = (
+        frame.sort_values("o", kind="mergesort")
+        .groupby("g", sort=False)["x"]
+        .rolling(3, min_periods=1, center=center, closed=closed)
+        .mean()
+        .reset_index(level=0, drop=True)
+        .to_numpy()
+    )
+    np.testing.assert_allclose(
+        got["x_rolling_mean_w3_by_g"].to_numpy(dtype=float), expected,
+        equal_nan=True, rtol=1e-12,
+    )
+
+
+def test_rolling_closed_validation(ctx):
+    wrapper = WindowWrapper(ctx.upload_df(_frame(), filename="p_closed_bad"))
+    response = wrapper.rolling(
+        column="x", window=3, func="mean", order_by="o", closed="middle"
+    )
+    assert response["is_error"] is True
+    assert "closed" in response["failed_funcs"]["mean"]
+
+    response = wrapper.rolling(
+        column="x", window=1, func="mean", order_by="o", closed="neither"
+    )
+    assert response["is_error"] is True
+    assert "neither" in response["failed_funcs"]["mean"]

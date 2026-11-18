@@ -615,6 +615,45 @@ class TestGroupByWindowOperations:
             pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].rolling(2).mean()',
         )
 
+    @pytest.mark.parametrize("closed", ["right", "left", "both", "neither"])
+    def test_groupby_rolling_center_closed(
+        self, uploaded_ctx, sample_df, backend_config, closed
+    ):
+        result = uploaded_ctx.groupby("group").rolling(
+            3, order_by="id", min_periods=1, center=True, closed=closed
+        ).mean("value")
+        res_df = get_result_df(result)
+        out_col = get_generated_col(result, "value_rolling_mean_w3_by_group")
+
+        check = res_df.sort_values(["group", "id"]).reset_index(drop=True)
+        exp_ordered = sample_df.sort_values(["group", "id"]).reset_index(drop=True)
+        exp_vals = (
+            exp_ordered.groupby("group", sort=False)["value"]
+            .rolling(3, min_periods=1, center=True, closed=closed)
+            .mean()
+            .reset_index(level=0, drop=True)
+        )
+        assert_allclose_numeric(check[out_col], exp_vals)
+
+    def test_groupby_rolling_quantile_centered(
+        self, uploaded_ctx, sample_df, backend_config
+    ):
+        result = uploaded_ctx.groupby("group").rolling(
+            3, order_by="id", min_periods=1, center=True
+        ).quantile("value", q=0.5)
+        res_df = get_result_df(result)
+        out_col = get_generated_col(result, "value_rolling_q0.5_w3_by_group")
+
+        check = res_df.sort_values(["group", "id"]).reset_index(drop=True)
+        exp_ordered = sample_df.sort_values(["group", "id"]).reset_index(drop=True)
+        exp_vals = (
+            exp_ordered.groupby("group", sort=False)["value"]
+            .rolling(3, min_periods=1, center=True)
+            .quantile(0.5)
+            .reset_index(level=0, drop=True)
+        )
+        assert_allclose_numeric(check[out_col], exp_vals)
+
     def test_groupby_rolling_sum(self, uploaded_ctx, sample_df, backend_config):
         result = uploaded_ctx.groupby("group").rolling(3, order_by="id").sum("value")
         res_df = get_result_df(result)

@@ -21,10 +21,10 @@ logger = logging.getLogger("memFrame")
 class GroupByRollingWrapper(GroupByRolling):
     """Fluent grouped rolling window builder with async/sync operations."""
 
-    def __init__(self, group_window: GroupByWindow, window: int, order_by, min_periods=None):
+    def __init__(self, group_window: GroupByWindow, window: int, order_by,
+                 min_periods=None, center=False, closed=None):
         """Initialize rolling builder with parent group window and ordering."""
-        super().__init__(group_window, window, order_by)
-        self.min_periods = min_periods
+        super().__init__(group_window, window, order_by, min_periods, center, closed)
 
     # ------------------------------------------------------------------
     #  helper that routes through orchestrator (keeps @record_call active)
@@ -39,6 +39,8 @@ class GroupByRollingWrapper(GroupByRolling):
             group_cols=self._gw.group_cols,
             order_by=self.order_by,
             min_periods=self.min_periods,
+            center=self.center,
+            closed=self.closed,
             **extra,
         )
 
@@ -170,6 +172,8 @@ class GroupByRollingWrapper(GroupByRolling):
             group_cols=self._gw.group_cols,
             order_by=self.order_by,
             min_periods=self.min_periods,
+            center=self.center,
+            closed=self.closed,
             **kwargs,
         )
 
@@ -416,9 +420,12 @@ class GroupByWindowWrapper(GroupByWindow):
         """Initialize grouped window builder wrapper."""
         super().__init__(*args, **kwargs)
 
-    def rolling(self, window: int, order_by=None, min_periods: int = None) -> GroupByRollingWrapper:
+    def rolling(self, window: int, order_by=None, min_periods: int = None,
+                center: bool = False, closed: str = None) -> GroupByRollingWrapper:
         """Create grouped rolling window builder."""
-        return GroupByRollingWrapper(self, window, order_by, min_periods)
+        return GroupByRollingWrapper(
+            self, window, order_by, min_periods, center, closed,
+        )
 
     def expanding(self, min_periods: int = 1, order_by=None) -> GroupByExpandingWrapper:
         """Create grouped expanding window builder."""
@@ -452,12 +459,15 @@ class GroupByWindowStatsWrapper(GroupByWindowOrchestrator):
         order_by=None,
         q: float = 0.5,
         min_periods: int = None,
+        center: bool = False,
+        closed: str = None,
         map_feature: bool = False,
     ) -> Dict[str, Any]:
         """Asynchronously run grouped rolling window operation directly."""
         return await super().rolling(column=column, window=window, func=func,
                                      group_cols=group_cols, order_by=order_by, q=q,
                                      min_periods=min_periods,
+                                     center=center, closed=closed,
                                      map_feature=map_feature)
 
     @async_to_sync
@@ -470,12 +480,15 @@ class GroupByWindowStatsWrapper(GroupByWindowOrchestrator):
         order_by=None,
         q: float = 0.5,
         min_periods: int = None,
+        center: bool = False,
+        closed: str = None,
         map_feature: bool = False,
     ) -> Dict[str, Any]:
         """Synchronously run grouped rolling window operation directly."""
         return await self.arolling(column=column, window=window, func=func,
                                    group_cols=group_cols, order_by=order_by, q=q,
                                    min_periods=min_periods,
+                                   center=center, closed=closed,
                                    map_feature=map_feature)
 
     async def aexpanding(

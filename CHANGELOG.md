@@ -23,6 +23,11 @@ to [Semantic Versioning](https://semver.org/).
   (`on("sales").rolling(7, min_periods=1)`). Applies to every rolling
   aggregate (generic, quantile, sem, rank, nunique, datetime stats).
   Default `None` resolves to `window`, matching pandas.
+- **`center` and `closed` for rolling**: `rolling(..., center=False,
+  closed=None)` on the ungrouped and grouped APIs (and builders). `closed`
+  accepts `right` (default), `left`, `both`, `neither`; `center` shifts the
+  frame forward by `(window - 1) // 2`. Applies to every rolling aggregate and
+  special.
 
 ### Changed
 - **Rolling default now needs a full window**: `min_periods` defaults to

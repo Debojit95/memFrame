@@ -615,6 +615,33 @@ class TestWindowOperations:
             backend=backend_config["connection_type"],
         )
 
+    @pytest.mark.parametrize("closed", ["right", "left", "both", "neither"])
+    def test_rolling_center_closed(
+        self, uploaded_ctx, time_series_df, backend_config, closed
+    ):
+        result = uploaded_ctx.rolling(
+            column="sales", window=3, func="mean", order_by="date",
+            min_periods=1, center=True, closed=closed,
+        )
+        res_df = get_result_df(result)
+        expected = _ordered(time_series_df)["sales"].rolling(
+            3, min_periods=1, center=True, closed=closed
+        ).mean()
+        _assert_ordered_result(res_df, _generated_col(res_df, "sales"), expected)
+
+    def test_rolling_quantile_centered(
+        self, uploaded_ctx, time_series_df, backend_config
+    ):
+        result = uploaded_ctx.rolling(
+            column="sales", window=3, func="quantile", q=0.5,
+            order_by="date", min_periods=1, center=True, closed="both",
+        )
+        res_df = get_result_df(result)
+        expected = _ordered(time_series_df)["sales"].rolling(
+            3, min_periods=1, center=True, closed="both"
+        ).quantile(0.5)
+        _assert_ordered_result(res_df, _generated_col(res_df, "sales"), expected)
+
     def test_rolling_sum_direct(self, uploaded_ctx, time_series_df, backend_config):
         result = uploaded_ctx.rolling(column="sales", window=2, func="sum", order_by="date")
         res_df = get_result_df(result)

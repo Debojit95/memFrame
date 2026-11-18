@@ -68,7 +68,7 @@ The lower-level files are implementation details:
 
 | Synchronous | Asynchronous | Purpose |
 | --- | --- | --- |
-| `rolling(column, window, func, group_cols, order_by=None, q=0.5, min_periods=None)` | `await arolling(...)` | Grouped rolling window; `func` is a string or list |
+| `rolling(column, window, func, group_cols, order_by=None, q=0.5, min_periods=None, center=False, closed=None)` | `await arolling(...)` | Grouped rolling window; `func` is a string or list |
 | `expanding(column, func, group_cols, order_by=None, q=0.5, min_periods=1)` | `await aexpanding(...)` | Grouped expanding window |
 | `ewm(column, group_cols, order_by=None, com/span/halflife/alpha, ...)` | `await aewm(...)` | Grouped EWM (see note below) |
 
@@ -77,7 +77,8 @@ The lower-level files are implementation details:
 ### Builder
 
 `groupby(*columns)` returns the unified `GroupBy`; `.rolling(window,
-order_by, min_periods=None)` / `.expanding(min_periods, order_by)` / `.ewm(...)` return
+order_by, min_periods=None, center=False, closed=None)` /
+`.expanding(min_periods, order_by)` / `.ewm(...)` return
 fluent builders. Each terminal method has a synchronous and asynchronous
 form (`mean` / `amean`, …):
 
@@ -137,6 +138,8 @@ sample = dataset.groupby("region").expanding().sum("sales")
 | `func` | `str` or `list[str]` | Aggregation(s): `sum`, `mean`/`avg`, `min`, `max`, `count`, `std`/`stddev`/`stddev_samp`, `var`/`variance`/`var_samp`, `quantile`, `sem`, `rank`, `nunique`, `first`/`first_value`, `last`/`last_value`. |
 | `order_by` | `str`, `list[str]`, or `None` | Row ordering inside each group. `None` (default) uses the immutable upload order (`_mf_idx`). |
 | `q` | `float` | Quantile level for `quantile` (default `0.5`). |
+| `center` | `bool` | Rolling only — centre the frame on the current row (default `False`). |
+| `closed` | `str` or `None` | Rolling only — `right` (default), `left`, `both`, `neither`. |
 | `min_periods` | `int` or `None` | Minimum observations before a value is produced. Rolling default `None` → `window`; expanding default `1`. Must satisfy `0 <= min_periods <= window`. |
 | `new_table` | `str` or `None` | Kept for compatibility; the result is written to the source and `new_table` resolves to the source table. |
 | `map_feature` | `bool` | Deprecated/ignored. Generated columns are always written back to the source; the envelope carries `mapped_table` / `mapped_columns`. `new_table` is the source table (the ref target). |
@@ -205,6 +208,10 @@ result = dataset.groupby("region").rolling(3, order_by="month").mean("sales")
 result = dataset.groupby("region").rolling(3, order_by="month", min_periods=1).mean("sales")
 result = dataset.groupby("region").rolling(7, order_by="month").quantile("sales", q=0.9)
 ```
+
+`center=True` shifts the frame forward `(window - 1) // 2` rows and `closed`
+selects the included edges (`right` default, `left`, `both`, `neither`); both
+apply per group. `closed="neither"` needs `window >= 2`.
 
 `func` also accepts backend spellings directly (`AVG`, `STDDEV_SAMP`,
 `first_value`, …); unknown names fail the whole call with `is_error

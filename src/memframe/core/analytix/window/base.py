@@ -310,6 +310,7 @@ class WindowOps:
     async def _rolling_datetime_stat(
         self, table, schema, column, order_by=None, window=3, stat="mean",
         backend=None, data_id=None, new_table=None, min_periods=None,
+        center: bool = False, closed: Optional[str] = None,
     ):
         try:
             if backend is None or data_id is None:
@@ -319,7 +320,7 @@ class WindowOps:
             min_p = self._resolve_min_periods(min_periods, window)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
             orders = self._order_keys(order_by)
-            w = int(window) - 1
+            rn_lo, rn_hi = self._rolling_rn(window, center, closed)
             stat_key = stat.lower()
             new_col = f"{safe_col}_rolling_{stat_key}_w{window}"
             base = self._window_base_cte(table, schema, safe_col, orders)
@@ -335,7 +336,7 @@ class WindowOps:
                     FROM (
                         SELECT {inner} AS value_epoch
                         FROM __base r
-                        WHERE r.__rn BETWEEN b.__rn - {w} AND b.__rn
+                        WHERE r.__rn BETWEEN {rn_lo} AND {rn_hi}
                           AND r.v IS NOT NULL
                     ) __agg
                 """
@@ -347,7 +348,7 @@ class WindowOps:
                     FROM (
                         SELECT {inner} AS value_epoch
                         FROM __base r
-                        WHERE r.__rn BETWEEN b.__rn - {w} AND b.__rn
+                        WHERE r.__rn BETWEEN {rn_lo} AND {rn_hi}
                           AND r.v IS NOT NULL
                     ) __agg
                 """
@@ -358,7 +359,7 @@ class WindowOps:
                         FROM (
                             SELECT r.v AS v, COUNT(*) AS cnt
                             FROM __base r
-                            WHERE r.__rn BETWEEN b.__rn - {w} AND b.__rn
+                            WHERE r.__rn BETWEEN {rn_lo} AND {rn_hi}
                               AND r.v IS NOT NULL
                             GROUP BY r.v
                         )
@@ -367,7 +368,7 @@ class WindowOps:
                     value_sql = f"""
                         SELECT r.v
                         FROM __base r
-                        WHERE r.__rn BETWEEN b.__rn - {w} AND b.__rn
+                        WHERE r.__rn BETWEEN {rn_lo} AND {rn_hi}
                           AND r.v IS NOT NULL
                         GROUP BY r.v
                         ORDER BY COUNT(*) DESC, r.v
@@ -379,7 +380,7 @@ class WindowOps:
                 )
             count_subq = f"""
                 SELECT COUNT(r.v) FROM __base r
-                WHERE r.__rn BETWEEN b.__rn - {w} AND b.__rn
+                WHERE r.__rn BETWEEN {rn_lo} AND {rn_hi}
             """
             expr = self._min_periods_gate(
                 f"({value_sql})", f"({count_subq})", min_p,
@@ -423,16 +424,59 @@ class WindowOps:
     @staticmethod
     def _min_periods_gate(agg_sql: str, count_sql: str, min_periods: int) -> str:
         """Mask an aggregate until the frame holds min_periods values."""
-        if min_periods > 1:
+        if min_periods >= 1:
             return (
                 f"CASE WHEN {count_sql} >= {min_periods} "
                 f"THEN {agg_sql} ELSE NULL END"
             )
         return agg_sql
 
-    def _rolling_frame(self, window) -> str:
-        """Default rolling frame: right-closed, uncentered, integer window."""
-        return f"ROWS BETWEEN {int(window) - 1} PRECEDING AND CURRENT ROW"
+    _ROLLING_CLOSED = ("right", "left", "both", "neither")
+
+    def _rolling_offsets(self, window, center=False, closed=None):
+        """Signed row offsets (start, end) of the rolling frame.
+
+        Mirrors pandas: ``closed`` picks which edges are included, and
+        ``center`` shifts the whole frame forward by (window - 1) // 2.
+        """
+        w = int(window)
+        key = "right" if closed is None else closed
+        if key not in self._ROLLING_CLOSED:
+            raise ValueError(
+                f"closed must be one of {self._ROLLING_CLOSED} or None"
+            )
+        lo, hi = {
+            "right": (-(w - 1), 0),
+            "left": (-w, -1),
+            "both": (-w, 0),
+            "neither": (-(w - 1), -1),
+        }[key]
+        if lo > hi:
+            # Only reachable for window=1 + closed="neither": SQL has no
+            # empty frame, and pandas returns an all-null column anyway.
+            raise ValueError(
+                "closed='neither' requires window >= 2 (empty frame)"
+            )
+        if center:
+            shift = (w - 1) // 2
+            lo += shift
+            hi += shift
+        return lo, hi
+
+    @staticmethod
+    def _frame_bound(offset: int) -> str:
+        if offset == 0:
+            return "CURRENT ROW"
+        return f"{-offset} PRECEDING" if offset < 0 else f"{offset} FOLLOWING"
+
+    def _rolling_frame(self, window, center=False, closed=None) -> str:
+        lo, hi = self._rolling_offsets(window, center, closed)
+        return f"ROWS BETWEEN {self._frame_bound(lo)} AND {self._frame_bound(hi)}"
+
+    def _rolling_rn(self, window, center=False, closed=None):
+        """Correlated-subquery bounds for the ``b.__rn`` row number."""
+        lo, hi = self._rolling_offsets(window, center, closed)
+        return f"b.__rn + ({lo})", f"b.__rn + ({hi})"
 
     def _distinct_count_sql(self, expr: str) -> str:
         return f"COUNT(DISTINCT {expr})"
@@ -488,6 +532,8 @@ class WindowOps:
     backend=None,
     data_id=None,
     min_periods: Optional[int] = None,
+    center: bool = False,
+    closed: Optional[str] = None,
     new_table: Optional[str] = None) -> Dict[str, Any]:
         try:
             if backend is None or data_id is None:
@@ -512,7 +558,7 @@ class WindowOps:
             min_p = self._resolve_min_periods(min_periods, window)
             safe_orders = self._order_keys(order_by)
             order_sql = ", ".join(self.db.quote_identifier(c) for c in safe_orders)
-            frame = self._rolling_frame(window)
+            frame = self._rolling_frame(window, center, closed)
             qualified = self._qualified_table(table, schema)
             q_col = self.db.quote_identifier(safe_col)
             source_col_type = await self._get_column_sql_type(table, schema, safe_col)
@@ -563,10 +609,12 @@ class WindowOps:
                 )
                 value_sql = f"{agg_call} OVER (ORDER BY {order_sql} {frame})"
                 # pandas gates count on the rows in the frame, not on the
-                # non-null observations.
+                # non-null observations; other aggs are already NULL when the
+                # frame is empty, so they only need the gate above one.
                 gate_count = rows_over if alias_key == "count" else count_over
+                gate_at = min_p if (alias_key == "count" or min_p > 1) else 0
                 value_sql = self._min_periods_gate(
-                    value_sql, gate_count, min_p,
+                    value_sql, gate_count, gate_at,
                 )
                 if alias_key == "sum" and min_p == 0:
                     value_sql = f"COALESCE({value_sql}, 0)"
@@ -649,6 +697,8 @@ class WindowOps:
         backend=None, data_id=None,
         new_table: Optional[str] = None,
         min_periods: Optional[int] = None,
+        center: bool = False,
+        closed: Optional[str] = None,
     ):
         try:
             if backend is None or data_id is None:
@@ -660,8 +710,8 @@ class WindowOps:
             orders = self._order_keys(order_by)
             order_sql = ", ".join(self.db.quote_identifier(c) for c in orders)
             q_col = self.db.quote_identifier(safe_col)
-            w = int(window) - 1
-            frame = self._rolling_frame(window)
+            rn_lo, rn_hi = self._rolling_rn(window, center, closed)
+            frame = self._rolling_frame(window, center, closed)
             new_col = f"{safe_col}_rolling_q{q}_w{window}"
 
             if isinstance(self.db, DuckDBAdapter):
@@ -685,12 +735,12 @@ class WindowOps:
                 )
                 count_subq = f"""
                     SELECT COUNT(r.v) FROM __base r
-                    WHERE r.__rn BETWEEN b.__rn - {w} AND b.__rn
+                    WHERE r.__rn BETWEEN {rn_lo} AND {rn_hi}
                 """
                 quantile_subq = f"""
                     SELECT {self._quantile_cont_sql("r.v", q)}
                     FROM __base r
-                    WHERE r.__rn BETWEEN b.__rn - {w} AND b.__rn
+                    WHERE r.__rn BETWEEN {rn_lo} AND {rn_hi}
                       AND r.v IS NOT NULL
                 """
                 expr = self._min_periods_gate(
@@ -720,6 +770,8 @@ class WindowOps:
         window=3, backend=None, data_id=None,
         new_table: Optional[str] = None,
         min_periods: Optional[int] = None,
+        center: bool = False,
+        closed: Optional[str] = None,
     ):
         try:
             if backend is None or data_id is None:
@@ -732,7 +784,7 @@ class WindowOps:
             order_sql = ", ".join(self.db.quote_identifier(c) for c in orders)
             q_col = self.db.quote_identifier(safe_col)
             new_col = f"{safe_col}_rolling_sem_w{window}"
-            frame = self._rolling_frame(window)
+            frame = self._rolling_frame(window, center, closed)
             count_over = (
                 f"{self._count_expr(q_col)} OVER "
                 f"(ORDER BY {order_sql} {frame})"
@@ -767,6 +819,8 @@ class WindowOps:
         data_id=None,
         new_table: Optional[str] = None,
         min_periods: Optional[int] = None,
+        center: bool = False,
+        closed: Optional[str] = None,
     ):
         try:
             if backend is None or data_id is None:
@@ -778,8 +832,8 @@ class WindowOps:
             orders = self._order_keys(order_by)
             order_sql = ", ".join(self.db.quote_identifier(c) for c in orders)
             q_col = self.db.quote_identifier(safe_col)
-            w = int(window) - 1
-            frame = self._rolling_frame(window)
+            rn_lo, rn_hi = self._rolling_rn(window, center, closed)
+            frame = self._rolling_frame(window, center, closed)
             new_col = f"{safe_col}_rolling_nunique_w{window}"
 
             if isinstance(self.db, DuckDBAdapter):
@@ -805,12 +859,12 @@ class WindowOps:
                 )
                 count_subq = f"""
                     SELECT COUNT(r.v) FROM __base r
-                    WHERE r.__rn BETWEEN b.__rn - {w} AND b.__rn
+                    WHERE r.__rn BETWEEN {rn_lo} AND {rn_hi}
                 """
                 distinct_subq = f"""
                     SELECT {self._distinct_count_sql("r.v")}
                     FROM __base r
-                    WHERE r.__rn BETWEEN b.__rn - {w} AND b.__rn
+                    WHERE r.__rn BETWEEN {rn_lo} AND {rn_hi}
                 """
                 expr = self._min_periods_gate(
                     f"({distinct_subq})", f"({count_subq})", min_p,
@@ -839,6 +893,8 @@ class WindowOps:
         window=3, backend=None, data_id=None,
         new_table: Optional[str] = None,
         min_periods: Optional[int] = None,
+        center: bool = False,
+        closed: Optional[str] = None,
     ):
         try:
             if backend is None or data_id is None:
@@ -848,18 +904,18 @@ class WindowOps:
             min_p = self._resolve_min_periods(min_periods, window)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
             orders = self._order_keys(order_by)
-            w = int(window) - 1
+            rn_lo, rn_hi = self._rolling_rn(window, center, closed)
             new_col = f"{safe_col}_rolling_rank_w{window}"
             base = self._window_base_cte(table, schema, safe_col, orders)
             count_subq = f"""
                 SELECT COUNT(r.v)
                 FROM __base r
-                WHERE r.__rn BETWEEN b.__rn - {w} AND b.__rn
+                WHERE r.__rn BETWEEN {rn_lo} AND {rn_hi}
             """
             rank_subq = f"""
                 SELECT COUNT(*)
                 FROM __base r
-                WHERE r.__rn BETWEEN b.__rn - {w} AND b.__rn
+                WHERE r.__rn BETWEEN {rn_lo} AND {rn_hi}
                   AND r.v <= b.v
             """
             expr = self._min_periods_gate(
