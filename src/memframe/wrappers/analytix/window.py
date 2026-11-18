@@ -33,12 +33,14 @@ class WindowBuilderWrapper:
     def rolling(
         self,
         window: int,
+        min_periods: int = None,
     ) -> "RollingWindowBuilderWrapper":
         """Create a rolling window builder for the selected column."""
         return RollingWindowBuilderWrapper(
             parent=self._parent,
             column=self.column,
             window=window,
+            min_periods=min_periods,
         )
 
     # ------------------------------------------------------------------
@@ -95,11 +97,13 @@ class RollingWindowBuilderWrapper:
         parent: WindowOrchestrator,
         column: str,
         window: int,
+        min_periods: int = None,
     ):
         """Initialize rolling builder with column and window size."""
         self._parent = parent
         self.column = column
         self.window = window
+        self.min_periods = min_periods
 
     async def aapply(
         self,
@@ -114,6 +118,7 @@ class RollingWindowBuilderWrapper:
             func=func,
             order_by=order_by,
             q=q,
+            min_periods=self.min_periods,
         )
 
     @async_to_sync
@@ -707,6 +712,7 @@ class WindowWrapper(WindowOrchestrator):
         func: Union[str, List[str]],
         order_by: Union[str, List[str]] = None,
         q: float = 0.5,
+        min_periods: int = None,
     ) -> Dict[str, Any]:
         """Asynchronously run direct rolling window operation."""
         return await super().rolling(
@@ -715,6 +721,7 @@ class WindowWrapper(WindowOrchestrator):
             func=func,
             order_by=order_by,
             q=q,
+            min_periods=min_periods,
         )
 
     @overload
@@ -725,6 +732,7 @@ class WindowWrapper(WindowOrchestrator):
         func: None = None,
         order_by: Union[str, List[str], None] = None,
         q: float = 0.5,
+        min_periods: int = None,
     ) -> RollingWindowBuilderWrapper: ...
 
     @overload
@@ -735,6 +743,7 @@ class WindowWrapper(WindowOrchestrator):
         func: Union[str, List[str]],
         order_by: Union[str, List[str], None] = None,
         q: float = 0.5,
+        min_periods: int = None,
     ) -> Dict[str, Any]: ...
 
     def rolling(
@@ -744,11 +753,16 @@ class WindowWrapper(WindowOrchestrator):
         func: Optional[Union[str, List[str]]] = None,
         order_by: Union[str, List[str], None] = None,
         q: float = 0.5,
+        min_periods: int = None,
     ) -> Union[RollingWindowBuilderWrapper, Dict[str, Any]]:
         """Run a rolling operation directly, or return a fluent builder."""
         if func is None:
-            return RollingWindowBuilderWrapper(self, column, window)
-        return async_to_sync(self.arolling)(column, window, func, order_by, q)
+            return RollingWindowBuilderWrapper(
+                self, column, window, min_periods,
+            )
+        return async_to_sync(self.arolling)(
+            column, window, func, order_by, q, min_periods,
+        )
 
     async def aexpanding(
         self,

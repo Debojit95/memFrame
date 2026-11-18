@@ -151,6 +151,7 @@ class WindowOrchestrator:
         func: Union[str, List[str]],
         order_by: Union[str, List[str]] = None,
         q: float = 0.5,
+        min_periods: int = None,
     ):
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
@@ -209,6 +210,8 @@ class WindowOrchestrator:
         successful_funcs = []
         failed_funcs = {}
         generated_cols = []
+        applied_cols = []
+        all_source_updated = True
         last_success_result = None
 
         for func_key, method_name in executable:
@@ -219,6 +222,7 @@ class WindowOrchestrator:
                 column=column,
                 order_by=order_by,
                 window=window,
+                min_periods=min_periods,
                 backend=backend,
                 data_id=data_id,
             )
@@ -236,9 +240,14 @@ class WindowOrchestrator:
 
             # Collect all newly created columns
             if isinstance(result.get("new_columns"), list):
-                generated_cols.extend(result["new_columns"])
-            elif result.get("new_column"):
-                generated_cols.append(result["new_column"])
+                result_cols = list(result["new_columns"])
+            else:
+                result_cols = [result["new_column"]] if result.get("new_column") else []
+            generated_cols.extend(result_cols)
+            if result.get("source_updated"):
+                applied_cols.extend(result_cols)
+            else:
+                all_source_updated = False
 
             # **Critical fix**: move to the table that was just generated
             new_table = result.get("new_table")
@@ -264,6 +273,7 @@ class WindowOrchestrator:
         sig = make_sig(
             op="window.rolling", column=column, window=window,
             func=requested_funcs, order_by=order_by,
+            min_periods=min_periods,
         )
         involved = self._involved_cols(column, order_by)
 
@@ -286,7 +296,7 @@ class WindowOrchestrator:
 
         final_result = None
         try:
-            final_result = await ops._fetch_data(current_table, schema, preview_cols)
+            final_result = await ops._preview_data(current_table, schema, preview_cols)
         except Exception:
             final_result = last_success_result.get("result") if last_success_result else None
 
@@ -313,6 +323,9 @@ class WindowOrchestrator:
             "skipped_funcs": skipped_funcs,
             "failed_funcs": failed_funcs,
             "is_partial": is_partial,
+            "source_updated": all_source_updated,
+            "applied_columns": list(dict.fromkeys(applied_cols)),
+            "preview_ordered": True,
         }
         try:
             return await self._publish(
@@ -427,6 +440,8 @@ class WindowOrchestrator:
         successful_funcs = []
         failed_funcs = {}
         generated_cols = []
+        applied_cols = []
+        all_source_updated = True
         last_success_result = None
 
         for func_key, method_name in executable:
@@ -453,9 +468,14 @@ class WindowOrchestrator:
             successful_funcs.append(func_key)
 
             if isinstance(result.get("new_columns"), list):
-                generated_cols.extend(result["new_columns"])
-            elif result.get("new_column"):
-                generated_cols.append(result["new_column"])
+                result_cols = list(result["new_columns"])
+            else:
+                result_cols = [result["new_column"]] if result.get("new_column") else []
+            generated_cols.extend(result_cols)
+            if result.get("source_updated"):
+                applied_cols.extend(result_cols)
+            else:
+                all_source_updated = False
 
             new_table = result.get("new_table")
             if new_table:
@@ -497,7 +517,7 @@ class WindowOrchestrator:
 
         final_result = None
         try:
-            final_result = await ops._fetch_data(current_table, schema, preview_cols)
+            final_result = await ops._preview_data(current_table, schema, preview_cols)
         except Exception:
             final_result = last_success_result.get("result") if last_success_result else None
 
@@ -521,6 +541,9 @@ class WindowOrchestrator:
             "failed_funcs": failed_funcs,
             "is_partial": is_partial,
             "min_periods": min_periods,
+            "source_updated": all_source_updated,
+            "applied_columns": list(dict.fromkeys(applied_cols)),
+            "preview_ordered": True,
         }
         try:
             return await self._publish(

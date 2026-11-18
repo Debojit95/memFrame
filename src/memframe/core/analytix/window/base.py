@@ -1,14 +1,15 @@
 from typing import Any, Dict, List, Optional, Union
-import asyncio
-from concurrent.futures import ThreadPoolExecutor
+from contextlib import nullcontext
 import traceback
 from datetime import datetime, timezone
 
 from memframe.core.analytix._fetch import fetch_df as _fetch_df_rows
+from memframe.core.analytix._generated import assert_owned_columns
 from memframe.db_manager.adapters.base import DatabaseAdapter
+from memframe.db_manager.adapters.clickhouse import ClickHouseAdapter
+from memframe.db_manager.adapters.duckdb import DuckDBAdapter
 from memframe.utils.helper import SQLIdentifierSanitizer
 import math
-import numpy as np
 
 
 class WindowOps:
@@ -18,7 +19,8 @@ class WindowOps:
     subclass this and override the dialect hooks (and the few structurally
     divergent operations) so the generated SQL is byte-identical per backend.
     """
-    TMP_ROW = "__totem_tmp_row"
+    # Test/tuning hook: set to force a block size (e.g. 4 in unit tests).
+    EWM_BLOCK_SIZE: Optional[int] = None
 
     def __init__(self, db_adapter: DatabaseAdapter):
         self.db = db_adapter
@@ -55,12 +57,6 @@ class WindowOps:
 
     def _quantile_cont_sql(self, col_quoted: str, q) -> str:
         return f"QUANTILE_CONT({col_quoted}, {q})"
-
-    def _ewm_row_types(self) -> tuple:
-        return "BIGINT", "DOUBLE"
-
-    def _ewm_uses_stage_table(self) -> bool:
-        return False
 
     # --------------------------------------------------
     # Helpers (reuse pattern)
@@ -105,6 +101,79 @@ class WindowOps:
         if order_by:
             return SQLIdentifierSanitizer.sanitize(order_by), table
         return "_mf_idx", table
+
+    # --------------------------------------------------
+    # Feature-table helpers (narrow sort/pass + merge back)
+    # --------------------------------------------------
+    def _order_keys(self, order_by) -> List[str]:
+        """Ordering keys: explicit columns, else the immutable upload index."""
+        if not order_by:
+            return ["_mf_idx"]
+        keys = order_by if isinstance(order_by, (list, tuple)) else [order_by]
+        safe = [SQLIdentifierSanitizer.sanitize(c) for c in keys]
+        if "_mf_idx" not in safe:
+            safe.append("_mf_idx")
+        return safe
+
+    def _pop_std_agg(self) -> str:
+        # Rolling std is population; expanding std is sample (see _std_agg).
+        return "STDDEV_POP"
+
+    def _count_expr(self, column_expr: str) -> str:
+        return f"COUNT({column_expr})"
+
+    async def _preview_data(self, table: str, schema: str, columns) -> Any:
+        """Preview in _mf_idx order so it matches the cache replay."""
+        qualified = self._qualified_table(table, schema)
+        safe = list(dict.fromkeys(SQLIdentifierSanitizer.sanitize(c) for c in columns))
+        col_sql = ", ".join(self.db.quote_identifier(c) for c in safe)
+        limit = getattr(self.db, "preview_rows", None)
+        sql = (
+            f"SELECT {col_sql} FROM {qualified} "
+            f'ORDER BY {self.db.quote_identifier("_mf_idx")}'
+        )
+        if limit:
+            sql += f" LIMIT {int(limit)}"
+        return await _fetch_df_rows(self.db, sql)
+
+    async def _merge_features(
+        self,
+        table: str,
+        schema: str,
+        select_sql: str,
+        columns: List[str],
+        column_types: List[str],
+        backend=None,
+        data_id=None,
+    ) -> None:
+        """Add generated columns to the source and backfill them by _mf_idx."""
+        try:
+            existing = set(await self.db.get_column_types(table, schema) or {})
+        except Exception:
+            existing = set()
+        added = [c for c in columns if c not in existing]
+        qualified = self._qualified_table(table, schema)
+        assignments = ", ".join(
+            f"{self.db.quote_identifier(c)} = s.{self.db.quote_identifier(c)}"
+            for c in columns
+        )
+        rid = self.db.quote_identifier(self._row_id_col)
+        try:
+            for col, col_type in zip(columns, column_types):
+                await self._add_col(table, schema, col, col_type)
+            await self._exec(
+                f"UPDATE {qualified} AS t SET {assignments} "
+                f"FROM ({select_sql}) AS s WHERE t.{rid} = s.{rid}"
+            )
+        except Exception:
+            # Never leave a half-created column behind: it would look like a
+            # foreign collision on the next run.
+            for col in added:
+                await self._exec(
+                    f"ALTER TABLE {qualified} "
+                    f"DROP COLUMN IF EXISTS {self.db.quote_identifier(col)}"
+                )
+            raise
 
     def _success_response(self, message, result, **extra):
         return {
@@ -173,57 +242,6 @@ class WindowOps:
 
         return output_table
 
-    async def _prepare_operation_table(
-        self,
-        table: str,
-        schema: str,
-        backend=None,
-        data_id: Optional[str] = None,
-        new_table: Optional[str] = None,
-    ) -> str:
-        safe_schema = SQLIdentifierSanitizer.sanitize(schema)
-        source_table = SQLIdentifierSanitizer.sanitize(table)
-        output_table = await self._resolve_output_table_name(
-            source_table,
-            safe_schema,
-            backend=backend,
-            data_id=data_id,
-            new_table=new_table,
-        )
-
-        qualified_source = self._qualified_table(source_table, safe_schema)
-        qualified_target = f'{self.db.quote_identifier(safe_schema)}.{self.db.quote_identifier(output_table)}'
-        await self._exec(f"CREATE TABLE {qualified_target} AS SELECT * FROM {qualified_source}")
-        return output_table
-
-    async def _ensure_row_id(self, table: str, schema: str, order_col):
-        """Add a temporary sequential row-id column ordered by the given keys."""
-        q = self._qualified_table(table, schema)
-        if isinstance(order_col, (list, tuple)):
-            safe_orders = [SQLIdentifierSanitizer.sanitize(c) for c in order_col]
-        else:
-            safe_orders = [SQLIdentifierSanitizer.sanitize(order_col)]
-        order_sql = ", ".join(self.db.quote_identifier(c) for c in safe_orders)
-        await self._add_col(table, schema, self.TMP_ROW, "BIGINT")
-
-        rid = self._row_id_col
-        if rid == "ctid":
-            await self._exec(
-                f'UPDATE {q} AS t SET "{self.TMP_ROW}" = rn FROM '
-                f'(SELECT ctid, ROW_NUMBER() OVER (ORDER BY {order_sql}) AS rn FROM {q}) sub '
-                f'WHERE t.ctid = sub.ctid'
-            )
-        else:
-            await self._exec(
-                f'UPDATE {q} SET "{self.TMP_ROW}" = rn FROM '
-                f'(SELECT {rid}, ROW_NUMBER() OVER (ORDER BY {order_sql}) AS rn FROM {q}) sub '
-                f'WHERE {q}.{rid} = sub.{rid}'
-            )
-
-    async def _drop_tmp_row(self, table: str, schema: str):
-        q = self._qualified_table(table, schema)
-        await self._exec(f'ALTER TABLE {q} DROP COLUMN IF EXISTS "{self.TMP_ROW}"')
-
     async def _source_star(
         self, table: str, schema: str, exclude=(), prefix: str = "",
         extra=(),
@@ -289,116 +307,172 @@ class WindowOps:
             return "DOUBLE PRECISION"
         return "DOUBLE PRECISION"
 
-    async def _rolling_datetime_stat(self, table: str, schema: str, column: str, order_by: Union[str, List[str]] = None, window: int = 3, stat: str = "mean", backend=None, data_id=None) -> Dict[str, Any]:
+    async def _rolling_datetime_stat(
+        self, table, schema, column, order_by=None, window=3, stat="mean",
+        backend=None, data_id=None, new_table=None, min_periods=None,
+    ):
         try:
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
-
-            safe_col = SQLIdentifierSanitizer.sanitize(column)
-
-            # resolve ordering: supports single column or list of columns
-            if order_by:
-                if isinstance(order_by, (list, tuple)):
-                    safe_orders = [SQLIdentifierSanitizer.sanitize(c) for c in order_by]
-                else:
-                    safe_orders = [SQLIdentifierSanitizer.sanitize(order_by)]
-                working_table = table
-            else:
-                safe_order, working_table = await self._resolve_ordering(
-                    table, schema, order_by
-                )
-                safe_orders = [safe_order]
-
-            w = int(window) - 1
-            if w < 0:
+            if int(window) < 1:
                 return self._error_response("window must be >= 1")
-
+            min_p = self._resolve_min_periods(min_periods, window)
+            safe_col = SQLIdentifierSanitizer.sanitize(column)
+            orders = self._order_keys(order_by)
+            w = int(window) - 1
             stat_key = stat.lower()
             new_col = f"{safe_col}_rolling_{stat_key}_w{window}"
-
-            new_table = await self._generate_cache_table_name(
-                table, backend, data_id
+            base = self._window_base_cte(table, schema, safe_col, orders)
+            is_date_only = await self._is_date_only_column(
+                table, schema, safe_col,
             )
-            qualified = self._qualified_table(working_table, schema)
-
-            q_schema = self.db.quote_identifier(SQLIdentifierSanitizer.sanitize(schema))
-            q_new_table = self.db.quote_identifier(new_table)
-            q_col = self.db.quote_identifier(safe_col)
-            order_sql = ", ".join(self.db.quote_identifier(c) for c in safe_orders)
-            q_rn = self.db.quote_identifier("__totem_roll_rn")
-
-            is_date_only = await self._is_date_only_column(working_table, schema, safe_col)
-            from_epoch_expr = self._from_epoch_expr(is_date_only)
-
+            from_epoch = self._from_epoch_expr(is_date_only)
             if stat_key == "mean":
-                epoch_expr = self._datetime_epoch_expr(f"r.{q_col}")
+                epoch_expr = self._datetime_epoch_expr("r.v")
+                inner = self._avg_fn() + f"({epoch_expr})"
                 value_sql = f"""
-                    SELECT {from_epoch_expr}
+                    SELECT {from_epoch}
                     FROM (
-                        SELECT {self._avg_fn()}({epoch_expr}) AS value_epoch
+                        SELECT {inner} AS value_epoch
                         FROM __base r
-                        WHERE r.{q_rn} BETWEEN b.{q_rn} - {w} AND b.{q_rn}
-                          AND r.{q_col} IS NOT NULL
+                        WHERE r.__rn BETWEEN b.__rn - {w} AND b.__rn
+                          AND r.v IS NOT NULL
                     ) __agg
                 """
             elif stat_key == "median":
-                epoch_expr = self._datetime_epoch_expr(f"r.{q_col}")
-                median_epoch_sql = self._median_epoch_sql(epoch_expr)
+                epoch_expr = self._datetime_epoch_expr("r.v")
+                inner = self._median_epoch_sql(epoch_expr)
                 value_sql = f"""
-                    SELECT {from_epoch_expr}
+                    SELECT {from_epoch}
                     FROM (
-                        SELECT {median_epoch_sql} AS value_epoch
+                        SELECT {inner} AS value_epoch
                         FROM __base r
-                        WHERE r.{q_rn} BETWEEN b.{q_rn} - {w} AND b.{q_rn}
-                          AND r.{q_col} IS NOT NULL
+                        WHERE r.__rn BETWEEN b.__rn - {w} AND b.__rn
+                          AND r.v IS NOT NULL
                     ) __agg
                 """
             elif stat_key == "mode":
-                value_sql = f"""
-                    SELECT r.{q_col}
-                    FROM __base r
-                    WHERE r.{q_rn} BETWEEN b.{q_rn} - {w} AND b.{q_rn}
-                      AND r.{q_col} IS NOT NULL
-                    GROUP BY r.{q_col}
-                    ORDER BY COUNT(*) DESC, r.{q_col}
-                    LIMIT 1
-                """
+                if isinstance(self.db, ClickHouseAdapter):
+                    value_sql = f"""
+                        SELECT argMin(v, (-cnt, v))
+                        FROM (
+                            SELECT r.v AS v, COUNT(*) AS cnt
+                            FROM __base r
+                            WHERE r.__rn BETWEEN b.__rn - {w} AND b.__rn
+                              AND r.v IS NOT NULL
+                            GROUP BY r.v
+                        )
+                    """
+                else:
+                    value_sql = f"""
+                        SELECT r.v
+                        FROM __base r
+                        WHERE r.__rn BETWEEN b.__rn - {w} AND b.__rn
+                          AND r.v IS NOT NULL
+                        GROUP BY r.v
+                        ORDER BY COUNT(*) DESC, r.v
+                        LIMIT 1
+                    """
             else:
-                return self._error_response(f"Unsupported datetime rolling stat '{stat}'")
-
-            src_star = await self._source_star(working_table, schema, [new_col])
-            sql = f"""
-                CREATE TABLE {q_schema}.{q_new_table} AS
-                WITH __base AS (
-                    SELECT {src_star},
-                        ROW_NUMBER() OVER (ORDER BY {order_sql}) AS {q_rn}
-                    FROM {qualified}
+                return self._error_response(
+                    f"Unsupported datetime rolling stat '{stat}'"
                 )
-                SELECT b.*,
-                    ({value_sql}) AS {self.db.quote_identifier(new_col)}
+            count_subq = f"""
+                SELECT COUNT(r.v) FROM __base r
+                WHERE r.__rn BETWEEN b.__rn - {w} AND b.__rn
+            """
+            expr = self._min_periods_gate(
+                f"({value_sql})", f"({count_subq})", min_p,
+            )
+            feature_sql = f"""
+                WITH {base}
+                SELECT b.{self.db.quote_identifier("_mf_idx")},
+                    {expr} AS {self.db.quote_identifier(new_col)}
                 FROM __base b
             """
-
-            await self._exec(sql)
-
-            if order_by:
-                res = await self._fetch_data(
-                    new_table, schema, [column, new_col, *safe_orders]
-                )
-            else:
-                res = await self._fetch_data(new_table, schema, [column, new_col])
-
-            return self._success_response(
-                f"Rolling datetime {stat_key} on '{column}' (window={window})",
-                res,
-                new_table=new_table,
-                new_column=new_col,
-                window=window,
+            source_type = await self._get_column_sql_type(
+                table, schema, safe_col,
+            ) or self._ewm_float_type()
+            return await self._finish_window_special(
+                table, schema, column, new_col, feature_sql,
+                source_type, backend, data_id, order_by,
+                f"Rolling datetime {stat_key} on '{column}' "
+                f"(window={window}, min_periods={min_p})",
+                window=window, min_periods=min_p,
             )
         except Exception as e:
             return self._error_response(
                 f"rolling datetime error: {str(e)}\n{traceback.format_exc()}"
             )
+
+    def _resolve_min_periods(self, min_periods, window) -> int:
+        """Resolve pandas' rolling min_periods: None means the window size."""
+        window = int(window)
+        if min_periods is None:
+            return window
+        if isinstance(min_periods, bool) or not isinstance(min_periods, int):
+            raise ValueError("min_periods must be an integer")
+        if min_periods < 0:
+            raise ValueError("min_periods must be >= 0")
+        if min_periods > window:
+            raise ValueError(
+                f"min_periods {min_periods} must be <= window {window}"
+            )
+        return min_periods
+
+    @staticmethod
+    def _min_periods_gate(agg_sql: str, count_sql: str, min_periods: int) -> str:
+        """Mask an aggregate until the frame holds min_periods values."""
+        if min_periods > 1:
+            return (
+                f"CASE WHEN {count_sql} >= {min_periods} "
+                f"THEN {agg_sql} ELSE NULL END"
+            )
+        return agg_sql
+
+    def _rolling_frame(self, window) -> str:
+        """Default rolling frame: right-closed, uncentered, integer window."""
+        return f"ROWS BETWEEN {int(window) - 1} PRECEDING AND CURRENT ROW"
+
+    def _distinct_count_sql(self, expr: str) -> str:
+        return f"COUNT(DISTINCT {expr})"
+
+    def _window_base_cte(
+        self, table, schema, safe_col, orders, name="__base",
+    ) -> str:
+        q = self.db.quote_identifier
+        order_sql = ", ".join(q(c) for c in orders)
+        qualified = self._qualified_table(table, schema)
+        return f"""{name} AS (
+                SELECT {q("_mf_idx")}, {q(safe_col)} AS v,
+                       ROW_NUMBER() OVER (ORDER BY {order_sql}) AS __rn
+                FROM {qualified}
+            )"""
+
+    async def _finish_window_special(
+        self, table, schema, column, new_col, feature_sql, col_type,
+        backend, data_id, order_by, message, **extra,
+    ):
+        collision = await assert_owned_columns(
+            self, table, schema, [new_col], "window_map", backend, data_id,
+        )
+        if collision:
+            return self._error_response(collision)
+        await self._merge_features(
+            table, schema, feature_sql, [new_col], [col_type],
+            backend=backend, data_id=data_id,
+        )
+        preview_cols = [column, new_col]
+        if order_by:
+            preview_cols += [
+                c for c in self._order_keys(order_by) if c != "_mf_idx"
+            ]
+        preview_cols = list(dict.fromkeys(preview_cols))
+        res = await self._preview_data(table, schema, preview_cols)
+        return self._success_response(
+            message, res, new_table=table, new_column=new_col,
+            source_updated=True, **extra,
+        )
 
     # --------------------------------------------------
     # 🔥 GENERIC ROLLING ENGINE
@@ -413,6 +487,7 @@ class WindowOps:
     agg: Union[str, List[str]] = "SUM",
     backend=None,
     data_id=None,
+    min_periods: Optional[int] = None,
     new_table: Optional[str] = None) -> Dict[str, Any]:
         try:
             if backend is None or data_id is None:
@@ -430,50 +505,33 @@ class WindowOps:
             if not raw_aggs:
                 return self._error_response("At least one aggregation function is required")
 
-            # --- 1. Clone table ---
-            working_table = await self._prepare_operation_table(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
-            )
+            if int(window) < 1:
+                return self._error_response("window must be >= 1")
 
-            # --- 2. Resolve ordering ---
-            if order_by:
-                if isinstance(order_by, (list, tuple)):
-                    safe_orders = [SQLIdentifierSanitizer.sanitize(c) for c in order_by]
-                else:
-                    safe_orders = [SQLIdentifierSanitizer.sanitize(order_by)]
-            else:
-                # simulate stable order with a temporary row-number column
-                temp_row = "__totem_order"
-                await self._add_col(working_table, schema, temp_row, "BIGINT")
-                q = self._qualified_table(working_table, schema)
-                rowid = self._row_id_col
-                if rowid == "ctid":
-                    await self._exec(
-                        f'UPDATE {q} AS t SET "{temp_row}" = rn '
-                        f'FROM (SELECT {rowid}, ROW_NUMBER() OVER () AS rn FROM {q}) sub '
-                        f'WHERE t.{rowid} = sub.{rowid}'
-                    )
-                else:
-                    await self._exec(
-                        f'UPDATE {q} SET "{temp_row}" = rn '
-                        f'FROM (SELECT {rowid}, ROW_NUMBER() OVER () AS rn FROM {q}) sub '
-                        f'WHERE {q}.{rowid} = sub.{rowid}'
-                    )
-                safe_orders = [temp_row]
-
+            # --- 1. Narrow ordering: explicit keys, else the upload index ---
+            min_p = self._resolve_min_periods(min_periods, window)
+            safe_orders = self._order_keys(order_by)
             order_sql = ", ".join(self.db.quote_identifier(c) for c in safe_orders)
-            w = int(window) - 1
-            qualified = self._qualified_table(working_table, schema)
-            source_col_type = await self._get_column_sql_type(working_table, schema, safe_col)
+            frame = self._rolling_frame(window)
+            qualified = self._qualified_table(table, schema)
+            q_col = self.db.quote_identifier(safe_col)
+            source_col_type = await self._get_column_sql_type(table, schema, safe_col)
+            count_over = (
+                f"{self._count_expr(q_col)} OVER "
+                f"(ORDER BY {order_sql} {frame})"
+            )
+            rows_over = f"COUNT(1) OVER (ORDER BY {order_sql} {frame})"
 
-            # --- 3. Function mapping ---
+            # --- 2. Function mapping (all aggs in one window pass) ---
             agg_map = {
                 "sum": "SUM", "avg": "AVG", "mean": "AVG",
                 "min": "MIN", "max": "MAX", "count": "COUNT",
                 "first_value": "FIRST_VALUE", "last_value": "LAST_VALUE",
                 "first": "FIRST_VALUE", "last": "LAST_VALUE",
             }
-            new_cols = []
+            new_cols: List[str] = []
+            exprs: List[str] = []
+            col_types: List[str] = []
             used_col_names = set()
 
             for raw in raw_aggs:
@@ -482,7 +540,7 @@ class WindowOps:
                     sql_agg = agg_map[key]
                     alias_key = key
                 elif key in ("std", "stddev", "stddev_pop", "stddev_samp"):
-                    sql_agg = "STDDEV_POP"
+                    sql_agg = self._pop_std_agg()
                     alias_key = "std"
                 elif key in ("var", "variance", "var_samp"):
                     sql_agg = self._var_agg()
@@ -498,47 +556,58 @@ class WindowOps:
                     suffix += 1
                 used_col_names.add(col_name)
                 new_cols.append(col_name)
-
-                # Add the column
-                result_type = self._window_result_sql_type(
-                    source_col_type, alias_key, sql_agg
+                agg_call = (
+                    self._count_expr(q_col)
+                    if alias_key == "count"
+                    else f"{sql_agg}({q_col})"
                 )
-                await self._add_col(working_table, schema, col_name, result_type)
+                value_sql = f"{agg_call} OVER (ORDER BY {order_sql} {frame})"
+                # pandas gates count on the rows in the frame, not on the
+                # non-null observations.
+                gate_count = rows_over if alias_key == "count" else count_over
+                value_sql = self._min_periods_gate(
+                    value_sql, gate_count, min_p,
+                )
+                if alias_key == "sum" and min_p == 0:
+                    value_sql = f"COALESCE({value_sql}, 0)"
+                exprs.append(
+                    f"{value_sql} AS {self.db.quote_identifier(col_name)}"
+                )
+                col_types.append(
+                    self._window_result_sql_type(source_col_type, alias_key, sql_agg)
+                )
 
-                # Build the UPDATE statement
-                q_col = self.db.quote_identifier(col_name)
-                window_expr = f"""
-                    {sql_agg}({self.db.quote_identifier(safe_col)})
-                    OVER (ORDER BY {order_sql} ROWS BETWEEN {w} PRECEDING AND CURRENT ROW)
-                """
-                rid = self._row_id_col
-                await self._exec(f"""
-                    UPDATE {qualified} AS t
-                    SET {q_col} = s.val
-                    FROM (
-                        SELECT {rid},
-                            {window_expr} AS val
-                        FROM {qualified}
-                    ) AS s
-                    WHERE t.{rid} = s.{rid}
-                """)
+            collision = await assert_owned_columns(
+                self, table, schema, new_cols, "window_map", backend, data_id,
+            )
+            if collision:
+                return self._error_response(collision)
 
-            # --- 4. Clean up temporary ordering column ---
-            if not order_by and safe_orders[0] == temp_row:
-                await self._exec(f'ALTER TABLE {qualified} DROP COLUMN IF EXISTS "{temp_row}"')
+            # --- 3. Compute + map back once by _mf_idx ---
+            select_sql = (
+                f'SELECT {self.db.quote_identifier("_mf_idx")}, '
+                + ", ".join(exprs)
+                + f" FROM {qualified}"
+            )
+            await self._merge_features(
+                table, schema, select_sql, new_cols, col_types,
+                backend=backend, data_id=data_id,
+            )
 
-            # --- 5. Sample and response ---
-            preview_cols = new_cols + [column]
+            # --- 4. Preview (ordered like the cache replay) ---
+            preview_cols = [*new_cols, column]
             if order_by:
-                preview_cols += safe_orders
-            res = await self._fetch_data(working_table, schema, preview_cols)
+                preview_cols += [k for k in safe_orders if k != "_mf_idx"]
+            res = await self._preview_data(table, schema, preview_cols)
 
             response = self._success_response(
                 f"Rolling {', '.join(raw_aggs)} on '{column}' (window={window})",
                 res,
-                new_table=working_table,
+                new_table=table,
                 new_columns=new_cols,
                 window=window,
+                min_periods=min_p,
+                source_updated=True,
             )
             if len(new_cols) == 1:
                 response["new_column"] = new_cols[0]
@@ -579,81 +648,65 @@ class WindowOps:
         window=3, q=0.5,
         backend=None, data_id=None,
         new_table: Optional[str] = None,
+        min_periods: Optional[int] = None,
     ):
         try:
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
-
+            if int(window) < 1:
+                return self._error_response("window must be >= 1")
+            min_p = self._resolve_min_periods(min_periods, window)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
-
-            # --- 1. Clone the source ---
-            working_table = await self._prepare_operation_table(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
-            )
-
-            # --- 2. Resolve ordering ---
-            if order_by:
-                if isinstance(order_by, (list, tuple)):
-                    safe_orders = [SQLIdentifierSanitizer.sanitize(c) for c in order_by]
-                else:
-                    safe_orders = [SQLIdentifierSanitizer.sanitize(order_by)]
-                # use the cloned table directly
-                ordered_table = working_table
-            else:
-                safe_order, ordered_table = await self._resolve_ordering(
-                    working_table, schema, None
-                )
-                safe_orders = [safe_order]
-
-            order_sql = ", ".join(self.db.quote_identifier(c) for c in safe_orders)
+            orders = self._order_keys(order_by)
+            order_sql = ", ".join(self.db.quote_identifier(c) for c in orders)
+            q_col = self.db.quote_identifier(safe_col)
             w = int(window) - 1
+            frame = self._rolling_frame(window)
             new_col = f"{safe_col}_rolling_q{q}_w{window}"
 
-            qualified = self._qualified_table(ordered_table, schema)
-
-            # --- 3. Add column to the cloned table ---
-            await self._add_col(working_table, schema, new_col, "DOUBLE PRECISION")
-
-            # --- 4. Build window expression ---
-            func = self._quantile_cont_sql(self.db.quote_identifier(safe_col), q)
-            count_over = f"""
-                COUNT({self.db.quote_identifier(safe_col)})
-                OVER (
-                    ORDER BY {order_sql}
-                    ROWS BETWEEN {w} PRECEDING AND CURRENT ROW
+            if isinstance(self.db, DuckDBAdapter):
+                count_over = (
+                    f"{self._count_expr(q_col)} OVER "
+                    f"(ORDER BY {order_sql} {frame})"
                 )
-            """
-            agg_over = f"""
-                {func}
-                OVER (
-                    ORDER BY {order_sql}
-                    ROWS BETWEEN {w} PRECEDING AND CURRENT ROW
+                agg_over = (
+                    f"{self._quantile_cont_sql(q_col, q)} OVER "
+                    f"(ORDER BY {order_sql} {frame})"
                 )
-            """
-            window_sql = f"CASE WHEN {count_over} >= {int(window)} THEN {agg_over} ELSE NULL END"
-
-            # --- 5. Update the column using FROM (avoid CREATE TABLE AS) ---
-            rid = self._row_id_col
-            await self._exec(f"""
-                UPDATE {qualified} AS t
-                SET {self.db.quote_identifier(new_col)} = s.val
-                FROM (
-                    SELECT {rid},
-                        {window_sql} AS val
-                    FROM {qualified}
-                ) AS s
-                WHERE t.{rid} = s.{rid}
-            """)
-
-            # --- 6. Sample & return ---
-            preview_cols = [new_col, column] + safe_orders
-            res = await self._fetch_data(working_table, schema, preview_cols)
-
-            return self._success_response(
+                expr = self._min_periods_gate(agg_over, count_over, min_p)
+                feature_sql = (
+                    f'SELECT {self.db.quote_identifier("_mf_idx")}, '
+                    f"{expr} AS {self.db.quote_identifier(new_col)} "
+                    f"FROM {self._qualified_table(table, schema)}"
+                )
+            else:
+                base = self._window_base_cte(
+                    table, schema, safe_col, orders,
+                )
+                count_subq = f"""
+                    SELECT COUNT(r.v) FROM __base r
+                    WHERE r.__rn BETWEEN b.__rn - {w} AND b.__rn
+                """
+                quantile_subq = f"""
+                    SELECT {self._quantile_cont_sql("r.v", q)}
+                    FROM __base r
+                    WHERE r.__rn BETWEEN b.__rn - {w} AND b.__rn
+                      AND r.v IS NOT NULL
+                """
+                expr = self._min_periods_gate(
+                    f"({quantile_subq})", f"({count_subq})", min_p,
+                )
+                feature_sql = f"""
+                    WITH {base}
+                    SELECT b.{self.db.quote_identifier("_mf_idx")},
+                        {expr} AS {self.db.quote_identifier(new_col)}
+                    FROM __base b
+                """
+            return await self._finish_window_special(
+                table, schema, column, new_col, feature_sql,
+                self._ewm_float_type(), backend, data_id, order_by,
                 "Rolling quantile",
-                res,
-                new_table=working_table,
-                new_column=new_col,
+                window=window, min_periods=min_p,
             )
         except Exception as e:
             return self._error_response(str(e))
@@ -666,73 +719,39 @@ class WindowOps:
         order_by: Union[str, List[str]] = None,
         window=3, backend=None, data_id=None,
         new_table: Optional[str] = None,
+        min_periods: Optional[int] = None,
     ):
         try:
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
-
+            if int(window) < 1:
+                return self._error_response("window must be >= 1")
+            min_p = self._resolve_min_periods(min_periods, window)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
-
-            # --- 1. Clone ---
-            working_table = await self._prepare_operation_table(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
-            )
-
-            # --- 2. Ordering ---
-            if order_by:
-                if isinstance(order_by, (list, tuple)):
-                    safe_orders = [SQLIdentifierSanitizer.sanitize(c) for c in order_by]
-                else:
-                    safe_orders = [SQLIdentifierSanitizer.sanitize(order_by)]
-                ordered_table = working_table
-            else:
-                safe_order, ordered_table = await self._resolve_ordering(
-                    working_table, schema, None
-                )
-                safe_orders = [safe_order]
-
-            order_sql = ", ".join(self.db.quote_identifier(c) for c in safe_orders)
-            w = int(window) - 1
+            orders = self._order_keys(order_by)
+            order_sql = ", ".join(self.db.quote_identifier(c) for c in orders)
+            q_col = self.db.quote_identifier(safe_col)
             new_col = f"{safe_col}_rolling_sem_w{window}"
-
-            qualified = self._qualified_table(ordered_table, schema)
-
-            # --- 3. Add column ---
-            await self._add_col(working_table, schema, new_col, "DOUBLE PRECISION")
-
-            # --- 4. Window expression for SEM ---
-            std_func = self._std_agg()
-            sem_expr = f"""
-                ({std_func}({self.db.quote_identifier(safe_col)})
-                    OVER (ORDER BY {order_sql} ROWS BETWEEN {w} PRECEDING AND CURRENT ROW)
-                /
-                SQRT(
-                    COUNT({self.db.quote_identifier(safe_col)})
-                    OVER (ORDER BY {order_sql} ROWS BETWEEN {w} PRECEDING AND CURRENT ROW)
-                ))
-            """
-
-            # --- 5. Update ---
-            rid = self._row_id_col
-            await self._exec(f"""
-                UPDATE {qualified} AS t
-                SET {self.db.quote_identifier(new_col)} = s.val
-                FROM (
-                    SELECT {rid},
-                        {sem_expr} AS val
-                    FROM {qualified}
-                ) AS s
-                WHERE t.{rid} = s.{rid}
-            """)
-
-            preview_cols = [new_col, column] + safe_orders
-            res = await self._fetch_data(working_table, schema, preview_cols)
-
-            return self._success_response(
+            frame = self._rolling_frame(window)
+            count_over = (
+                f"{self._count_expr(q_col)} OVER "
+                f"(ORDER BY {order_sql} {frame})"
+            )
+            sem_sql = (
+                f"({self._std_agg()}({q_col}) OVER (ORDER BY {order_sql} {frame}) "
+                f"/ SQRT({count_over}))"
+            )
+            expr = self._min_periods_gate(sem_sql, count_over, min_p)
+            feature_sql = (
+                f'SELECT {self.db.quote_identifier("_mf_idx")}, '
+                f"{expr} AS {self.db.quote_identifier(new_col)} "
+                f"FROM {self._qualified_table(table, schema)}"
+            )
+            return await self._finish_window_special(
+                table, schema, column, new_col, feature_sql,
+                self._ewm_float_type(), backend, data_id, order_by,
                 "Rolling SEM",
-                res,
-                new_table=working_table,
-                new_column=new_col,
+                window=window, min_periods=min_p,
             )
         except Exception as e:
             return self._error_response(str(e))
@@ -747,65 +766,66 @@ class WindowOps:
         backend=None,
         data_id=None,
         new_table: Optional[str] = None,
+        min_periods: Optional[int] = None,
     ):
         try:
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
-
+            if int(window) < 1:
+                return self._error_response("window must be >= 1")
+            min_p = self._resolve_min_periods(min_periods, window)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
-
-            # --- 1. Clone ---
-            working_table = await self._prepare_operation_table(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
-            )
-
-            # --- 2. Ordering ---
-            if order_by:
-                if isinstance(order_by, (list, tuple)):
-                    safe_orders = [SQLIdentifierSanitizer.sanitize(c) for c in order_by]
-                else:
-                    safe_orders = [SQLIdentifierSanitizer.sanitize(order_by)]
-                ordered_table = working_table
-            else:
-                safe_order, ordered_table = await self._resolve_ordering(
-                    working_table, schema, None
-                )
-                safe_orders = [safe_order]
-
-            order_sql = ", ".join(self.db.quote_identifier(c) for c in safe_orders)
-            w = window - 1
+            orders = self._order_keys(order_by)
+            order_sql = ", ".join(self.db.quote_identifier(c) for c in orders)
+            q_col = self.db.quote_identifier(safe_col)
+            w = int(window) - 1
+            frame = self._rolling_frame(window)
             new_col = f"{safe_col}_rolling_nunique_w{window}"
 
-            qualified = self._qualified_table(ordered_table, schema)
-
-            window_sql = f"""
-                COUNT(DISTINCT {self.db.quote_identifier(safe_col)})
-                OVER (
-                    ORDER BY {order_sql}
-                    ROWS BETWEEN {w} PRECEDING AND CURRENT ROW
+            if isinstance(self.db, DuckDBAdapter):
+                count_over = (
+                    f"{self._count_expr(q_col)} OVER "
+                    f"(ORDER BY {order_sql} {frame})"
                 )
-            """
-
-            # Create a brand‑new table from the clone (the result table)
-            result_table = await self._resolve_output_table_name(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
-            )
-            src_star = await self._source_star(ordered_table, schema, [new_col])
-            await self._exec(f"""
-                CREATE TABLE {self.db.quote_identifier(schema)}.{self.db.quote_identifier(result_table)} AS
-                SELECT {src_star},
-                    {window_sql} AS {self.db.quote_identifier(new_col)}
-                FROM {qualified}
-            """)
-
-            preview_cols = [new_col, column] + safe_orders
-            res = await self._fetch_data(result_table, schema, preview_cols)
-
-            return self._success_response(
+                distinct_over = (
+                    f"COUNT(DISTINCT {q_col}) OVER "
+                    f"(ORDER BY {order_sql} {frame})"
+                )
+                expr = self._min_periods_gate(
+                    distinct_over, count_over, min_p,
+                )
+                feature_sql = (
+                    f'SELECT {self.db.quote_identifier("_mf_idx")}, '
+                    f"{expr} AS {self.db.quote_identifier(new_col)} "
+                    f"FROM {self._qualified_table(table, schema)}"
+                )
+            else:
+                base = self._window_base_cte(
+                    table, schema, safe_col, orders,
+                )
+                count_subq = f"""
+                    SELECT COUNT(r.v) FROM __base r
+                    WHERE r.__rn BETWEEN b.__rn - {w} AND b.__rn
+                """
+                distinct_subq = f"""
+                    SELECT {self._distinct_count_sql("r.v")}
+                    FROM __base r
+                    WHERE r.__rn BETWEEN b.__rn - {w} AND b.__rn
+                """
+                expr = self._min_periods_gate(
+                    f"({distinct_subq})", f"({count_subq})", min_p,
+                )
+                feature_sql = f"""
+                    WITH {base}
+                    SELECT b.{self.db.quote_identifier("_mf_idx")},
+                        {expr} AS {self.db.quote_identifier(new_col)}
+                    FROM __base b
+                """
+            return await self._finish_window_special(
+                table, schema, column, new_col, feature_sql,
+                self._ewm_int_type(), backend, data_id, order_by,
                 "Rolling nunique",
-                res,
-                new_table=result_table,
-                new_column=new_col,
+                window=window, min_periods=min_p,
             )
         except Exception as e:
             return self._error_response(str(e))
@@ -818,69 +838,44 @@ class WindowOps:
         order_by: Union[str, List[str]] = None,
         window=3, backend=None, data_id=None,
         new_table: Optional[str] = None,
+        min_periods: Optional[int] = None,
     ):
         try:
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
-
+            if int(window) < 1:
+                return self._error_response("window must be >= 1")
+            min_p = self._resolve_min_periods(min_periods, window)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
-
-            # --- Clone ---
-            working_table = await self._prepare_operation_table(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
-            )
-
-            if order_by:
-                if isinstance(order_by, (list, tuple)):
-                    safe_orders = [SQLIdentifierSanitizer.sanitize(c) for c in order_by]
-                else:
-                    safe_orders = [SQLIdentifierSanitizer.sanitize(order_by)]
-                ordered_table = working_table
-            else:
-                safe_order, ordered_table = await self._resolve_ordering(
-                    working_table, schema, None
-                )
-                safe_orders = [safe_order]
-
-            order_sql = ", ".join(self.db.quote_identifier(c) for c in safe_orders)
-            w = window - 1
+            orders = self._order_keys(order_by)
+            w = int(window) - 1
             new_col = f"{safe_col}_rolling_rank_w{window}"
-
-            qualified = self._qualified_table(ordered_table, schema)
-
-            # Create the final table with rank using the correlated subquery technique.
-            result_table = await self._resolve_output_table_name(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
-            )
-
-            src_star = await self._source_star(ordered_table, schema, [new_col])
-            sql = f"""
-            CREATE TABLE {self.db.quote_identifier(schema)}.{self.db.quote_identifier(result_table)} AS
-            WITH __base AS (
-                SELECT {src_star},
-                    ROW_NUMBER() OVER (ORDER BY {order_sql}) AS __rn
-                FROM {qualified}
-            )
-            SELECT b.*,
-                (
-                    SELECT COUNT(*)
-                    FROM __base r
-                    WHERE r.__rn BETWEEN b.__rn - {w} AND b.__rn
-                    AND r.{self.db.quote_identifier(safe_col)} <= b.{self.db.quote_identifier(safe_col)}
-                ) AS {self.db.quote_identifier(new_col)}
-            FROM __base b
+            base = self._window_base_cte(table, schema, safe_col, orders)
+            count_subq = f"""
+                SELECT COUNT(r.v)
+                FROM __base r
+                WHERE r.__rn BETWEEN b.__rn - {w} AND b.__rn
             """
-
-            await self._exec(sql)
-
-            preview_cols = [new_col, column] + safe_orders
-            res = await self._fetch_data(result_table, schema, preview_cols)
-
-            return self._success_response(
+            rank_subq = f"""
+                SELECT COUNT(*)
+                FROM __base r
+                WHERE r.__rn BETWEEN b.__rn - {w} AND b.__rn
+                  AND r.v <= b.v
+            """
+            expr = self._min_periods_gate(
+                f"({rank_subq})", f"({count_subq})", min_p,
+            )
+            feature_sql = f"""
+                WITH {base}
+                SELECT b.{self.db.quote_identifier("_mf_idx")},
+                    {expr} AS {self.db.quote_identifier(new_col)}
+                FROM __base b
+            """
+            return await self._finish_window_special(
+                table, schema, column, new_col, feature_sql,
+                self._ewm_int_type(), backend, data_id, order_by,
                 "Rolling rank",
-                res,
-                new_table=result_table,
-                new_column=new_col,
+                window=window, min_periods=min_p,
             )
         except Exception as e:
             return self._error_response(str(e))
@@ -938,49 +933,24 @@ class WindowOps:
             if not raw_aggs:
                 return self._error_response("At least one aggregation function is required")
 
-            # --- 1. Clone table ---
-            working_table = await self._prepare_operation_table(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
-            )
-
-            # --- 2. Resolve ordering ---
-            if order_by:
-                if isinstance(order_by, (list, tuple)):
-                    safe_orders = [SQLIdentifierSanitizer.sanitize(c) for c in order_by]
-                else:
-                    safe_orders = [SQLIdentifierSanitizer.sanitize(order_by)]
-            else:
-                temp_row = "__totem_order"
-                await self._add_col(working_table, schema, temp_row, "BIGINT")
-                q = self._qualified_table(working_table, schema)
-                rowid = self._row_id_col
-                if rowid == "ctid":
-                    await self._exec(
-                        f'UPDATE {q} AS t SET "{temp_row}" = rn '
-                        f'FROM (SELECT {rowid}, ROW_NUMBER() OVER () AS rn FROM {q}) sub '
-                        f'WHERE t.{rowid} = sub.{rowid}'
-                    )
-                else:
-                    await self._exec(
-                        f'UPDATE {q} SET "{temp_row}" = rn '
-                        f'FROM (SELECT {rowid}, ROW_NUMBER() OVER () AS rn FROM {q}) sub '
-                        f'WHERE {q}.{rowid} = sub.{rowid}'
-                    )
-                safe_orders = [temp_row]
-
+            # --- 1. Narrow ordering: explicit keys, else the upload index ---
+            safe_orders = self._order_keys(order_by)
             order_sql = ", ".join(self.db.quote_identifier(c) for c in safe_orders)
-            qualified = self._qualified_table(working_table, schema)
+            qualified = self._qualified_table(table, schema)
             window_frame = "ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW"
-            source_col_type = await self._get_column_sql_type(working_table, schema, safe_col)
+            q_col = self.db.quote_identifier(safe_col)
+            source_col_type = await self._get_column_sql_type(table, schema, safe_col)
 
-            # --- 3. Aggregation mapping ---
+            # --- 2. Aggregation mapping (all aggs in one pass) ---
             agg_map = {
                 "sum": "SUM", "avg": "AVG", "mean": "AVG",
                 "min": "MIN", "max": "MAX", "count": "COUNT",
                 "first": "FIRST_VALUE", "last": "LAST_VALUE",
                 "first_value": "FIRST_VALUE", "last_value": "LAST_VALUE",
             }
-            new_cols = []
+            new_cols: List[str] = []
+            exprs: List[str] = []
+            col_types: List[str] = []
             used_col_names = set()
 
             for raw in raw_aggs:
@@ -988,10 +958,10 @@ class WindowOps:
                 if key in agg_map:
                     sql_agg = agg_map[key]
                     alias_key = key
-                elif key in ("std", "stddev", "stddev_samp"):
+                elif key in ("std", "stddev", "stddev_samp", "stddevsamp"):
                     sql_agg = self._std_agg()
                     alias_key = "std"
-                elif key in ("var", "variance", "var_samp"):
+                elif key in ("var", "variance", "var_samp", "varsamp"):
                     sql_agg = self._var_agg()
                     alias_key = "var"
                 else:
@@ -1006,49 +976,62 @@ class WindowOps:
                 used_col_names.add(col_name)
                 new_cols.append(col_name)
 
-                # Add column
-                result_type = self._window_result_sql_type(
-                    source_col_type, alias_key, sql_agg
+                count_over = (
+                    f"{self._count_expr(q_col)} "
+                    f"OVER (ORDER BY {order_sql} {window_frame})"
                 )
-                await self._add_col(working_table, schema, col_name, result_type)
-
-                # Build aggregation expression with min_periods
-                count_over = f"COUNT({self.db.quote_identifier(safe_col)}) OVER (ORDER BY {order_sql} {window_frame})"
-                agg_over = f"{sql_agg}({self.db.quote_identifier(safe_col)}) OVER (ORDER BY {order_sql} {window_frame})"
-
+                agg_call = (
+                    self._count_expr(q_col)
+                    if alias_key == "count"
+                    else f"{sql_agg}({q_col})"
+                )
+                agg_over = (
+                    f"{agg_call} OVER (ORDER BY {order_sql} {window_frame})"
+                )
                 if min_periods > 1:
-                    agg_with_null = f"CASE WHEN {count_over} >= {min_periods} THEN {agg_over} ELSE NULL END"
+                    agg_with_null = (
+                        f"CASE WHEN {count_over} >= {min_periods} "
+                        f"THEN {agg_over} ELSE NULL END"
+                    )
                 else:
                     agg_with_null = agg_over
+                exprs.append(
+                    f"{agg_with_null} AS {self.db.quote_identifier(col_name)}"
+                )
+                col_types.append(
+                    self._window_result_sql_type(source_col_type, alias_key, sql_agg)
+                )
 
-                rid = self._row_id_col
-                await self._exec(f"""
-                    UPDATE {qualified} AS t
-                    SET {self.db.quote_identifier(col_name)} = s.val
-                    FROM (
-                        SELECT {rid},
-                            {agg_with_null} AS val
-                        FROM {qualified}
-                    ) AS s
-                    WHERE t.{rid} = s.{rid}
-                """)
+            collision = await assert_owned_columns(
+                self, table, schema, new_cols, "window_map", backend, data_id,
+            )
+            if collision:
+                return self._error_response(collision)
 
-            # --- 4. Clean up temporary ordering column ---
-            if not order_by and safe_orders[0] == temp_row:
-                await self._exec(f'ALTER TABLE {qualified} DROP COLUMN IF EXISTS "{temp_row}"')
+            # --- 3. Compute + map back once by _mf_idx ---
+            select_sql = (
+                f'SELECT {self.db.quote_identifier("_mf_idx")}, '
+                + ", ".join(exprs)
+                + f" FROM {qualified}"
+            )
+            await self._merge_features(
+                table, schema, select_sql, new_cols, col_types,
+                backend=backend, data_id=data_id,
+            )
 
-            # --- 5. Sample and response ---
-            preview_cols = new_cols + [column]
+            # --- 4. Preview (ordered like the cache replay) ---
+            preview_cols = [*new_cols, column]
             if order_by:
-                preview_cols += safe_orders
-            res = await self._fetch_data(working_table, schema, preview_cols)
+                preview_cols += [k for k in safe_orders if k != "_mf_idx"]
+            res = await self._preview_data(table, schema, preview_cols)
 
             response = self._success_response(
                 f"Expanding {', '.join(raw_aggs)} on '{column}' (min_periods={min_periods})",
                 res,
-                new_table=working_table,
+                new_table=table,
                 new_columns=new_cols,
                 min_periods=min_periods,
+                source_updated=True,
             )
             if len(new_cols) == 1:
                 response["new_column"] = new_cols[0]
@@ -1111,64 +1094,62 @@ class WindowOps:
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
             safe_col = SQLIdentifierSanitizer.sanitize(column)
-
-            # --- 1. Clone source ---
-            working_table = await self._prepare_operation_table(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
-            )
-
-            # --- 2. Ordering ---
-            if order_by:
-                if isinstance(order_by, (list, tuple)):
-                    safe_orders = [SQLIdentifierSanitizer.sanitize(c) for c in order_by]
-                else:
-                    safe_orders = [SQLIdentifierSanitizer.sanitize(order_by)]
-                ordered_table = working_table
-            else:
-                safe_order, ordered_table = await self._resolve_ordering(
-                    working_table, schema, None
-                )
-                safe_orders = [safe_order]
-
-            order_sql = ", ".join(self.db.quote_identifier(c) for c in safe_orders)
+            orders = self._order_keys(order_by)
+            order_sql = ", ".join(self.db.quote_identifier(c) for c in orders)
+            q_col = self.db.quote_identifier(safe_col)
             new_col = f"{safe_col}_expanding_q{q}"
-            qualified = self._qualified_table(ordered_table, schema)
+            frame = "ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW"
 
-            # --- 3. Add column to clone ---
-            await self._add_col(working_table, schema, new_col, "DOUBLE PRECISION")
-
-            safe_col_quoted = self.db.quote_identifier(safe_col)
-            window_frame = "ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW"
-            count_over = f"COUNT({safe_col_quoted}) OVER (ORDER BY {order_sql} {window_frame})"
-
-            base_func = self._quantile_cont_sql(safe_col_quoted, q)
-            agg_over = f"{base_func} OVER (ORDER BY {order_sql} {window_frame})"
-
-            if min_periods > 1:
-                quantile_expr = f"CASE WHEN {count_over} >= {min_periods} THEN {agg_over} ELSE NULL END"
+            if isinstance(self.db, DuckDBAdapter):
+                count_over = (
+                    f"{self._count_expr(q_col)} OVER "
+                    f"(ORDER BY {order_sql} {frame})"
+                )
+                agg_over = (
+                    f"{self._quantile_cont_sql(q_col, q)} OVER "
+                    f"(ORDER BY {order_sql} {frame})"
+                )
+                if min_periods > 1:
+                    expr = (
+                        f"CASE WHEN {count_over} >= {min_periods} "
+                        f"THEN {agg_over} ELSE NULL END"
+                    )
+                else:
+                    expr = agg_over
+                feature_sql = (
+                    f'SELECT {self.db.quote_identifier("_mf_idx")}, '
+                    f"{expr} AS {self.db.quote_identifier(new_col)} "
+                    f"FROM {self._qualified_table(table, schema)}"
+                )
             else:
-                quantile_expr = agg_over
-
-            # --- 4. UPDATE via FROM subquery ---
-            rid = self._row_id_col
-            await self._exec(f"""
-                UPDATE {qualified} AS t
-                SET {self.db.quote_identifier(new_col)} = s.val
-                FROM (
-                    SELECT {rid},
-                        {quantile_expr} AS val
-                    FROM {qualified}
-                ) AS s
-                WHERE t.{rid} = s.{rid}
-            """)
-
-            # --- 5. Sample & response ---
-            preview_cols = [new_col, column] + safe_orders
-            res = await self._fetch_data(working_table, schema, preview_cols)
-
-            return self._success_response(
-                "Expanding quantile", res,
-                new_table=working_table, new_column=new_col,
+                base = self._window_base_cte(table, schema, safe_col, orders)
+                count_subq = """
+                    SELECT COUNT(r.v) FROM __base r
+                    WHERE r.__rn <= b.__rn
+                """
+                quantile_subq = f"""
+                    SELECT {self._quantile_cont_sql("r.v", q)}
+                    FROM __base r
+                    WHERE r.__rn <= b.__rn
+                      AND r.v IS NOT NULL
+                """
+                if min_periods > 1:
+                    expr = (
+                        f"CASE WHEN ({count_subq}) >= {min_periods} "
+                        f"THEN ({quantile_subq}) ELSE NULL END"
+                    )
+                else:
+                    expr = f"({quantile_subq})"
+                feature_sql = f"""
+                    WITH {base}
+                    SELECT b.{self.db.quote_identifier("_mf_idx")},
+                        {expr} AS {self.db.quote_identifier(new_col)}
+                    FROM __base b
+                """
+            return await self._finish_window_special(
+                table, schema, column, new_col, feature_sql,
+                self._ewm_float_type(), backend, data_id, order_by,
+                "Expanding quantile",
                 q=q, min_periods=min_periods,
             )
         except Exception as e:
@@ -1184,63 +1165,35 @@ class WindowOps:
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
             safe_col = SQLIdentifierSanitizer.sanitize(column)
-
-            # --- 1. Clone source ---
-            working_table = await self._prepare_operation_table(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
-            )
-
-            # --- 2. Ordering ---
-            if order_by:
-                if isinstance(order_by, (list, tuple)):
-                    safe_orders = [SQLIdentifierSanitizer.sanitize(c) for c in order_by]
-                else:
-                    safe_orders = [SQLIdentifierSanitizer.sanitize(order_by)]
-                ordered_table = working_table
-            else:
-                safe_order, ordered_table = await self._resolve_ordering(
-                    working_table, schema, None
-                )
-                safe_orders = [safe_order]
-
-            order_sql = ", ".join(self.db.quote_identifier(c) for c in safe_orders)
+            orders = self._order_keys(order_by)
+            order_sql = ", ".join(self.db.quote_identifier(c) for c in orders)
+            q_col = self.db.quote_identifier(safe_col)
             new_col = f"{safe_col}_expanding_sem"
-            qualified = self._qualified_table(ordered_table, schema)
-
-            # --- 3. Add column ---
-            await self._add_col(working_table, schema, new_col, "DOUBLE PRECISION")
-
-            safe_col_quoted = self.db.quote_identifier(safe_col)
-            window_frame = "ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW"
-            count_over = f"COUNT({safe_col_quoted}) OVER (ORDER BY {order_sql} {window_frame})"
-
-            std_func = self._std_agg()
-            sem_base = f"({std_func}({safe_col_quoted}) OVER (ORDER BY {order_sql} {window_frame}) / SQRT({count_over}))"
-
+            frame = "ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW"
+            count_over = (
+                f"{self._count_expr(q_col)} OVER "
+                f"(ORDER BY {order_sql} {frame})"
+            )
+            sem_base = (
+                f"({self._std_agg()}({q_col}) OVER "
+                f"(ORDER BY {order_sql} {frame}) / SQRT({count_over}))"
+            )
             if min_periods > 1:
-                sem_expr = f"CASE WHEN {count_over} >= {min_periods} THEN {sem_base} ELSE NULL END"
+                expr = (
+                    f"CASE WHEN {count_over} >= {min_periods} "
+                    f"THEN {sem_base} ELSE NULL END"
+                )
             else:
-                sem_expr = sem_base
-
-            # --- 4. UPDATE ---
-            rid = self._row_id_col
-            await self._exec(f"""
-                UPDATE {qualified} AS t
-                SET {self.db.quote_identifier(new_col)} = s.val
-                FROM (
-                    SELECT {rid},
-                        {sem_expr} AS val
-                    FROM {qualified}
-                ) AS s
-                WHERE t.{rid} = s.{rid}
-            """)
-
-            preview_cols = [new_col, column] + safe_orders
-            res = await self._fetch_data(working_table, schema, preview_cols)
-
-            return self._success_response(
-                "Expanding SEM", res,
-                new_table=working_table, new_column=new_col, min_periods=min_periods,
+                expr = sem_base
+            feature_sql = (
+                f'SELECT {self.db.quote_identifier("_mf_idx")}, '
+                f"{expr} AS {self.db.quote_identifier(new_col)} "
+                f"FROM {self._qualified_table(table, schema)}"
+            )
+            return await self._finish_window_special(
+                table, schema, column, new_col, feature_sql,
+                self._ewm_float_type(), backend, data_id, order_by,
+                "Expanding SEM", min_periods=min_periods,
             )
         except Exception as e:
             return self._error_response(str(e))
@@ -1249,77 +1202,42 @@ class WindowOps:
         self, table, schema, column,
         order_by=None, min_periods=1,
         backend=None, data_id=None,
-        new_table: Optional[str] = None):
+        new_table: Optional[str] = None,
+    ):
         try:
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
             safe_col = SQLIdentifierSanitizer.sanitize(column)
-
-            # --- 1. Clone source ---
-            working_table = await self._prepare_operation_table(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
-            )
-
-            # --- 2. Ordering ---
-            if order_by:
-                if isinstance(order_by, (list, tuple)):
-                    safe_orders = [SQLIdentifierSanitizer.sanitize(c) for c in order_by]
-                else:
-                    safe_orders = [SQLIdentifierSanitizer.sanitize(order_by)]
-                ordered_table = working_table
-            else:
-                safe_order, ordered_table = await self._resolve_ordering(
-                    working_table, schema, None
-                )
-                safe_orders = [safe_order]
-
-            order_sql = ", ".join(self.db.quote_identifier(c) for c in safe_orders)
+            orders = self._order_keys(order_by)
             new_col = f"{safe_col}_expanding_rank"
-            qualified = self._qualified_table(ordered_table, schema)
-
-            # --- 3. Result table name ---
-            result_table = await self._resolve_output_table_name(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
-            )
-
-            safe_col_quoted = self.db.quote_identifier(safe_col)
-            rank_subq = f"""
+            base = self._window_base_cte(table, schema, safe_col, orders)
+            rank_subq = """
                 SELECT COUNT(*)
                 FROM __base r
                 WHERE r.__rn <= b.__rn
-                AND r.{safe_col_quoted} <= b.{safe_col_quoted}
+                  AND r.v <= b.v
             """
-            count_subq = f"SELECT COUNT(r.{safe_col_quoted}) FROM __base r WHERE r.__rn <= b.__rn"
-
+            count_subq = """
+                SELECT COUNT(r.v) FROM __base r
+                WHERE r.__rn <= b.__rn
+            """
             if min_periods > 1:
-                rank_expr = f"""
-                    CASE WHEN ({count_subq}) >= {min_periods}
-                        THEN ({rank_subq})
-                        ELSE NULL
-                    END
-                """
+                expr = (
+                    f"CASE WHEN ({count_subq}) >= {min_periods} "
+                    f"THEN ({rank_subq}) ELSE NULL END"
+                )
             else:
-                rank_expr = f"({rank_subq})"
-
-            src_star = await self._source_star(ordered_table, schema, [new_col])
-            sql = f"""
-            CREATE TABLE {self.db.quote_identifier(schema)}.{self.db.quote_identifier(result_table)} AS
-            WITH __base AS (
-                SELECT {src_star},
-                    ROW_NUMBER() OVER (ORDER BY {order_sql}) AS __rn
-                FROM {qualified}
-            )
-            SELECT b.*, {rank_expr} AS {self.db.quote_identifier(new_col)}
-            FROM __base b
+                expr = f"({rank_subq})"
+            feature_sql = f"""
+                WITH {base}
+                SELECT b.{self.db.quote_identifier("_mf_idx")},
+                    {expr} AS {self.db.quote_identifier(new_col)}
+                FROM __base b
             """
-            await self._exec(sql)
-
-            preview_cols = [new_col, column] + safe_orders
-            res = await self._fetch_data(result_table, schema, preview_cols)
-
-            return self._success_response(
-                "Expanding rank", res,
-                new_table=result_table, new_column=new_col, min_periods=min_periods,
+            return await self._finish_window_special(
+                table, schema, column, new_col, feature_sql,
+                self._ewm_int_type(), backend, data_id, order_by,
+                "Expanding rank", min_periods=min_periods,
             )
         except Exception as e:
             return self._error_response(str(e))
@@ -1334,63 +1252,65 @@ class WindowOps:
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
             safe_col = SQLIdentifierSanitizer.sanitize(column)
-
-            # --- 1. Clone source ---
-            working_table = await self._prepare_operation_table(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
-            )
-
-            # --- 2. Ordering ---
-            if order_by:
-                if isinstance(order_by, (list, tuple)):
-                    safe_orders = [SQLIdentifierSanitizer.sanitize(c) for c in order_by]
-                else:
-                    safe_orders = [SQLIdentifierSanitizer.sanitize(order_by)]
-                ordered_table = working_table
-            else:
-                safe_order, ordered_table = await self._resolve_ordering(
-                    working_table, schema, None
-                )
-                safe_orders = [safe_order]
-
-            order_sql = ", ".join(self.db.quote_identifier(c) for c in safe_orders)
+            orders = self._order_keys(order_by)
+            order_sql = ", ".join(self.db.quote_identifier(c) for c in orders)
+            q_col = self.db.quote_identifier(safe_col)
             new_col = f"{safe_col}_expanding_nunique"
-            qualified = self._qualified_table(ordered_table, schema)
+            frame = "ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW"
 
-            # --- 3. DuckDB path ---
-            result_table = await self._resolve_output_table_name(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
-            )
-
-            safe_col_quoted = self.db.quote_identifier(safe_col)
-            window_frame = "ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW"
-            count_over = f"COUNT({safe_col_quoted}) OVER (ORDER BY {order_sql} {window_frame})"
-            count_distinct = f"COUNT(DISTINCT {safe_col_quoted}) OVER (ORDER BY {order_sql} {window_frame})"
-            if min_periods > 1:
-                nunique_expr = f"CASE WHEN {count_over} >= {min_periods} THEN {count_distinct} ELSE NULL END"
+            if isinstance(self.db, DuckDBAdapter):
+                count_over = (
+                    f"{self._count_expr(q_col)} OVER "
+                    f"(ORDER BY {order_sql} {frame})"
+                )
+                distinct_over = (
+                    f"COUNT(DISTINCT {q_col}) OVER "
+                    f"(ORDER BY {order_sql} {frame})"
+                )
+                if min_periods > 1:
+                    expr = (
+                        f"CASE WHEN {count_over} >= {min_periods} "
+                        f"THEN {distinct_over} ELSE NULL END"
+                    )
+                else:
+                    expr = distinct_over
+                feature_sql = (
+                    f'SELECT {self.db.quote_identifier("_mf_idx")}, '
+                    f"{expr} AS {self.db.quote_identifier(new_col)} "
+                    f"FROM {self._qualified_table(table, schema)}"
+                )
             else:
-                nunique_expr = count_distinct
-
-            src_star = await self._source_star(ordered_table, schema, [new_col])
-            sql = f"""
-            CREATE TABLE {self.db.quote_identifier(schema)}.{self.db.quote_identifier(result_table)} AS
-            SELECT {src_star}, {nunique_expr} AS {self.db.quote_identifier(new_col)}
-            FROM {qualified}
-            """
-            await self._exec(sql)
-
-            preview_cols = [new_col, column] + safe_orders
-            res = await self._fetch_data(result_table, schema, preview_cols)
-            return self._success_response(
-                "Expanding nunique", res,
-                new_table=result_table, new_column=new_col, min_periods=min_periods,
+                base = self._window_base_cte(table, schema, safe_col, orders)
+                distinct_subq = f"""
+                    SELECT {self._distinct_count_sql("r.v")}
+                    FROM __base r
+                    WHERE r.__rn <= b.__rn
+                """
+                count_subq = """
+                    SELECT COUNT(r.v) FROM __base r
+                    WHERE r.__rn <= b.__rn
+                """
+                if min_periods > 1:
+                    expr = (
+                        f"CASE WHEN ({count_subq}) >= {min_periods} "
+                        f"THEN ({distinct_subq}) ELSE NULL END"
+                    )
+                else:
+                    expr = f"({distinct_subq})"
+                feature_sql = f"""
+                    WITH {base}
+                    SELECT b.{self.db.quote_identifier("_mf_idx")},
+                        {expr} AS {self.db.quote_identifier(new_col)}
+                    FROM __base b
+                """
+            return await self._finish_window_special(
+                table, schema, column, new_col, feature_sql,
+                self._ewm_int_type(), backend, data_id, order_by,
+                "Expanding nunique", min_periods=min_periods,
             )
         except Exception as e:
             return self._error_response(str(e))
 
-    # ==============================================================
-    # EXPANDING DATETIME STATS
-    # ==============================================================
     async def _expanding_datetime_stat(
         self, table, schema, column,
         order_by=None, stat="mean", min_periods=1,
@@ -1401,108 +1321,104 @@ class WindowOps:
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
             safe_col = SQLIdentifierSanitizer.sanitize(column)
-
-            # --- 1. Clone source table ---
-            working_table = await self._prepare_operation_table(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
+            orders = self._order_keys(order_by)
+            stat_key = stat.lower()
+            new_col = f"{safe_col}_expanding_{stat_key}"
+            base = self._window_base_cte(table, schema, safe_col, orders)
+            is_date_only = await self._is_date_only_column(
+                table, schema, safe_col,
             )
-
-            # --- 2. Resolve ordering ---
-            if order_by:
-                if isinstance(order_by, (list, tuple)):
-                    safe_orders = [SQLIdentifierSanitizer.sanitize(c) for c in order_by]
-                else:
-                    safe_orders = [SQLIdentifierSanitizer.sanitize(order_by)]
-                ordered_table = working_table          # use clone directly
-            else:
-                safe_order, ordered_table = await self._resolve_ordering(
-                    working_table, schema, None
-                )
-                safe_orders = [safe_order]
-
-            order_sql = ", ".join(self.db.quote_identifier(c) for c in safe_orders)
-            new_col = f"{safe_col}_expanding_{stat}"
-            qualified = self._qualified_table(ordered_table, schema)
-
-            # --- 3. Determine result table name ---
-            result_table = await self._resolve_output_table_name(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
-            )
-
-            safe_col_quoted = self.db.quote_identifier(safe_col)
-            is_date_only = await self._is_date_only_column(ordered_table, schema, safe_col)
-
-            epoch_expr = self._datetime_epoch_expr(f"r.{safe_col_quoted}")
-            from_epoch_expr = self._from_epoch_expr(is_date_only)
-
-            # --- 4. Build inner aggregation subquery ---
-            if stat == "mean":
-                inner = f"{self._avg_fn()}({epoch_expr})"
-            elif stat == "median":
-                inner = self._median_epoch_sql(epoch_expr)
-            elif stat == "mode":
-                # mode is handled differently (value itself)
-                inner = None
-            else:
-                return self._error_response(f"Unsupported datetime expanding stat '{stat}'")
-
-            # --- 5. Build the value expression with min_periods ---
-            non_null_count = f"SELECT {self._count_fn()}(r.{safe_col_quoted}) FROM __base r WHERE r.__rn <= b.__rn"
-
-            if stat == "mode":
-                mode_subq = f"""
-                    SELECT r.{safe_col_quoted}
-                    FROM __base r
-                    WHERE r.__rn <= b.__rn
-                    AND r.{safe_col_quoted} IS NOT NULL
-                    GROUP BY r.{safe_col_quoted}
-                    ORDER BY COUNT(*) DESC, r.{safe_col_quoted}
-                    LIMIT 1
+            from_epoch = self._from_epoch_expr(is_date_only)
+            if stat_key == "mean":
+                epoch_expr = self._datetime_epoch_expr("r.v")
+                inner = self._avg_fn() + f"({epoch_expr})"
+                value_subq = f"""
+                    SELECT {from_epoch}
+                    FROM (
+                        SELECT {inner} AS value_epoch
+                        FROM __base r
+                        WHERE r.__rn <= b.__rn
+                          AND r.v IS NOT NULL
+                    ) __agg
                 """
+            elif stat_key == "median":
+                epoch_expr = self._datetime_epoch_expr("r.v")
+                inner = self._median_epoch_sql(epoch_expr)
+                value_subq = f"""
+                    SELECT {from_epoch}
+                    FROM (
+                        SELECT {inner} AS value_epoch
+                        FROM __base r
+                        WHERE r.__rn <= b.__rn
+                          AND r.v IS NOT NULL
+                    ) __agg
+                """
+            elif stat_key == "mode":
+                if isinstance(self.db, ClickHouseAdapter):
+                    mode_subq = """
+                        SELECT argMin(v, (-cnt, v))
+                        FROM (
+                            SELECT r.v AS v, COUNT(*) AS cnt
+                            FROM __base r
+                            WHERE r.__rn <= b.__rn
+                              AND r.v IS NOT NULL
+                            GROUP BY r.v
+                        )
+                    """
+                else:
+                    mode_subq = """
+                        SELECT r.v
+                        FROM __base r
+                        WHERE r.__rn <= b.__rn
+                          AND r.v IS NOT NULL
+                        GROUP BY r.v
+                        ORDER BY COUNT(*) DESC, r.v
+                        LIMIT 1
+                    """
+            else:
+                return self._error_response(
+                    f"Unsupported datetime expanding stat '{stat}'"
+                )
+            count_subq = """
+                SELECT COUNT(r.v) FROM __base r
+                WHERE r.__rn <= b.__rn
+            """
+            if stat_key == "mode":
                 if min_periods > 1:
-                    value_sql = f"CASE WHEN ({non_null_count}) >= {min_periods} THEN ({mode_subq}) ELSE NULL END"
+                    value_sql = (
+                        f"CASE WHEN ({count_subq}) >= {min_periods} "
+                        f"THEN ({mode_subq}) ELSE NULL END"
+                    )
                 else:
                     value_sql = f"({mode_subq})"
             else:
-                value_subq = f"""
-                    SELECT {from_epoch_expr}
-                    FROM (SELECT {inner} AS value_epoch
-                        FROM __base r
-                        WHERE r.__rn <= b.__rn
-                        AND r.{safe_col_quoted} IS NOT NULL) __agg
-                """
                 if min_periods > 1:
-                    value_sql = f"CASE WHEN ({non_null_count}) >= {min_periods} THEN ({value_subq}) ELSE NULL END"
+                    value_sql = (
+                        f"CASE WHEN ({count_subq}) >= {min_periods} "
+                        f"THEN ({value_subq}) ELSE NULL END"
+                    )
                 else:
                     value_sql = f"({value_subq})"
-
-            # --- 6. Create the result table from the cloned data ---
-            src_star = await self._source_star(ordered_table, schema, [new_col])
-            sql = f"""
-                CREATE TABLE {self.db.quote_identifier(schema)}.{self.db.quote_identifier(result_table)} AS
-                WITH __base AS (
-                    SELECT {src_star},
-                        ROW_NUMBER() OVER (ORDER BY {order_sql}) AS __rn
-                    FROM {qualified}
-                )
-                SELECT b.*, {value_sql} AS {self.db.quote_identifier(new_col)}
+            feature_sql = f"""
+                WITH {base}
+                SELECT b.{self.db.quote_identifier("_mf_idx")},
+                    {value_sql} AS {self.db.quote_identifier(new_col)}
                 FROM __base b
             """
-            await self._exec(sql)
-
-            # --- 7. Sample & response ---
-            if order_by:
-                preview_cols = [new_col, column] + safe_orders
-            else:
-                preview_cols = [new_col, column]
-            res = await self._fetch_data(result_table, schema, preview_cols)
-
-            return self._success_response(
-                f"Expanding datetime {stat} on '{column}' (min_periods={min_periods})",
-                res, new_table=result_table, new_column=new_col, min_periods=min_periods,
+            source_type = await self._get_column_sql_type(
+                table, schema, safe_col,
+            ) or self._ewm_float_type()
+            return await self._finish_window_special(
+                table, schema, column, new_col, feature_sql,
+                source_type, backend, data_id, order_by,
+                f"Expanding datetime {stat_key} on '{column}' "
+                f"(min_periods={min_periods})",
+                min_periods=min_periods,
             )
         except Exception as e:
-            return self._error_response(f"expanding datetime error: {str(e)}\n{traceback.format_exc()}")
+            return self._error_response(
+                f"expanding datetime error: {str(e)}\n{traceback.format_exc()}"
+            )
 
     async def expanding_min_datetime(self, table, schema, column, order_by=None,
                                      min_periods=1, **kwargs):
@@ -1562,6 +1478,595 @@ class WindowOps:
             raise ValueError("halflife must be > 0")
         return 1 - math.exp(-math.log(2) / halflife)
 
+    # ------------------------------------------------------------------
+    # EWM blockwise engine
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _ewm_value(value) -> str:
+        return f"CAST({float(value)!r} AS FLOAT8)"
+
+    def _ewm_cast_float(self, expr: str) -> str:
+        return f"CAST({expr} AS FLOAT8)"
+
+    def _ewm_float_type(self) -> str:
+        return "DOUBLE PRECISION"
+
+    def _ewm_int_type(self) -> str:
+        return "BIGINT"
+
+    def _ewm_uses_transaction(self) -> bool:
+        return True
+
+    def _is_missing_sql(self, expr: str) -> str:
+        return f"({expr} IS NULL OR isnan({self._ewm_cast_float(expr)}))"
+
+    def _ewm_block_size(self, alpha: float) -> int:
+        if self.EWM_BLOCK_SIZE:
+            return max(1, int(self.EWM_BLOCK_SIZE))
+        q = 1.0 - float(alpha)
+        if q <= 0.0:
+            return 1
+        return min(512, max(16, int(690 / (-2 * math.log(q)))))
+
+    async def _ewm_unique_name(self, schema, base, suffix):
+        name = SQLIdentifierSanitizer.sanitize(f"{base}__ewm_{suffix}")
+        idx = 1
+        while await self.db.table_exists(name, schema):
+            name = SQLIdentifierSanitizer.sanitize(
+                f"{base}__ewm_{suffix}_{idx}"
+            )
+            idx += 1
+        return name
+
+    def _ewm_group_select(self, groups, prefix: str = "") -> str:
+        q = self.db.quote_identifier
+        return "".join(f"{prefix}{q(c)}, " for c in groups)
+
+    def _ewm_group_cols(self, groups, prefix: str = "") -> str:
+        q = self.db.quote_identifier
+        return ", ".join(f"{prefix}{q(c)}" for c in groups)
+
+    def _ewm_partition(
+        self, groups, prefix: str = "", block_prefix: str = "",
+    ) -> str:
+        q = self.db.quote_identifier
+        cols = [f"{prefix}{q(c)}" for c in groups]
+        if block_prefix:
+            cols.append(f"{block_prefix}block")
+        if not cols:
+            return ""
+        return f"PARTITION BY {', '.join(cols)} "
+
+    def _ewm_group_join(self, left: str, right: str, groups) -> str:
+        q = self.db.quote_identifier
+        # ponytail: group keys are assumed non-null (matches existing grouped
+        # joins). Switch to IS NOT DISTINCT FROM if null keys matter.
+        return "".join(
+            f" AND {left}.{q(c)} = {right}.{q(c)}" for c in groups
+        )
+
+    def _ewm_ordered_sql(
+        self, table, schema, column, order_by, filter_missing, block_size,
+        partition_cols=(),
+    ) -> str:
+        groups = list(partition_cols)
+        q_mf = self.db.quote_identifier("_mf_idx")
+        q_col = self.db.quote_identifier(SQLIdentifierSanitizer.sanitize(column))
+        missing = self._is_missing_sql(q_col)
+        partition_sql = self._ewm_partition(groups)
+        if order_by:
+            orders = self._order_keys(order_by)
+            order_sql = ", ".join(self.db.quote_identifier(c) for c in orders)
+            rn_expr = (
+                f"CAST(ROW_NUMBER() OVER ({partition_sql}ORDER BY {order_sql}) "
+                f"AS {self._ewm_int_type()})"
+            )
+        else:
+            rn_expr = (
+                f"CAST(ROW_NUMBER() OVER "
+                f"({partition_sql}ORDER BY {self.db.quote_identifier('_mf_idx')}) "
+                f"AS {self._ewm_int_type()})"
+            )
+        group_select = self._ewm_group_select(groups)
+        where = f"WHERE NOT ({missing})" if filter_missing else ""
+        return f"""
+            WITH __src AS (
+                SELECT {q_mf} AS _mf_idx,
+                       {group_select}CASE WHEN {missing} THEN NULL
+                            ELSE {self._ewm_cast_float(q_col)} END AS x_clean,
+                       {rn_expr} AS rn
+                FROM {self._qualified_table(table, schema)}
+                {where}
+            ),
+            __blk AS (
+                SELECT _mf_idx, {group_select}x_clean, rn,
+                       CAST(FLOOR(
+                           {self._ewm_cast_float("rn - 1")} / {int(block_size)}
+                       ) AS {self._ewm_int_type()}) AS block
+                FROM __src
+            )
+            SELECT _mf_idx, {group_select}x_clean, rn, block,
+                   (rn - 1) - block * {int(block_size)} AS pos
+            FROM __blk
+        """
+
+    def _ewm_blocks_sql(
+        self, ordered: str, q: float, adjust: bool, partition_cols=(),
+    ) -> str:
+        groups = list(partition_cols)
+        group_select = self._ewm_group_select(groups)
+        group_cols = self._ewm_group_cols(groups)
+        group_by = f"{group_cols}, block" if groups else "block"
+        qv = self._ewm_value(q)
+        if adjust:
+            return f"""
+                SELECT {group_select}block, MAX(pos) + 1 AS blen,
+                       COUNT(x_clean) AS valid_count,
+                       SUM(CASE WHEN x_clean IS NOT NULL
+                                THEN POWER({qv}, -pos) ELSE 0 END) AS sum_z1,
+                       SUM(x_clean * POWER({qv}, -pos)) AS sum_xz,
+                       SUM(x_clean * x_clean * POWER({qv}, -pos)) AS sum_x2z,
+                       SUM(CASE WHEN x_clean IS NOT NULL
+                                THEN POWER({qv}, -2 * pos) ELSE 0 END) AS sum_z2
+                FROM {ordered}
+                GROUP BY {group_by}
+            """
+        vp_partition = f"PARTITION BY {group_cols + ', ' if groups else ''}block "
+        return f"""
+            WITH vp AS (
+                SELECT *,
+                       COUNT(x_clean) OVER (
+                           {vp_partition}ORDER BY pos
+                           ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                       ) AS vpos
+                FROM {ordered}
+            ),
+            agg AS (
+                SELECT {group_select}block, MAX(pos) + 1 AS blen,
+                       COUNT(x_clean) AS valid_count,
+                       MIN(CASE WHEN x_clean IS NOT NULL THEN pos END) AS first_valid_pos,
+                       SUM(CASE WHEN x_clean IS NOT NULL
+                                THEN POWER({qv}, -vpos) ELSE 0 END) AS sum_z1_all,
+                       SUM(x_clean * POWER({qv}, -vpos)) AS sum_xz_all,
+                       SUM(x_clean * x_clean * POWER({qv}, -vpos)) AS sum_x2z_all,
+                       SUM(CASE WHEN vpos > 1
+                                THEN x_clean * POWER({qv}, -(vpos - 1)) END) AS sum_xz_after,
+                       SUM(CASE WHEN vpos > 1
+                                THEN x_clean * x_clean * POWER({qv}, -(vpos - 1)) END) AS sum_x2z_after
+                FROM vp
+                GROUP BY {group_by}
+            )
+            SELECT a.*, o.x_clean AS x_first
+            FROM agg a
+            LEFT JOIN {ordered} o
+              ON o.block = a.block{self._ewm_group_join('o', 'a', groups)}
+              AND o.pos = a.first_valid_pos
+        """
+
+    def _ewm_state_sql(
+        self, blocks: str, adjust: bool, alpha, q, partition_cols=(),
+    ) -> str:
+        groups = list(partition_cols)
+        fl = self._ewm_cast_float
+        qv = self._ewm_value(q)
+        a = self._ewm_value(alpha)
+        a2 = self._ewm_value(float(alpha) * float(alpha))
+        q2 = self._ewm_value(float(q) * float(q))
+        zero_f = fl("0")
+        zero_i = f"CAST(0 AS {self._ewm_int_type()})"
+        group_select = self._ewm_group_select(groups)
+        group_select_b = self._ewm_group_select(groups, prefix="b.")
+        group_cols = self._ewm_group_cols(groups)
+        group_join = self._ewm_group_join("b", "st", groups)
+        anchor_group = f"{group_select}" if groups else ""
+        anchor_from = (
+            f" FROM (SELECT DISTINCT {group_cols} FROM {blocks}) g"
+            if groups else ""
+        )
+        if adjust:
+            cols = (
+                f"{group_cols}, block, s_num, s_den, s_w2, s_x2w, valid_seen"
+                if groups else "block, s_num, s_den, s_w2, s_x2w, valid_seen"
+            )
+            anchor = (
+                f"SELECT {anchor_group}{zero_i}, {zero_f}, {zero_f}, "
+                f"{zero_f}, {zero_f}, {zero_i}{anchor_from}"
+            )
+            recursive = f"""
+                SELECT {group_select_b}b.block + 1,
+                       POWER({qv}, b.blen) * st.s_num
+                       + POWER({qv}, b.blen - 1) * COALESCE(b.sum_xz, 0),
+                       POWER({qv}, b.blen) * st.s_den
+                       + POWER({qv}, b.blen - 1) * COALESCE(b.sum_z1, 0),
+                       POWER({qv}, 2 * b.blen) * st.s_w2
+                       + POWER({qv}, 2 * (b.blen - 1)) * COALESCE(b.sum_z2, 0),
+                       POWER({qv}, b.blen) * st.s_x2w
+                       + POWER({qv}, b.blen - 1) * COALESCE(b.sum_x2z, 0),
+                       st.valid_seen + b.valid_count
+                FROM st JOIN {blocks} b
+                  ON b.block = st.block{group_join}
+            """
+        else:
+            cols = (
+                f"{group_cols}, block, state, s_w2, s_x2w, valid_seen, has_state"
+                if groups else
+                "block, state, s_w2, s_x2w, valid_seen, has_state"
+            )
+            anchor = (
+                f"SELECT {anchor_group}{zero_i}, {zero_f}, {zero_f}, "
+                f"{zero_f}, {zero_i}, {zero_i}{anchor_from}"
+            )
+            recursive = f"""
+                SELECT {group_select_b}b.block + 1,
+                       CASE
+                           WHEN b.valid_count = 0 THEN st.state
+                           WHEN st.has_state = 1 THEN
+                               POWER({qv}, b.valid_count) * st.state
+                               + {a} * POWER({qv}, b.valid_count)
+                               * COALESCE(b.sum_xz_all, 0)
+                           ELSE
+                               POWER({qv}, b.valid_count - 1) * b.x_first
+                               + {a} * POWER({qv}, b.valid_count - 1)
+                               * COALESCE(b.sum_xz_after, 0)
+                       END,
+                       CASE
+                           WHEN b.valid_count = 0 THEN st.s_w2
+                           WHEN st.has_state = 1 THEN
+                               POWER({qv}, 2 * b.valid_count) * st.s_w2
+                               + {a2} * (1 - POWER({qv}, 2 * b.valid_count))
+                               / (1 - {q2})
+                           ELSE
+                               POWER({qv}, 2 * (b.valid_count - 1))
+                               + {a2} * (1 - POWER({qv}, 2 * (b.valid_count - 1)))
+                               / (1 - {q2})
+                       END,
+                       CASE
+                           WHEN b.valid_count = 0 THEN st.s_x2w
+                           WHEN st.has_state = 1 THEN
+                               POWER({qv}, b.valid_count) * st.s_x2w
+                               + {a} * POWER({qv}, b.valid_count)
+                               * COALESCE(b.sum_x2z_all, 0)
+                           ELSE
+                               POWER({qv}, b.valid_count - 1)
+                               * b.x_first * b.x_first
+                               + {a} * POWER({qv}, b.valid_count - 1)
+                               * COALESCE(b.sum_x2z_after, 0)
+                       END,
+                       st.valid_seen + b.valid_count,
+                       CASE WHEN b.valid_count > 0 THEN 1 ELSE st.has_state END
+                FROM st JOIN {blocks} b
+                  ON b.block = st.block{group_join}
+            """
+        return (
+            f"WITH RECURSIVE st({cols}) AS ("
+            f"{anchor} UNION ALL {recursive}) "
+            f"SELECT * FROM st"
+        )
+
+    def _ewm_create_state(self, qualified: str, select_sql: str) -> str:
+        return f"CREATE TABLE {qualified} AS {select_sql}"
+
+    def _ewm_agg_select(
+        self, aggs, new_cols, min_periods, adjust, alpha,
+    ) -> str:
+        mp = int(min_periods)
+        out = []
+        q = self.db.quote_identifier
+        for agg, col in zip(aggs, new_cols):
+            if alpha >= 1:
+                gate = f"CASE WHEN x_clean IS NOT NULL AND valid_1 >= {mp} THEN x_clean END"
+                expr = gate if agg in ("mean", "sum") else (
+                    f"CAST(NULL AS {self._ewm_float_type()})"
+                )
+            elif adjust:
+                if agg == "mean":
+                    expr = (
+                        f"CASE WHEN x_clean IS NOT NULL AND valid_t >= {mp} "
+                        f"AND s_den_t > 0 THEN s_num_t / s_den_t END"
+                    )
+                elif agg == "sum":
+                    expr = (
+                        f"CASE WHEN x_clean IS NOT NULL AND valid_t >= {mp} "
+                        f"AND s_den_t > 0 THEN s_num_t END"
+                    )
+                else:
+                    var_expr = (
+                        f"CASE WHEN x_clean IS NOT NULL AND valid_t >= GREATEST({mp}, 2) "
+                        f"AND s_den_t > 0 AND (s_den_t - s_w2_t / s_den_t) > 0 "
+                        f"THEN GREATEST((s_x2w_t / s_den_t "
+                        f"- (s_num_t / s_den_t) * (s_num_t / s_den_t)) "
+                        f"* (s_den_t / (s_den_t - s_w2_t / s_den_t)), 0) END"
+                    )
+                    expr = var_expr if agg == "var" else f"SQRT({var_expr})"
+            else:
+                if agg in ("mean", "sum"):
+                    expr = (
+                        f"CASE WHEN x_clean IS NOT NULL AND valid_t >= {mp} "
+                        f"THEN state_t END"
+                    )
+                else:
+                    var_expr = (
+                        f"CASE WHEN x_clean IS NOT NULL AND valid_t >= GREATEST({mp}, 2) "
+                        f"AND (1 - w2_t) > 0 "
+                        f"THEN GREATEST((x2w_t - state_t * state_t) "
+                        f"/ (1 - w2_t), 0) END"
+                    )
+                    expr = var_expr if agg == "var" else f"SQRT({var_expr})"
+            out.append(f"{expr} AS {q(col)}")
+        return ", ".join(out)
+
+    def _ewm_feature_sql(
+        self, ordered, state, blocks, aggs, new_cols,
+        min_periods, adjust, alpha, q, partition_cols=(),
+    ) -> str:
+        groups = list(partition_cols)
+        qv = self._ewm_value(q)
+        frame = "ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW"
+        part = self._ewm_partition(groups, prefix="o.", block_prefix="o.")
+        group_cols = self._ewm_group_cols(groups)
+        vp_partition = f"PARTITION BY {group_cols + ', ' if groups else ''}block "
+        state_join = "o.block = st.block" + self._ewm_group_join("o", "st", groups)
+        blocks_join = "o.block = b.block" + self._ewm_group_join("o", "b", groups)
+        if alpha >= 1:
+            valid_partition = self._ewm_partition(groups)
+            valid_1 = (
+                f"COUNT(x_clean) OVER ({valid_partition}ORDER BY rn {frame})"
+            )
+            select = self._ewm_agg_select(aggs, new_cols, min_periods, adjust, alpha)
+            return (
+                f"SELECT _mf_idx, {select} FROM ("
+                f"SELECT *, {valid_1} AS valid_1 FROM {ordered}) __a"
+            )
+        if adjust:
+            calc = f"""
+                SELECT o._mf_idx, o.x_clean, o.pos,
+                       st.valid_seen + COUNT(o.x_clean) OVER (
+                           {part}ORDER BY o.pos {frame}
+                       ) AS valid_t,
+                       POWER({qv}, o.pos + 1) * st.s_num
+                       + POWER({qv}, o.pos) * SUM(
+                           o.x_clean * POWER({qv}, -o.pos)
+                       ) OVER ({part}ORDER BY o.pos {frame}) AS s_num_t,
+                       POWER({qv}, o.pos + 1) * st.s_den
+                       + POWER({qv}, o.pos) * SUM(
+                           CASE WHEN o.x_clean IS NOT NULL
+                                THEN POWER({qv}, -o.pos) ELSE 0 END
+                       ) OVER ({part}ORDER BY o.pos {frame}) AS s_den_t,
+                       POWER({qv}, 2 * (o.pos + 1)) * st.s_w2
+                       + POWER({qv}, 2 * o.pos) * SUM(
+                           CASE WHEN o.x_clean IS NOT NULL
+                                THEN POWER({qv}, -2 * o.pos) ELSE 0 END
+                       ) OVER ({part}ORDER BY o.pos {frame}) AS s_w2_t,
+                       POWER({qv}, o.pos + 1) * st.s_x2w
+                       + POWER({qv}, o.pos) * SUM(
+                           o.x_clean * o.x_clean * POWER({qv}, -o.pos)
+                       ) OVER ({part}ORDER BY o.pos {frame}) AS s_x2w_t
+                FROM {ordered} o
+                JOIN {state} st ON {state_join}
+            """
+            select = self._ewm_agg_select(aggs, new_cols, min_periods, adjust, alpha)
+            return f"WITH calc AS ({calc}) SELECT _mf_idx, {select} FROM calc"
+        calc = f"""
+            WITH vp AS (
+                SELECT *,
+                       COUNT(x_clean) OVER (
+                           {vp_partition}ORDER BY pos {frame}
+                       ) AS v
+                FROM {ordered}
+            ),
+            local AS (
+                SELECT o.*, st.state, st.s_w2, st.s_x2w,
+                       st.valid_seen AS valid_in, st.has_state, b.x_first,
+                       SUM(o.x_clean * POWER({qv}, -o.v)) OVER (
+                           {part}ORDER BY o.pos {frame}
+                       ) AS local_x_all,
+                       SUM(o.x_clean * o.x_clean * POWER({qv}, -o.v)) OVER (
+                           {part}ORDER BY o.pos {frame}
+                       ) AS local_x2_all,
+                       SUM(CASE WHEN o.v > 1
+                                THEN o.x_clean * POWER({qv}, -(o.v - 1)) END) OVER (
+                           {part}ORDER BY o.pos {frame}
+                       ) AS local_x_after,
+                       SUM(CASE WHEN o.v > 1
+                                THEN o.x_clean * o.x_clean * POWER({qv}, -(o.v - 1)) END) OVER (
+                           {part}ORDER BY o.pos {frame}
+                       ) AS local_x2_after
+                FROM vp o
+                JOIN {state} st ON {state_join}
+                JOIN {blocks} b ON {blocks_join}
+            ),
+            calc AS (
+                SELECT *,
+                       CASE
+                           WHEN x_clean IS NULL THEN NULL
+                           WHEN has_state = 1 THEN
+                               POWER({qv}, v) * state
+                               + {self._ewm_value(alpha)} * POWER({qv}, v)
+                               * COALESCE(local_x_all, 0)
+                           WHEN v = 1 THEN x_clean
+                           WHEN v > 1 THEN
+                               POWER({qv}, v - 1) * x_first
+                               + {self._ewm_value(alpha)} * POWER({qv}, v - 1)
+                               * COALESCE(local_x_after, 0)
+                       END AS state_t,
+                       CASE
+                           WHEN has_state = 1 THEN
+                               POWER({qv}, 2 * v) * s_w2
+                               + {self._ewm_value(alpha * alpha)}
+                               * (1 - POWER({qv}, 2 * v)) / (1 - {self._ewm_value(q * q)})
+                           WHEN v >= 1 THEN
+                               POWER({qv}, 2 * (v - 1))
+                               + {self._ewm_value(alpha * alpha)}
+                               * (1 - POWER({qv}, 2 * (v - 1))) / (1 - {self._ewm_value(q * q)})
+                       END AS w2_t,
+                       CASE
+                           WHEN x_clean IS NULL THEN NULL
+                           WHEN has_state = 1 THEN
+                               POWER({qv}, v) * s_x2w
+                               + {self._ewm_value(alpha)} * POWER({qv}, v)
+                               * COALESCE(local_x2_all, 0)
+                           WHEN v = 1 THEN x_clean * x_clean
+                           WHEN v > 1 THEN
+                               POWER({qv}, v - 1) * x_first * x_first
+                               + {self._ewm_value(alpha)} * POWER({qv}, v - 1)
+                               * COALESCE(local_x2_after, 0)
+                       END AS x2w_t,
+                       CASE
+                           WHEN has_state = 1 THEN valid_in + v
+                           WHEN v > 0 THEN v
+                           ELSE 0
+                       END AS valid_t
+                FROM local
+            )
+        """
+        select = self._ewm_agg_select(aggs, new_cols, min_periods, adjust, alpha)
+        return f"{calc} SELECT _mf_idx, {select} FROM calc"
+    def _ewm_all_rows_sql(
+        self, table, schema, feature_sql: str, columns,
+    ) -> str:
+        """Left-join a filtered feature result back onto every source row."""
+        q = self.db.quote_identifier
+        mf = q("_mf_idx")
+        cols = ", ".join(f"f.{q(c)}" for c in columns)
+        return (
+            f"SELECT s.{mf}, {cols} "
+            f"FROM {self._qualified_table(table, schema)} s "
+            f"LEFT JOIN ({feature_sql}) f ON s.{mf} = f.{mf}"
+        )
+
+    async def _ewm_run(
+        self,
+        table: str,
+        schema: str,
+        column: str,
+        group_cols=(),
+        order_by=None,
+        com: float = None,
+        span: float = None,
+        halflife: float = None,
+        alpha: float = None,
+        adjust: bool = True,
+        ignore_na: bool = False,
+        min_periods: int = 0,
+        agg="mean",
+        backend=None,
+        data_id=None,
+        op_type: str = "window_map",
+    ) -> Dict[str, Any]:
+        try:
+            if backend is None or data_id is None:
+                return self._error_response("backend and data_id required")
+
+            safe_col = SQLIdentifierSanitizer.sanitize(column)
+            groups = [SQLIdentifierSanitizer.sanitize(c) for c in group_cols]
+            if isinstance(agg, str):
+                aggs = [agg]
+            else:
+                aggs = list(agg)
+            for a in aggs:
+                if a not in ("mean", "sum", "std", "var"):
+                    return self._error_response(f"Unsupported ewm aggregation '{a}'")
+
+            a = float(self._alpha_from_params(com, span, halflife, alpha))
+            q = 1.0 - a
+            suffix = f"_by_{'_'.join(groups)}" if groups else ""
+            new_cols = [f"{safe_col}_ewm_{f}{suffix}" for f in aggs]
+            block_size = self._ewm_block_size(a)
+            filter_missing = bool(ignore_na) and (bool(adjust) or a >= 1.0)
+
+            base = await self._resolve_output_table_name(
+                table, schema, backend=backend, data_id=data_id,
+            )
+            ordered = await self._ewm_unique_name(schema, base, "ordered")
+            blocks = await self._ewm_unique_name(schema, base, "blocks")
+            state_t = await self._ewm_unique_name(schema, base, "state")
+            q_ordered = self._qualified_table(ordered, schema)
+            q_blocks = self._qualified_table(blocks, schema)
+            q_state = self._qualified_table(state_t, schema)
+
+            tx_factory = getattr(getattr(self.db, "_pool", None), "transaction", None)
+            tx = (
+                tx_factory()
+                if self._ewm_uses_transaction() and tx_factory is not None
+                else nullcontext()
+            )
+            try:
+                async with tx:
+                    await self._exec(
+                        f"CREATE TABLE {q_ordered} AS "
+                        f"{self._ewm_ordered_sql(table, schema, column, order_by, filter_missing, block_size, groups)}"
+                    )
+
+                    if a < 1.0:
+                        await self._exec(
+                            f"CREATE TABLE {q_blocks} AS "
+                            f"{self._ewm_blocks_sql(q_ordered, q, bool(adjust), groups)}"
+                        )
+                        await self._exec(
+                            self._ewm_create_state(
+                                q_state,
+                                self._ewm_state_sql(
+                                    q_blocks, bool(adjust), a, q, groups,
+                                ),
+                            )
+                        )
+
+                    feature_sql = self._ewm_feature_sql(
+                        q_ordered, q_state, q_blocks, aggs, new_cols,
+                        min_periods, bool(adjust), a, q, groups,
+                    )
+                    if filter_missing:
+                        feature_sql = self._ewm_all_rows_sql(
+                            table, schema, feature_sql, new_cols,
+                        )
+                    collision = await assert_owned_columns(
+                        self, table, schema, new_cols, op_type,
+                        backend, data_id,
+                    )
+                    if collision:
+                        return self._error_response(collision)
+
+                    await self._merge_features(
+                        table, schema, feature_sql, new_cols,
+                        [self._ewm_float_type()] * len(new_cols),
+                        backend=backend, data_id=data_id,
+                    )
+
+                    preview_cols = [*new_cols, column]
+                    if order_by:
+                        preview_cols += [
+                            k for k in self._order_keys(order_by)
+                            if k != "_mf_idx"
+                        ]
+                    preview_cols += groups
+                    preview_cols = list(dict.fromkeys(preview_cols))
+                    res_df = await self._preview_data(table, schema, preview_cols)
+                    message = f"EWM {aggs} on '{column}'"
+                    if groups:
+                        message += f" grouped by {groups}"
+                    response = self._success_response(
+                        message,
+                        res_df,
+                        new_table=table,
+                        new_columns=new_cols,
+                        source_updated=True,
+                    )
+                    if groups:
+                        response["group_cols"] = groups
+                    return response
+            finally:
+                for name in (state_t, blocks, ordered):
+                    try:
+                        await self._exec(
+                            f"DROP TABLE IF EXISTS {self._qualified_table(name, schema)}"
+                        )
+                    except Exception:
+                        pass
+        except Exception as e:
+            return self._error_response(
+                f"ewm error: {str(e)}\n{traceback.format_exc()}"
+            )
+
     async def ewm(
         self,
         table: str,
@@ -1580,316 +2085,10 @@ class WindowOps:
         data_id=None,
         new_table: Optional[str] = None,
     ) -> Dict[str, Any]:
-        try:
-            if backend is None or data_id is None:
-                return self._error_response("backend and data_id required")
-
-            safe_col = SQLIdentifierSanitizer.sanitize(column)
-
-            if isinstance(agg, str):
-                aggs = [agg]
-            else:
-                aggs = list(agg)
-
-            for a in aggs:
-                if a not in ("mean", "sum", "std", "var"):
-                    return self._error_response(f"Unsupported ewm aggregation '{a}'")
-
-            # --- 1. Clone source table ---
-            working_table = await self._prepare_operation_table(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
-            )
-
-            # --- 2. Resolve ordering on the clone ---
-            if order_by:
-                if isinstance(order_by, (list, tuple)):
-                    safe_orders = [SQLIdentifierSanitizer.sanitize(c) for c in order_by]
-                else:
-                    safe_orders = [SQLIdentifierSanitizer.sanitize(order_by)]
-                qualified = self._qualified_table(working_table, schema)
-            else:
-                # simulate stable order on the clone
-                safe_order, ordered_table = await self._resolve_ordering(working_table, schema, None)
-                safe_orders = [safe_order]
-                qualified = self._qualified_table(ordered_table, schema)
-
-            order_sql = ", ".join(self.db.quote_identifier(c) for c in safe_orders)
-
-            # --- 3. Fetch ordered values from the clone ---
-            rows = await self._fetch(
-                f"""
-                SELECT {self.db.quote_identifier(safe_col)} AS v
-                FROM {qualified}
-                ORDER BY {order_sql}
-                """
-            )
-            vals = [r["v"] for r in rows]
-
-            # --- 4. Compute alpha ---
-            a = self._alpha_from_params(com, span, halflife, alpha)
-            arr = np.array([v if v is not None else np.nan for v in vals], dtype=np.float64)
-
-            n = len(arr)
-            results = {f: np.full(n, np.nan) for f in aggs}
-
-            # --- 5. Highly Optimized O(n) EWM Calculation ---
-            def compute_ewm_ignore_na_false(Z, a, adjust, min_periods, res_dict):
-                n_Z = len(Z)
-                if n_Z == 0:
-                    return
-
-                if adjust:
-                    S_num = 0.0
-                    S_den = 0.0
-                    S_w2 = 0.0
-                    S_x2w = 0.0
-                    valid_seen = 0
-
-                    for t in range(n_Z):
-                        # Decay the states by time step
-                        S_num *= (1.0 - a)
-                        S_den *= (1.0 - a)
-                        S_w2 *= (1.0 - a)**2
-                        S_x2w *= (1.0 - a)
-
-                        if not np.isnan(Z[t]):
-                            valid_seen += 1
-                            S_num += Z[t]
-                            S_den += 1.0
-                            S_w2 += 1.0
-                            S_x2w += Z[t] * Z[t]
-
-                            if valid_seen >= min_periods and S_den > 0:
-                                mean_val = S_num / S_den
-                                if "mean" in res_dict:
-                                    res_dict["mean"][t] = mean_val
-                                if "sum" in res_dict:
-                                    res_dict["sum"][t] = S_num
-                                if "var" in res_dict or "std" in res_dict:
-                                    if valid_seen < 2:
-                                        var_unbiased = np.nan
-                                    else:
-                                        var_pop = (S_x2w / S_den) - (mean_val * mean_val)
-                                        denom = S_den - (S_w2 / S_den)
-                                        if denom <= 0.0:
-                                            var_unbiased = np.nan
-                                        else:
-                                            var_unbiased = var_pop * (S_den / denom)
-                                    if not np.isnan(var_unbiased):
-                                        # Floating-point cancellation can produce a tiny
-                                        # negative value for a mathematically non-negative
-                                        # variance.
-                                        var_unbiased = max(var_unbiased, 0.0)
-                                    if "var" in res_dict:
-                                        res_dict["var"][t] = var_unbiased
-                                    if "std" in res_dict:
-                                        res_dict["std"][t] = np.sqrt(var_unbiased) if not np.isnan(var_unbiased) else np.nan
-                else:
-                    state = 0.0
-                    S_w2 = 0.0
-                    S_x2w = 0.0
-                    valid_seen = 0
-                    has_state = False
-
-                    for t in range(n_Z):
-                        if not np.isnan(Z[t]):
-                            valid_seen += 1
-                            if not has_state:
-                                state = Z[t]
-                                S_w2 = 1.0
-                                S_x2w = Z[t] * Z[t]
-                                has_state = True
-                            else:
-                                state = (1.0 - a) * state + a * Z[t]
-                                S_w2 = (1.0 - a)**2 * S_w2 + a**2
-                                S_x2w = (1.0 - a) * S_x2w + a * (Z[t] * Z[t])
-
-                            if valid_seen >= min_periods:
-                                mean_val = state
-                                if "mean" in res_dict:
-                                    res_dict["mean"][t] = mean_val
-                                if "sum" in res_dict:
-                                    res_dict["sum"][t] = state
-                                if "var" in res_dict or "std" in res_dict:
-                                    if valid_seen < 2:
-                                        var_unbiased = np.nan
-                                    else:
-                                        var_pop = S_x2w - (mean_val * mean_val)
-                                        denom = 1.0 - S_w2
-                                        if denom <= 0.0:
-                                            var_unbiased = np.nan
-                                        else:
-                                            var_unbiased = var_pop / denom
-                                    if not np.isnan(var_unbiased):
-                                        var_unbiased = max(var_unbiased, 0.0)
-                                    if "var" in res_dict:
-                                        res_dict["var"][t] = var_unbiased
-                                    if "std" in res_dict:
-                                        res_dict["std"][t] = np.sqrt(var_unbiased) if not np.isnan(var_unbiased) else np.nan
-
-            if ignore_na:
-                valid_mask = ~np.isnan(arr)
-                V = arr[valid_mask]
-                temp_results = {f: np.full(len(V), np.nan) for f in aggs}
-                await asyncio.to_thread(
-                    compute_ewm_ignore_na_false,
-                    V, a, adjust, min_periods, temp_results,
-                )
-                for f in aggs:
-                    results[f][valid_mask] = temp_results[f]
-            else:
-                await asyncio.to_thread(
-                    compute_ewm_ignore_na_false,
-                    arr, a, adjust, min_periods, results,
-                )
-
-            # --- 6. Build result table name ---
-            result_table = await self._resolve_output_table_name(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
-            )
-
-            q_schema = self.db.quote_identifier(schema)
-            q_new = self.db.quote_identifier(result_table)
-
-            col_defs = ["rn"] + [f"{safe_col}_ewm_{f}" for f in aggs]
-
-            # VALUES casts must use the active database's type names.
-            row_type, value_type = self._ewm_row_types()
-
-            cols_sql = ", ".join(self.db.quote_identifier(c) for c in col_defs)
-            ewm_select_cols = ", ".join(
-                f"e.{self.db.quote_identifier(c)} AS {self.db.quote_identifier(c)}"
-                for c in col_defs[1:]
-            )
-            base_table = working_table if order_by else ordered_table
-            src_star = await self._source_star(base_table, schema, col_defs[1:])
-
-            if self._ewm_uses_stage_table():
-                stage_table = SQLIdentifierSanitizer.sanitize(
-                    f"{result_table}__ewm_stage_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}"
-                )
-                q_stage = self._qualified_table(stage_table, schema)
-                nullable_value_type = f"Nullable({value_type})"
-                stage_cols = ", ".join(
-                    [f"{self.db.quote_identifier('rn')} {row_type}"]
-                    + [
-                        f"{self.db.quote_identifier(c)} {nullable_value_type}"
-                        for c in col_defs[1:]
-                    ]
-                )
-
-                await self._exec(f"DROP TABLE IF EXISTS {q_stage}")
-                await self._exec(f"CREATE TABLE {q_stage} ({stage_cols}) ENGINE = Memory")
-
-                try:
-                    def build_insert_rows(start: int, stop: int) -> List[List[Any]]:
-                        rows_out = []
-                        for i in range(start, stop):
-                            row = [i + 1]
-                            for f in aggs:
-                                val = results[f][i]
-                                row.append(None if np.isnan(val) else float(val))
-                            rows_out.append(row)
-                        return rows_out
-
-                    insert_chunk_size = 10_000
-                    for start in range(0, n, insert_chunk_size):
-                        stop = min(start + insert_chunk_size, n)
-                        insert_rows = await asyncio.to_thread(build_insert_rows, start, stop)
-                        await self.db.insert_rows(
-                            f"{schema}.{stage_table}",
-                            insert_rows,
-                            col_defs,
-                        )
-
-                    final_sql = f"""
-                    CREATE TABLE {q_schema}.{q_new} AS
-                    WITH __base AS (
-                        SELECT {src_star},
-                            ROW_NUMBER() OVER (ORDER BY {order_sql}) AS rn
-                        FROM {qualified}
-                    )
-                    SELECT b.*,
-                        {ewm_select_cols}
-                    FROM __base b
-                    LEFT JOIN {q_stage} e
-                    ON b.rn = e.{self.db.quote_identifier("rn")}
-                    """
-
-                    await self._exec(final_sql)
-                finally:
-                    await self._exec(f"DROP TABLE IF EXISTS {q_stage}")
-            else:
-                # Build CTE with base (from clone) and ewm values
-                base_cte = f"""
-                WITH __base AS (
-                    SELECT {src_star},
-                        ROW_NUMBER() OVER (ORDER BY {order_sql}) AS rn
-                    FROM {qualified}
-                ),
-                __ewm AS (
-                    SELECT *
-                    FROM (VALUES
-                """
-
-                def build_values_chunk(start: int, stop: int) -> str:
-                    values_sql_parts = []
-                    for i in range(start, stop):
-                        parts = [f"CAST({i + 1} AS {row_type})"]
-                        for f in aggs:
-                            val = results[f][i]
-                            if np.isnan(val):
-                                parts.append(f"CAST(NULL AS {value_type})")
-                            else:
-                                parts.append(f"CAST({float(val)} AS {value_type})")
-                        values_sql_parts.append("(" + ", ".join(parts) + ")")
-                    return ",\n".join(values_sql_parts)
-
-                def build_values_sql() -> str:
-                    # Formatting large VALUES payloads is independent by row.
-                    # Use bounded chunks to avoid thread overhead on small data.
-                    chunk_size = 5_000
-                    ranges = [
-                        (start, min(start + chunk_size, n))
-                        for start in range(0, n, chunk_size)
-                    ]
-                    if len(ranges) <= 1:
-                        return build_values_chunk(0, n)
-
-                    with ThreadPoolExecutor(max_workers=min(4, len(ranges))) as pool:
-                        chunks = pool.map(lambda bounds: build_values_chunk(*bounds), ranges)
-                        return ",\n".join(chunks)
-
-                values_sql = await asyncio.to_thread(build_values_sql)
-
-                final_sql = f"""
-                CREATE TABLE {q_schema}.{q_new} AS
-                {base_cte}
-                {values_sql}
-                ) AS t({cols_sql})
-                )
-                SELECT b.*,
-                    {ewm_select_cols}
-                FROM __base b
-                LEFT JOIN __ewm e
-                ON b.rn = e.{self.db.quote_identifier("rn")}
-                """
-
-                await self._exec(final_sql)
-
-            # --- 7. Preview ---
-            preview_cols = [f"{safe_col}_ewm_{f}" for f in aggs] + [column]
-            if order_by:
-                preview_cols += safe_orders
-            res_df = await self._fetch_data(result_table, schema, preview_cols)
-
-            return self._success_response(
-                f"EWM {aggs} on '{column}'",
-                res_df,
-                new_table=result_table,
-                new_columns=[f"{safe_col}_ewm_{f}" for f in aggs],
-            )
-        except Exception as e:
-            return self._error_response(
-                f"ewm error: {str(e)}\n{traceback.format_exc()}"
-            )
+        return await self._ewm_run(
+            table, schema, column, (),
+            order_by=order_by, com=com, span=span, halflife=halflife,
+            alpha=alpha, adjust=adjust, ignore_na=ignore_na,
+            min_periods=min_periods, agg=agg,
+            backend=backend, data_id=data_id, op_type="window_map",
+        )

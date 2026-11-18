@@ -6,8 +6,7 @@ Source: `src/memframe/wrappers/analytix/window.py`
 interface exposed through a `ContextManager`. Every operation compiles to
 backend-native SQL and runs in-engine across DuckDB, PostgreSQL, and
 ClickHouse; each call adds its generated column(s) to the source upload
-table and writes a separate narrow result table (`<table>__op_<n>`) that the
-deep cache stores.
+table and records a source ref that the deep cache stores.
 
 Users normally call window methods directly on a dataset context returned by an
 upload operation. There are two equivalent entry points:
@@ -41,11 +40,11 @@ The lower-level files are implementation details:
 - `src/memframe/core/analytix/window/` holds the engine: `base.py` is the
   shared `WindowOps` with DuckDB-flavoured defaults plus dialect hooks
   (`_row_id_col`, `_std_agg`/`_var_agg`, `_datetime_epoch_expr`,
-  `_median_epoch_sql`, `_from_epoch_expr`, `_ewm_row_types`); `duckdb.py` /
-  `postgres.py` / `clickhouse.py` override those hooks (and the structurally
-  divergent operations — PostgreSQL's correlated-subquery quantile and Python
-  `nunique` fallback, ClickHouse's single-pass windows); `factory.py` dispatches
-  `make_window_ops(adapter)` on `isinstance`.
+  `_median_epoch_sql`, `_from_epoch_expr`, and the EWM block/missing-value
+  hooks); `duckdb.py` /
+  `postgres.py` / `clickhouse.py` override those hooks (including the
+  correlated quantile/nunique/rank SQL and ClickHouse spellings);
+  `factory.py` dispatches `make_window_ops(adapter)` on `isinstance`.
 - `src/memframe/core/orchestrator/analytix/window.py` resolves the active
   dataset context, detects the column dtype, maps the requested functions to
   the dtype-appropriate engine methods, and applies `@record_call`.
@@ -57,12 +56,13 @@ The lower-level files are implementation details:
 ### Rolling
 
 Each rolling method has a synchronous and asynchronous form. Direct rolling
-takes `(column, window, func, order_by=None, q=0.5)`; the named shorthands fix
-`func`.
+takes `(column, window, func, order_by=None, q=0.5, min_periods=None)`; the
+named shorthands fix `func`. Builders accept `min_periods` at construction:
+`dataset.on("sales").rolling(7, min_periods=1).mean()`.
 
 | Synchronous (via builder or `rolling`) | Purpose |
 | --- | --- |
-| `rolling(column, window, func, order_by=None, q=0.5)` / `await arolling(...)` | Generic — `func` may be a string or list |
+| `rolling(column, window, func, order_by=None, q=0.5, min_periods=None)` / `await arolling(...)` | Generic — `func` may be a string or list |
 | `.rolling(column, window).sum(order_by=None)` / `.asum(...)` | Rolling sum |
 | `.mean(...)` / `.amean(...)` | Rolling mean |
 | `.min(...)` / `.amin(...)` | Rolling minimum |
@@ -146,9 +146,9 @@ sample = dataset.ewm(column="sales", span=3, func="mean")
 | `column` | `str` | Column to window over. |
 | `window` | `int` | Rolling window size in rows, **inclusive of the current row** (`window=3` → 2 preceding + current). Must be `>= 1`. |
 | `func` | `str` or `list[str]` | Aggregation(s) to apply. A list chains them into a single output table. |
-| `order_by` | `str`, `list[str]`, or `None` | Row ordering for the window. `None` (default) uses physical row order. A list orders by multiple columns. |
+| `order_by` | `str`, `list[str]`, or `None` | Row ordering for the window. `None` (default) uses the immutable upload order (`_mf_idx`). A list orders by multiple columns. |
 | `q` | `float` | Quantile in `[0, 1]` for `quantile` (default `0.5`). |
-| `min_periods` | `int` | Expanding/EWM only — minimum non-null count before a value is emitted. |
+| `min_periods` | `int` or `None` | Minimum observations in the frame before a value is emitted. Rolling default `None` → `window` (pandas parity); expanding default `1`; EWM default `0`. Must satisfy `0 <= min_periods <= window`. |
 
 `order_by` accepts a single column or a list:
 
@@ -159,10 +159,15 @@ result = dataset.rolling(
 )
 ```
 
-With no `order_by`, rows are processed in physical storage order (using each
-backend's physical row identifier). Some paths materialize a temporary ordering
-column; ClickHouse has no stable row id, so a synthetic row number is generated
-in a subquery.
+With no `order_by`, rows are processed in the immutable upload order
+(`_mf_idx`) — no temporary ordering column is built. When `order_by` is
+provided, only the projected value/order columns are sorted inside the window
+expression, and `_mf_idx` is appended as a deterministic tie-breaker. The
+generated column(s) are then merged back into the source by `_mf_idx`.
+
+For large frames, pass `preview_rows=N` to `MemFrame`/`mf.DataFrame`: the
+source still receives every generated value, only the returned preview is
+capped.
 
 > **Ordered vs. unordered:** every example below is shown twice — once with
 > `order_by` and once without. On a freshly uploaded frame the physical order
@@ -191,9 +196,20 @@ rather than raising; EWM on a non-numeric column is rejected the same way.
 ## Rolling
 
 A rolling window of size `w = window` covers the rows from `w - 1` preceding
-the current row through the current row. For the first rows the window is
-partial (fewer than `w` rows) and the aggregation runs over whatever is
-available — except `quantile`, which returns `NULL` until the window is full.
+the current row through the current row. `min_periods` defaults to `window`
+(pandas parity), so the first `w - 1` rows are `NULL`. Pass
+`min_periods=1` to aggregate whatever is available instead:
+
+```python
+rows = dataset.rolling(column="sales", window=3, func="mean", order_by="day")
+partial = dataset.rolling(
+    column="sales", window=3, func="mean", order_by="day", min_periods=1,
+)
+```
+
+`count` is gated on the rows in the frame rather than on the non-null
+observations, matching pandas. `min_periods=0` additionally returns `0` for an
+empty `sum` window.
 
 All examples in this section use a numeric frame
 `sales = [10, 20, 30, 40, 50]`, `day = [1, 2, 3, 4, 5]`, `window = 3`.
@@ -211,7 +227,7 @@ result = dataset.rolling(column="sales", window=3, func="sum", order_by="day")
 result = dataset.rolling(column="sales", window=3, func="sum")
 ```
 
-Both forms → `[10, 30, 60, 90, 120]`.
+Both forms → `[NULL, NULL, 60, 90, 120]`.
 
 ### `mean`
 
@@ -222,7 +238,7 @@ result = dataset.rolling(column="sales", window=3, func="mean", order_by="day")
 result = dataset.rolling(column="sales", window=3, func="mean")
 ```
 
-Both forms → `[10, 15, 20, 30, 40]`.
+Both forms → `[NULL, NULL, 20, 30, 40]`.
 
 ### `min`
 
@@ -233,7 +249,7 @@ result = dataset.rolling(column="sales", window=3, func="min", order_by="day")
 result = dataset.rolling(column="sales", window=3, func="min")
 ```
 
-Both forms → `[10, 10, 10, 20, 30]`.
+Both forms → `[NULL, NULL, 10, 20, 30]`.
 
 ### `max`
 
@@ -244,7 +260,7 @@ result = dataset.rolling(column="sales", window=3, func="max", order_by="day")
 result = dataset.rolling(column="sales", window=3, func="max")
 ```
 
-Both forms → `[10, 20, 30, 40, 50]`.
+Both forms → `[NULL, NULL, 30, 40, 50]`.
 
 ### `count`
 
@@ -256,7 +272,7 @@ result = dataset.rolling(column="sales", window=3, func="count", order_by="day")
 result = dataset.rolling(column="sales", window=3, func="count")
 ```
 
-Both forms → `[1, 2, 3, 3, 3]`.
+Both forms → `[NULL, NULL, 3, 3, 3]`.
 
 ### `std`
 
@@ -268,7 +284,7 @@ result = dataset.rolling(column="sales", window=3, func="std", order_by="day")
 result = dataset.rolling(column="sales", window=3, func="std")
 ```
 
-Both forms → `[0, 5, 8.165, 8.165, 8.165]`.
+Both forms → `[NULL, NULL, 8.165, 8.165, 8.165]`.
 
 ### `var`
 
@@ -280,7 +296,7 @@ result = dataset.rolling(column="sales", window=3, func="var", order_by="day")
 result = dataset.rolling(column="sales", window=3, func="var")
 ```
 
-Both forms → `[NULL, 50, 100, 100, 100]`.
+Both forms → `[NULL, NULL, 100, 100, 100]`.
 
 ### `quantile`
 
@@ -308,7 +324,7 @@ result = dataset.rolling(column="sales", window=3, func="sem", order_by="day")
 result = dataset.rolling(column="sales", window=3, func="sem")
 ```
 
-Both forms → `[NULL, 5, 5.774, 5.774, 5.774]`.
+Both forms → `[NULL, NULL, 5.774, 5.774, 5.774]`.
 
 ### `rank`
 
@@ -321,7 +337,7 @@ result = dataset.rolling(column="sales", window=3, func="rank", order_by="day")
 result = dataset.rolling(column="sales", window=3, func="rank")
 ```
 
-Both forms → `[1, 2, 3, 3, 3]`.
+Both forms → `[NULL, NULL, 3, 3, 3]`.
 
 ### `nunique`
 
@@ -333,7 +349,7 @@ result = dataset.rolling(column="sales", window=3, func="nunique", order_by="day
 result = dataset.rolling(column="sales", window=3, func="nunique")
 ```
 
-Both forms → `[1, 2, 3, 3, 3]`.
+Both forms → `[NULL, NULL, 3, 3, 3]`.
 
 ### `first`
 
@@ -345,7 +361,7 @@ result = dataset.rolling(column="sales", window=3, func="first", order_by="day")
 result = dataset.rolling(column="sales", window=3, func="first")
 ```
 
-Both forms → `[10, 10, 10, 20, 30]`.
+Both forms → `[NULL, NULL, 10, 20, 30]`.
 
 ### `last`
 
@@ -357,7 +373,7 @@ result = dataset.rolling(column="sales", window=3, func="last", order_by="day")
 result = dataset.rolling(column="sales", window=3, func="last")
 ```
 
-Both forms → `[10, 20, 30, 40, 50]`.
+Both forms → `[NULL, NULL, 30, 40, 50]`.
 
 ### Multiple functions
 
@@ -388,14 +404,14 @@ result = dataset.rolling(column="date", window=3, func="median", order_by="day")
 result = dataset.rolling(column="date", window=3, func="median")
 ```
 
-Both forms → `[Jan 1, Jan 1 12:00, Jan 2, Jan 3, Jan 4]`.
+Both forms → `[NULL, NULL, Jan 2, Jan 3, Jan 4]`.
 
 ```python
 result = dataset.rolling(column="date", window=3, func="min", order_by="day")
 result = dataset.rolling(column="date", window=3, func="min")
 ```
 
-Both forms → `[Jan 1, Jan 1, Jan 1, Jan 2, Jan 3]`.
+Both forms → `[NULL, NULL, Jan 1, Jan 2, Jan 3]`.
 
 Date-only columns are cast back to a date so the result keeps the original
 granularity; timestamp columns keep their time component.
@@ -605,8 +621,18 @@ factor from exactly one of `com`, `span`, `halflife`, or `alpha`:
 | `halflife` | `α = 1 - exp(-ln(2) / halflife)`, `halflife > 0` |
 
 If none is provided, `α` defaults to `0.5`. Providing more than one raises.
-Values are computed in NumPy (O(n)) and materialized into the result table.
-Result columns are named `<column>_ewm_<func>`.
+EWM is computed in-engine with a blockwise SQL scan: a narrow
+`(_mf_idx, value, row number)` table is sorted once, block-boundary state is
+carried by a recursive CTE in a small side table, and the per-row weighted
+sums run in SQL. The
+generated columns are merged back by `_mf_idx`; no full-source clone, Python
+per-row loop, or `VALUES` payload is built. Result columns are named
+`<column>_ewm_<func>`.
+
+Block size adapts to `alpha` (bounded weights); values are accurate to normal
+double precision for `alpha <= 0.9`, with relative variance/std error growing
+toward ~1e-7 for `alpha` close to 1. For very large frames, pass
+`preview_rows=N`; the source still receives every value.
 
 Examples use `sales = [10, 20, 30, 40, 50]`.
 
@@ -757,23 +783,24 @@ missing `backend`/`data_id`. When inspecting the raw envelope, check
 ## Generated Tables
 
 Every window operation **adds its generated column(s) to the source table**
-and returns a separate narrow result table containing only the involved
-columns and the generated columns:
+and returns a narrow preview containing only the involved and generated
+columns; the deep cache stores a ref to the source.
 
-```
-result.new_table = SELECT <column>, <order_by...>, <generated...>
-```
-
-- **PostgreSQL / DuckDB:** the window column(s) are computed, then the source
-  is replaced by the computed table under the same name. Some shapes
-  (quantile, rank, nunique, ewm) build the result in a single pass instead.
-- **ClickHouse:** each operation builds the result table in a single pass and
-  atomically swaps it into the source with `EXCHANGE TABLES`. EWM stages its
-  values in a temporary in-memory table, then joins it in.
+- **PostgreSQL / DuckDB:** rolling and expanding aggregations add the
+  generated column(s) to the source and backfill them in one windowed
+  `UPDATE` keyed by `_mf_idx` — the source is never cloned or swapped.
+  EWM builds narrow `ordered`/`blocks`/`state` temps, runs the blockwise
+  feature SQL, and uses the same backfill by `_mf_idx`. Specials (quantile,
+  rank, nunique, datetime stats) use a narrow ordered base and the same
+  backfill.
+- **ClickHouse:** each operation builds a narrow feature table, joins it to
+  the source by `_mf_idx`, and atomically swaps the result into the source
+  with `EXCHANGE TABLES`; the temporary feature/wide tables are dropped.
+  EWM follows the same pattern for its blockwise feature table.
 
 The envelope gains `mapped_table` (the source table name) and `mapped_columns`
-(the generated column names). The narrow result table is what the deep cache
-stores, so a cached replay returns the same columns as the first call.
+(the generated column names). The cache ref points at the source, so a
+cached replay returns the same columns as the first call.
 
 A repeated identical call reuses/replaces the same generated columns; a
 different call leaves the other derived columns intact. If a generated name

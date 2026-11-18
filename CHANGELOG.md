@@ -7,12 +7,73 @@ to [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Fixed
+- **Grouped special windows**: correlated quantile/rank/nunique/datetime
+  subqueries on PostgreSQL and ClickHouse now filter by the group keys, so
+  values no longer leak across partitions.
+- **ClickHouse std/var spellings**: expanding std uses `stddevSamp` and
+  rolling var uses `varSamp`, matching the sample semantics used elsewhere.
 - **`datetime_diff` result reads**: the two-column preview now uses the
   Arrow-backed `fetch_df` path and honors `preview_rows` instead of building
   two Python dicts per row, which previously exhausted RAM on tens of millions
   of rows.
 
+### Added
+- **Rolling `min_periods`**: `rolling(..., min_periods=None)` on the ungrouped
+  and grouped APIs, plus `min_periods` on rolling builders
+  (`on("sales").rolling(7, min_periods=1)`). Applies to every rolling
+  aggregate (generic, quantile, sem, rank, nunique, datetime stats).
+  Default `None` resolves to `window`, matching pandas.
+
+### Changed
+- **Rolling default now needs a full window**: `min_periods` defaults to
+  `window`, so the first `window - 1` rows are `NULL` instead of partial-window
+  values. Port pre-0.18 code by passing `min_periods=1`.
+- **`count` gate**: rolling `count` is masked by the rows in the frame (pandas
+  behaviour), not by the non-null observations. `min_periods=0` returns `0`
+  for an empty `sum` window.
+- **DuckDB minimum**: requires `duckdb>=1.5.4`, the version the window and
+  blockwise EWM SQL paths are validated against.
+- **EWM engine**: exponentially weighted mean/sum/std/var now run as a
+  blockwise SQL scan over a narrow ordered table, with block-boundary state
+  carried by a recursive CTE. The per-row NumPy loop, full-source clone, and
+  `VALUES` payload are gone.
+- **Grouped EWM**: `groupby(...).ewm(...)` now runs the same blockwise SQL,
+  partitioned by the group columns, and is documented as matching ungrouped
+  EWM per partition. Behavior changes:
+  - `adjust=False` `sum` is the EWMA state (same as `mean`), not a weighted
+    running sum;
+  - `adjust=False` `var/std` are NULL on the first valid row (needs 2 points);
+  - `adjust=True` + `ignore_na=False` decays state across null rows.
+  `order_by=None` uses natural `_mf_idx` order inside each group.
+- **Grouped rolling/expanding**: rolling, expanding, and their specials
+  (quantile, sem, rank, nunique, datetime stats) now partition by the group
+  columns, order by `order_by..., _mf_idx` (natural `_mf_idx` when `order_by`
+  is omitted), and backfill the source with one narrow feature update. The
+  full-width result table and source swap are gone.
+  Explicit `order_by` ties are now deterministic by `_mf_idx`.
+- **Window natural order**: rolling/expanding without `order_by` now uses the
+  immutable `_mf_idx` upload order; explicit `order_by` ties are broken by
+  `_mf_idx`, so results are deterministic across backends.
+- **`map_feature` cleanup**: removed the obsolete core mapping/collision
+  machinery. The public `map_feature` keyword remains accepted and ignored;
+  write-back is always on and ownership/collision handling lives in
+  `_generated.assert_owned_columns`.
+
 ### Performance
+- **Rolling/expanding windows**: DuckDB/PostgreSQL now add the generated
+  column(s) and backfill them with one windowed `UPDATE` keyed by `_mf_idx`
+  instead of cloning the source, sorting it per aggregate, and swapping it
+  back. ClickHouse uses one narrow feature table + join. This removes the
+  full-table clone and swap from the cold path.
+- **EWM**: the cold path no longer materialises the full source or one SQL
+  `VALUES` row per input row; per-row work stays vectorised in the database.
+- **Grouped EWM**: no longer clones the source, fetches each group separately,
+  or writes per-chunk `VALUES` updates; it uses narrow ordered/block/state
+  temps and one feature merge.
+- **Ungrouped specials**: quantile/sem/nunique/rank/datetime now use a narrow
+  ordered base and the same feature merge as the generic windows; the
+  full-source clone/full-width result path and PostgreSQL Python nunique
+  fallback are gone.
 - `map_feature` group-by mappings update the feature column in place on
   DuckDB/PostgreSQL and use a Join-engine mutation on ClickHouse, instead of
   copying the whole source table.

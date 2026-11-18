@@ -2134,7 +2134,7 @@ requires-dist = [
     { name = "asyncpg", specifier = ">=0.30" },
     { name = "build", marker = "extra == 'dev'", specifier = ">=1.0" },
     { name = "clickhouse-connect", specifier = ">=1.4.2" },
-    { name = "duckdb", specifier = ">=1.0.0" },
+    { name = "duckdb", specifier = ">=1.5.4" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "kaleido", marker = "extra == 'dev'", specifier = ">=1.0.0" },
     { name = "logfire", extras = ["system-metrics"], marker = "extra == 'logfire'" },

@@ -222,6 +222,43 @@ async def publish_row_aligned(
     if not isinstance(result, dict) or result.get("is_error"):
         return result
 
+    if result.get("source_updated"):
+        # The engine already wrote the generated columns back to the source
+        # (narrow window/expanding path). Only record and shape the payload.
+        generated = result.get("new_columns") or result.get("generated_cols")
+        if not isinstance(generated, list) or not generated:
+            generated = [result["new_column"]] if result.get("new_column") else []
+        generated = _dedupe(generated)
+        if not generated:
+            return result
+        marker = json.dumps(
+            {"sig": sig, "new_columns": generated}, sort_keys=True,
+        )
+        await record_marker(
+            ops, table, schema, marker, op_type, class_name, method_name,
+            backend, data_id,
+        )
+        cols = _dedupe([*involved, *generated])
+        result["new_table"] = table
+        result["mapped_table"] = table
+        result["mapped_columns"] = generated
+        result["cache_kind"] = "ref"
+        result["ref_schema"] = schema
+        result["ref_table"] = table
+        result["involved_cols"] = list(involved)
+        result["generated_cols"] = generated
+        result["result_cols"] = cols
+        result["mutates"] = True
+        result["order_kind"] = "mf_idx"
+        df = result.get("result")
+        if (
+            df is not None
+            and hasattr(df, "columns")
+            and all(c in df.columns for c in cols)
+        ):
+            result["result"] = df[cols].reset_index(drop=True)
+        return result
+
     wide = result.get("new_table")
     generated = result.get("new_columns") or result.get("generated_cols")
     if not isinstance(generated, list) or not generated:
@@ -241,7 +278,9 @@ async def publish_row_aligned(
     temp_cols = sorted(wide_cols - before_cols - set(generated))
 
     error = await assert_owned_columns(
-        ops, table, schema, generated, op_type, backend, data_id,
+        ops, table, schema,
+        [c for c in generated if c not in set(result.get("applied_columns") or ())],
+        op_type, backend, data_id,
     )
     if error:
         return {
@@ -255,7 +294,12 @@ async def publish_row_aligned(
 
     # Replay always uses _mf_idx order, so make the live preview match it.
     df = result.get("result")
-    if df is not None and hasattr(df, "columns") and len(df):
+    if (
+        df is not None
+        and hasattr(df, "columns")
+        and len(df)
+        and not result.get("preview_ordered")
+    ):
         try:
             idx_sql = (
                 f"SELECT {ops.db.quote_identifier(MF_IDX)} "

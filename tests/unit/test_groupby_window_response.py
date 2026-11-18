@@ -37,7 +37,7 @@ def test_rolling_mean_values(groupby_window_context):
     response = (
         GroupByWindowStatsWrapper(groupby_window_context)
         .groupby("g")
-        .rolling(2, order_by="o")
+        .rolling(2, order_by="o", min_periods=1)
         .mean("x")
     )
 
@@ -54,7 +54,7 @@ def test_rolling_sum_values(groupby_window_context):
     response = (
         GroupByWindowStatsWrapper(groupby_window_context)
         .groupby("g")
-        .rolling(2, order_by="o")
+        .rolling(2, order_by="o", min_periods=1)
         .sum("x")
     )
 
@@ -67,7 +67,7 @@ def test_rolling_multi_func_chains_single_table(groupby_window_context):
     response = (
         GroupByWindowStatsWrapper(groupby_window_context)
         .groupby("g")
-        .rolling(2, order_by="o")
+        .rolling(2, order_by="o", min_periods=1)
         .agg("x", ["sum", "mean"])
     )
 
@@ -111,7 +111,8 @@ def test_expanding_sum_values(groupby_window_context):
 def test_direct_rolling_async(groupby_window_context):
     async def _run():
         return await GroupByWindowStatsWrapper(groupby_window_context).arolling(
-            column="x", window=2, func="max", group_cols="g", order_by="o"
+            column="x", window=2, func="max", group_cols="g", order_by="o",
+            min_periods=1,
         )
 
     response = asyncio.run(_run())
@@ -122,7 +123,7 @@ def test_direct_rolling_async(groupby_window_context):
 
 
 def test_unified_groupby_routes_window(groupby_window_context):
-    response = groupby_window_context.groupby("g").rolling(2, order_by="o").mean("x")
+    response = groupby_window_context.groupby("g").rolling(2, order_by="o", min_periods=1).mean("x")
 
     assert response["is_error"] is False
     assert response["new_column"] == "x_rolling_mean_w2_by_g"
@@ -140,7 +141,7 @@ def test_rolling_missing_column_raises(groupby_window_context):
         (
             GroupByWindowStatsWrapper(groupby_window_context)
             .groupby("g")
-            .rolling(2, order_by="o")
+            .rolling(2, order_by="o", min_periods=1)
             .mean("missing_col")
         )
 
@@ -148,7 +149,7 @@ def test_rolling_missing_column_raises(groupby_window_context):
 def test_map_feature_rolling_adds_column_to_original(groupby_window_context):
     wrapper = GroupByWindowStatsWrapper(groupby_window_context)
     response = (
-        wrapper.groupby("g").rolling(2, order_by="o").agg("x", ["mean"], map_feature=True)
+        wrapper.groupby("g").rolling(2, order_by="o", min_periods=1).agg("x", ["mean"], map_feature=True)
     )
 
     assert response["is_error"] is False
@@ -177,10 +178,10 @@ def test_map_feature_expanding_adds_column_to_original(groupby_window_context):
 
 def test_map_feature_identical_rerun_succeeds(groupby_window_context):
     wrapper = GroupByWindowStatsWrapper(groupby_window_context)
-    first = wrapper.groupby("g").rolling(2, order_by="o").agg("x", ["mean"], map_feature=True)
+    first = wrapper.groupby("g").rolling(2, order_by="o", min_periods=1).agg("x", ["mean"], map_feature=True)
     assert first["is_error"] is False
 
-    second = wrapper.groupby("g").rolling(2, order_by="o").agg("x", ["mean"], map_feature=True)
+    second = wrapper.groupby("g").rolling(2, order_by="o", min_periods=1).agg("x", ["mean"], map_feature=True)
     assert second["is_error"] is False
 
     original = groupby_window_context.head(n=10)
@@ -198,7 +199,7 @@ def test_map_feature_foreign_collision_errors(groupby_window_context):
     response = (
         GroupByWindowStatsWrapper(groupby_window_context)
         .groupby("g")
-        .rolling(2, order_by="o")
+        .rolling(2, order_by="o", min_periods=1)
         .agg("x", ["mean"], map_feature=True)
     )
 

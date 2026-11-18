@@ -221,3 +221,44 @@ def test_window_personas_match_real_backends():
     assert isinstance(_DuckDBPersona(), DuckDBAdapter)
     assert isinstance(_PostgresPersona(), PostgresAdapter)
     assert isinstance(_ClickHousePersona(), ClickHouseAdapter)
+
+
+def test_generic_rolling_is_narrow_single_pass():
+    """No clone, and every aggregation shares one windowed UPDATE."""
+    rec = _DuckDBPersona()
+    ops = DuckDBWindowOps(rec)
+    asyncio.run(
+        ops._rolling_agg(
+            "t", "s", "num", order_by="g", window=3, agg=["SUM", "AVG"],
+            backend=_FakeBackend(rec), data_id=DATA_ID,
+        )
+    )
+    execs = ["".join(sql.split()) for kind, sql, _ in rec.calls if kind == "exec"]
+    updates = [sql for sql in execs if sql.startswith("UPDATE")]
+    assert len(updates) == 1
+    assert "SUM(" in updates[0] and "AVG(" in updates[0]
+    assert not any("CREATETABLE" in sql for sql in execs)
+    assert 'FROM(SELECT"_mf_idx",' in updates[0]
+
+
+def test_ewm_is_blockwise_sql():
+    rec = _DuckDBPersona()
+    ops = DuckDBWindowOps(rec)
+    asyncio.run(
+        ops.ewm(
+            "t", "s", "num", order_by="g", span=2, agg=["mean", "std"],
+            backend=_FakeBackend(rec), data_id=DATA_ID,
+        )
+    )
+    execs = ["".join(sql.split()) for kind, sql, _ in rec.calls if kind == "exec"]
+    joined = "\n".join(execs)
+    assert "__ewm_ordered" in joined
+    assert "__ewm_blocks" in joined
+    assert "__ewm_state" in joined
+    assert "VALUES(" not in joined          # no per-row payload
+    assert not any(
+        sql.startswith("CREATE") and 'SELECT*FROM"s"."t"' in sql
+        for sql in execs
+    )
+    assert any(sql.startswith("UPDATE") for sql in execs)
+    assert sum(sql.startswith("DROPTABLEIFEXISTS") for sql in execs) >= 3

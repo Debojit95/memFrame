@@ -5,15 +5,12 @@ Supports DuckDB, PostgreSQL, and ClickHouse.
 """
 
 from __future__ import annotations
-import json
 import traceback
-from typing import Any, Dict, List, Union
-import numpy as np
-import math
+from typing import Any, Dict, List, Optional, Union
 
-from memframe.core.analytix._fetch import fetch_df as _fetch_df_rows
 from memframe.core.analytix.window import WindowOps
-from memframe.core.analytix._generated import markers_table
+from memframe.core.analytix._generated import assert_owned_columns
+from memframe.db_manager.adapters.clickhouse import ClickHouseAdapter
 from memframe.db_manager.adapters.duckdb import DuckDBAdapter
 from memframe.db_manager.adapters.postgresql import PostgresAdapter
 from memframe.utils.helper import SQLIdentifierSanitizer
@@ -35,125 +32,6 @@ class GroupbyWindowOps(WindowOps):
         resp = super()._error_response(msg)
         resp.update(extra)
         return resp
-
-    # ------------------------------------------------------------------
-    #  ClickHouse helpers
-    # ------------------------------------------------------------------
-    def _map_sig(
-        self,
-        group_cols,
-        column,
-        operation_name,
-        order_cols,
-        target_col,
-        new_columns,
-    ):
-        return json.dumps(
-            {
-                "group_cols": group_cols,
-                "column": column,
-                "operation": operation_name,
-                "order_cols": order_cols or [],
-                "target_col": target_col,
-                "new_columns": new_columns,
-            },
-            sort_keys=True,
-        )
-
-    async def _check_map_collision(
-        self, table, schema, backend, data_id, sig, new_columns,
-    ):
-        """Drop our own re-run columns; error on foreign collisions."""
-        try:
-            orig_cols = set(await self.db.get_column_types(table, schema) or {})
-        except Exception:
-            orig_cols = set()
-        clashes = [c for c in new_columns if c in orig_cols]
-        if not clashes:
-            return None
-        rows = await self._fetch(
-            f"""SELECT sig FROM {markers_table(backend)}
-                WHERE data_id = {backend.placeholder(1)}
-                  AND operation_type = 'groupby_win_map'
-                  AND source_table = {backend.placeholder(2)}""",
-            data_id,
-            table,
-        )
-        for row in rows or []:
-            try:
-                # ponytail: adapters disagree (dicts on DuckDB, tuples on
-                # Postgres) — read both shapes.
-                stored = row.get("sig") if isinstance(row, dict) else row[0]
-                if json.loads(stored or "{}") == json.loads(sig):
-                    for col in clashes:
-                        await self._exec(
-                            f"ALTER TABLE {self._qualified_table(table, schema)} "
-                            f"DROP COLUMN {self.db.quote_identifier(col)}"
-                        )
-                    await self._after_drop_columns(table, schema)
-                    return None
-            except Exception:
-                continue
-        return (
-            f"map_feature: column(s) {clashes} already exist on "
-            f"{schema}.{table} and were not created by a previous identical "
-            f"group-by window mapping. Drop or rename them first."
-        )
-
-    async def _after_drop_columns(self, table: str, schema: str) -> None:
-        # ponytail: hook — ClickHouse applies DROP COLUMN as an async
-        # mutation, so its override waits until the drop is visible before
-        # the caller rebuilds the table. Synchronous backends no-op.
-        return None
-
-    async def _record_map_marker(self, table, schema, backend, data_id, sig):
-        max_op = await self._backend_fetch_val(
-            backend,
-            f"""
-            SELECT COALESCE(MAX(opidx), 0)
-            FROM {backend.cache_registry_table}
-            WHERE data_id = {backend.placeholder(1)}
-            """,
-            data_id,
-        )
-        opidx = (max_op or 0) + 1
-        await self._exec(
-            f"""INSERT INTO {backend.cache_registry_table}
-                (data_id, opidx, operation_type, class_name, method_name,
-                 args, kwargs, generated_table_name, is_deep_cache, schema)
-                VALUES ({backend.placeholder(1)}, {backend.placeholder(2)},
-                        'groupby_win_map', 'GroupbyWindowOps', 'map_feature',
-                        {backend.placeholder(3)}, {backend.placeholder(4)},
-                        {backend.placeholder(5)}, {backend.placeholder(6)},
-                        {backend.placeholder(7)})""",
-            data_id, opidx, "", sig, table, False, schema,
-        )
-
-    async def _apply_map(
-        self, table, schema, group_table, new_columns, backend, data_id, sig,
-    ):
-        try:
-            orig_cols = list(await self.db.get_column_types(table, schema) or {})
-        except Exception:
-            orig_cols = []
-        if not orig_cols:
-            raise ValueError(f"map_feature: could not list columns of {schema}.{table}")
-        orig_q = self._qualified_table(table, schema)
-        group_q = self._qualified_table(group_table, schema)
-        cond = " AND ".join(
-            f'o.{self.db.quote_identifier(c)} = g.{self.db.quote_identifier(c)}'
-            for c in orig_cols
-        )
-        feats = ", ".join(
-            f'g.{self.db.quote_identifier(c)} AS {self.db.quote_identifier(c)}'
-            for c in new_columns
-        )
-        await self._exec(
-            f"""CREATE OR REPLACE TABLE {orig_q} AS
-                SELECT o.*, {feats}
-                FROM {orig_q} o LEFT JOIN {group_q} g ON {cond}"""
-        )
-        await self._record_map_marker(table, schema, backend, data_id, sig)
 
     def _sql_agg_spec(self, raw: str) -> tuple[str, str] | None:
         """Normalize public and backend-specific aggregation aliases for Postgres/DuckDB."""
@@ -186,6 +64,66 @@ class GroupbyWindowOps(WindowOps):
             raise self._unsupported_backend_error()
         return None
 
+    def _window_agg_spec(self, raw: str):
+        return self._sql_agg_spec(raw)
+
+    def _window_result_type(self, source_type, alias_key, sql_agg) -> str:
+        if alias_key == "count":
+            return self._ewm_int_type()
+        return self._window_result_sql_type(source_type, alias_key, sql_agg)
+
+    def _group_base_cte(
+        self, table, schema, safe_col, safe_groups, orders, name="__base",
+    ) -> str:
+        q = self.db.quote_identifier
+        group_cols = ", ".join(q(c) for c in safe_groups)
+        order_sql = ", ".join(q(c) for c in orders)
+        qualified = self._qualified_table(table, schema)
+        return f"""{name} AS (
+                SELECT {q("_mf_idx")}, {group_cols}, {q(safe_col)} AS v,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY {group_cols}
+                           ORDER BY {order_sql}
+                       ) AS __rn
+                FROM {qualified}
+            )"""
+
+    def _group_eq(self, safe_groups, left="r", right="b") -> str:
+        q = self.db.quote_identifier
+        return "".join(
+            f" AND {left}.{q(c)} = {right}.{q(c)}" for c in safe_groups
+        )
+
+    async def _finish_grouped_special(
+        self, table, schema, column, new_col, feature_sql, col_type,
+        backend, data_id, safe_groups, order_by, message, **extra,
+    ):
+        collision = await assert_owned_columns(
+            self, table, schema, [new_col], "groupby_win_map",
+            backend, data_id,
+        )
+        if collision:
+            return self._error_response(
+                f"{message}: {collision}", group_cols=safe_groups,
+            )
+        await self._merge_features(
+            table, schema, feature_sql, [new_col], [col_type],
+            backend=backend, data_id=data_id,
+        )
+        preview_cols = [column, new_col]
+        if order_by:
+            preview_cols += [
+                c for c in self._order_keys(order_by) if c != "_mf_idx"
+            ]
+        preview_cols += safe_groups
+        preview_cols = list(dict.fromkeys(preview_cols))
+        res = await self._preview_data(table, schema, preview_cols)
+        response = self._success_response(
+            message, res, new_table=table, new_column=new_col,
+            group_cols=safe_groups, source_updated=True, **extra,
+        )
+        return response
+
     # ------------------------------------------------------------------
     #  ROLLING with GROUP BY – generic engine
     # ------------------------------------------------------------------
@@ -200,19 +138,18 @@ class GroupbyWindowOps(WindowOps):
         agg: Union[str, List[str]] = "SUM",
         backend=None,
         data_id=None,
+        min_periods: Optional[int] = None,
         new_table: str = None,
-        map_feature: bool = False,
     ) -> Dict[str, Any]:
         """Generic rolling aggregation with PARTITION BY group_cols."""
         try:
-            # ============================================================
-            # DuckDB / PostgreSQL  (EXISTING — unchanged)
-            # ============================================================
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
 
             safe_col = SQLIdentifierSanitizer.sanitize(column)
             safe_groups = [SQLIdentifierSanitizer.sanitize(c) for c in group_cols]
+            if int(window) < 1:
+                return self._error_response("window must be >= 1")
 
             if isinstance(agg, str):
                 raw_aggs = [agg]
@@ -221,40 +158,33 @@ class GroupbyWindowOps(WindowOps):
             if not raw_aggs:
                 return self._error_response("At least one aggregation function is required")
 
-            if order_by:
-                if isinstance(order_by, (list, tuple)):
-                    safe_orders = [SQLIdentifierSanitizer.sanitize(c) for c in order_by]
-                else:
-                    safe_orders = [SQLIdentifierSanitizer.sanitize(order_by)]
-                working_table = table
-            else:
-                safe_order, working_table = await self._resolve_ordering(table, schema, None)
-                safe_orders = [safe_order]
-
-            order_sql = ", ".join(self.db.quote_identifier(c) for c in safe_orders)
-            partition_sql = ", ".join(self.db.quote_identifier(c) for c in safe_groups)
-            w = int(window) - 1
-
-            qualified = self._qualified_table(working_table, schema)
-
-            new_table_name = await self._resolve_output_table_name(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
+            min_p = self._resolve_min_periods(min_periods, window)
+            orders = self._order_keys(order_by)
+            order_sql = ", ".join(self.db.quote_identifier(c) for c in orders)
+            part = self._ewm_partition(safe_groups)
+            qualified = self._qualified_table(table, schema)
+            q_col = self.db.quote_identifier(safe_col)
+            source_type = await self._get_column_sql_type(table, schema, safe_col)
+            frame = self._rolling_frame(window)
+            count_over = (
+                f"{self._count_expr(q_col)} "
+                f"OVER ({part}ORDER BY {order_sql} {frame})"
             )
-
-            agg_specs = []
-            for raw in raw_aggs:
-                spec = self._sql_agg_spec(raw)
-                if spec is None:
-                    return self._error_response(f"Unsupported rolling agg '{raw}' for groupby")
-                sql_agg, alias_key = spec
-                agg_specs.append((sql_agg, alias_key))
-
-            new_cols = []
-            used_col_names = set()
-            window_exprs = []
+            rows_over = f"COUNT(1) OVER ({part}ORDER BY {order_sql} {frame})"
             suffix_group = "_".join(safe_groups)
 
-            for sql_agg, alias_key in agg_specs:
+            new_cols: List[str] = []
+            exprs: List[str] = []
+            col_types: List[str] = []
+            used_col_names = set()
+            for raw in raw_aggs:
+                spec = self._window_agg_spec(raw)
+                if spec is None:
+                    return self._error_response(
+                        f"Unsupported rolling agg '{raw}' for groupby"
+                    )
+                sql_agg, alias_key = spec
+
                 base_col = f"{safe_col}_rolling_{alias_key}_w{window}_by_{suffix_group}"
                 col_name = base_col
                 suffix = 2
@@ -264,72 +194,66 @@ class GroupbyWindowOps(WindowOps):
                 used_col_names.add(col_name)
                 new_cols.append(col_name)
 
-                window_exprs.append(
-                    f"""
-                    {sql_agg}({self.db.quote_identifier(safe_col)})
-                    OVER (
-                        PARTITION BY {partition_sql}
-                        ORDER BY {order_sql}
-                        ROWS BETWEEN {w} PRECEDING AND CURRENT ROW
-                    ) AS {self.db.quote_identifier(col_name)}
-                    """
+                agg_call = (
+                    self._count_expr(q_col)
+                    if alias_key == "count"
+                    else f"{sql_agg}({q_col})"
+                )
+                value_sql = f"{agg_call} OVER ({part}ORDER BY {order_sql} {frame})"
+                gate_count = rows_over if alias_key == "count" else count_over
+                value_sql = self._min_periods_gate(
+                    value_sql, gate_count, min_p,
+                )
+                if alias_key == "sum" and min_p == 0:
+                    value_sql = f"COALESCE({value_sql}, 0)"
+                exprs.append(
+                    f"{value_sql} AS {self.db.quote_identifier(col_name)}"
+                )
+                col_types.append(
+                    self._window_result_type(source_type, alias_key, sql_agg)
                 )
 
-            window_sql = ", ".join(window_exprs)
-            src_star = await self._source_star(working_table, schema, new_cols)
-
-            create_sql = f"""
-                CREATE TABLE {self.db.quote_identifier(schema)}.{self.db.quote_identifier(new_table_name)} AS
-                SELECT {src_star},
-                    {window_sql}
-                FROM {qualified}
-            """
-            map_sig = self._map_sig(
-                safe_groups, safe_col, "rolling", safe_orders,
-                new_cols[0] if len(new_cols) == 1 else "rolling", new_cols,
+            collision = await assert_owned_columns(
+                self, table, schema, new_cols, "groupby_win_map",
+                backend, data_id,
             )
-            map_collision = None
-            if map_feature:
-                map_collision = await self._check_map_collision(
-                    table, schema, backend, data_id, map_sig, new_cols,
+            if collision:
+                return self._error_response(
+                    f"Rolling group-by error: {collision}",
+                    group_cols=safe_groups,
                 )
-                if map_collision:
-                    return self._error_response(
-                        f"Rolling group-by error: {map_collision}",
-                        group_cols=safe_groups,
-                    )
-            await self._exec(create_sql)
-            if map_feature:
-                await self._apply_map(
-                    table, schema, new_table_name, new_cols,
-                    backend, data_id, map_sig,
-                )
+
+            select_sql = (
+                f'SELECT {self.db.quote_identifier("_mf_idx")}, '
+                + ", ".join(exprs)
+                + f" FROM {qualified}"
+            )
+            await self._merge_features(
+                table, schema, select_sql, new_cols, col_types,
+                backend=backend, data_id=data_id,
+            )
 
             preview_cols = [column, *new_cols]
             if order_by:
-                preview_cols.extend(safe_orders)
-            preview_cols.extend(safe_groups)
+                preview_cols += [c for c in orders if c != "_mf_idx"]
+            preview_cols += safe_groups
             preview_cols = list(dict.fromkeys(preview_cols))
-            res = await self._fetch_data(new_table_name, schema, preview_cols)
+            res = await self._preview_data(table, schema, preview_cols)
 
-            agg_label = ", ".join(raw_aggs)
             response = self._success_response(
-                f"Rolling {agg_label} on '{column}' grouped by {safe_groups} (window={window})",
+                f"Rolling {', '.join(raw_aggs)} on '{column}' "
+                f"grouped by {safe_groups} (window={window})",
                 result=res,
-                new_table=new_table_name,
-                mapped_table=table if map_feature else None,
-                mapped_columns=new_cols if map_feature else [],
+                new_table=table,
                 new_columns=new_cols,
                 window=window,
+                min_periods=min_p,
                 group_cols=safe_groups,
+                source_updated=True,
             )
             if len(new_cols) == 1:
                 response["new_column"] = new_cols[0]
             return response
-
-        # ============================================================
-        # ClickHouse  (NEW)
-        # ============================================================
         except Exception as e:
             return self._error_response(
                 f"rolling group-by error: {str(e)}\n{traceback.format_exc()}"
@@ -370,466 +294,249 @@ class GroupbyWindowOps(WindowOps):
         return await self._rolling_agg_with_partition(table, schema, column, group_cols, order_by, window, agg="LAST_VALUE", **kwargs)
     # ---------- Rolling Specials ----------
     async def rolling_quantile_groupby(
-        self, table, schema, column, group_cols, order_by=None, window=3, q=0.5, backend=None, data_id=None, new_table=None,
-        map_feature: bool = False
+        self, table, schema, column, group_cols, order_by=None, window=3,
+        q=0.5, backend=None, data_id=None, new_table=None, min_periods=None,
     ):
         try:
-            # ============================================================
-            # DuckDB / PostgreSQL  (EXISTING)
-            # ============================================================
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
             safe_col = SQLIdentifierSanitizer.sanitize(column)
             safe_groups = [SQLIdentifierSanitizer.sanitize(c) for c in group_cols]
+            if int(window) < 1:
+                return self._error_response("window must be >= 1")
+            min_p = self._resolve_min_periods(min_periods, window)
 
-            if order_by:
-                if isinstance(order_by, (list, tuple)):
-                    safe_orders = [SQLIdentifierSanitizer.sanitize(c) for c in order_by]
-                else:
-                    safe_orders = [SQLIdentifierSanitizer.sanitize(order_by)]
-                working_table = table
-            else:
-                safe_order, working_table = await self._resolve_ordering(table, schema, None)
-                safe_orders = [safe_order]
-
-            order_sql = ", ".join(self.db.quote_identifier(c) for c in safe_orders)
-            partition_sql = ", ".join(self.db.quote_identifier(c) for c in safe_groups)
+            orders = self._order_keys(order_by)
+            order_sql = ", ".join(self.db.quote_identifier(c) for c in orders)
+            part = self._ewm_partition(safe_groups)
+            q_col = self.db.quote_identifier(safe_col)
             w = int(window) - 1
+            frame = self._rolling_frame(window)
             new_col = f"{safe_col}_rolling_q{q}_w{window}_by_{'_'.join(safe_groups)}"
-            src_star = await self._source_star(working_table, schema, [new_col])
-            src_bstar = await self._source_star(working_table, schema, [new_col], prefix="b", extra=("__rn",))
 
-            qualified = self._qualified_table(working_table, schema)
-
-            new_table_name = await self._resolve_output_table_name(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
-            )
-
-            if isinstance(self.db, PostgresAdapter):
-                q_col = self.db.quote_identifier(safe_col)
-                q_rn = self.db.quote_identifier("__rn")
-                q_new_col = self.db.quote_identifier(new_col)
-                sql = f"""
-                CREATE TABLE {self.db.quote_identifier(schema)}.{self.db.quote_identifier(new_table_name)} AS
-                WITH __base AS (
-                    SELECT *,
-                        ROW_NUMBER() OVER (PARTITION BY {partition_sql} ORDER BY {order_sql}) AS {q_rn}
-                    FROM {qualified}
+            if isinstance(self.db, DuckDBAdapter):
+                count_over = (
+                    f"{self._count_expr(q_col)} "
+                    f"OVER ({part}ORDER BY {order_sql} {frame})"
                 )
-                SELECT {src_bstar},
-                    (
-                        SELECT PERCENTILE_CONT({q}) WITHIN GROUP (ORDER BY r.{q_col})
-                        FROM __base r
-                        WHERE r.{q_rn} BETWEEN b.{q_rn} - {w} AND b.{q_rn}
-                          AND r.{q_col} IS NOT NULL
-                    ) AS {q_new_col}
-                FROM __base b
-                """
-                map_sig = self._map_sig(
-                    safe_groups, safe_col, "rolling_quantile", safe_orders,
-                    [new_col][0] if len([new_col]) == 1 else "rolling_quantile", [new_col],
+                agg_over = (
+                    f"{self._quantile_cont_sql(q_col, q)} "
+                    f"OVER ({part}ORDER BY {order_sql} {frame})"
                 )
-                map_collision = None
-                if map_feature:
-                    map_collision = await self._check_map_collision(
-                        table, schema, backend, data_id, map_sig, [new_col],
-                    )
-                    if map_collision:
-                        return self._error_response(
-                            f"Rolling quantile group-by error: {map_collision}",
-                            group_cols=safe_groups,
-                        )
-                await self._exec(sql)
-                if map_feature:
-                    await self._apply_map(
-                        table, schema, new_table_name, [new_col],
-                        backend, data_id, map_sig,
-                    )
-            elif isinstance(self.db, DuckDBAdapter):
-                func = f"QUANTILE_CONT({self.db.quote_identifier(safe_col)}, {q})"
-
-                window_sql = f"""
-                    {func}
-                    OVER (
-                        PARTITION BY {partition_sql}
-                        ORDER BY {order_sql}
-                        ROWS BETWEEN {w} PRECEDING AND CURRENT ROW
-                    )
-                """
-
-                sql = f"""
-                CREATE TABLE {self.db.quote_identifier(schema)}.{self.db.quote_identifier(new_table_name)} AS
-                SELECT {src_star},
-                    {window_sql} AS {self.db.quote_identifier(new_col)}
-                FROM {qualified}
-                """
-                map_sig = self._map_sig(
-                    safe_groups, safe_col, "rolling_quantile", safe_orders,
-                    [new_col][0] if len([new_col]) == 1 else "rolling_quantile", [new_col],
+                expr = self._min_periods_gate(agg_over, count_over, min_p)
+                feature_sql = (
+                    f'SELECT {self.db.quote_identifier("_mf_idx")}, '
+                    f"{expr} AS {self.db.quote_identifier(new_col)} "
+                    f"FROM {self._qualified_table(table, schema)}"
                 )
-                map_collision = None
-                if map_feature:
-                    map_collision = await self._check_map_collision(
-                        table, schema, backend, data_id, map_sig, [new_col],
-                    )
-                    if map_collision:
-                        return self._error_response(
-                            f"Rolling quantile group-by error: {map_collision}",
-                            group_cols=safe_groups,
-                        )
-                await self._exec(sql)
-                if map_feature:
-                    await self._apply_map(
-                        table, schema, new_table_name, [new_col],
-                        backend, data_id, map_sig,
-                    )
             else:
-                raise self._unsupported_backend_error()
+                base = self._group_base_cte(
+                    table, schema, safe_col, safe_groups, orders,
+                )
+                group_eq = self._group_eq(safe_groups)
+                count_subq = f"""
+                    SELECT COUNT(r.v) FROM __base r
+                    WHERE r.__rn BETWEEN b.__rn - {w} AND b.__rn
+                      {group_eq}
+                """
+                quantile_subq = f"""
+                    SELECT {self._quantile_cont_sql("r.v", q)}
+                    FROM __base r
+                    WHERE r.__rn BETWEEN b.__rn - {w} AND b.__rn
+                      {group_eq}
+                      AND r.v IS NOT NULL
+                """
+                expr = self._min_periods_gate(
+                    f"({quantile_subq})", f"({count_subq})", min_p,
+                )
+                feature_sql = f"""
+                    WITH {base}
+                    SELECT b.{self.db.quote_identifier("_mf_idx")},
+                        {expr} AS {self.db.quote_identifier(new_col)}
+                    FROM __base b
+                """
 
-            preview_cols = [column, new_col]
-            if order_by:
-                preview_cols.extend(safe_orders)
-            preview_cols.extend(safe_groups)
-            res = await self._fetch_data(new_table_name, schema, list(dict.fromkeys(preview_cols)))
-
-            return self._success_response(
-                f"Rolling quantile on '{column}' grouped by {safe_groups} (window={window}, q={q})",
-                res,
-                new_table=new_table_name,
-                mapped_table=table if map_feature else None,
-                mapped_columns=[new_col] if map_feature else [],
-                new_column=new_col,
+            return await self._finish_grouped_special(
+                table, schema, column, new_col, feature_sql,
+                self._ewm_float_type(), backend, data_id,
+                safe_groups, order_by,
+                f"Rolling quantile on '{column}' grouped by {safe_groups} "
+                f"(window={window}, q={q}, min_periods={min_p})",
+                window=window, min_periods=min_p,
             )
-
-        # ============================================================
-        # ClickHouse  (NEW — uses correlated subquery)
-        # ============================================================
         except Exception as e:
             return self._error_response(f"rolling quantile group-by error: {str(e)}")
 
     async def rolling_sem_groupby(
-        self, table, schema, column, group_cols, order_by=None, window=3, backend=None, data_id=None, new_table=None,
-        map_feature: bool = False
+        self, table, schema, column, group_cols, order_by=None, window=3,
+        backend=None, data_id=None, new_table=None, min_periods=None,
     ):
         try:
-            # ============================================================
-            # DuckDB / PostgreSQL  (EXISTING)
-            # ============================================================
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
             safe_col = SQLIdentifierSanitizer.sanitize(column)
             safe_groups = [SQLIdentifierSanitizer.sanitize(c) for c in group_cols]
+            if int(window) < 1:
+                return self._error_response("window must be >= 1")
+            min_p = self._resolve_min_periods(min_periods, window)
 
-            if order_by:
-                if isinstance(order_by, (list, tuple)):
-                    safe_orders = [SQLIdentifierSanitizer.sanitize(c) for c in order_by]
-                else:
-                    safe_orders = [SQLIdentifierSanitizer.sanitize(order_by)]
-                working_table = table
-            else:
-                safe_order, working_table = await self._resolve_ordering(table, schema, None)
-                safe_orders = [safe_order]
-
-            order_sql = ", ".join(self.db.quote_identifier(c) for c in safe_orders)
-            partition_sql = ", ".join(self.db.quote_identifier(c) for c in safe_groups)
-            w = int(window) - 1
+            orders = self._order_keys(order_by)
+            order_sql = ", ".join(self.db.quote_identifier(c) for c in orders)
+            part = self._ewm_partition(safe_groups)
+            q_col = self.db.quote_identifier(safe_col)
+            frame = self._rolling_frame(window)
             new_col = f"{safe_col}_rolling_sem_w{window}_by_{'_'.join(safe_groups)}"
-            src_star = await self._source_star(working_table, schema, [new_col])
-            qualified = self._qualified_table(working_table, schema)
-
-            new_table_name = await self._resolve_output_table_name(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
+            std_func = self._std_agg()
+            count_over = (
+                f"{self._count_expr(q_col)} "
+                f"OVER ({part}ORDER BY {order_sql} {frame})"
             )
-
-            if isinstance(self.db, PostgresAdapter):
-                std_func = "STDDEV"
-            elif isinstance(self.db, DuckDBAdapter):
-                std_func = "STDDEV_SAMP"
-            else:
-                raise self._unsupported_backend_error()
-            sem_expr = f"""
-                ({std_func}({self.db.quote_identifier(safe_col)})
-                OVER (
-                    PARTITION BY {partition_sql}
-                    ORDER BY {order_sql}
-                    ROWS BETWEEN {w} PRECEDING AND CURRENT ROW
-                )
-                /
-                SQRT(
-                    COUNT({self.db.quote_identifier(safe_col)})
-                    OVER (
-                        PARTITION BY {partition_sql}
-                        ORDER BY {order_sql}
-                        ROWS BETWEEN {w} PRECEDING AND CURRENT ROW
-                    )
-                ))
-            """
-
-            sql = f"""
-            CREATE TABLE {self.db.quote_identifier(schema)}.{self.db.quote_identifier(new_table_name)} AS
-            SELECT {src_star}, {sem_expr} AS {self.db.quote_identifier(new_col)}
-            FROM {qualified}
-            """
-            map_sig = self._map_sig(
-                safe_groups, safe_col, "rolling_sem", safe_orders,
-                [new_col][0] if len([new_col]) == 1 else "rolling_sem", [new_col],
+            sem_sql = (
+                f"({std_func}({q_col}) OVER ({part}ORDER BY {order_sql} {frame}) "
+                f"/ SQRT({count_over}))"
             )
-            map_collision = None
-            if map_feature:
-                map_collision = await self._check_map_collision(
-                    table, schema, backend, data_id, map_sig, [new_col],
-                )
-                if map_collision:
-                    return self._error_response(
-                        f"Rolling sem group-by error: {map_collision}",
-                        group_cols=safe_groups,
-                    )
-            await self._exec(sql)
-            if map_feature:
-                await self._apply_map(
-                    table, schema, new_table_name, [new_col],
-                    backend, data_id, map_sig,
-                )
-
-            preview_cols = [column, new_col]
-            if order_by:
-                preview_cols.extend(safe_orders)
-            preview_cols.extend(safe_groups)
-            res = await self._fetch_data(new_table_name, schema, list(dict.fromkeys(preview_cols)))
-
-            return self._success_response(
-                f"Rolling SEM on '{column}' grouped by {safe_groups} (window={window})",
-                res,
-                new_table=new_table_name,
-                mapped_table=table if map_feature else None,
-                mapped_columns=[new_col] if map_feature else [],
-                new_column=new_col,
+            expr = self._min_periods_gate(sem_sql, count_over, min_p)
+            feature_sql = (
+                f'SELECT {self.db.quote_identifier("_mf_idx")}, '
+                f"{expr} AS {self.db.quote_identifier(new_col)} "
+                f"FROM {self._qualified_table(table, schema)}"
             )
-
-        # ============================================================
-        # ClickHouse  (NEW)
-        # ============================================================
+            return await self._finish_grouped_special(
+                table, schema, column, new_col, feature_sql,
+                self._ewm_float_type(), backend, data_id,
+                safe_groups, order_by,
+                f"Rolling SEM on '{column}' grouped by {safe_groups} "
+                f"(window={window}, min_periods={min_p})",
+                window=window, min_periods=min_p,
+            )
         except Exception as e:
             return self._error_response(f"rolling sem group-by error: {str(e)}")
 
     async def rolling_nunique_groupby(
-        self, table, schema, column, group_cols, order_by=None, window=3, backend=None, data_id=None, new_table=None,
-        map_feature: bool = False
+        self, table, schema, column, group_cols, order_by=None, window=3,
+        backend=None, data_id=None, new_table=None, min_periods=None,
     ):
         try:
-            # ============================================================
-            # DuckDB / PostgreSQL  (EXISTING)
-            # ============================================================
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
             safe_col = SQLIdentifierSanitizer.sanitize(column)
             safe_groups = [SQLIdentifierSanitizer.sanitize(c) for c in group_cols]
+            if int(window) < 1:
+                return self._error_response("window must be >= 1")
+            min_p = self._resolve_min_periods(min_periods, window)
 
-            if order_by:
-                if isinstance(order_by, (list, tuple)):
-                    safe_orders = [SQLIdentifierSanitizer.sanitize(c) for c in order_by]
-                else:
-                    safe_orders = [SQLIdentifierSanitizer.sanitize(order_by)]
-                working_table = table
-            else:
-                safe_order, working_table = await self._resolve_ordering(table, schema, None)
-                safe_orders = [safe_order]
-
-            order_sql = ", ".join(self.db.quote_identifier(c) for c in safe_orders)
-            partition_sql = ", ".join(self.db.quote_identifier(c) for c in safe_groups)
+            orders = self._order_keys(order_by)
+            order_sql = ", ".join(self.db.quote_identifier(c) for c in orders)
+            part = self._ewm_partition(safe_groups)
+            q_col = self.db.quote_identifier(safe_col)
             w = int(window) - 1
+            frame = self._rolling_frame(window)
             new_col = f"{safe_col}_rolling_nunique_w{window}_by_{'_'.join(safe_groups)}"
-            src_star = await self._source_star(working_table, schema, [new_col])
-            src_bstar = await self._source_star(working_table, schema, [new_col], prefix="b", extra=("__rn",))
-            qualified = self._qualified_table(working_table, schema)
-
-            new_table_name = await self._resolve_output_table_name(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
-            )
 
             if isinstance(self.db, DuckDBAdapter):
-                nunique_expr = f"""
-                    COUNT(DISTINCT {self.db.quote_identifier(safe_col)})
-                    OVER (
-                        PARTITION BY {partition_sql}
-                        ORDER BY {order_sql}
-                        ROWS BETWEEN {w} PRECEDING AND CURRENT ROW
-                    )
-                """
-                sql = f"""
-                CREATE TABLE {self.db.quote_identifier(schema)}.{self.db.quote_identifier(new_table_name)} AS
-                SELECT {src_star}, {nunique_expr} AS {self.db.quote_identifier(new_col)}
-                FROM {qualified}
-                """
-                map_sig = self._map_sig(
-                    safe_groups, safe_col, "rolling_nunique", safe_orders,
-                    [new_col][0] if len([new_col]) == 1 else "rolling_nunique", [new_col],
+                count_over = (
+                    f"{self._count_expr(q_col)} "
+                    f"OVER ({part}ORDER BY {order_sql} {frame})"
                 )
-                map_collision = None
-                if map_feature:
-                    map_collision = await self._check_map_collision(
-                        table, schema, backend, data_id, map_sig, [new_col],
-                    )
-                    if map_collision:
-                        return self._error_response(
-                            f"Rolling nunique group-by error: {map_collision}",
-                            group_cols=safe_groups,
-                        )
-                await self._exec(sql)
-                if map_feature:
-                    await self._apply_map(
-                        table, schema, new_table_name, [new_col],
-                        backend, data_id, map_sig,
-                    )
-            elif isinstance(self.db, PostgresAdapter):
-                sql = f"""
-                CREATE TABLE {self.db.quote_identifier(schema)}.{self.db.quote_identifier(new_table_name)} AS
-                WITH __base AS (
-                    SELECT *,
-                        ROW_NUMBER() OVER (PARTITION BY {partition_sql} ORDER BY {order_sql}) AS __rn
-                    FROM {qualified}
+                distinct_over = (
+                    f"COUNT(DISTINCT {q_col}) "
+                    f"OVER ({part}ORDER BY {order_sql} {frame})"
                 )
-                SELECT {src_bstar},
-                    (
-                        SELECT COUNT(DISTINCT r.{self.db.quote_identifier(safe_col)})
-                        FROM __base r
-                        WHERE r.__rn BETWEEN b.__rn - {w} AND b.__rn
-                    ) AS {self.db.quote_identifier(new_col)}
-                FROM __base b
-                """
-                map_sig = self._map_sig(
-                    safe_groups, safe_col, "rolling_nunique", safe_orders,
-                    [new_col][0] if len([new_col]) == 1 else "rolling_nunique", [new_col],
+                expr = self._min_periods_gate(
+                    distinct_over, count_over, min_p,
                 )
-                map_collision = None
-                if map_feature:
-                    map_collision = await self._check_map_collision(
-                        table, schema, backend, data_id, map_sig, [new_col],
-                    )
-                    if map_collision:
-                        return self._error_response(
-                            f"Rolling nunique group-by error: {map_collision}",
-                            group_cols=safe_groups,
-                        )
-                await self._exec(sql)
-                if map_feature:
-                    await self._apply_map(
-                        table, schema, new_table_name, [new_col],
-                        backend, data_id, map_sig,
-                    )
+                feature_sql = (
+                    f'SELECT {self.db.quote_identifier("_mf_idx")}, '
+                    f"{expr} AS {self.db.quote_identifier(new_col)} "
+                    f"FROM {self._qualified_table(table, schema)}"
+                )
             else:
-                raise self._unsupported_backend_error()
+                base = self._group_base_cte(
+                    table, schema, safe_col, safe_groups, orders,
+                )
+                group_eq = self._group_eq(safe_groups)
+                count_subq = f"""
+                    SELECT COUNT(r.v) FROM __base r
+                    WHERE r.__rn BETWEEN b.__rn - {w} AND b.__rn
+                      {group_eq}
+                """
+                distinct_subq = f"""
+                    SELECT {self._distinct_count_sql("r.v")}
+                    FROM __base r
+                    WHERE r.__rn BETWEEN b.__rn - {w} AND b.__rn
+                      {group_eq}
+                """
+                expr = self._min_periods_gate(
+                    f"({distinct_subq})", f"({count_subq})", min_p,
+                )
+                feature_sql = f"""
+                    WITH {base}
+                    SELECT b.{self.db.quote_identifier("_mf_idx")},
+                        {expr} AS {self.db.quote_identifier(new_col)}
+                    FROM __base b
+                """
 
-            preview_cols = [column, new_col]
-            if order_by:
-                preview_cols.extend(safe_orders)
-            preview_cols.extend(safe_groups)
-            res = await self._fetch_data(new_table_name, schema, list(dict.fromkeys(preview_cols)))
-
-            return self._success_response(
-                f"Rolling nunique on '{column}' grouped by {safe_groups} (window={window})",
-                res,
-                new_table=new_table_name,
-                mapped_table=table if map_feature else None,
-                mapped_columns=[new_col] if map_feature else [],
-                new_column=new_col,
+            return await self._finish_grouped_special(
+                table, schema, column, new_col, feature_sql,
+                self._ewm_int_type(), backend, data_id,
+                safe_groups, order_by,
+                f"Rolling nunique on '{column}' grouped by {safe_groups} "
+                f"(window={window}, min_periods={min_p})",
+                window=window, min_periods=min_p,
             )
-
-        # ============================================================
-        # ClickHouse  (NEW — correlated subquery, like Postgres)
-        # ============================================================
         except Exception as e:
             return self._error_response(f"rolling nunique group-by error: {str(e)}")
 
     async def rolling_rank_groupby(
-        self, table, schema, column, group_cols, order_by=None, window=3, backend=None, data_id=None, new_table=None,
-        map_feature: bool = False
+        self, table, schema, column, group_cols, order_by=None, window=3,
+        backend=None, data_id=None, new_table=None, min_periods=None,
     ):
         try:
-            # ============================================================
-            # DuckDB / PostgreSQL  (EXISTING)
-            # ============================================================
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
             safe_col = SQLIdentifierSanitizer.sanitize(column)
             safe_groups = [SQLIdentifierSanitizer.sanitize(c) for c in group_cols]
+            if int(window) < 1:
+                return self._error_response("window must be >= 1")
+            min_p = self._resolve_min_periods(min_periods, window)
 
-            if order_by:
-                if isinstance(order_by, (list, tuple)):
-                    safe_orders = [SQLIdentifierSanitizer.sanitize(c) for c in order_by]
-                else:
-                    safe_orders = [SQLIdentifierSanitizer.sanitize(order_by)]
-                working_table = table
-            else:
-                safe_order, working_table = await self._resolve_ordering(table, schema, None)
-                safe_orders = [safe_order]
-
-            order_sql = ", ".join(self.db.quote_identifier(c) for c in safe_orders)
-            partition_sql = ", ".join(self.db.quote_identifier(c) for c in safe_groups)
+            orders = self._order_keys(order_by)
             w = int(window) - 1
             new_col = f"{safe_col}_rolling_rank_w{window}_by_{'_'.join(safe_groups)}"
-            src_bstar = await self._source_star(working_table, schema, [new_col], prefix="b", extra=("__rn",))
-            qualified = self._qualified_table(working_table, schema)
-
-            new_table_name = await self._resolve_output_table_name(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
+            base = self._group_base_cte(
+                table, schema, safe_col, safe_groups, orders,
             )
-
-            sql = f"""
-            CREATE TABLE {self.db.quote_identifier(schema)}.{self.db.quote_identifier(new_table_name)} AS
-            WITH __base AS (
-                SELECT *,
-                    ROW_NUMBER() OVER (PARTITION BY {partition_sql} ORDER BY {order_sql}) AS __rn
-                FROM {qualified}
-            )
-            SELECT {src_bstar},
-                (
-                    SELECT COUNT(*)
-                    FROM __base r
-                    WHERE r.__rn BETWEEN b.__rn - {w} AND b.__rn
-                    AND r.{self.db.quote_identifier(safe_col)} <= b.{self.db.quote_identifier(safe_col)}
-                ) AS {self.db.quote_identifier(new_col)}
-            FROM __base b
+            group_eq = self._group_eq(safe_groups)
+            count_subq = f"""
+                SELECT COUNT(r.v)
+                FROM __base r
+                WHERE r.__rn BETWEEN b.__rn - {w} AND b.__rn
+                  {group_eq}
             """
-            map_sig = self._map_sig(
-                safe_groups, safe_col, "rolling_rank", safe_orders,
-                [new_col][0] if len([new_col]) == 1 else "rolling_rank", [new_col],
+            rank_subq = f"""
+                SELECT COUNT(*)
+                FROM __base r
+                WHERE r.__rn BETWEEN b.__rn - {w} AND b.__rn
+                  {group_eq}
+                  AND r.v <= b.v
+            """
+            expr = self._min_periods_gate(
+                f"({rank_subq})", f"({count_subq})", min_p,
             )
-            map_collision = None
-            if map_feature:
-                map_collision = await self._check_map_collision(
-                    table, schema, backend, data_id, map_sig, [new_col],
-                )
-                if map_collision:
-                    return self._error_response(
-                        f"Rolling rank group-by error: {map_collision}",
-                        group_cols=safe_groups,
-                    )
-            await self._exec(sql)
-            if map_feature:
-                await self._apply_map(
-                    table, schema, new_table_name, [new_col],
-                    backend, data_id, map_sig,
-                )
-
-            preview_cols = [column, new_col]
-            if order_by:
-                preview_cols.extend(safe_orders)
-            preview_cols.extend(safe_groups)
-            res = await self._fetch_data(new_table_name, schema, list(dict.fromkeys(preview_cols)))
-
-            return self._success_response(
-                f"Rolling rank on '{column}' grouped by {safe_groups} (window={window})",
-                res,
-                new_table=new_table_name,
-                mapped_table=table if map_feature else None,
-                mapped_columns=[new_col] if map_feature else [],
-                new_column=new_col,
+            feature_sql = f"""
+                WITH {base}
+                SELECT b.{self.db.quote_identifier("_mf_idx")},
+                    {expr} AS {self.db.quote_identifier(new_col)}
+                FROM __base b
+            """
+            return await self._finish_grouped_special(
+                table, schema, column, new_col, feature_sql,
+                self._ewm_int_type(), backend, data_id,
+                safe_groups, order_by,
+                f"Rolling rank on '{column}' grouped by {safe_groups} "
+                f"(window={window}, min_periods={min_p})",
+                window=window, min_periods=min_p,
             )
-
-        # ============================================================
-        # ClickHouse  (NEW — correlated subquery)
-        # ============================================================
         except Exception as e:
             return self._error_response(f"rolling rank group-by error: {str(e)}")
 
@@ -839,173 +546,135 @@ class GroupbyWindowOps(WindowOps):
     async def rolling_max_datetime_groupby(self, *args, **kwargs):
         return await self._rolling_agg_with_partition(*args, agg="MAX", **kwargs)
     async def rolling_mean_datetime_groupby(
-        self, table, schema, column, group_cols, order_by=None, window=3, backend=None, data_id=None, new_table=None,
-        map_feature: bool = False
+        self, table, schema, column, group_cols, order_by=None, window=3, backend=None, data_id=None, new_table=None, min_periods=None,
     ):
         return await self._rolling_datetime_stat_with_partition(
-            table, schema, column, group_cols, order_by, window, stat="mean", backend=backend, data_id=data_id, new_table=new_table,
-            map_feature=map_feature
+            table, schema, column, group_cols, order_by, window, stat="mean", backend=backend, data_id=data_id, new_table=new_table, min_periods=min_periods,
         )
     async def rolling_median_datetime_groupby(
-        self, table, schema, column, group_cols, order_by=None, window=3, backend=None, data_id=None, new_table=None,
-        map_feature: bool = False
+        self, table, schema, column, group_cols, order_by=None, window=3, backend=None, data_id=None, new_table=None, min_periods=None,
     ):
         return await self._rolling_datetime_stat_with_partition(
-            table, schema, column, group_cols, order_by, window, stat="median", backend=backend, data_id=data_id, new_table=new_table,
-            map_feature=map_feature
+            table, schema, column, group_cols, order_by, window, stat="median", backend=backend, data_id=data_id, new_table=new_table, min_periods=min_periods,
         )
     async def rolling_mode_datetime_groupby(
-        self, table, schema, column, group_cols, order_by=None, window=3, backend=None, data_id=None, new_table=None,
-        map_feature: bool = False
+        self, table, schema, column, group_cols, order_by=None, window=3, backend=None, data_id=None, new_table=None, min_periods=None,
     ):
         return await self._rolling_datetime_stat_with_partition(
-            table, schema, column, group_cols, order_by, window, stat="mode", backend=backend, data_id=data_id, new_table=new_table,
-            map_feature=map_feature
+            table, schema, column, group_cols, order_by, window, stat="mode", backend=backend, data_id=data_id, new_table=new_table, min_periods=min_periods,
         )
     async def _rolling_datetime_stat_with_partition(
-        self, table, schema, column, group_cols, order_by, window, stat, backend, data_id, new_table=None,
-        map_feature: bool = False
+        self, table, schema, column, group_cols, order_by, window, stat,
+        backend, data_id, new_table=None, min_periods=None,
     ):
-        """Copy of _rolling_datetime_stat with PARTITION BY added. Supports ClickHouse."""
         try:
-            # ============================================================
-            # DuckDB / PostgreSQL  (EXISTING)
-            # ============================================================
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
             safe_col = SQLIdentifierSanitizer.sanitize(column)
             safe_groups = [SQLIdentifierSanitizer.sanitize(c) for c in group_cols]
-
-            if order_by:
-                if isinstance(order_by, (list, tuple)):
-                    safe_orders = [SQLIdentifierSanitizer.sanitize(c) for c in order_by]
-                else:
-                    safe_orders = [SQLIdentifierSanitizer.sanitize(order_by)]
-                working_table = table
-            else:
-                safe_order, working_table = await self._resolve_ordering(table, schema, None)
-                safe_orders = [safe_order]
-
-            order_sql = ", ".join(self.db.quote_identifier(c) for c in safe_orders)
-            partition_sql = ", ".join(self.db.quote_identifier(c) for c in safe_groups)
-            w = int(window) - 1
-            if w < 0:
+            if int(window) < 1:
                 return self._error_response("window must be >= 1")
+            min_p = self._resolve_min_periods(min_periods, window)
 
+            orders = self._order_keys(order_by)
+            w = int(window) - 1
             stat_key = stat.lower()
-            new_col = f"{safe_col}_rolling_{stat_key}_w{window}_by_{'_'.join(safe_groups)}"
-            src_bstar = await self._source_star(working_table, schema, [new_col], prefix="b", extra=("__rn",))
-            qualified = self._qualified_table(working_table, schema)
-
-            new_table_name = await self._resolve_output_table_name(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
+            new_col = (
+                f"{safe_col}_rolling_{stat_key}_w{window}_by_"
+                f"{'_'.join(safe_groups)}"
             )
-
-            q_schema = self.db.quote_identifier(SQLIdentifierSanitizer.sanitize(schema))
-            q_new_table = self.db.quote_identifier(new_table_name)
-            q_col = self.db.quote_identifier(safe_col)
-            q_rn = self.db.quote_identifier("__totem_roll_rn")
-
-            is_date_only = await self._is_date_only_column(working_table, schema, safe_col)
-            from_epoch_expr = "TO_TIMESTAMP(__agg.value_epoch)"
-            if is_date_only:
-                from_epoch_expr = f"CAST({from_epoch_expr} AS DATE)"
-
+            base = self._group_base_cte(
+                table, schema, safe_col, safe_groups, orders,
+            )
+            group_eq = self._group_eq(safe_groups)
+            is_date_only = await self._is_date_only_column(
+                table, schema, safe_col,
+            )
+            from_epoch = self._from_epoch_expr(is_date_only)
             if stat_key == "mean":
-                epoch_expr = self._datetime_epoch_expr(f"r.{q_col}")
+                epoch_expr = self._datetime_epoch_expr("r.v")
+                inner = self._avg_fn() + f"({epoch_expr})"
                 value_sql = f"""
-                    SELECT {from_epoch_expr}
+                    SELECT {from_epoch}
                     FROM (
-                        SELECT AVG({epoch_expr}) AS value_epoch
+                        SELECT {inner} AS value_epoch
                         FROM __base r
-                        WHERE r.{q_rn} BETWEEN b.{q_rn} - {w} AND b.{q_rn}
-                          AND r.{q_col} IS NOT NULL
+                        WHERE r.__rn BETWEEN b.__rn - {w} AND b.__rn
+                          {group_eq}
+                          AND r.v IS NOT NULL
                     ) __agg
                 """
             elif stat_key == "median":
-                epoch_expr = self._datetime_epoch_expr(f"r.{q_col}")
-                if isinstance(self.db, PostgresAdapter):
-                    median_epoch_sql = f"PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY {epoch_expr})"
-                elif isinstance(self.db, DuckDBAdapter):
-                    median_epoch_sql = f"MEDIAN({epoch_expr})"
-                else:
-                    raise self._unsupported_backend_error()
+                epoch_expr = self._datetime_epoch_expr("r.v")
+                inner = self._median_epoch_sql(epoch_expr)
                 value_sql = f"""
-                    SELECT {from_epoch_expr}
+                    SELECT {from_epoch}
                     FROM (
-                        SELECT {median_epoch_sql} AS value_epoch
+                        SELECT {inner} AS value_epoch
                         FROM __base r
-                        WHERE r.{q_rn} BETWEEN b.{q_rn} - {w} AND b.{q_rn}
-                          AND r.{q_col} IS NOT NULL
+                        WHERE r.__rn BETWEEN b.__rn - {w} AND b.__rn
+                          {group_eq}
+                          AND r.v IS NOT NULL
                     ) __agg
                 """
             elif stat_key == "mode":
-                value_sql = f"""
-                    SELECT r.{q_col}
-                    FROM __base r
-                    WHERE r.{q_rn} BETWEEN b.{q_rn} - {w} AND b.{q_rn}
-                      AND r.{q_col} IS NOT NULL
-                    GROUP BY r.{q_col}
-                    ORDER BY COUNT(*) DESC, r.{q_col}
-                    LIMIT 1
-                """
+                if isinstance(self.db, ClickHouseAdapter):
+                    value_sql = f"""
+                        SELECT argMin(v, (-cnt, v))
+                        FROM (
+                            SELECT r.v AS v, COUNT(*) AS cnt
+                            FROM __base r
+                            WHERE r.__rn BETWEEN b.__rn - {w} AND b.__rn
+                              {group_eq}
+                              AND r.v IS NOT NULL
+                            GROUP BY r.v
+                        )
+                    """
+                else:
+                    value_sql = f"""
+                        SELECT r.v
+                        FROM __base r
+                        WHERE r.__rn BETWEEN b.__rn - {w} AND b.__rn
+                          {group_eq}
+                          AND r.v IS NOT NULL
+                        GROUP BY r.v
+                        ORDER BY COUNT(*) DESC, r.v
+                        LIMIT 1
+                    """
             else:
-                return self._error_response(f"Unsupported datetime rolling stat '{stat}'")
-
-            sql = f"""
-                CREATE TABLE {q_schema}.{q_new_table} AS
-                WITH __base AS (
-                    SELECT *,
-                        ROW_NUMBER() OVER (PARTITION BY {partition_sql} ORDER BY {order_sql}) AS {q_rn}
-                    FROM {qualified}
+                return self._error_response(
+                    f"Unsupported datetime rolling stat '{stat}'"
                 )
-                SELECT {src_bstar},
-                    ({value_sql}) AS {self.db.quote_identifier(new_col)}
+
+            count_subq = f"""
+                SELECT COUNT(r.v) FROM __base r
+                WHERE r.__rn BETWEEN b.__rn - {w} AND b.__rn
+                  {group_eq}
+            """
+            expr = self._min_periods_gate(
+                f"({value_sql})", f"({count_subq})", min_p,
+            )
+            feature_sql = f"""
+                WITH {base}
+                SELECT b.{self.db.quote_identifier("_mf_idx")},
+                    {expr} AS {self.db.quote_identifier(new_col)}
                 FROM __base b
             """
-            map_sig = self._map_sig(
-                safe_groups, safe_col, "rolling_datetime", safe_orders,
-                [new_col][0] if len([new_col]) == 1 else "rolling_datetime", [new_col],
+            source_type = await self._get_column_sql_type(
+                table, schema, safe_col,
+            ) or self._ewm_float_type()
+            return await self._finish_grouped_special(
+                table, schema, column, new_col, feature_sql,
+                source_type, backend, data_id, safe_groups, order_by,
+                f"Rolling datetime {stat_key} on '{column}' "
+                f"grouped by {safe_groups} "
+                f"(window={window}, min_periods={min_p})",
+                window=window, min_periods=min_p,
             )
-            map_collision = None
-            if map_feature:
-                map_collision = await self._check_map_collision(
-                    table, schema, backend, data_id, map_sig, [new_col],
-                )
-                if map_collision:
-                    return self._error_response(
-                        f"Rolling datetime group-by error: {map_collision}",
-                        group_cols=safe_groups,
-                    )
-            await self._exec(sql)
-            if map_feature:
-                await self._apply_map(
-                    table, schema, new_table_name, [new_col],
-                    backend, data_id, map_sig,
-                )
-
-            preview_cols = [column, new_col]
-            if order_by:
-                preview_cols.extend(safe_orders)
-            preview_cols.extend(safe_groups)
-            res = await self._fetch_data(new_table_name, schema, list(dict.fromkeys(preview_cols)))
-
-            return self._success_response(
-                f"Rolling datetime {stat_key} on '{column}' grouped by {safe_groups} (window={window})",
-                res,
-                new_table=new_table_name,
-                mapped_table=table if map_feature else None,
-                mapped_columns=[new_col] if map_feature else [],
-                new_column=new_col,
-                window=window,
-                group_cols=safe_groups,
-            )
-
-        # ============================================================
-        # ClickHouse  (NEW)
-        # ============================================================
         except Exception as e:
-            return self._error_response(f"rolling datetime group-by error: {str(e)}\n{traceback.format_exc()}")
+            return self._error_response(
+                f"rolling datetime group-by error: {str(e)}\n{traceback.format_exc()}"
+            )
 
     # ------------------------------------------------------------------
     #  EXPANDING with GROUP BY – generic engine
@@ -1015,12 +684,8 @@ class GroupbyWindowOps(WindowOps):
         table, schema, column, group_cols,
         order_by=None, agg="SUM", min_periods=1,
         backend=None, data_id=None, new_table=None,
-        map_feature: bool = False,
     ) -> Dict[str, Any]:
         try:
-            # ============================================================
-            # DuckDB / PostgreSQL  (EXISTING)
-            # ============================================================
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
             safe_col = SQLIdentifierSanitizer.sanitize(column)
@@ -1033,40 +698,32 @@ class GroupbyWindowOps(WindowOps):
             if not raw_aggs:
                 return self._error_response("At least one aggregation function is required")
 
-            if order_by:
-                if isinstance(order_by, (list, tuple)):
-                    safe_orders = [SQLIdentifierSanitizer.sanitize(c) for c in order_by]
-                else:
-                    safe_orders = [SQLIdentifierSanitizer.sanitize(order_by)]
-                working_table = table
-            else:
-                safe_order, working_table = await self._resolve_ordering(table, schema, None)
-                safe_orders = [safe_order]
-
-            order_sql = ", ".join(self.db.quote_identifier(c) for c in safe_orders)
-            partition_sql = ", ".join(self.db.quote_identifier(c) for c in safe_groups)
-            qualified = self._qualified_table(working_table, schema)
-
-            new_table_name = await self._resolve_output_table_name(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
-            )
-
-            safe_col_quoted = self.db.quote_identifier(safe_col)
+            orders = self._order_keys(order_by)
+            order_sql = ", ".join(self.db.quote_identifier(c) for c in orders)
+            part = self._ewm_partition(safe_groups)
+            qualified = self._qualified_table(table, schema)
+            q_col = self.db.quote_identifier(safe_col)
+            source_type = await self._get_column_sql_type(table, schema, safe_col)
             window_frame = "ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW"
-            count_over = f"COUNT({safe_col_quoted}) OVER (PARTITION BY {partition_sql} ORDER BY {order_sql} {window_frame})"
-
-            new_cols = []
-            used_col_names = set()
-            numeric_aggs = []
             suffix_group = "_".join(safe_groups)
 
+            count_over = (
+                f"{self._count_expr(q_col)} "
+                f"OVER ({part}ORDER BY {order_sql} {window_frame})"
+            )
+            new_cols: List[str] = []
+            exprs: List[str] = []
+            col_types: List[str] = []
+            used_col_names = set()
             for raw in raw_aggs:
-                spec = self._sql_agg_spec(raw)
+                spec = self._window_agg_spec(raw)
                 if spec is None:
-                    return self._error_response(f"Unsupported expanding aggregation '{raw}'")
-                sql_agg, alias = spec
+                    return self._error_response(
+                        f"Unsupported expanding aggregation '{raw}'"
+                    )
+                sql_agg, alias_key = spec
 
-                base_col = f"{safe_col}_expanding_{alias}_by_{suffix_group}"
+                base_col = f"{safe_col}_expanding_{alias_key}_by_{suffix_group}"
                 col_name = base_col
                 suffix = 2
                 while col_name in used_col_names:
@@ -1075,70 +732,72 @@ class GroupbyWindowOps(WindowOps):
                 used_col_names.add(col_name)
                 new_cols.append(col_name)
 
-                agg_over = f"{sql_agg}({safe_col_quoted}) OVER (PARTITION BY {partition_sql} ORDER BY {order_sql} {window_frame})"
-
+                agg_call = (
+                    self._count_expr(q_col)
+                    if alias_key == "count"
+                    else f"{sql_agg}({q_col})"
+                )
+                agg_over = (
+                    f"{agg_call} OVER ({part}ORDER BY {order_sql} {window_frame})"
+                )
                 if min_periods > 1:
-                    agg_with_null = f"CASE WHEN {count_over} >= {min_periods} THEN {agg_over} ELSE NULL END"
+                    agg_with_null = (
+                        f"CASE WHEN {count_over} >= {min_periods} "
+                        f"THEN {agg_over} ELSE NULL END"
+                    )
                 else:
                     agg_with_null = agg_over
+                exprs.append(
+                    f"{agg_with_null} AS {self.db.quote_identifier(col_name)}"
+                )
+                col_types.append(
+                    self._window_result_type(source_type, alias_key, sql_agg)
+                )
 
-                numeric_aggs.append(f"{agg_with_null} AS {self.db.quote_identifier(col_name)}")
-
-            window_sql = ", ".join(numeric_aggs)
-            src_star = await self._source_star(working_table, schema, new_cols)
-
-            create_sql = f"""
-                CREATE TABLE {self.db.quote_identifier(schema)}.{self.db.quote_identifier(new_table_name)} AS
-                SELECT {src_star}, {window_sql}
-                FROM {qualified}
-            """
-            map_sig = self._map_sig(
-                safe_groups, safe_col, "expanding", safe_orders,
-                new_cols[0] if len(new_cols) == 1 else "expanding", new_cols,
+            collision = await assert_owned_columns(
+                self, table, schema, new_cols, "groupby_win_map",
+                backend, data_id,
             )
-            map_collision = None
-            if map_feature:
-                map_collision = await self._check_map_collision(
-                    table, schema, backend, data_id, map_sig, new_cols,
+            if collision:
+                return self._error_response(
+                    f"Expanding group-by error: {collision}",
+                    group_cols=safe_groups,
                 )
-                if map_collision:
-                    return self._error_response(
-                        f"Expanding group-by error: {map_collision}",
-                        group_cols=safe_groups,
-                    )
-            await self._exec(create_sql)
-            if map_feature:
-                await self._apply_map(
-                    table, schema, new_table_name, new_cols,
-                    backend, data_id, map_sig,
-                )
+
+            select_sql = (
+                f'SELECT {self.db.quote_identifier("_mf_idx")}, '
+                + ", ".join(exprs)
+                + f" FROM {qualified}"
+            )
+            await self._merge_features(
+                table, schema, select_sql, new_cols, col_types,
+                backend=backend, data_id=data_id,
+            )
 
             preview_cols = [column, *new_cols]
             if order_by:
-                preview_cols.extend(safe_orders)
-            preview_cols.extend(safe_groups)
+                preview_cols += [c for c in orders if c != "_mf_idx"]
+            preview_cols += safe_groups
             preview_cols = list(dict.fromkeys(preview_cols))
-            res = await self._fetch_data(new_table_name, schema, preview_cols)
+            res = await self._preview_data(table, schema, preview_cols)
 
             response = self._success_response(
-                f"Expanding {', '.join(raw_aggs)} on '{column}' grouped by {safe_groups} (min_periods={min_periods})",
+                f"Expanding {', '.join(raw_aggs)} on '{column}' "
+                f"grouped by {safe_groups} (min_periods={min_periods})",
                 res,
-                new_table=new_table_name,
-                mapped_table=table if map_feature else None,
-                mapped_columns=new_cols if map_feature else [],
+                new_table=table,
                 new_columns=new_cols,
                 min_periods=min_periods,
                 group_cols=safe_groups,
+                source_updated=True,
             )
             if len(new_cols) == 1:
                 response["new_column"] = new_cols[0]
             return response
-
-        # ============================================================
-        # ClickHouse  (NEW)
-        # ============================================================
         except Exception as e:
-            return self._error_response(f"expanding group-by error: {str(e)}\n{traceback.format_exc()}")
+            return self._error_response(
+                f"expanding group-by error: {str(e)}\n{traceback.format_exc()}"
+            )
 
     # --------------------------------------------------
     #  EXPANDING GROUP‑BY CONVENIENCE METHODS
@@ -1175,466 +834,252 @@ class GroupbyWindowOps(WindowOps):
         return await self._expanding_agg_with_partition(*args, group_cols=group_cols, agg="LAST_VALUE", **kwargs)
     # ---------- Expanding Specials ----------
     async def expanding_quantile_groupby(
-        self, table, schema, column, group_cols, order_by=None, q=0.5, min_periods=1, backend=None, data_id=None, new_table=None,
-        map_feature: bool = False
+        self, table, schema, column, group_cols, order_by=None, q=0.5,
+        min_periods=1, backend=None, data_id=None, new_table=None,
     ):
         try:
-            # ============================================================
-            # DuckDB / PostgreSQL  (EXISTING)
-            # ============================================================
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
             safe_col = SQLIdentifierSanitizer.sanitize(column)
             safe_groups = [SQLIdentifierSanitizer.sanitize(c) for c in group_cols]
-
-            if order_by:
-                if isinstance(order_by, (list, tuple)):
-                    safe_orders = [SQLIdentifierSanitizer.sanitize(c) for c in order_by]
-                else:
-                    safe_orders = [SQLIdentifierSanitizer.sanitize(order_by)]
-                working_table = table
-            else:
-                safe_order, working_table = await self._resolve_ordering(table, schema, None)
-                safe_orders = [safe_order]
-
-            order_sql = ", ".join(self.db.quote_identifier(c) for c in safe_orders)
-            partition_sql = ", ".join(self.db.quote_identifier(c) for c in safe_groups)
+            orders = self._order_keys(order_by)
+            order_sql = ", ".join(self.db.quote_identifier(c) for c in orders)
+            part = self._ewm_partition(safe_groups)
+            q_col = self.db.quote_identifier(safe_col)
             new_col = f"{safe_col}_expanding_q{q}_by_{'_'.join(safe_groups)}"
-            src_star = await self._source_star(working_table, schema, [new_col])
-            src_bstar = await self._source_star(working_table, schema, [new_col], prefix="b", extra=("__rn",))
-            qualified = self._qualified_table(working_table, schema)
+            frame = "ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW"
 
-            new_table_name = await self._resolve_output_table_name(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
-            )
-
-            safe_col_quoted = self.db.quote_identifier(safe_col)
-            window_frame = "ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW"
-            count_over = f"COUNT({safe_col_quoted}) OVER (PARTITION BY {partition_sql} ORDER BY {order_sql} {window_frame})"
-
-            if isinstance(self.db, PostgresAdapter):
-                q_rn = self.db.quote_identifier("__rn")
-                q_new_col = self.db.quote_identifier(new_col)
-                quantile_subq = f"""
-                    SELECT PERCENTILE_CONT({q}) WITHIN GROUP (ORDER BY r.{safe_col_quoted})
-                    FROM __base r
-                    WHERE r.{q_rn} <= b.{q_rn}
-                      AND r.{safe_col_quoted} IS NOT NULL
-                """
-                if min_periods > 1:
-                    count_subq = f"SELECT COUNT(r.{safe_col_quoted}) FROM __base r WHERE r.{q_rn} <= b.{q_rn}"
-                    quantile_expr = f"CASE WHEN ({count_subq}) >= {min_periods} THEN ({quantile_subq}) ELSE NULL END"
-                else:
-                    quantile_expr = f"({quantile_subq})"
-
-                sql = f"""
-                CREATE TABLE {self.db.quote_identifier(schema)}.{self.db.quote_identifier(new_table_name)} AS
-                WITH __base AS (
-                    SELECT *,
-                        ROW_NUMBER() OVER (PARTITION BY {partition_sql} ORDER BY {order_sql}) AS {q_rn}
-                    FROM {qualified}
+            if isinstance(self.db, DuckDBAdapter):
+                count_over = (
+                    f"{self._count_expr(q_col)} OVER "
+                    f"({part}ORDER BY {order_sql} {frame})"
                 )
-                SELECT {src_bstar},
-                    {quantile_expr} AS {q_new_col}
-                FROM __base b
-                """
-                map_sig = self._map_sig(
-                    safe_groups, safe_col, "expanding_quantile", safe_orders,
-                    [new_col][0] if len([new_col]) == 1 else "expanding_quantile", [new_col],
+                agg_over = (
+                    f"{self._quantile_cont_sql(q_col, q)} OVER "
+                    f"({part}ORDER BY {order_sql} {frame})"
                 )
-                map_collision = None
-                if map_feature:
-                    map_collision = await self._check_map_collision(
-                        table, schema, backend, data_id, map_sig, [new_col],
-                    )
-                    if map_collision:
-                        return self._error_response(
-                            f"Expanding quantile group-by error: {map_collision}",
-                            group_cols=safe_groups,
-                        )
-                await self._exec(sql)
-                if map_feature:
-                    await self._apply_map(
-                        table, schema, new_table_name, [new_col],
-                        backend, data_id, map_sig,
-                    )
-            elif isinstance(self.db, DuckDBAdapter):
-                base_func = f"QUANTILE_CONT({safe_col_quoted}, {q})"
-
-                agg_over = f"{base_func} OVER (PARTITION BY {partition_sql} ORDER BY {order_sql} {window_frame})"
                 if min_periods > 1:
-                    quantile_expr = f"CASE WHEN {count_over} >= {min_periods} THEN {agg_over} ELSE NULL END"
+                    quantile_expr = (
+                        f"CASE WHEN {count_over} >= {min_periods} "
+                        f"THEN {agg_over} ELSE NULL END"
+                    )
                 else:
                     quantile_expr = agg_over
-
-                sql = f"""
-                CREATE TABLE {self.db.quote_identifier(schema)}.{self.db.quote_identifier(new_table_name)} AS
-                SELECT {src_star}, {quantile_expr} AS {self.db.quote_identifier(new_col)}
-                FROM {qualified}
-                """
-                map_sig = self._map_sig(
-                    safe_groups, safe_col, "expanding_quantile", safe_orders,
-                    [new_col][0] if len([new_col]) == 1 else "expanding_quantile", [new_col],
+                feature_sql = (
+                    f'SELECT {self.db.quote_identifier("_mf_idx")}, '
+                    f"{quantile_expr} AS {self.db.quote_identifier(new_col)} "
+                    f"FROM {self._qualified_table(table, schema)}"
                 )
-                map_collision = None
-                if map_feature:
-                    map_collision = await self._check_map_collision(
-                        table, schema, backend, data_id, map_sig, [new_col],
-                    )
-                    if map_collision:
-                        return self._error_response(
-                            f"Expanding quantile group-by error: {map_collision}",
-                            group_cols=safe_groups,
-                        )
-                await self._exec(sql)
-                if map_feature:
-                    await self._apply_map(
-                        table, schema, new_table_name, [new_col],
-                        backend, data_id, map_sig,
-                    )
             else:
-                raise self._unsupported_backend_error()
-
-            preview_cols = [column, new_col]
-            if order_by:
-                preview_cols.extend(safe_orders)
-            preview_cols.extend(safe_groups)
-            res = await self._fetch_data(new_table_name, schema, list(dict.fromkeys(preview_cols)))
-            return self._success_response(
+                base = self._group_base_cte(
+                    table, schema, safe_col, safe_groups, orders,
+                )
+                group_eq = self._group_eq(safe_groups)
+                quantile_subq = f"""
+                    SELECT {self._quantile_cont_sql("r.v", q)}
+                    FROM __base r
+                    WHERE r.__rn <= b.__rn
+                      {group_eq}
+                      AND r.v IS NOT NULL
+                """
+                count_subq = f"""
+                    SELECT COUNT(r.v) FROM __base r
+                    WHERE r.__rn <= b.__rn
+                      {group_eq}
+                """
+                if min_periods > 1:
+                    expr = (
+                        f"CASE WHEN ({count_subq}) >= {min_periods} "
+                        f"THEN ({quantile_subq}) ELSE NULL END"
+                    )
+                else:
+                    expr = f"({quantile_subq})"
+                feature_sql = f"""
+                    WITH {base}
+                    SELECT b.{self.db.quote_identifier("_mf_idx")},
+                        {expr} AS {self.db.quote_identifier(new_col)}
+                    FROM __base b
+                """
+            return await self._finish_grouped_special(
+                table, schema, column, new_col, feature_sql,
+                self._ewm_float_type(), backend, data_id, safe_groups, order_by,
                 f"Expanding quantile on '{column}' grouped by {safe_groups} (q={q})",
-                res,
-                new_table=new_table_name,
-                mapped_table=table if map_feature else None,
-                mapped_columns=[new_col] if map_feature else [],
-                new_column=new_col,
                 min_periods=min_periods,
             )
-
-        # ============================================================
-        # ClickHouse  (NEW — correlated subquery)
-        # ============================================================
         except Exception as e:
             return self._error_response(f"expanding quantile group-by error: {str(e)}")
 
     async def expanding_sem_groupby(
-        self, table, schema, column, group_cols, order_by=None, min_periods=1, backend=None, data_id=None, new_table=None,
-        map_feature: bool = False
+        self, table, schema, column, group_cols, order_by=None,
+        min_periods=1, backend=None, data_id=None, new_table=None,
     ):
         try:
-            # ============================================================
-            # DuckDB / PostgreSQL  (EXISTING)
-            # ============================================================
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
             safe_col = SQLIdentifierSanitizer.sanitize(column)
             safe_groups = [SQLIdentifierSanitizer.sanitize(c) for c in group_cols]
-
-            if order_by:
-                if isinstance(order_by, (list, tuple)):
-                    safe_orders = [SQLIdentifierSanitizer.sanitize(c) for c in order_by]
-                else:
-                    safe_orders = [SQLIdentifierSanitizer.sanitize(order_by)]
-                working_table = table
-            else:
-                safe_order, working_table = await self._resolve_ordering(table, schema, None)
-                safe_orders = [safe_order]
-
-            order_sql = ", ".join(self.db.quote_identifier(c) for c in safe_orders)
-            partition_sql = ", ".join(self.db.quote_identifier(c) for c in safe_groups)
+            orders = self._order_keys(order_by)
+            order_sql = ", ".join(self.db.quote_identifier(c) for c in orders)
+            part = self._ewm_partition(safe_groups)
+            q_col = self.db.quote_identifier(safe_col)
             new_col = f"{safe_col}_expanding_sem_by_{'_'.join(safe_groups)}"
-            src_star = await self._source_star(working_table, schema, [new_col])
-            qualified = self._qualified_table(working_table, schema)
-
-            new_table_name = await self._resolve_output_table_name(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
+            frame = "ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW"
+            std_func = self._std_agg()
+            count_over = (
+                f"{self._count_expr(q_col)} OVER "
+                f"({part}ORDER BY {order_sql} {frame})"
             )
-
-            safe_col_quoted = self.db.quote_identifier(safe_col)
-            window_frame = "ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW"
-            count_over = f"COUNT({safe_col_quoted}) OVER (PARTITION BY {partition_sql} ORDER BY {order_sql} {window_frame})"
-
-            if isinstance(self.db, PostgresAdapter):
-                std_func = "STDDEV"
-            elif isinstance(self.db, DuckDBAdapter):
-                std_func = "STDDEV_SAMP"
-            else:
-                raise self._unsupported_backend_error()
-            sem_base = f"({std_func}({safe_col_quoted}) OVER (PARTITION BY {partition_sql} ORDER BY {order_sql} {window_frame}) / SQRT({count_over}))"
+            sem_base = (
+                f"({std_func}({q_col}) OVER "
+                f"({part}ORDER BY {order_sql} {frame}) / SQRT({count_over}))"
+            )
             if min_periods > 1:
-                sem_expr = f"CASE WHEN {count_over} >= {min_periods} THEN {sem_base} ELSE NULL END"
+                sem_expr = (
+                    f"CASE WHEN {count_over} >= {min_periods} "
+                    f"THEN {sem_base} ELSE NULL END"
+                )
             else:
                 sem_expr = sem_base
-
-            sql = f"""
-            CREATE TABLE {self.db.quote_identifier(schema)}.{self.db.quote_identifier(new_table_name)} AS
-            SELECT {src_star}, {sem_expr} AS {self.db.quote_identifier(new_col)}
-            FROM {qualified}
-            """
-            map_sig = self._map_sig(
-                safe_groups, safe_col, "expanding_sem", safe_orders,
-                [new_col][0] if len([new_col]) == 1 else "expanding_sem", [new_col],
+            feature_sql = (
+                f'SELECT {self.db.quote_identifier("_mf_idx")}, '
+                f"{sem_expr} AS {self.db.quote_identifier(new_col)} "
+                f"FROM {self._qualified_table(table, schema)}"
             )
-            map_collision = None
-            if map_feature:
-                map_collision = await self._check_map_collision(
-                    table, schema, backend, data_id, map_sig, [new_col],
-                )
-                if map_collision:
-                    return self._error_response(
-                        f"Expanding sem group-by error: {map_collision}",
-                        group_cols=safe_groups,
-                    )
-            await self._exec(sql)
-            if map_feature:
-                await self._apply_map(
-                    table, schema, new_table_name, [new_col],
-                    backend, data_id, map_sig,
-                )
-            preview_cols = [column, new_col]
-            if order_by:
-                preview_cols.extend(safe_orders)
-            preview_cols.extend(safe_groups)
-            res = await self._fetch_data(new_table_name, schema, list(dict.fromkeys(preview_cols)))
-            return self._success_response(
-                f"Expanding SEM on '{column}' grouped by {safe_groups} (min_periods={min_periods})",
-                res,
-                new_table=new_table_name,
-                mapped_table=table if map_feature else None,
-                mapped_columns=[new_col] if map_feature else [],
-                new_column=new_col,
+            return await self._finish_grouped_special(
+                table, schema, column, new_col, feature_sql,
+                self._ewm_float_type(), backend, data_id,
+                safe_groups, order_by,
+                f"Expanding SEM on '{column}' grouped by {safe_groups} "
+                f"(min_periods={min_periods})",
                 min_periods=min_periods,
             )
-
-        # ============================================================
-        # ClickHouse  (NEW)
-        # ============================================================
         except Exception as e:
             return self._error_response(f"expanding sem group-by error: {str(e)}")
 
     async def expanding_rank_groupby(
-        self, table, schema, column, group_cols, order_by=None, min_periods=1, backend=None, data_id=None, new_table=None,
-        map_feature: bool = False
+        self, table, schema, column, group_cols, order_by=None,
+        min_periods=1, backend=None, data_id=None, new_table=None,
     ):
         try:
-            # ============================================================
-            # DuckDB / PostgreSQL  (EXISTING)
-            # ============================================================
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
             safe_col = SQLIdentifierSanitizer.sanitize(column)
             safe_groups = [SQLIdentifierSanitizer.sanitize(c) for c in group_cols]
-
-            if order_by:
-                if isinstance(order_by, (list, tuple)):
-                    safe_orders = [SQLIdentifierSanitizer.sanitize(c) for c in order_by]
-                else:
-                    safe_orders = [SQLIdentifierSanitizer.sanitize(order_by)]
-                working_table = table
-            else:
-                safe_order, working_table = await self._resolve_ordering(table, schema, None)
-                safe_orders = [safe_order]
-
-            order_sql = ", ".join(self.db.quote_identifier(c) for c in safe_orders)
-            partition_sql = ", ".join(self.db.quote_identifier(c) for c in safe_groups)
+            orders = self._order_keys(order_by)
             new_col = f"{safe_col}_expanding_rank_by_{'_'.join(safe_groups)}"
-            src_bstar = await self._source_star(working_table, schema, [new_col], prefix="b", extra=("__rn",))
-            qualified = self._qualified_table(working_table, schema)
-
-            new_table_name = await self._resolve_output_table_name(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
+            base = self._group_base_cte(
+                table, schema, safe_col, safe_groups, orders,
             )
-
-            safe_col_quoted = self.db.quote_identifier(safe_col)
+            group_eq = self._group_eq(safe_groups)
             rank_subq = f"""
                 SELECT COUNT(*)
                 FROM __base r
                 WHERE r.__rn <= b.__rn
-                AND r.{safe_col_quoted} <= b.{safe_col_quoted}
+                  {group_eq}
+                  AND r.v <= b.v
             """
-            count_subq = f"SELECT COUNT(r.{safe_col_quoted}) FROM __base r WHERE r.__rn <= b.__rn"
-
+            count_subq = f"""
+                SELECT COUNT(r.v)
+                FROM __base r
+                WHERE r.__rn <= b.__rn
+                  {group_eq}
+            """
             if min_periods > 1:
-                rank_expr = f"CASE WHEN ({count_subq}) >= {min_periods} THEN ({rank_subq}) ELSE NULL END"
+                rank_expr = (
+                    f"CASE WHEN ({count_subq}) >= {min_periods} "
+                    f"THEN ({rank_subq}) ELSE NULL END"
+                )
             else:
                 rank_expr = f"({rank_subq})"
-
-            sql = f"""
-            CREATE TABLE {self.db.quote_identifier(schema)}.{self.db.quote_identifier(new_table_name)} AS
-            WITH __base AS (
-                SELECT *,
-                    ROW_NUMBER() OVER (PARTITION BY {partition_sql} ORDER BY {order_sql}) AS __rn
-                FROM {qualified}
-            )
-            SELECT {src_bstar}, {rank_expr} AS {self.db.quote_identifier(new_col)}
-            FROM __base b
+            feature_sql = f"""
+                WITH {base}
+                SELECT b.{self.db.quote_identifier("_mf_idx")},
+                    {rank_expr} AS {self.db.quote_identifier(new_col)}
+                FROM __base b
             """
-            map_sig = self._map_sig(
-                safe_groups, safe_col, "expanding_rank", safe_orders,
-                [new_col][0] if len([new_col]) == 1 else "expanding_rank", [new_col],
-            )
-            map_collision = None
-            if map_feature:
-                map_collision = await self._check_map_collision(
-                    table, schema, backend, data_id, map_sig, [new_col],
-                )
-                if map_collision:
-                    return self._error_response(
-                        f"Expanding rank group-by error: {map_collision}",
-                        group_cols=safe_groups,
-                    )
-            await self._exec(sql)
-            if map_feature:
-                await self._apply_map(
-                    table, schema, new_table_name, [new_col],
-                    backend, data_id, map_sig,
-                )
-
-            preview_cols = [column, new_col]
-            if order_by:
-                preview_cols.extend(safe_orders)
-            preview_cols.extend(safe_groups)
-            res = await self._fetch_data(new_table_name, schema, list(dict.fromkeys(preview_cols)))
-            return self._success_response(
-                f"Expanding rank on '{column}' grouped by {safe_groups} (min_periods={min_periods})",
-                res,
-                new_table=new_table_name,
-                mapped_table=table if map_feature else None,
-                mapped_columns=[new_col] if map_feature else [],
-                new_column=new_col,
+            return await self._finish_grouped_special(
+                table, schema, column, new_col, feature_sql,
+                self._ewm_int_type(), backend, data_id, safe_groups, order_by,
+                f"Expanding rank on '{column}' grouped by {safe_groups} "
+                f"(min_periods={min_periods})",
                 min_periods=min_periods,
             )
-
-        # ============================================================
-        # ClickHouse  (NEW — correlated subquery)
-        # ============================================================
         except Exception as e:
             return self._error_response(f"expanding rank group-by error: {str(e)}")
 
     async def expanding_nunique_groupby(
-        self, table, schema, column, group_cols, order_by=None, min_periods=1, backend=None, data_id=None, new_table=None,
-        map_feature: bool = False
+        self, table, schema, column, group_cols, order_by=None,
+        min_periods=1, backend=None, data_id=None, new_table=None,
     ):
         try:
-            # ============================================================
-            # DuckDB / PostgreSQL  (EXISTING)
-            # ============================================================
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
             safe_col = SQLIdentifierSanitizer.sanitize(column)
             safe_groups = [SQLIdentifierSanitizer.sanitize(c) for c in group_cols]
-
-            if order_by:
-                if isinstance(order_by, (list, tuple)):
-                    safe_orders = [SQLIdentifierSanitizer.sanitize(c) for c in order_by]
-                else:
-                    safe_orders = [SQLIdentifierSanitizer.sanitize(order_by)]
-                working_table = table
-            else:
-                safe_order, working_table = await self._resolve_ordering(table, schema, None)
-                safe_orders = [safe_order]
-
-            order_sql = ", ".join(self.db.quote_identifier(c) for c in safe_orders)
-            partition_sql = ", ".join(self.db.quote_identifier(c) for c in safe_groups)
+            orders = self._order_keys(order_by)
+            order_sql = ", ".join(self.db.quote_identifier(c) for c in orders)
+            part = self._ewm_partition(safe_groups)
+            q_col = self.db.quote_identifier(safe_col)
             new_col = f"{safe_col}_expanding_nunique_by_{'_'.join(safe_groups)}"
-            src_star = await self._source_star(working_table, schema, [new_col])
-            src_bstar = await self._source_star(working_table, schema, [new_col], prefix="b", extra=("__rn",))
-            qualified = self._qualified_table(working_table, schema)
-
-            new_table_name = await self._resolve_output_table_name(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
-            )
-            safe_col_quoted = self.db.quote_identifier(safe_col)
-            window_frame = "ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW"
-            count_over = f"COUNT({safe_col_quoted}) OVER (PARTITION BY {partition_sql} ORDER BY {order_sql} {window_frame})"
+            frame = "ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW"
 
             if isinstance(self.db, DuckDBAdapter):
-                count_distinct = f"COUNT(DISTINCT {safe_col_quoted}) OVER (PARTITION BY {partition_sql} ORDER BY {order_sql} {window_frame})"
+                count_over = (
+                    f"{self._count_expr(q_col)} OVER "
+                    f"({part}ORDER BY {order_sql} {frame})"
+                )
+                count_distinct = (
+                    f"COUNT(DISTINCT {q_col}) OVER "
+                    f"({part}ORDER BY {order_sql} {frame})"
+                )
                 if min_periods > 1:
-                    nunique_expr = f"CASE WHEN {count_over} >= {min_periods} THEN {count_distinct} ELSE NULL END"
+                    nunique_expr = (
+                        f"CASE WHEN {count_over} >= {min_periods} "
+                        f"THEN {count_distinct} ELSE NULL END"
+                    )
                 else:
                     nunique_expr = count_distinct
-                sql = f"""
-                CREATE TABLE {self.db.quote_identifier(schema)}.{self.db.quote_identifier(new_table_name)} AS
-                SELECT {src_star}, {nunique_expr} AS {self.db.quote_identifier(new_col)}
-                FROM {qualified}
-                """
-                map_sig = self._map_sig(
-                    safe_groups, safe_col, "expanding_nunique", safe_orders,
-                    [new_col][0] if len([new_col]) == 1 else "expanding_nunique", [new_col],
+                feature_sql = (
+                    f'SELECT {self.db.quote_identifier("_mf_idx")}, '
+                    f"{nunique_expr} AS {self.db.quote_identifier(new_col)} "
+                    f"FROM {self._qualified_table(table, schema)}"
                 )
-                map_collision = None
-                if map_feature:
-                    map_collision = await self._check_map_collision(
-                        table, schema, backend, data_id, map_sig, [new_col],
-                    )
-                    if map_collision:
-                        return self._error_response(
-                            f"Expanding nunique group-by error: {map_collision}",
-                            group_cols=safe_groups,
-                        )
-                await self._exec(sql)
-                if map_feature:
-                    await self._apply_map(
-                        table, schema, new_table_name, [new_col],
-                        backend, data_id, map_sig,
-                    )
-            elif isinstance(self.db, PostgresAdapter):
-                sql = f"""
-                CREATE TABLE {self.db.quote_identifier(schema)}.{self.db.quote_identifier(new_table_name)} AS
-                WITH __base AS (
-                    SELECT *,
-                        ROW_NUMBER() OVER (PARTITION BY {partition_sql} ORDER BY {order_sql}) AS __rn
-                    FROM {qualified}
-                )
-                SELECT {src_bstar},
-                    (
-                        SELECT COUNT(DISTINCT r.{safe_col_quoted})
-                        FROM __base r
-                        WHERE r.__rn <= b.__rn
-                    ) AS {self.db.quote_identifier(new_col)}
-                FROM __base b
-                """
-                map_sig = self._map_sig(
-                    safe_groups, safe_col, "expanding_nunique", safe_orders,
-                    [new_col][0] if len([new_col]) == 1 else "expanding_nunique", [new_col],
-                )
-                map_collision = None
-                if map_feature:
-                    map_collision = await self._check_map_collision(
-                        table, schema, backend, data_id, map_sig, [new_col],
-                    )
-                    if map_collision:
-                        return self._error_response(
-                            f"Expanding nunique group-by error: {map_collision}",
-                            group_cols=safe_groups,
-                        )
-                await self._exec(sql)
-                if map_feature:
-                    await self._apply_map(
-                        table, schema, new_table_name, [new_col],
-                        backend, data_id, map_sig,
-                    )
             else:
-                raise self._unsupported_backend_error()
-
-            preview_cols = [column, new_col]
-            if order_by:
-                preview_cols.extend(safe_orders)
-            preview_cols.extend(safe_groups)
-            res = await self._fetch_data(new_table_name, schema, list(dict.fromkeys(preview_cols)))
-            return self._success_response(
-                f"Expanding nunique on '{column}' grouped by {safe_groups} (min_periods={min_periods})",
-                res,
-                new_table=new_table_name,
-                mapped_table=table if map_feature else None,
-                mapped_columns=[new_col] if map_feature else [],
-                new_column=new_col,
+                base = self._group_base_cte(
+                    table, schema, safe_col, safe_groups, orders,
+                )
+                group_eq = self._group_eq(safe_groups)
+                distinct_subq = f"""
+                    SELECT {self._distinct_count_sql("r.v")}
+                    FROM __base r
+                    WHERE r.__rn <= b.__rn
+                      {group_eq}
+                """
+                count_subq = f"""
+                    SELECT COUNT(r.v) FROM __base r
+                    WHERE r.__rn <= b.__rn
+                      {group_eq}
+                """
+                if min_periods > 1:
+                    expr = (
+                        f"CASE WHEN ({count_subq}) >= {min_periods} "
+                        f"THEN ({distinct_subq}) ELSE NULL END"
+                    )
+                else:
+                    expr = f"({distinct_subq})"
+                feature_sql = f"""
+                    WITH {base}
+                    SELECT b.{self.db.quote_identifier("_mf_idx")},
+                        {expr} AS {self.db.quote_identifier(new_col)}
+                    FROM __base b
+                """
+            return await self._finish_grouped_special(
+                table, schema, column, new_col, feature_sql,
+                self._ewm_int_type(), backend, data_id, safe_groups, order_by,
+                f"Expanding nunique on '{column}' grouped by {safe_groups} "
+                f"(min_periods={min_periods})",
                 min_periods=min_periods,
             )
-
-        # ============================================================
-        # ClickHouse  (NEW — correlated subquery)
-        # ============================================================
         except Exception as e:
             return self._error_response(f"expanding nunique group-by error: {str(e)}")
 
@@ -1647,166 +1092,140 @@ class GroupbyWindowOps(WindowOps):
         return await self._expanding_agg_with_partition(*args, group_cols=group_cols, agg="MAX", **kwargs)
     async def expanding_mean_datetime_groupby(
         self, table, schema, column, group_cols, order_by=None, min_periods=1, backend=None, data_id=None, new_table=None,
-        map_feature: bool = False
     ):
         return await self._expanding_datetime_stat_with_partition(
             table, schema, column, group_cols, order_by, stat="mean", min_periods=min_periods, backend=backend, data_id=data_id, new_table=new_table,
-            map_feature=map_feature
         )
     async def expanding_median_datetime_groupby(
         self, table, schema, column, group_cols, order_by=None, min_periods=1, backend=None, data_id=None, new_table=None,
-        map_feature: bool = False
     ):
         return await self._expanding_datetime_stat_with_partition(
             table, schema, column, group_cols, order_by, stat="median", min_periods=min_periods, backend=backend, data_id=data_id, new_table=new_table,
-            map_feature=map_feature
         )
     async def expanding_mode_datetime_groupby(
         self, table, schema, column, group_cols, order_by=None, min_periods=1, backend=None, data_id=None, new_table=None,
-        map_feature: bool = False
     ):
         return await self._expanding_datetime_stat_with_partition(
             table, schema, column, group_cols, order_by, stat="mode", min_periods=min_periods, backend=backend, data_id=data_id, new_table=new_table,
-            map_feature=map_feature
         )
     async def _expanding_datetime_stat_with_partition(
-        self, table, schema, column, group_cols, order_by, stat, min_periods, backend, data_id, new_table=None,
-        map_feature: bool = False
+        self, table, schema, column, group_cols, order_by, stat, min_periods,
+        backend, data_id, new_table=None,
     ):
-        """Copy of _expanding_datetime_stat with PARTITION BY. Supports ClickHouse."""
         try:
-            # ============================================================
-            # DuckDB / PostgreSQL  (EXISTING)
-            # ============================================================
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
             safe_col = SQLIdentifierSanitizer.sanitize(column)
             safe_groups = [SQLIdentifierSanitizer.sanitize(c) for c in group_cols]
-
-            if order_by:
-                if isinstance(order_by, (list, tuple)):
-                    safe_orders = [SQLIdentifierSanitizer.sanitize(c) for c in order_by]
-                else:
-                    safe_orders = [SQLIdentifierSanitizer.sanitize(order_by)]
-                working_table = table
-            else:
-                safe_order, working_table = await self._resolve_ordering(table, schema, None)
-                safe_orders = [safe_order]
-
-            order_sql = ", ".join(self.db.quote_identifier(c) for c in safe_orders)
-            partition_sql = ", ".join(self.db.quote_identifier(c) for c in safe_groups)
-            new_col = f"{safe_col}_expanding_{stat}_by_{'_'.join(safe_groups)}"
-            src_bstar = await self._source_star(working_table, schema, [new_col], prefix="b", extra=("__rn",))
-            qualified = self._qualified_table(working_table, schema)
-
-            new_table_name = await self._resolve_output_table_name(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
+            orders = self._order_keys(order_by)
+            stat_key = stat.lower()
+            new_col = (
+                f"{safe_col}_expanding_{stat_key}_by_{'_'.join(safe_groups)}"
             )
-
-            safe_col_quoted = self.db.quote_identifier(safe_col)
-            is_date_only = await self._is_date_only_column(working_table, schema, safe_col)
-            from_epoch_expr = "TO_TIMESTAMP(__agg.value_epoch)"
-            if is_date_only:
-                from_epoch_expr = f"CAST({from_epoch_expr} AS DATE)"
-
-            epoch_expr = self._datetime_epoch_expr(f"r.{safe_col_quoted}")
-
-            if stat == "mean":
-                inner = f"AVG({epoch_expr})"
-            elif stat == "median":
-                if isinstance(self.db, PostgresAdapter):
-                    inner = f"PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY {epoch_expr})"
-                elif isinstance(self.db, DuckDBAdapter):
-                    inner = f"MEDIAN({epoch_expr})"
-                else:
-                    raise self._unsupported_backend_error()
-            elif stat == "mode":
-                inner = None
-            else:
-                return self._error_response(f"Unsupported datetime expanding stat '{stat}'")
-
-            if stat == "mode":
-                mode_subq = f"""
-                    SELECT r.{safe_col_quoted}
-                    FROM __base r
-                    WHERE r.__rn <= b.__rn
-                    AND r.{safe_col_quoted} IS NOT NULL
-                    GROUP BY r.{safe_col_quoted}
-                    ORDER BY COUNT(*) DESC, r.{safe_col_quoted}
-                    LIMIT 1
+            base = self._group_base_cte(
+                table, schema, safe_col, safe_groups, orders,
+            )
+            group_eq = self._group_eq(safe_groups)
+            is_date_only = await self._is_date_only_column(
+                table, schema, safe_col,
+            )
+            from_epoch = self._from_epoch_expr(is_date_only)
+            if stat_key == "mean":
+                epoch_expr = self._datetime_epoch_expr("r.v")
+                inner = self._avg_fn() + f"({epoch_expr})"
+                value_subq = f"""
+                    SELECT {from_epoch}
+                    FROM (
+                        SELECT {inner} AS value_epoch
+                        FROM __base r
+                        WHERE r.__rn <= b.__rn
+                          {group_eq}
+                          AND r.v IS NOT NULL
+                    ) __agg
                 """
-                non_null_count = f"SELECT COUNT(r.{safe_col_quoted}) FROM __base r WHERE r.__rn <= b.__rn"
+            elif stat_key == "median":
+                epoch_expr = self._datetime_epoch_expr("r.v")
+                inner = self._median_epoch_sql(epoch_expr)
+                value_subq = f"""
+                    SELECT {from_epoch}
+                    FROM (
+                        SELECT {inner} AS value_epoch
+                        FROM __base r
+                        WHERE r.__rn <= b.__rn
+                          {group_eq}
+                          AND r.v IS NOT NULL
+                    ) __agg
+                """
+            elif stat_key == "mode":
+                if isinstance(self.db, ClickHouseAdapter):
+                    mode_subq = f"""
+                        SELECT argMin(v, (-cnt, v))
+                        FROM (
+                            SELECT r.v AS v, COUNT(*) AS cnt
+                            FROM __base r
+                            WHERE r.__rn <= b.__rn
+                              {group_eq}
+                              AND r.v IS NOT NULL
+                            GROUP BY r.v
+                        )
+                    """
+                else:
+                    mode_subq = f"""
+                        SELECT r.v
+                        FROM __base r
+                        WHERE r.__rn <= b.__rn
+                          {group_eq}
+                          AND r.v IS NOT NULL
+                        GROUP BY r.v
+                        ORDER BY COUNT(*) DESC, r.v
+                        LIMIT 1
+                    """
+            else:
+                return self._error_response(
+                    f"Unsupported datetime expanding stat '{stat}'"
+                )
+            count_subq = f"""
+                SELECT COUNT(r.v) FROM __base r
+                WHERE r.__rn <= b.__rn
+                  {group_eq}
+            """
+            if stat_key == "mode":
                 if min_periods > 1:
-                    value_sql = f"CASE WHEN ({non_null_count}) >= {min_periods} THEN ({mode_subq}) ELSE NULL END"
+                    value_sql = (
+                        f"CASE WHEN ({count_subq}) >= {min_periods} "
+                        f"THEN ({mode_subq}) ELSE NULL END"
+                    )
                 else:
                     value_sql = f"({mode_subq})"
             else:
-                non_null_count = f"SELECT COUNT(r.{safe_col_quoted}) FROM __base r WHERE r.__rn <= b.__rn"
-                value_subq = f"""
-                    SELECT {from_epoch_expr}
-                    FROM (SELECT {inner} AS value_epoch
-                        FROM __base r
-                        WHERE r.__rn <= b.__rn
-                            AND r.{safe_col_quoted} IS NOT NULL) __agg
-                """
                 if min_periods > 1:
-                    value_sql = f"CASE WHEN ({non_null_count}) >= {min_periods} THEN ({value_subq}) ELSE NULL END"
+                    value_sql = (
+                        f"CASE WHEN ({count_subq}) >= {min_periods} "
+                        f"THEN ({value_subq}) ELSE NULL END"
+                    )
                 else:
                     value_sql = f"({value_subq})"
 
-            sql = f"""
-            CREATE TABLE {self.db.quote_identifier(schema)}.{self.db.quote_identifier(new_table_name)} AS
-            WITH __base AS (
-                SELECT *,
-                    ROW_NUMBER() OVER (PARTITION BY {partition_sql} ORDER BY {order_sql}) AS __rn
-                FROM {qualified}
-            )
-            SELECT {src_bstar}, {value_sql} AS {self.db.quote_identifier(new_col)}
-            FROM __base b
+            feature_sql = f"""
+                WITH {base}
+                SELECT b.{self.db.quote_identifier("_mf_idx")},
+                    {value_sql} AS {self.db.quote_identifier(new_col)}
+                FROM __base b
             """
-            map_sig = self._map_sig(
-                safe_groups, safe_col, "expanding_datetime", safe_orders,
-                [new_col][0] if len([new_col]) == 1 else "expanding_datetime", [new_col],
-            )
-            map_collision = None
-            if map_feature:
-                map_collision = await self._check_map_collision(
-                    table, schema, backend, data_id, map_sig, [new_col],
-                )
-                if map_collision:
-                    return self._error_response(
-                        f"Expanding datetime group-by error: {map_collision}",
-                        group_cols=safe_groups,
-                    )
-            await self._exec(sql)
-            if map_feature:
-                await self._apply_map(
-                    table, schema, new_table_name, [new_col],
-                    backend, data_id, map_sig,
-                )
-
-            preview_cols = [column, new_col]
-            if order_by:
-                preview_cols.extend(safe_orders)
-            preview_cols.extend(safe_groups)
-            res = await self._fetch_data(new_table_name, schema, list(dict.fromkeys(preview_cols)))
-
-            return self._success_response(
-                f"Expanding datetime {stat} on '{column}' grouped by {safe_groups} (min_periods={min_periods})",
-                res,
-                new_table=new_table_name,
-                mapped_table=table if map_feature else None,
-                mapped_columns=[new_col] if map_feature else [],
-                new_column=new_col,
+            source_type = await self._get_column_sql_type(
+                table, schema, safe_col,
+            ) or self._ewm_float_type()
+            return await self._finish_grouped_special(
+                table, schema, column, new_col, feature_sql,
+                source_type, backend, data_id, safe_groups, order_by,
+                f"Expanding datetime {stat_key} on '{column}' "
+                f"grouped by {safe_groups} (min_periods={min_periods})",
                 min_periods=min_periods,
-                group_cols=safe_groups,
             )
-
-        # ============================================================
-        # ClickHouse  (NEW)
-        # ============================================================
         except Exception as e:
-            return self._error_response(f"expanding datetime group-by error: {str(e)}\n{traceback.format_exc()}")
+            return self._error_response(
+                f"expanding datetime group-by error: {str(e)}\n{traceback.format_exc()}"
+            )
 
     # ------------------------------------------------------------------
     #  EWM with GROUP BY
@@ -1819,206 +1238,19 @@ class GroupbyWindowOps(WindowOps):
         adjust=True, ignore_na=False, min_periods=0,
         agg="mean",
         backend=None, data_id=None, new_table=None,
-        map_feature: bool = False,
     ):
-        try:
-            # ============================================================
-            # DuckDB / PostgreSQL  (EXISTING — unchanged)
-            # ============================================================
-            if backend is None or data_id is None:
-                return self._error_response("backend and data_id required")
-            safe_col = SQLIdentifierSanitizer.sanitize(column)
-            if isinstance(agg, str):
-                aggs = [agg]
-            else:
-                aggs = list(agg)
-            for a in aggs:
-                if a not in ("mean", "sum", "std", "var"):
-                    return self._error_response(f"Unsupported ewm aggregation '{a}'")
-
-            safe_groups = [SQLIdentifierSanitizer.sanitize(c) for c in group_cols]
-            if order_by:
-                if isinstance(order_by, (list, tuple)):
-                    safe_orders = [SQLIdentifierSanitizer.sanitize(c) for c in order_by]
-                else:
-                    safe_orders = [SQLIdentifierSanitizer.sanitize(order_by)]
-                working_table = table
-            else:
-                safe_order, working_table = await self._resolve_ordering(table, schema, None)
-                safe_orders = [safe_order]
-
-            order_sql = ", ".join(self.db.quote_identifier(c) for c in safe_orders)
-            partition_sql = ", ".join(self.db.quote_identifier(c) for c in safe_groups)
-            qualified = self._qualified_table(working_table, schema)
-
-            cols_to_fetch = [safe_col] + safe_groups + safe_orders
-            df = await _fetch_df_rows(self.db, 
-                f"SELECT {', '.join(self.db.quote_identifier(c) for c in cols_to_fetch)} FROM {qualified} "
-                f"ORDER BY {partition_sql}, {order_sql}"
-            )
-
-            new_table_name = await self._resolve_output_table_name(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
-            )
-            q_schema = self.db.quote_identifier(schema)
-            q_new = self.db.quote_identifier(new_table_name)
-            await self._exec(f"CREATE TABLE {q_schema}.{q_new} AS SELECT * FROM {qualified}")
-
-            new_cols = []
-            for a in aggs:
-                col_name = f"{safe_col}_ewm_{a}_by_{'_'.join(safe_groups)}"
-                await self._add_col(new_table_name, schema, col_name, "DOUBLE PRECISION")
-                new_cols.append(col_name)
-
-            alpha_val = self._alpha_from_params(com, span, halflife, alpha)
-            await self._ensure_row_id(new_table_name, schema, order_col=safe_groups + safe_orders)
-            grouped = df.groupby(safe_groups, sort=False)
-            chunk_size = 500
-            for group_keys, group_df in grouped:
-                conds = " AND ".join(
-                    f"{self.db.quote_identifier(c)} IS NOT DISTINCT FROM {self.db.placeholder(i+1)}"
-                    for i, c in enumerate(safe_groups)
-                )
-                vals = list(group_keys) if isinstance(group_keys, tuple) else [group_keys]
-                fetch_rows = await self._fetch(
-                    f"SELECT {self.db.quote_identifier(self.TMP_ROW)}, {self.db.quote_identifier(safe_col)} "
-                    f"FROM {self._qualified_table(new_table_name, schema)} "
-                    f"WHERE {conds} "
-                    f"ORDER BY {order_sql}",
-                    *vals
-                )
-                row_ids = [r[self.TMP_ROW] for r in fetch_rows]
-                vals_arr = [r[safe_col] if r[safe_col] is not None else np.nan for r in fetch_rows]
-                results = self._compute_ewm_array(
-                    np.array(vals_arr, dtype=np.float64), alpha_val, adjust, ignore_na, min_periods, aggs
-                )
-                for i in range(0, len(row_ids), chunk_size):
-                    chunk_ids = row_ids[i:i+chunk_size]
-                    chunks_results = {k: results[k][i:i+chunk_size] for k in aggs}
-                    flat = []
-                    set_parts = []
-                    for j, rid in enumerate(chunk_ids):
-                        placeholders = []
-                        flat.append(rid)
-                        row_placeholder = self.db.placeholder(len(flat))
-                        if isinstance(self.db, PostgresAdapter):
-                            row_placeholder = f"{row_placeholder}::bigint"
-                        placeholders.append(row_placeholder)
-                        for f in aggs:
-                            val = chunks_results[f][j]
-                            flat.append(None if np.isnan(val) else float(val))
-                            value_placeholder = self.db.placeholder(len(flat))
-                            if isinstance(self.db, PostgresAdapter):
-                                value_placeholder = f"{value_placeholder}::double precision"
-                            placeholders.append(value_placeholder)
-                        set_parts.append(f"({', '.join(placeholders)})")
-                    if not set_parts:
-                        continue
-                    value_list = ", ".join(set_parts)
-                    row_id_alias = "__memframe_row_id"
-                    col_list = ", ".join(
-                        f"{self.db.quote_identifier(new_cols[idx])} = CAST(v.{self.db.quote_identifier(new_cols[idx])} AS DOUBLE PRECISION)"
-                        for idx, f in enumerate(aggs)
-                    )
-                    value_aliases = [row_id_alias, *new_cols]
-                    sql_update = f"""
-                    UPDATE {q_schema}.{q_new} SET
-                        {col_list}
-                    FROM (VALUES {value_list}) AS v({', '.join(self.db.quote_identifier(c) for c in value_aliases)})
-                    WHERE {self.db.quote_identifier(self.TMP_ROW)} = CAST(v.{self.db.quote_identifier(row_id_alias)} AS BIGINT)
-                    """
-                    await self._exec(sql_update, *flat)
-
-            await self._drop_tmp_row(new_table_name, schema)
-
-            preview_cols = [safe_col] + new_cols
-            if order_by:
-                preview_cols.extend(safe_orders)
-            preview_cols.extend(safe_groups)
-            res = await self._fetch_data(new_table_name, schema, list(dict.fromkeys(preview_cols)))
-
-            return self._success_response(
-                f"EWM {aggs} on '{column}' grouped by {safe_groups}",
-                res,
-                new_table=new_table_name,
-                mapped_table=table if map_feature else None,
-                mapped_columns=new_cols if map_feature else [],
-                new_columns=new_cols,
-                group_cols=safe_groups,
-            )
-
-        # ============================================================
-        # ClickHouse  (FIXED — staging table + LEFT JOIN)
-        # ============================================================
-        except Exception as e:
-            return self._error_response(f"ewm group-by error: {str(e)}\n{traceback.format_exc()}")
-    
-    @staticmethod
-    def _compute_ewm_array(arr, alpha, adjust, ignore_na, min_periods, aggs):
-        """Reusable Python EWM computation; identical logic to DataWindowOps.ewm but returns dict of arrays."""
-        n = len(arr)
-        res = {k: np.full(n, np.nan) for k in aggs}
-        valid_count = 0
-        S = 0.0
-        W = 0.0
-        Z = 0.0
-        Q = 0.0
-        prev_mean = None
-        prev_var = 0.0
-        for i in range(n):
-            x = arr[i]
-            if np.isnan(x):
-                if not ignore_na:
-                    continue
-                else:
-                    for k in aggs:
-                        res[k][i] = np.nan
-                    continue
-            valid_count += 1
-            if adjust:
-                S = x + (1 - alpha) * S
-                W = 1 + (1 - alpha) * W
-                Z = 1 + (1 - alpha) ** 2 * Z
-                Q = x * x + (1 - alpha) * Q
-                if valid_count >= min_periods:
-                    mean = S / W
-                    if "mean" in aggs:
-                        res["mean"][i] = mean
-                    if "sum" in aggs:
-                        res["sum"][i] = S
-                    if "var" in aggs or "std" in aggs:
-                        denom = W - Z / W
-                        if denom <= 0:
-                            var = np.nan
-                        else:
-                            var = max((Q - (S * S) / W) / denom, 0)
-                        if "var" in aggs:
-                            res["var"][i] = var
-                        if "std" in aggs:
-                            res["std"][i] = math.sqrt(var) if not np.isnan(var) else np.nan
-            else:
-                if prev_mean is None:
-                    prev_mean = x
-                    if valid_count >= min_periods:
-                        if "mean" in aggs:
-                            res["mean"][i] = x
-                        if "sum" in aggs:
-                            res["sum"][i] = x
-                        if "var" in aggs:
-                            res["var"][i] = 0.0
-                        if "std" in aggs:
-                            res["std"][i] = 0.0
-                    continue
-                prev_var = (1 - alpha) * (prev_var + alpha * (x - prev_mean) ** 2)
-                prev_mean = (1 - alpha) * prev_mean + alpha * x
-                if valid_count >= min_periods:
-                    if "mean" in aggs:
-                        res["mean"][i] = prev_mean
-                    if "sum" in aggs:
-                        res["sum"][i] = x + (1 - alpha) * (res["sum"][i-1] if i>0 else 0)
-                    if "var" in aggs:
-                        res["var"][i] = prev_var
-                    if "std" in aggs:
-                        res["std"][i] = math.sqrt(prev_var)
-        return res
-
+        groups = (
+            list(group_cols)
+            if isinstance(group_cols, (list, tuple))
+            else [group_cols]
+        )
+        if not groups:
+            return self._error_response("group_cols is required")
+        return await self._ewm_run(
+            table, schema, column, groups,
+            order_by=order_by, com=com, span=span, halflife=halflife,
+            alpha=alpha, adjust=adjust, ignore_na=ignore_na,
+            min_periods=min_periods, agg=agg,
+            backend=backend, data_id=data_id,
+            op_type="groupby_win_map",
+        )

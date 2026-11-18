@@ -535,10 +535,9 @@ class TestGroupByWindowOperations:
     # ----------------------------------------------------------------
     @staticmethod
     def _pandas_rolling(frame: pd.DataFrame, keys, col: str, window: int, func: str):
-        # ponytail: the SQL frame always includes the current row
-        # (min_periods=1 semantics) — mirror it in pandas.
+        # Mirrors the engine default: min_periods == window.
         ordered = frame.sort_values([*keys, "id"]).copy()
-        rolled = ordered.groupby(list(keys))[col].rolling(window, min_periods=1)
+        rolled = ordered.groupby(list(keys))[col].rolling(window)
         return pd.Series(getattr(rolled, func)().values, index=ordered.index)
 
     # --- Direct rolling ---
@@ -567,7 +566,7 @@ class TestGroupByWindowOperations:
             "direct_rolling_mean",
             'arolling("value",2,"mean",group_cols="group",order_by="id")',
             sample_df, res_df, pandas_df, backend_config["connection_type"],
-            pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].rolling(2, min_periods=1).mean()',
+            pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].rolling(2).mean()',
         )
 
     def test_direct_rolling_sum(self, uploaded_ctx, sample_df, backend_config):
@@ -594,7 +593,7 @@ class TestGroupByWindowOperations:
             "direct_rolling_sum",
             'arolling("value",3,"sum",group_cols="group",order_by="id")',
             sample_df, res_df, pandas_df, backend_config["connection_type"],
-            pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].rolling(3, min_periods=1).sum()',
+            pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].rolling(3).sum()',
         )
 
     # --- GroupBy builder: rolling ---
@@ -613,7 +612,7 @@ class TestGroupByWindowOperations:
             "groupby_rolling_mean",
             '.groupby("group").rolling(2).mean("value")',
             sample_df, res_df, pandas_df, backend_config["connection_type"],
-            pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].rolling(2, min_periods=1).mean()',
+            pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].rolling(2).mean()',
         )
 
     def test_groupby_rolling_sum(self, uploaded_ctx, sample_df, backend_config):
@@ -631,7 +630,7 @@ class TestGroupByWindowOperations:
             "groupby_rolling_sum",
             '.groupby("group").rolling(3).sum("value")',
             sample_df, res_df, pandas_df, backend_config["connection_type"],
-            pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].rolling(3, min_periods=1).sum()',
+            pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].rolling(3).sum()',
         )
 
     def test_groupby_rolling_max(self, uploaded_ctx, sample_df, backend_config):
@@ -649,7 +648,7 @@ class TestGroupByWindowOperations:
             "groupby_rolling_max",
             '.groupby("group").rolling(2).max("value")',
             sample_df, res_df, pandas_df, backend_config["connection_type"],
-            pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].rolling(2, min_periods=1).max()',
+            pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].rolling(2).max()',
         )
 
     def test_groupby_rolling_no_order(self, uploaded_ctx, sample_df, backend_config):
@@ -665,7 +664,7 @@ class TestGroupByWindowOperations:
             "groupby_rolling_no_order",
             '.groupby("group").rolling(2).mean("value")',
             sample_df, res_df, pandas_df, backend_config["connection_type"],
-            pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].rolling(2, min_periods=1).mean()',
+            pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].rolling(2).mean()',
         )
 
     # --- Expanding ---
@@ -733,6 +732,70 @@ class TestGroupByWindowOperations:
             pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].ewm(span=3).mean()',
         )
 
+    def test_groupby_ewm_adjust_false_matches_pandas(
+        self, uploaded_ctx, sample_df, backend_config
+    ):
+        result = uploaded_ctx.groupby("group").ewm(
+            span=2, order_by="id", adjust=False
+        ).agg("value", ["mean", "var"])
+        assert result["is_error"] is False
+        res_df = get_result_df(result).sort_values(["group", "id"]).reset_index(drop=True)
+        exp_ordered = sample_df.sort_values(["group", "id"]).reset_index(drop=True)
+        exp_mean = (
+            exp_ordered.groupby("group")["value"]
+            .ewm(span=2, adjust=False).mean()
+            .reset_index(level=0, drop=True)
+        )
+        exp_var = (
+            exp_ordered.groupby("group")["value"]
+            .ewm(span=2, adjust=False).var()
+            .reset_index(level=0, drop=True)
+        )
+        assert_allclose_numeric(res_df["value_ewm_mean_by_group"], exp_mean)
+        assert_allclose_numeric(res_df["value_ewm_var_by_group"], exp_var)
+        first_rows = res_df.groupby("group", sort=False).head(1)
+        assert first_rows["value_ewm_var_by_group"].isna().all()
+
+    def test_groupby_ewm_no_order(self, uploaded_ctx, sample_df, backend_config):
+        result = uploaded_ctx.groupby("group").ewm(span=2).mean("value")
+        assert result["is_error"] is False
+        res_df = get_result_df(result)
+        assert "value_ewm_mean_by_group" in res_df.columns
+        assert len(res_df) == len(sample_df)
+
+    def test_groupby_rolling_specials(self, uploaded_ctx, sample_df, backend_config):
+        ordered = sample_df.sort_values(["group", "id"]).reset_index(drop=True)
+        grouped = ordered.groupby("group", sort=False)["value"]
+
+        q = uploaded_ctx.groupby("group").rolling(3, order_by="id").quantile(
+            "value", q=0.5
+        )
+        got_q = get_result_df(q).sort_values(["group", "id"]).reset_index(drop=True)
+        exp_q = (
+            grouped.rolling(3).quantile(0.5)
+            .reset_index(level=0, drop=True)
+        )
+        assert_allclose_numeric(got_q["value_rolling_q0.5_w3_by_group"], exp_q)
+
+        nun = uploaded_ctx.groupby("group").rolling(3, order_by="id").nunique("value")
+        got_nun = get_result_df(nun).sort_values(["group", "id"]).reset_index(drop=True)
+        exp_nun = (
+            grouped.rolling(3)
+            .apply(lambda values: values.nunique(), raw=False)
+            .reset_index(level=0, drop=True)
+        )
+        assert_allclose_numeric(got_nun["value_rolling_nunique_w3_by_group"], exp_nun)
+
+        eq = uploaded_ctx.groupby("group").expanding(order_by="id").quantile(
+            "value", q=0.5
+        )
+        got_eq = get_result_df(eq).sort_values(["group", "id"]).reset_index(drop=True)
+        exp_eq = (
+            grouped.expanding(min_periods=1).quantile(0.5)
+            .reset_index(level=0, drop=True)
+        )
+        assert_allclose_numeric(got_eq["value_expanding_q0.5_by_group"], exp_eq)
+
     # --- Aggregation ---
     def test_groupby_rolling_agg(self, uploaded_ctx, sample_df, backend_config):
         result = uploaded_ctx.groupby("group").rolling(2, order_by="id").agg("value", ["mean", "sum"])
@@ -755,7 +818,7 @@ class TestGroupByWindowOperations:
             "groupby_rolling_agg",
             '.groupby("group").rolling(2).agg("value",["mean","sum"])',
             sample_df, res_df, pandas_df, backend_config["connection_type"],
-            pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].rolling(2, min_periods=1).agg(["mean", "sum"])',
+            pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].rolling(2).agg(["mean", "sum"])',
         )
 
     # --- Multicolumn group-by ---
@@ -774,7 +837,7 @@ class TestGroupByWindowOperations:
             "groupby_multicolumn_rolling",
             '.groupby("group", "sub").rolling(2).sum("value")',
             sample_df, res_df, pandas_df, backend_config["connection_type"],
-            pandas_call='df.sort_values(["group", "sub", "id"]).groupby(["group", "sub"])["value"].rolling(2, min_periods=1).sum()',
+            pandas_call='df.sort_values(["group", "sub", "id"]).groupby(["group", "sub"])["value"].rolling(2).sum()',
         )
 
     def test_groupby_multicolumn_expanding(self, uploaded_ctx, sample_df, backend_config):
@@ -821,7 +884,7 @@ class TestGroupByWindowOperations:
             "direct_multicolumn_rolling",
             'arolling("value",2,"max",group_cols=["group","sub"],order_by="id")',
             sample_df, res_df, pandas_df, backend_config["connection_type"],
-            pandas_call='df.sort_values(["group", "sub", "id"]).groupby(["group", "sub"])["value"].rolling(2, min_periods=1).max()',
+            pandas_call='df.sort_values(["group", "sub", "id"]).groupby(["group", "sub"])["value"].rolling(2).max()',
         )
 
     # --- map_feature=True: single and multi-column group-by ---
@@ -843,7 +906,7 @@ class TestGroupByWindowOperations:
             "map_feature_single_groupby",
             'groupby("group").rolling(2).agg("value", ["mean"], map_feature=True)',
             sample_df, mapped, exp_ordered, backend_config["connection_type"],
-            pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].rolling(2, min_periods=1).mean()  # mapped back',
+            pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].rolling(2).mean()  # mapped back',
         )
 
     def test_map_feature_multi_groupby(self, uploaded_ctx, sample_df, backend_config):
@@ -863,7 +926,7 @@ class TestGroupByWindowOperations:
             "map_feature_multi_groupby",
             'groupby("group", "sub").rolling(2).agg("value", ["sum"], map_feature=True)',
             sample_df, mapped, exp_ordered, backend_config["connection_type"],
-            pandas_call='df.sort_values(["group", "sub", "id"]).groupby(["group", "sub"])["value"].rolling(2, min_periods=1).sum()  # mapped back',
+            pandas_call='df.sort_values(["group", "sub", "id"]).groupby(["group", "sub"])["value"].rolling(2).sum()  # mapped back',
         )
 
     def test_map_feature_expanding(self, uploaded_ctx, sample_df, backend_config):
@@ -915,7 +978,7 @@ class TestGroupByWindowOperations:
             "default_writes_generated_column_to_source",
             'groupby("group").rolling(2).agg("value", ["mean"])',
             sample_df, after, before, backend_config["connection_type"],
-            pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].rolling(2, min_periods=1).mean()',
+            pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].rolling(2).mean()',
         )
 
     def test_map_feature_true_then_false(
@@ -942,7 +1005,7 @@ class TestGroupByWindowOperations:
             "map_feature_true_then_false",
             'rolling agg map_feature=True then map_feature=False',
             sample_df, mapped, exp_ordered, backend_config["connection_type"],
-            pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].rolling(2, min_periods=1).mean()  # rerun drops and re-adds',
+            pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].rolling(2).mean()  # rerun drops and re-adds',
         )
 
     # --- Mutation safety ---
@@ -963,5 +1026,5 @@ class TestGroupByWindowOperations:
             "source_gains_generated_column",
             '.groupby("group").rolling(2).mean("value")',
             sample_df, after_op, original_uploaded, backend_config["connection_type"],
-            pandas_call='df.groupby("group")["value"].rolling(2, min_periods=1).mean()',
+            pandas_call='df.groupby("group")["value"].rolling(2).mean()',
         )

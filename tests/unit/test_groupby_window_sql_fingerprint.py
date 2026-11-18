@@ -123,6 +123,35 @@ def _scenarios():
             "t", "s", "x", group_cols=["g"], order_by="o",
             backend=backend, data_id=data_id,
         ),
+        "ewm_mean": lambda ops, backend: ops.ewm_groupby(
+            "t", "s", "x", ["g"], order_by="o", span=2,
+            agg="mean", backend=backend, data_id=data_id,
+        ),
+        "ewm_multi_adj_false": lambda ops, backend: ops.ewm_groupby(
+            "t", "s", "x", ["g"], order_by="o", span=2,
+            adjust=False, ignore_na=True, agg=["mean", "var"],
+            backend=backend, data_id=data_id,
+        ),
+        "ewm_no_order": lambda ops, backend: ops.ewm_groupby(
+            "t", "s", "x", ["g"], order_by=None, span=2,
+            agg="mean", backend=backend, data_id=data_id,
+        ),
+        "rolling_quantile": lambda ops, backend: ops.rolling_quantile_groupby(
+            "t", "s", "x", ["g"], order_by="o", window=3, q=0.5,
+            backend=backend, data_id=data_id,
+        ),
+        "rolling_rank": lambda ops, backend: ops.rolling_rank_groupby(
+            "t", "s", "x", ["g"], order_by="o", window=3,
+            backend=backend, data_id=data_id,
+        ),
+        "expanding_quantile": lambda ops, backend: ops.expanding_quantile_groupby(
+            "t", "s", "x", ["g"], order_by="o", q=0.5,
+            backend=backend, data_id=data_id,
+        ),
+        "expanding_nunique": lambda ops, backend: ops.expanding_nunique_groupby(
+            "t", "s", "x", ["g"], order_by="o",
+            backend=backend, data_id=data_id,
+        ),
     }
 
 
@@ -177,3 +206,21 @@ def test_groupby_window_personas_match_real_backends():
 def test_all_backends_are_groupby_window_ops():
     for ops_cls, _ in BACKENDS.values():
         assert issubclass(ops_cls, GroupbyWindowOps)
+
+
+def test_grouped_rolling_is_narrow_single_pass():
+    rec = _DuckDBPersona()
+    ops = DuckDBGroupbyWindowOps(rec)
+    asyncio.run(
+        ops._rolling_agg_with_partition(
+            "t", "s", "x", ["g"], order_by="o", window=3,
+            agg=["SUM", "AVG"], backend=_FakeBackend(rec), data_id="d1",
+        )
+    )
+    execs = ["".join(sql.split()) for kind, sql, _ in rec.calls if kind == "exec"]
+    updates = [sql for sql in execs if sql.startswith("UPDATE")]
+    assert len(updates) == 1
+    assert "SUM(" in updates[0] and "AVG(" in updates[0]
+    assert 'ORDERBY"o","_mf_idx"' in updates[0]
+    assert not any("CREATETABLE" in sql for sql in execs)
+    assert 'FROM(SELECT"_mf_idx",' in updates[0]

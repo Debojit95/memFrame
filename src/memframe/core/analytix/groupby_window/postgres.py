@@ -1,46 +1,21 @@
 from __future__ import annotations
 
 from memframe.core.analytix.groupby_window.base import GroupbyWindowOps
-from memframe.core.analytix._generated import swap_table_into_source
-from memframe.utils.helper import SQLIdentifierSanitizer
+from memframe.core.analytix.window._ewm_hooks import PostgresEWMHooks
 
 
-class PostgresGroupbyWindowOps(GroupbyWindowOps):
-    """PostgreSQL backend — map-back swaps tables; all else inherited."""
+class PostgresGroupbyWindowOps(PostgresEWMHooks, GroupbyWindowOps):
+    """PostgreSQL backend — dialect EWM/window hooks; all else inherited."""
+
+    def _quantile_cont_sql(self, col_quoted: str, q) -> str:
+        return f"PERCENTILE_CONT({q}) WITHIN GROUP (ORDER BY {col_quoted})"
+
+    def _median_epoch_sql(self, epoch_expr: str) -> str:
+        return f"PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY {epoch_expr})"
+
+    def _datetime_epoch_expr(self, column_expr: str) -> str:
+        return f"EXTRACT(EPOCH FROM {column_expr})"
 
     @property
     def _row_id_col(self) -> str:
         return "_mf_idx"
-
-    async def _apply_map(
-        self, table, schema, group_table, new_columns, backend, data_id, sig,
-    ):
-        try:
-            orig_cols = list(await self.db.get_column_types(table, schema) or {})
-        except Exception:
-            orig_cols = []
-        if not orig_cols:
-            raise ValueError(f"map_feature: could not list columns of {schema}.{table}")
-        orig_q = self._qualified_table(table, schema)
-        group_q = self._qualified_table(group_table, schema)
-        cond = " AND ".join(
-            f'o.{self.db.quote_identifier(c)} = g.{self.db.quote_identifier(c)}'
-            for c in orig_cols
-        )
-        feats = ", ".join(
-            f'g.{self.db.quote_identifier(c)} AS {self.db.quote_identifier(c)}'
-            for c in new_columns
-        )
-        tmp = SQLIdentifierSanitizer.sanitize(f"{table}__map_tmp")
-        tmp_q = self._qualified_table(tmp, schema)
-        await self._exec(f"DROP TABLE IF EXISTS {tmp_q}")
-        await self._exec(
-            f"""CREATE TABLE {tmp_q} AS
-                SELECT o.*, {feats}
-                FROM {orig_q} o LEFT JOIN {group_q} g ON {cond}"""
-        )
-        await swap_table_into_source(
-            self.db, backend, schema, table, tmp, generated=new_columns
-        )
-        await self._record_map_marker(table, schema, backend, data_id, sig)
-

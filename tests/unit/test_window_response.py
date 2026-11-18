@@ -33,7 +33,7 @@ def window_context():
 
 def test_rolling_sum_values(window_context):
     response = WindowWrapper(window_context).rolling(
-        column="sales", window=3, func="sum", order_by="day"
+        column="sales", window=3, func="sum", order_by="day", min_periods=1
     )
 
     assert response["is_error"] is False
@@ -50,7 +50,7 @@ def test_rolling_sum_values(window_context):
 
 def test_rolling_mean_values(window_context):
     response = WindowWrapper(window_context).rolling(
-        column="sales", window=2, func="mean", order_by="day"
+        column="sales", window=2, func="mean", order_by="day", min_periods=1
     )
 
     assert response["is_error"] is False
@@ -79,7 +79,8 @@ def test_expanding_categorical_mean_raises(window_context):
 
 def test_rolling_multi_func_chains_single_table(window_context):
     response = WindowWrapper(window_context).rolling(
-        column="sales", window=3, func=["sum", "mean"], order_by="day"
+        column="sales", window=3, func=["sum", "mean"], order_by="day",
+        min_periods=1,
     )
 
     assert response["is_error"] is False
@@ -119,7 +120,7 @@ def test_rolling_sum_on_string_col_unsupported_for_dtype(window_context):
 
 def test_rolling_min_on_datetime_col(window_context):
     response = WindowWrapper(window_context).rolling(
-        column="ts", window=2, func="min", order_by="day"
+        column="ts", window=2, func="min", order_by="day", min_periods=1
     )
 
     assert response["is_error"] is False
@@ -170,7 +171,10 @@ def test_ewm_on_string_col_rejected(window_context):
 
 def test_fluent_builder_rolling_mean(window_context):
     response = (
-        WindowWrapper(window_context).on("sales").rolling(2).mean(order_by="day")
+        WindowWrapper(window_context)
+        .on("sales")
+        .rolling(2, min_periods=1)
+        .mean(order_by="day")
     )
 
     assert response["is_error"] is False
@@ -182,3 +186,24 @@ def test_fluent_builder_rolling_mean(window_context):
         35.0,
         45.0,
     ]
+
+
+def test_rolling_default_min_periods_is_window(window_context):
+    response = WindowWrapper(window_context).rolling(
+        column="sales", window=3, func="mean", order_by="day"
+    )
+
+    assert response["is_error"] is False
+    values = response["result"]["sales_rolling_mean_w3"]
+    assert values.iloc[0] != values.iloc[0]  # NaN
+    assert values.iloc[1] != values.iloc[1]  # NaN
+    assert list(values.iloc[2:]) == [20.0, 30.0, 40.0]
+
+
+def test_rolling_min_periods_above_window_is_rejected(window_context):
+    response = WindowWrapper(window_context).rolling(
+        column="sales", window=2, func="mean", order_by="day", min_periods=3
+    )
+
+    assert response["is_error"] is True
+    assert "min_periods" in response["failed_funcs"]["mean"]

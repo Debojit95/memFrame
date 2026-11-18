@@ -44,8 +44,9 @@ class GroupByWindow:
         data_id = self._parent._data_id or self._parent._memframe._active_id
         return self._parent._core_ops, table, schema, backend, data_id
 
-    def rolling(self, window: int, order_by: Union[str, List[str]] = None) -> "GroupByRolling":
-        return GroupByRolling(self, window, order_by)
+    def rolling(self, window: int, order_by: Union[str, List[str]] = None,
+                min_periods: int = None) -> "GroupByRolling":
+        return GroupByRolling(self, window, order_by, min_periods)
     
     def expanding(self, min_periods: int = 1, order_by: Union[str, List[str]] = None) -> "GroupByExpanding":
         return GroupByExpanding(self, min_periods, order_by)
@@ -57,10 +58,12 @@ class GroupByWindow:
 
 class GroupByRolling:
     
-    def __init__(self, group_window: GroupByWindow, window: int, order_by):
+    def __init__(self, group_window: GroupByWindow, window: int, order_by,
+                 min_periods=None):
         self._gw = group_window
         self.window = window
         self.order_by = order_by
+        self.min_periods = min_periods
 
 
     async def _run(self, method_suffix: str, column: str, **extra_kwargs):
@@ -71,6 +74,7 @@ class GroupByRolling:
             func=method_suffix,
             group_cols=self._gw.group_cols,
             order_by=self.order_by,
+            min_periods=self.min_periods,
             **extra_kwargs,
         )
 
@@ -121,6 +125,7 @@ class GroupByRolling:
             func=funcs,
             group_cols=self._gw.group_cols,
             order_by=self.order_by,
+            min_periods=self.min_periods,
             **kwargs,
         )
 
@@ -421,6 +426,7 @@ class GroupByWindowOrchestrator:
         group_cols: Union[str, List[str]],
         order_by: Union[str, List[str]] = None,
         q: float = 0.5,
+        min_periods: int = None,
         map_feature: bool = False,
     ) -> Dict[str, Any]:
         ops = await self._ensure_ops()
@@ -478,6 +484,8 @@ class GroupByWindowOrchestrator:
         successful_funcs = []
         failed_funcs = {}
         generated_cols = []
+        applied_cols = []
+        all_source_updated = True
         last_success_result = None
 
         for func_key, method_name in executable:
@@ -489,11 +497,9 @@ class GroupByWindowOrchestrator:
                 group_cols=group_cols,
                 order_by=order_by,
                 window=window,
+                min_periods=min_periods,
                 backend=backend,
                 data_id=data_id,
-                # Source mutation is handled once by the orchestrator after
-                # the func chain; the core must not map back on its own.
-                map_feature=False,
             )
             if func_key == "quantile":
                 call_kwargs["q"] = q
@@ -513,15 +519,20 @@ class GroupByWindowOrchestrator:
                 current_table = new_table
 
             if isinstance(result.get("new_columns"), list):
-                generated_cols.extend(result["new_columns"])
-            elif result.get("new_column"):
-                generated_cols.append(result["new_column"])
+                result_cols = list(result["new_columns"])
+            else:
+                result_cols = [result["new_column"]] if result.get("new_column") else []
+            generated_cols.extend(result_cols)
+            if result.get("source_updated"):
+                applied_cols.extend(result_cols)
+            else:
+                all_source_updated = False
 
         sig = make_sig(
             op=f"groupby_window.{op_kind}", column=column,
             group_cols=group_cols, func=requested_funcs, order_by=order_by,
             window=locals().get("window"),
-            min_periods=locals().get("min_periods"),
+            min_periods=min_periods,
         )
         involved = self._involved_cols(column, group_cols, order_by)
 
@@ -558,7 +569,7 @@ class GroupByWindowOrchestrator:
 
         final_result = None
         try:
-            final_result = await ops._fetch_data(current_table, schema, preview_cols)
+            final_result = await ops._preview_data(current_table, schema, preview_cols)
         except Exception:
             final_result = last_success_result.get("result") if last_success_result else None
 
@@ -582,6 +593,9 @@ class GroupByWindowOrchestrator:
             "skipped_funcs": skipped,
             "failed_funcs": failed_funcs,
             "is_partial": is_partial,
+            "source_updated": all_source_updated,
+            "applied_columns": list(dict.fromkeys(applied_cols)),
+            "preview_ordered": True,
         }
         try:
             return await self._publish(
@@ -661,6 +675,8 @@ class GroupByWindowOrchestrator:
         successful_funcs = []
         failed_funcs = {}
         generated_cols = []
+        applied_cols = []
+        all_source_updated = True
         last_success_result = None
 
         for func_key, method_name in executable:
@@ -674,9 +690,6 @@ class GroupByWindowOrchestrator:
                 min_periods=min_periods,
                 backend=backend,
                 data_id=data_id,
-                # Source mutation is handled once by the orchestrator after
-                # the func chain; the core must not map back on its own.
-                map_feature=False,
             )
             if func_key == "quantile":
                 call_kwargs["q"] = q
@@ -696,9 +709,14 @@ class GroupByWindowOrchestrator:
                 current_table = new_table
 
             if isinstance(result.get("new_columns"), list):
-                generated_cols.extend(result["new_columns"])
-            elif result.get("new_column"):
-                generated_cols.append(result["new_column"])
+                result_cols = list(result["new_columns"])
+            else:
+                result_cols = [result["new_column"]] if result.get("new_column") else []
+            generated_cols.extend(result_cols)
+            if result.get("source_updated"):
+                applied_cols.extend(result_cols)
+            else:
+                all_source_updated = False
 
         sig = make_sig(
             op=f"groupby_window.{op_kind}", column=column,
@@ -738,7 +756,7 @@ class GroupByWindowOrchestrator:
 
         final_result = None
         try:
-            final_result = await ops._fetch_data(current_table, schema, preview_cols)
+            final_result = await ops._preview_data(current_table, schema, preview_cols)
         except Exception:
             final_result = last_success_result.get("result") if last_success_result else None
 
@@ -762,6 +780,9 @@ class GroupByWindowOrchestrator:
             "failed_funcs": failed_funcs,
             "is_partial": is_partial,
             "min_periods": min_periods,
+            "source_updated": all_source_updated,
+            "applied_columns": list(dict.fromkeys(applied_cols)),
+            "preview_ordered": True,
         }
         try:
             return await self._publish(

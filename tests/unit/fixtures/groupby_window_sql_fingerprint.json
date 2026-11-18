@@ -1,5 +1,5 @@
 {
- "expanding_sum": {
+ "ewm_mean": {
   "clickhouse": [
    [
     "fetchval",
@@ -10,12 +10,74 @@
    ],
    [
     "exec",
-    "CREATETABLE`s`.`t__op_1`ENGINE=MergeTree()ORDERBYtuple()ASSELECT`g`,`o`,`x`,sum(`x`)OVER(PARTITIONBY`g`ORDERBY`o`ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS`x_expanding_sum_by_g`FROM`s`.`t`",
+    "CREATETABLE`s`.`t__op_1__ewm_ordered`ASWITH__srcAS(SELECT`_mf_idx`AS_mf_idx,`g`,CASEWHEN(`x`ISNULLORisNaN(CAST(`x`ASFloat64)))THENNULLELSECAST(`x`ASFloat64)ENDASx_clean,CAST(ROW_NUMBER()OVER(PARTITIONBY`g`ORDERBY`o`,`_mf_idx`)ASInt64)ASrnFROM`s`.`t`),__blkAS(SELECT_mf_idx,`g`,x_clean,rn,CAST(FLOOR(CAST(rn-1ASFloat64)/314)ASInt64)ASblockFROM__src)SELECT_mf_idx,`g`,x_clean,rn,block,(rn-1)-block*314ASposFROM__blk",
+    []
+   ],
+   [
+    "exec",
+    "CREATETABLE`s`.`t__op_1__ewm_blocks`ASSELECT`g`,block,MAX(pos)+1ASblen,COUNT(x_clean)ASvalid_count,SUM(CASEWHENx_cleanISNOTNULLTHENPOWER(CAST(0.33333333333333337ASFloat64),-pos)ELSE0END)ASsum_z1,SUM(x_clean*POWER(CAST(0.33333333333333337ASFloat64),-pos))ASsum_xz,SUM(x_clean*x_clean*POWER(CAST(0.33333333333333337ASFloat64),-pos))ASsum_x2z,SUM(CASEWHENx_cleanISNOTNULLTHENPOWER(CAST(0.33333333333333337ASFloat64),-2*pos)ELSE0END)ASsum_z2FROM`s`.`t__op_1__ewm_ordered`GROUPBY`g`,block",
+    []
+   ],
+   [
+    "exec",
+    "CREATETABLE`s`.`t__op_1__ewm_state`ENGINE=MergeTree()ORDERBYtuple()ASWITHRECURSIVEst(`g`,block,s_num,s_den,s_w2,s_x2w,valid_seen)AS(SELECT`g`,CAST(0ASInt64),CAST(0ASFloat64),CAST(0ASFloat64),CAST(0ASFloat64),CAST(0ASFloat64),CAST(0ASInt64)FROM(SELECTDISTINCT`g`FROM`s`.`t__op_1__ewm_blocks`)gUNIONALLSELECTb.`g`,b.block+1,POWER(CAST(0.33333333333333337ASFloat64),b.blen)*st.s_num+POWER(CAST(0.33333333333333337ASFloat64),b.blen-1)*COALESCE(b.sum_xz,0),POWER(CAST(0.33333333333333337ASFloat64),b.blen)*st.s_den+POWER(CAST(0.33333333333333337ASFloat64),b.blen-1)*COALESCE(b.sum_z1,0),POWER(CAST(0.33333333333333337ASFloat64),2*b.blen)*st.s_w2+POWER(CAST(0.33333333333333337ASFloat64),2*(b.blen-1))*COALESCE(b.sum_z2,0),POWER(CAST(0.33333333333333337ASFloat64),b.blen)*st.s_x2w+POWER(CAST(0.33333333333333337ASFloat64),b.blen-1)*COALESCE(b.sum_x2z,0),st.valid_seen+b.valid_countFROMstJOIN`s`.`t__op_1__ewm_blocks`bONb.block=st.blockANDb.`g`=st.`g`)SELECT*FROMst",
+    []
+   ],
+   [
+    "fetchval",
+    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
+    [
+     "d1"
+    ]
+   ],
+   [
+    "exec",
+    "CREATETABLE`s`.`t__op_1__feat`ENGINE=MergeTree()ORDERBYtuple()ASWITHcalcAS(SELECTo._mf_idx,o.x_clean,o.pos,st.valid_seen+COUNT(o.x_clean)OVER(PARTITIONBYo.`g`,o.blockORDERBYo.posROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalid_t,POWER(CAST(0.33333333333333337ASFloat64),o.pos+1)*st.s_num+POWER(CAST(0.33333333333333337ASFloat64),o.pos)*SUM(o.x_clean*POWER(CAST(0.33333333333333337ASFloat64),-o.pos))OVER(PARTITIONBYo.`g`,o.blockORDERBYo.posROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASs_num_t,POWER(CAST(0.33333333333333337ASFloat64),o.pos+1)*st.s_den+POWER(CAST(0.33333333333333337ASFloat64),o.pos)*SUM(CASEWHENo.x_cleanISNOTNULLTHENPOWER(CAST(0.33333333333333337ASFloat64),-o.pos)ELSE0END)OVER(PARTITIONBYo.`g`,o.blockORDERBYo.posROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASs_den_t,POWER(CAST(0.33333333333333337ASFloat64),2*(o.pos+1))*st.s_w2+POWER(CAST(0.33333333333333337ASFloat64),2*o.pos)*SUM(CASEWHENo.x_cleanISNOTNULLTHENPOWER(CAST(0.33333333333333337ASFloat64),-2*o.pos)ELSE0END)OVER(PARTITIONBYo.`g`,o.blockORDERBYo.posROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASs_w2_t,POWER(CAST(0.33333333333333337ASFloat64),o.pos+1)*st.s_x2w+POWER(CAST(0.33333333333333337ASFloat64),o.pos)*SUM(o.x_clean*o.x_clean*POWER(CAST(0.33333333333333337ASFloat64),-o.pos))OVER(PARTITIONBYo.`g`,o.blockORDERBYo.posROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASs_x2w_tFROM`s`.`t__op_1__ewm_ordered`oJOIN`s`.`t__op_1__ewm_state`stONo.block=st.blockANDo.`g`=st.`g`)SELECT_mf_idx,CASEWHENx_cleanISNOTNULLANDvalid_t>=0ANDs_den_t>0THENs_num_t/s_den_tENDAS`x_ewm_mean_by_g`FROMcalc",
+    []
+   ],
+   [
+    "exec",
+    "CREATETABLE`s`.`t__op_1__wide`ENGINE=MergeTree()ORDERBYtuple()ASSELECTo.*,s.`x_ewm_mean_by_g`AS`x_ewm_mean_by_g`FROM`s`.`t`ASoLEFTJOIN`s`.`t__op_1__feat`ASsONo.`_mf_idx`=s.`_mf_idx`",
+    []
+   ],
+   [
+    "exec",
+    "CREATEORREPLACETABLE`s`.`t`ASSELECT*FROM`s`.`t__op_1__wide`",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLE`s`.`t__op_1__wide`",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS`s`.`t__op_1__feat`",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS`s`.`t__op_1__wide`",
     []
    ],
    [
     "fetch",
-    "SELECT`x`,`x_expanding_sum_by_g`,`o`,`g`FROM`s`.`t__op_1`",
+    "SELECT`x_ewm_mean_by_g`,`x`,`o`,`g`FROM`s`.`t`ORDERBY`_mf_idx`",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS`s`.`t__op_1__ewm_state`",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS`s`.`t__op_1__ewm_blocks`",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS`s`.`t__op_1__ewm_ordered`",
     []
    ]
   ],
@@ -29,12 +91,47 @@
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_1\"ASSELECT*,SUM(\"x\")OVER(PARTITIONBY\"g\"ORDERBY\"o\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"x_expanding_sum_by_g\"FROM\"s\".\"t\"",
+    "CREATETABLE\"s\".\"t__op_1__ewm_ordered\"ASWITH__srcAS(SELECT\"_mf_idx\"AS_mf_idx,\"g\",CASEWHEN(\"x\"ISNULLORisnan(CAST(\"x\"ASFLOAT8)))THENNULLELSECAST(\"x\"ASFLOAT8)ENDASx_clean,CAST(ROW_NUMBER()OVER(PARTITIONBY\"g\"ORDERBY\"o\",\"_mf_idx\")ASBIGINT)ASrnFROM\"s\".\"t\"),__blkAS(SELECT_mf_idx,\"g\",x_clean,rn,CAST(FLOOR(CAST(rn-1ASFLOAT8)/314)ASBIGINT)ASblockFROM__src)SELECT_mf_idx,\"g\",x_clean,rn,block,(rn-1)-block*314ASposFROM__blk",
+    []
+   ],
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_1__ewm_blocks\"ASSELECT\"g\",block,MAX(pos)+1ASblen,COUNT(x_clean)ASvalid_count,SUM(CASEWHENx_cleanISNOTNULLTHENPOWER(CAST(0.33333333333333337ASFLOAT8),-pos)ELSE0END)ASsum_z1,SUM(x_clean*POWER(CAST(0.33333333333333337ASFLOAT8),-pos))ASsum_xz,SUM(x_clean*x_clean*POWER(CAST(0.33333333333333337ASFLOAT8),-pos))ASsum_x2z,SUM(CASEWHENx_cleanISNOTNULLTHENPOWER(CAST(0.33333333333333337ASFLOAT8),-2*pos)ELSE0END)ASsum_z2FROM\"s\".\"t__op_1__ewm_ordered\"GROUPBY\"g\",block",
+    []
+   ],
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_1__ewm_state\"ASWITHRECURSIVEst(\"g\",block,s_num,s_den,s_w2,s_x2w,valid_seen)AS(SELECT\"g\",CAST(0ASBIGINT),CAST(0ASFLOAT8),CAST(0ASFLOAT8),CAST(0ASFLOAT8),CAST(0ASFLOAT8),CAST(0ASBIGINT)FROM(SELECTDISTINCT\"g\"FROM\"s\".\"t__op_1__ewm_blocks\")gUNIONALLSELECTb.\"g\",b.block+1,POWER(CAST(0.33333333333333337ASFLOAT8),b.blen)*st.s_num+POWER(CAST(0.33333333333333337ASFLOAT8),b.blen-1)*COALESCE(b.sum_xz,0),POWER(CAST(0.33333333333333337ASFLOAT8),b.blen)*st.s_den+POWER(CAST(0.33333333333333337ASFLOAT8),b.blen-1)*COALESCE(b.sum_z1,0),POWER(CAST(0.33333333333333337ASFLOAT8),2*b.blen)*st.s_w2+POWER(CAST(0.33333333333333337ASFLOAT8),2*(b.blen-1))*COALESCE(b.sum_z2,0),POWER(CAST(0.33333333333333337ASFLOAT8),b.blen)*st.s_x2w+POWER(CAST(0.33333333333333337ASFLOAT8),b.blen-1)*COALESCE(b.sum_x2z,0),st.valid_seen+b.valid_countFROMstJOIN\"s\".\"t__op_1__ewm_blocks\"bONb.block=st.blockANDb.\"g\"=st.\"g\")SELECT*FROMst",
+    []
+   ],
+   [
+    "exec",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMNIFNOTEXISTS\"x_ewm_mean_by_g\"DOUBLEPRECISION",
+    []
+   ],
+   [
+    "exec",
+    "UPDATE\"s\".\"t\"AStSET\"x_ewm_mean_by_g\"=s.\"x_ewm_mean_by_g\"FROM(WITHcalcAS(SELECTo._mf_idx,o.x_clean,o.pos,st.valid_seen+COUNT(o.x_clean)OVER(PARTITIONBYo.\"g\",o.blockORDERBYo.posROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalid_t,POWER(CAST(0.33333333333333337ASFLOAT8),o.pos+1)*st.s_num+POWER(CAST(0.33333333333333337ASFLOAT8),o.pos)*SUM(o.x_clean*POWER(CAST(0.33333333333333337ASFLOAT8),-o.pos))OVER(PARTITIONBYo.\"g\",o.blockORDERBYo.posROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASs_num_t,POWER(CAST(0.33333333333333337ASFLOAT8),o.pos+1)*st.s_den+POWER(CAST(0.33333333333333337ASFLOAT8),o.pos)*SUM(CASEWHENo.x_cleanISNOTNULLTHENPOWER(CAST(0.33333333333333337ASFLOAT8),-o.pos)ELSE0END)OVER(PARTITIONBYo.\"g\",o.blockORDERBYo.posROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASs_den_t,POWER(CAST(0.33333333333333337ASFLOAT8),2*(o.pos+1))*st.s_w2+POWER(CAST(0.33333333333333337ASFLOAT8),2*o.pos)*SUM(CASEWHENo.x_cleanISNOTNULLTHENPOWER(CAST(0.33333333333333337ASFLOAT8),-2*o.pos)ELSE0END)OVER(PARTITIONBYo.\"g\",o.blockORDERBYo.posROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASs_w2_t,POWER(CAST(0.33333333333333337ASFLOAT8),o.pos+1)*st.s_x2w+POWER(CAST(0.33333333333333337ASFLOAT8),o.pos)*SUM(o.x_clean*o.x_clean*POWER(CAST(0.33333333333333337ASFLOAT8),-o.pos))OVER(PARTITIONBYo.\"g\",o.blockORDERBYo.posROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASs_x2w_tFROM\"s\".\"t__op_1__ewm_ordered\"oJOIN\"s\".\"t__op_1__ewm_state\"stONo.block=st.blockANDo.\"g\"=st.\"g\")SELECT_mf_idx,CASEWHENx_cleanISNOTNULLANDvalid_t>=0ANDs_den_t>0THENs_num_t/s_den_tENDAS\"x_ewm_mean_by_g\"FROMcalc)ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
     []
    ],
    [
     "fetch",
-    "SELECT\"x\",\"x_expanding_sum_by_g\",\"o\",\"g\"FROM\"s\".\"t__op_1\"",
+    "SELECT\"x_ewm_mean_by_g\",\"x\",\"o\",\"g\"FROM\"s\".\"t\"ORDERBY\"_mf_idx\"",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS\"s\".\"t__op_1__ewm_state\"",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS\"s\".\"t__op_1__ewm_blocks\"",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS\"s\".\"t__op_1__ewm_ordered\"",
     []
    ]
   ],
@@ -48,12 +145,679 @@
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_1\"ASSELECT*,SUM(\"x\")OVER(PARTITIONBY\"g\"ORDERBY\"o\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"x_expanding_sum_by_g\"FROM\"s\".\"t\"",
+    "CREATETABLE\"s\".\"t__op_1__ewm_ordered\"ASWITH__srcAS(SELECT\"_mf_idx\"AS_mf_idx,\"g\",CASEWHEN(\"x\"ISNULLORCAST(\"x\"ASFLOAT8)=CAST('NaN'ASFLOAT8))THENNULLELSECAST(\"x\"ASFLOAT8)ENDASx_clean,CAST(ROW_NUMBER()OVER(PARTITIONBY\"g\"ORDERBY\"o\",\"_mf_idx\")ASBIGINT)ASrnFROM\"s\".\"t\"),__blkAS(SELECT_mf_idx,\"g\",x_clean,rn,CAST(FLOOR(CAST(rn-1ASFLOAT8)/314)ASBIGINT)ASblockFROM__src)SELECT_mf_idx,\"g\",x_clean,rn,block,(rn-1)-block*314ASposFROM__blk",
+    []
+   ],
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_1__ewm_blocks\"ASSELECT\"g\",block,MAX(pos)+1ASblen,COUNT(x_clean)ASvalid_count,SUM(CASEWHENx_cleanISNOTNULLTHENPOWER(CAST(0.33333333333333337ASFLOAT8),-pos)ELSE0END)ASsum_z1,SUM(x_clean*POWER(CAST(0.33333333333333337ASFLOAT8),-pos))ASsum_xz,SUM(x_clean*x_clean*POWER(CAST(0.33333333333333337ASFLOAT8),-pos))ASsum_x2z,SUM(CASEWHENx_cleanISNOTNULLTHENPOWER(CAST(0.33333333333333337ASFLOAT8),-2*pos)ELSE0END)ASsum_z2FROM\"s\".\"t__op_1__ewm_ordered\"GROUPBY\"g\",block",
+    []
+   ],
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_1__ewm_state\"ASWITHRECURSIVEst(\"g\",block,s_num,s_den,s_w2,s_x2w,valid_seen)AS(SELECT\"g\",CAST(0ASBIGINT),CAST(0ASFLOAT8),CAST(0ASFLOAT8),CAST(0ASFLOAT8),CAST(0ASFLOAT8),CAST(0ASBIGINT)FROM(SELECTDISTINCT\"g\"FROM\"s\".\"t__op_1__ewm_blocks\")gUNIONALLSELECTb.\"g\",b.block+1,POWER(CAST(0.33333333333333337ASFLOAT8),b.blen)*st.s_num+POWER(CAST(0.33333333333333337ASFLOAT8),b.blen-1)*COALESCE(b.sum_xz,0),POWER(CAST(0.33333333333333337ASFLOAT8),b.blen)*st.s_den+POWER(CAST(0.33333333333333337ASFLOAT8),b.blen-1)*COALESCE(b.sum_z1,0),POWER(CAST(0.33333333333333337ASFLOAT8),2*b.blen)*st.s_w2+POWER(CAST(0.33333333333333337ASFLOAT8),2*(b.blen-1))*COALESCE(b.sum_z2,0),POWER(CAST(0.33333333333333337ASFLOAT8),b.blen)*st.s_x2w+POWER(CAST(0.33333333333333337ASFLOAT8),b.blen-1)*COALESCE(b.sum_x2z,0),st.valid_seen+b.valid_countFROMstJOIN\"s\".\"t__op_1__ewm_blocks\"bONb.block=st.blockANDb.\"g\"=st.\"g\")SELECT*FROMst",
+    []
+   ],
+   [
+    "exec",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMNIFNOTEXISTS\"x_ewm_mean_by_g\"DOUBLEPRECISION",
+    []
+   ],
+   [
+    "exec",
+    "UPDATE\"s\".\"t\"AStSET\"x_ewm_mean_by_g\"=s.\"x_ewm_mean_by_g\"FROM(WITHcalcAS(SELECTo._mf_idx,o.x_clean,o.pos,st.valid_seen+COUNT(o.x_clean)OVER(PARTITIONBYo.\"g\",o.blockORDERBYo.posROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalid_t,POWER(CAST(0.33333333333333337ASFLOAT8),o.pos+1)*st.s_num+POWER(CAST(0.33333333333333337ASFLOAT8),o.pos)*SUM(o.x_clean*POWER(CAST(0.33333333333333337ASFLOAT8),-o.pos))OVER(PARTITIONBYo.\"g\",o.blockORDERBYo.posROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASs_num_t,POWER(CAST(0.33333333333333337ASFLOAT8),o.pos+1)*st.s_den+POWER(CAST(0.33333333333333337ASFLOAT8),o.pos)*SUM(CASEWHENo.x_cleanISNOTNULLTHENPOWER(CAST(0.33333333333333337ASFLOAT8),-o.pos)ELSE0END)OVER(PARTITIONBYo.\"g\",o.blockORDERBYo.posROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASs_den_t,POWER(CAST(0.33333333333333337ASFLOAT8),2*(o.pos+1))*st.s_w2+POWER(CAST(0.33333333333333337ASFLOAT8),2*o.pos)*SUM(CASEWHENo.x_cleanISNOTNULLTHENPOWER(CAST(0.33333333333333337ASFLOAT8),-2*o.pos)ELSE0END)OVER(PARTITIONBYo.\"g\",o.blockORDERBYo.posROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASs_w2_t,POWER(CAST(0.33333333333333337ASFLOAT8),o.pos+1)*st.s_x2w+POWER(CAST(0.33333333333333337ASFLOAT8),o.pos)*SUM(o.x_clean*o.x_clean*POWER(CAST(0.33333333333333337ASFLOAT8),-o.pos))OVER(PARTITIONBYo.\"g\",o.blockORDERBYo.posROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASs_x2w_tFROM\"s\".\"t__op_1__ewm_ordered\"oJOIN\"s\".\"t__op_1__ewm_state\"stONo.block=st.blockANDo.\"g\"=st.\"g\")SELECT_mf_idx,CASEWHENx_cleanISNOTNULLANDvalid_t>=0ANDs_den_t>0THENs_num_t/s_den_tENDAS\"x_ewm_mean_by_g\"FROMcalc)ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
     []
    ],
    [
     "fetch",
-    "SELECT\"x\",\"x_expanding_sum_by_g\",\"o\",\"g\"FROM\"s\".\"t__op_1\"",
+    "SELECT\"x_ewm_mean_by_g\",\"x\",\"o\",\"g\"FROM\"s\".\"t\"ORDERBY\"_mf_idx\"",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS\"s\".\"t__op_1__ewm_state\"",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS\"s\".\"t__op_1__ewm_blocks\"",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS\"s\".\"t__op_1__ewm_ordered\"",
+    []
+   ]
+  ]
+ },
+ "ewm_multi_adj_false": {
+  "clickhouse": [
+   [
+    "fetchval",
+    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
+    [
+     "d1"
+    ]
+   ],
+   [
+    "exec",
+    "CREATETABLE`s`.`t__op_1__ewm_ordered`ASWITH__srcAS(SELECT`_mf_idx`AS_mf_idx,`g`,CASEWHEN(`x`ISNULLORisNaN(CAST(`x`ASFloat64)))THENNULLELSECAST(`x`ASFloat64)ENDASx_clean,CAST(ROW_NUMBER()OVER(PARTITIONBY`g`ORDERBY`o`,`_mf_idx`)ASInt64)ASrnFROM`s`.`t`),__blkAS(SELECT_mf_idx,`g`,x_clean,rn,CAST(FLOOR(CAST(rn-1ASFloat64)/314)ASInt64)ASblockFROM__src)SELECT_mf_idx,`g`,x_clean,rn,block,(rn-1)-block*314ASposFROM__blk",
+    []
+   ],
+   [
+    "exec",
+    "CREATETABLE`s`.`t__op_1__ewm_blocks`ASWITHvpAS(SELECT*,COUNT(x_clean)OVER(PARTITIONBY`g`,blockORDERBYposROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvposFROM`s`.`t__op_1__ewm_ordered`),aggAS(SELECT`g`,block,MAX(pos)+1ASblen,COUNT(x_clean)ASvalid_count,MIN(CASEWHENx_cleanISNOTNULLTHENposEND)ASfirst_valid_pos,SUM(CASEWHENx_cleanISNOTNULLTHENPOWER(CAST(0.33333333333333337ASFloat64),-vpos)ELSE0END)ASsum_z1_all,SUM(x_clean*POWER(CAST(0.33333333333333337ASFloat64),-vpos))ASsum_xz_all,SUM(x_clean*x_clean*POWER(CAST(0.33333333333333337ASFloat64),-vpos))ASsum_x2z_all,SUM(CASEWHENvpos>1THENx_clean*POWER(CAST(0.33333333333333337ASFloat64),-(vpos-1))END)ASsum_xz_after,SUM(CASEWHENvpos>1THENx_clean*x_clean*POWER(CAST(0.33333333333333337ASFloat64),-(vpos-1))END)ASsum_x2z_afterFROMvpGROUPBY`g`,block)SELECTa.*,o.x_cleanASx_firstFROMaggaLEFTJOIN`s`.`t__op_1__ewm_ordered`oONo.block=a.blockANDo.`g`=a.`g`ANDo.pos=a.first_valid_pos",
+    []
+   ],
+   [
+    "exec",
+    "CREATETABLE`s`.`t__op_1__ewm_state`ENGINE=MergeTree()ORDERBYtuple()ASWITHRECURSIVEst(`g`,block,state,s_w2,s_x2w,valid_seen,has_state)AS(SELECT`g`,CAST(0ASInt64),CAST(0ASFloat64),CAST(0ASFloat64),CAST(0ASFloat64),CAST(0ASInt64),CAST(0ASInt64)FROM(SELECTDISTINCT`g`FROM`s`.`t__op_1__ewm_blocks`)gUNIONALLSELECTb.`g`,b.block+1,CASEWHENb.valid_count=0THENst.stateWHENst.has_state=1THENPOWER(CAST(0.33333333333333337ASFloat64),b.valid_count)*st.state+CAST(0.6666666666666666ASFloat64)*POWER(CAST(0.33333333333333337ASFloat64),b.valid_count)*COALESCE(b.sum_xz_all,0)ELSEPOWER(CAST(0.33333333333333337ASFloat64),b.valid_count-1)*b.x_first+CAST(0.6666666666666666ASFloat64)*POWER(CAST(0.33333333333333337ASFloat64),b.valid_count-1)*COALESCE(b.sum_xz_after,0)END,CASEWHENb.valid_count=0THENst.s_w2WHENst.has_state=1THENPOWER(CAST(0.33333333333333337ASFloat64),2*b.valid_count)*st.s_w2+CAST(0.4444444444444444ASFloat64)*(1-POWER(CAST(0.33333333333333337ASFloat64),2*b.valid_count))/(1-CAST(0.11111111111111113ASFloat64))ELSEPOWER(CAST(0.33333333333333337ASFloat64),2*(b.valid_count-1))+CAST(0.4444444444444444ASFloat64)*(1-POWER(CAST(0.33333333333333337ASFloat64),2*(b.valid_count-1)))/(1-CAST(0.11111111111111113ASFloat64))END,CASEWHENb.valid_count=0THENst.s_x2wWHENst.has_state=1THENPOWER(CAST(0.33333333333333337ASFloat64),b.valid_count)*st.s_x2w+CAST(0.6666666666666666ASFloat64)*POWER(CAST(0.33333333333333337ASFloat64),b.valid_count)*COALESCE(b.sum_x2z_all,0)ELSEPOWER(CAST(0.33333333333333337ASFloat64),b.valid_count-1)*b.x_first*b.x_first+CAST(0.6666666666666666ASFloat64)*POWER(CAST(0.33333333333333337ASFloat64),b.valid_count-1)*COALESCE(b.sum_x2z_after,0)END,st.valid_seen+b.valid_count,CASEWHENb.valid_count>0THEN1ELSEst.has_stateENDFROMstJOIN`s`.`t__op_1__ewm_blocks`bONb.block=st.blockANDb.`g`=st.`g`)SELECT*FROMst",
+    []
+   ],
+   [
+    "fetchval",
+    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
+    [
+     "d1"
+    ]
+   ],
+   [
+    "exec",
+    "CREATETABLE`s`.`t__op_1__feat`ENGINE=MergeTree()ORDERBYtuple()ASWITHvpAS(SELECT*,COUNT(x_clean)OVER(PARTITIONBY`g`,blockORDERBYposROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvFROM`s`.`t__op_1__ewm_ordered`),localAS(SELECTo.*,st.state,st.s_w2,st.s_x2w,st.valid_seenASvalid_in,st.has_state,b.x_first,SUM(o.x_clean*POWER(CAST(0.33333333333333337ASFloat64),-o.v))OVER(PARTITIONBYo.`g`,o.blockORDERBYo.posROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASlocal_x_all,SUM(o.x_clean*o.x_clean*POWER(CAST(0.33333333333333337ASFloat64),-o.v))OVER(PARTITIONBYo.`g`,o.blockORDERBYo.posROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASlocal_x2_all,SUM(CASEWHENo.v>1THENo.x_clean*POWER(CAST(0.33333333333333337ASFloat64),-(o.v-1))END)OVER(PARTITIONBYo.`g`,o.blockORDERBYo.posROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASlocal_x_after,SUM(CASEWHENo.v>1THENo.x_clean*o.x_clean*POWER(CAST(0.33333333333333337ASFloat64),-(o.v-1))END)OVER(PARTITIONBYo.`g`,o.blockORDERBYo.posROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASlocal_x2_afterFROMvpoJOIN`s`.`t__op_1__ewm_state`stONo.block=st.blockANDo.`g`=st.`g`JOIN`s`.`t__op_1__ewm_blocks`bONo.block=b.blockANDo.`g`=b.`g`),calcAS(SELECT*,CASEWHENx_cleanISNULLTHENNULLWHENhas_state=1THENPOWER(CAST(0.33333333333333337ASFloat64),v)*state+CAST(0.6666666666666666ASFloat64)*POWER(CAST(0.33333333333333337ASFloat64),v)*COALESCE(local_x_all,0)WHENv=1THENx_cleanWHENv>1THENPOWER(CAST(0.33333333333333337ASFloat64),v-1)*x_first+CAST(0.6666666666666666ASFloat64)*POWER(CAST(0.33333333333333337ASFloat64),v-1)*COALESCE(local_x_after,0)ENDASstate_t,CASEWHENhas_state=1THENPOWER(CAST(0.33333333333333337ASFloat64),2*v)*s_w2+CAST(0.4444444444444444ASFloat64)*(1-POWER(CAST(0.33333333333333337ASFloat64),2*v))/(1-CAST(0.11111111111111113ASFloat64))WHENv>=1THENPOWER(CAST(0.33333333333333337ASFloat64),2*(v-1))+CAST(0.4444444444444444ASFloat64)*(1-POWER(CAST(0.33333333333333337ASFloat64),2*(v-1)))/(1-CAST(0.11111111111111113ASFloat64))ENDASw2_t,CASEWHENx_cleanISNULLTHENNULLWHENhas_state=1THENPOWER(CAST(0.33333333333333337ASFloat64),v)*s_x2w+CAST(0.6666666666666666ASFloat64)*POWER(CAST(0.33333333333333337ASFloat64),v)*COALESCE(local_x2_all,0)WHENv=1THENx_clean*x_cleanWHENv>1THENPOWER(CAST(0.33333333333333337ASFloat64),v-1)*x_first*x_first+CAST(0.6666666666666666ASFloat64)*POWER(CAST(0.33333333333333337ASFloat64),v-1)*COALESCE(local_x2_after,0)ENDASx2w_t,CASEWHENhas_state=1THENvalid_in+vWHENv>0THENvELSE0ENDASvalid_tFROMlocal)SELECT_mf_idx,CASEWHENx_cleanISNOTNULLANDvalid_t>=0THENstate_tENDAS`x_ewm_mean_by_g`,CASEWHENx_cleanISNOTNULLANDvalid_t>=GREATEST(0,2)AND(1-w2_t)>0THENGREATEST((x2w_t-state_t*state_t)/(1-w2_t),0)ENDAS`x_ewm_var_by_g`FROMcalc",
+    []
+   ],
+   [
+    "exec",
+    "CREATETABLE`s`.`t__op_1__wide`ENGINE=MergeTree()ORDERBYtuple()ASSELECTo.*,s.`x_ewm_mean_by_g`AS`x_ewm_mean_by_g`,s.`x_ewm_var_by_g`AS`x_ewm_var_by_g`FROM`s`.`t`ASoLEFTJOIN`s`.`t__op_1__feat`ASsONo.`_mf_idx`=s.`_mf_idx`",
+    []
+   ],
+   [
+    "exec",
+    "CREATEORREPLACETABLE`s`.`t`ASSELECT*FROM`s`.`t__op_1__wide`",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLE`s`.`t__op_1__wide`",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS`s`.`t__op_1__feat`",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS`s`.`t__op_1__wide`",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT`x_ewm_mean_by_g`,`x_ewm_var_by_g`,`x`,`o`,`g`FROM`s`.`t`ORDERBY`_mf_idx`",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS`s`.`t__op_1__ewm_state`",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS`s`.`t__op_1__ewm_blocks`",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS`s`.`t__op_1__ewm_ordered`",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetchval",
+    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
+    [
+     "d1"
+    ]
+   ],
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_1__ewm_ordered\"ASWITH__srcAS(SELECT\"_mf_idx\"AS_mf_idx,\"g\",CASEWHEN(\"x\"ISNULLORisnan(CAST(\"x\"ASFLOAT8)))THENNULLELSECAST(\"x\"ASFLOAT8)ENDASx_clean,CAST(ROW_NUMBER()OVER(PARTITIONBY\"g\"ORDERBY\"o\",\"_mf_idx\")ASBIGINT)ASrnFROM\"s\".\"t\"),__blkAS(SELECT_mf_idx,\"g\",x_clean,rn,CAST(FLOOR(CAST(rn-1ASFLOAT8)/314)ASBIGINT)ASblockFROM__src)SELECT_mf_idx,\"g\",x_clean,rn,block,(rn-1)-block*314ASposFROM__blk",
+    []
+   ],
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_1__ewm_blocks\"ASWITHvpAS(SELECT*,COUNT(x_clean)OVER(PARTITIONBY\"g\",blockORDERBYposROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvposFROM\"s\".\"t__op_1__ewm_ordered\"),aggAS(SELECT\"g\",block,MAX(pos)+1ASblen,COUNT(x_clean)ASvalid_count,MIN(CASEWHENx_cleanISNOTNULLTHENposEND)ASfirst_valid_pos,SUM(CASEWHENx_cleanISNOTNULLTHENPOWER(CAST(0.33333333333333337ASFLOAT8),-vpos)ELSE0END)ASsum_z1_all,SUM(x_clean*POWER(CAST(0.33333333333333337ASFLOAT8),-vpos))ASsum_xz_all,SUM(x_clean*x_clean*POWER(CAST(0.33333333333333337ASFLOAT8),-vpos))ASsum_x2z_all,SUM(CASEWHENvpos>1THENx_clean*POWER(CAST(0.33333333333333337ASFLOAT8),-(vpos-1))END)ASsum_xz_after,SUM(CASEWHENvpos>1THENx_clean*x_clean*POWER(CAST(0.33333333333333337ASFLOAT8),-(vpos-1))END)ASsum_x2z_afterFROMvpGROUPBY\"g\",block)SELECTa.*,o.x_cleanASx_firstFROMaggaLEFTJOIN\"s\".\"t__op_1__ewm_ordered\"oONo.block=a.blockANDo.\"g\"=a.\"g\"ANDo.pos=a.first_valid_pos",
+    []
+   ],
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_1__ewm_state\"ASWITHRECURSIVEst(\"g\",block,state,s_w2,s_x2w,valid_seen,has_state)AS(SELECT\"g\",CAST(0ASBIGINT),CAST(0ASFLOAT8),CAST(0ASFLOAT8),CAST(0ASFLOAT8),CAST(0ASBIGINT),CAST(0ASBIGINT)FROM(SELECTDISTINCT\"g\"FROM\"s\".\"t__op_1__ewm_blocks\")gUNIONALLSELECTb.\"g\",b.block+1,CASEWHENb.valid_count=0THENst.stateWHENst.has_state=1THENPOWER(CAST(0.33333333333333337ASFLOAT8),b.valid_count)*st.state+CAST(0.6666666666666666ASFLOAT8)*POWER(CAST(0.33333333333333337ASFLOAT8),b.valid_count)*COALESCE(b.sum_xz_all,0)ELSEPOWER(CAST(0.33333333333333337ASFLOAT8),b.valid_count-1)*b.x_first+CAST(0.6666666666666666ASFLOAT8)*POWER(CAST(0.33333333333333337ASFLOAT8),b.valid_count-1)*COALESCE(b.sum_xz_after,0)END,CASEWHENb.valid_count=0THENst.s_w2WHENst.has_state=1THENPOWER(CAST(0.33333333333333337ASFLOAT8),2*b.valid_count)*st.s_w2+CAST(0.4444444444444444ASFLOAT8)*(1-POWER(CAST(0.33333333333333337ASFLOAT8),2*b.valid_count))/(1-CAST(0.11111111111111113ASFLOAT8))ELSEPOWER(CAST(0.33333333333333337ASFLOAT8),2*(b.valid_count-1))+CAST(0.4444444444444444ASFLOAT8)*(1-POWER(CAST(0.33333333333333337ASFLOAT8),2*(b.valid_count-1)))/(1-CAST(0.11111111111111113ASFLOAT8))END,CASEWHENb.valid_count=0THENst.s_x2wWHENst.has_state=1THENPOWER(CAST(0.33333333333333337ASFLOAT8),b.valid_count)*st.s_x2w+CAST(0.6666666666666666ASFLOAT8)*POWER(CAST(0.33333333333333337ASFLOAT8),b.valid_count)*COALESCE(b.sum_x2z_all,0)ELSEPOWER(CAST(0.33333333333333337ASFLOAT8),b.valid_count-1)*b.x_first*b.x_first+CAST(0.6666666666666666ASFLOAT8)*POWER(CAST(0.33333333333333337ASFLOAT8),b.valid_count-1)*COALESCE(b.sum_x2z_after,0)END,st.valid_seen+b.valid_count,CASEWHENb.valid_count>0THEN1ELSEst.has_stateENDFROMstJOIN\"s\".\"t__op_1__ewm_blocks\"bONb.block=st.blockANDb.\"g\"=st.\"g\")SELECT*FROMst",
+    []
+   ],
+   [
+    "exec",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMNIFNOTEXISTS\"x_ewm_mean_by_g\"DOUBLEPRECISION",
+    []
+   ],
+   [
+    "exec",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMNIFNOTEXISTS\"x_ewm_var_by_g\"DOUBLEPRECISION",
+    []
+   ],
+   [
+    "exec",
+    "UPDATE\"s\".\"t\"AStSET\"x_ewm_mean_by_g\"=s.\"x_ewm_mean_by_g\",\"x_ewm_var_by_g\"=s.\"x_ewm_var_by_g\"FROM(WITHvpAS(SELECT*,COUNT(x_clean)OVER(PARTITIONBY\"g\",blockORDERBYposROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvFROM\"s\".\"t__op_1__ewm_ordered\"),localAS(SELECTo.*,st.state,st.s_w2,st.s_x2w,st.valid_seenASvalid_in,st.has_state,b.x_first,SUM(o.x_clean*POWER(CAST(0.33333333333333337ASFLOAT8),-o.v))OVER(PARTITIONBYo.\"g\",o.blockORDERBYo.posROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASlocal_x_all,SUM(o.x_clean*o.x_clean*POWER(CAST(0.33333333333333337ASFLOAT8),-o.v))OVER(PARTITIONBYo.\"g\",o.blockORDERBYo.posROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASlocal_x2_all,SUM(CASEWHENo.v>1THENo.x_clean*POWER(CAST(0.33333333333333337ASFLOAT8),-(o.v-1))END)OVER(PARTITIONBYo.\"g\",o.blockORDERBYo.posROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASlocal_x_after,SUM(CASEWHENo.v>1THENo.x_clean*o.x_clean*POWER(CAST(0.33333333333333337ASFLOAT8),-(o.v-1))END)OVER(PARTITIONBYo.\"g\",o.blockORDERBYo.posROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASlocal_x2_afterFROMvpoJOIN\"s\".\"t__op_1__ewm_state\"stONo.block=st.blockANDo.\"g\"=st.\"g\"JOIN\"s\".\"t__op_1__ewm_blocks\"bONo.block=b.blockANDo.\"g\"=b.\"g\"),calcAS(SELECT*,CASEWHENx_cleanISNULLTHENNULLWHENhas_state=1THENPOWER(CAST(0.33333333333333337ASFLOAT8),v)*state+CAST(0.6666666666666666ASFLOAT8)*POWER(CAST(0.33333333333333337ASFLOAT8),v)*COALESCE(local_x_all,0)WHENv=1THENx_cleanWHENv>1THENPOWER(CAST(0.33333333333333337ASFLOAT8),v-1)*x_first+CAST(0.6666666666666666ASFLOAT8)*POWER(CAST(0.33333333333333337ASFLOAT8),v-1)*COALESCE(local_x_after,0)ENDASstate_t,CASEWHENhas_state=1THENPOWER(CAST(0.33333333333333337ASFLOAT8),2*v)*s_w2+CAST(0.4444444444444444ASFLOAT8)*(1-POWER(CAST(0.33333333333333337ASFLOAT8),2*v))/(1-CAST(0.11111111111111113ASFLOAT8))WHENv>=1THENPOWER(CAST(0.33333333333333337ASFLOAT8),2*(v-1))+CAST(0.4444444444444444ASFLOAT8)*(1-POWER(CAST(0.33333333333333337ASFLOAT8),2*(v-1)))/(1-CAST(0.11111111111111113ASFLOAT8))ENDASw2_t,CASEWHENx_cleanISNULLTHENNULLWHENhas_state=1THENPOWER(CAST(0.33333333333333337ASFLOAT8),v)*s_x2w+CAST(0.6666666666666666ASFLOAT8)*POWER(CAST(0.33333333333333337ASFLOAT8),v)*COALESCE(local_x2_all,0)WHENv=1THENx_clean*x_cleanWHENv>1THENPOWER(CAST(0.33333333333333337ASFLOAT8),v-1)*x_first*x_first+CAST(0.6666666666666666ASFLOAT8)*POWER(CAST(0.33333333333333337ASFLOAT8),v-1)*COALESCE(local_x2_after,0)ENDASx2w_t,CASEWHENhas_state=1THENvalid_in+vWHENv>0THENvELSE0ENDASvalid_tFROMlocal)SELECT_mf_idx,CASEWHENx_cleanISNOTNULLANDvalid_t>=0THENstate_tENDAS\"x_ewm_mean_by_g\",CASEWHENx_cleanISNOTNULLANDvalid_t>=GREATEST(0,2)AND(1-w2_t)>0THENGREATEST((x2w_t-state_t*state_t)/(1-w2_t),0)ENDAS\"x_ewm_var_by_g\"FROMcalc)ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT\"x_ewm_mean_by_g\",\"x_ewm_var_by_g\",\"x\",\"o\",\"g\"FROM\"s\".\"t\"ORDERBY\"_mf_idx\"",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS\"s\".\"t__op_1__ewm_state\"",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS\"s\".\"t__op_1__ewm_blocks\"",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS\"s\".\"t__op_1__ewm_ordered\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetchval",
+    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
+    [
+     "d1"
+    ]
+   ],
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_1__ewm_ordered\"ASWITH__srcAS(SELECT\"_mf_idx\"AS_mf_idx,\"g\",CASEWHEN(\"x\"ISNULLORCAST(\"x\"ASFLOAT8)=CAST('NaN'ASFLOAT8))THENNULLELSECAST(\"x\"ASFLOAT8)ENDASx_clean,CAST(ROW_NUMBER()OVER(PARTITIONBY\"g\"ORDERBY\"o\",\"_mf_idx\")ASBIGINT)ASrnFROM\"s\".\"t\"),__blkAS(SELECT_mf_idx,\"g\",x_clean,rn,CAST(FLOOR(CAST(rn-1ASFLOAT8)/314)ASBIGINT)ASblockFROM__src)SELECT_mf_idx,\"g\",x_clean,rn,block,(rn-1)-block*314ASposFROM__blk",
+    []
+   ],
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_1__ewm_blocks\"ASWITHvpAS(SELECT*,COUNT(x_clean)OVER(PARTITIONBY\"g\",blockORDERBYposROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvposFROM\"s\".\"t__op_1__ewm_ordered\"),aggAS(SELECT\"g\",block,MAX(pos)+1ASblen,COUNT(x_clean)ASvalid_count,MIN(CASEWHENx_cleanISNOTNULLTHENposEND)ASfirst_valid_pos,SUM(CASEWHENx_cleanISNOTNULLTHENPOWER(CAST(0.33333333333333337ASFLOAT8),-vpos)ELSE0END)ASsum_z1_all,SUM(x_clean*POWER(CAST(0.33333333333333337ASFLOAT8),-vpos))ASsum_xz_all,SUM(x_clean*x_clean*POWER(CAST(0.33333333333333337ASFLOAT8),-vpos))ASsum_x2z_all,SUM(CASEWHENvpos>1THENx_clean*POWER(CAST(0.33333333333333337ASFLOAT8),-(vpos-1))END)ASsum_xz_after,SUM(CASEWHENvpos>1THENx_clean*x_clean*POWER(CAST(0.33333333333333337ASFLOAT8),-(vpos-1))END)ASsum_x2z_afterFROMvpGROUPBY\"g\",block)SELECTa.*,o.x_cleanASx_firstFROMaggaLEFTJOIN\"s\".\"t__op_1__ewm_ordered\"oONo.block=a.blockANDo.\"g\"=a.\"g\"ANDo.pos=a.first_valid_pos",
+    []
+   ],
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_1__ewm_state\"ASWITHRECURSIVEst(\"g\",block,state,s_w2,s_x2w,valid_seen,has_state)AS(SELECT\"g\",CAST(0ASBIGINT),CAST(0ASFLOAT8),CAST(0ASFLOAT8),CAST(0ASFLOAT8),CAST(0ASBIGINT),CAST(0ASBIGINT)FROM(SELECTDISTINCT\"g\"FROM\"s\".\"t__op_1__ewm_blocks\")gUNIONALLSELECTb.\"g\",b.block+1,CASEWHENb.valid_count=0THENst.stateWHENst.has_state=1THENPOWER(CAST(0.33333333333333337ASFLOAT8),b.valid_count)*st.state+CAST(0.6666666666666666ASFLOAT8)*POWER(CAST(0.33333333333333337ASFLOAT8),b.valid_count)*COALESCE(b.sum_xz_all,0)ELSEPOWER(CAST(0.33333333333333337ASFLOAT8),b.valid_count-1)*b.x_first+CAST(0.6666666666666666ASFLOAT8)*POWER(CAST(0.33333333333333337ASFLOAT8),b.valid_count-1)*COALESCE(b.sum_xz_after,0)END,CASEWHENb.valid_count=0THENst.s_w2WHENst.has_state=1THENPOWER(CAST(0.33333333333333337ASFLOAT8),2*b.valid_count)*st.s_w2+CAST(0.4444444444444444ASFLOAT8)*(1-POWER(CAST(0.33333333333333337ASFLOAT8),2*b.valid_count))/(1-CAST(0.11111111111111113ASFLOAT8))ELSEPOWER(CAST(0.33333333333333337ASFLOAT8),2*(b.valid_count-1))+CAST(0.4444444444444444ASFLOAT8)*(1-POWER(CAST(0.33333333333333337ASFLOAT8),2*(b.valid_count-1)))/(1-CAST(0.11111111111111113ASFLOAT8))END,CASEWHENb.valid_count=0THENst.s_x2wWHENst.has_state=1THENPOWER(CAST(0.33333333333333337ASFLOAT8),b.valid_count)*st.s_x2w+CAST(0.6666666666666666ASFLOAT8)*POWER(CAST(0.33333333333333337ASFLOAT8),b.valid_count)*COALESCE(b.sum_x2z_all,0)ELSEPOWER(CAST(0.33333333333333337ASFLOAT8),b.valid_count-1)*b.x_first*b.x_first+CAST(0.6666666666666666ASFLOAT8)*POWER(CAST(0.33333333333333337ASFLOAT8),b.valid_count-1)*COALESCE(b.sum_x2z_after,0)END,st.valid_seen+b.valid_count,CASEWHENb.valid_count>0THEN1ELSEst.has_stateENDFROMstJOIN\"s\".\"t__op_1__ewm_blocks\"bONb.block=st.blockANDb.\"g\"=st.\"g\")SELECT*FROMst",
+    []
+   ],
+   [
+    "exec",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMNIFNOTEXISTS\"x_ewm_mean_by_g\"DOUBLEPRECISION",
+    []
+   ],
+   [
+    "exec",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMNIFNOTEXISTS\"x_ewm_var_by_g\"DOUBLEPRECISION",
+    []
+   ],
+   [
+    "exec",
+    "UPDATE\"s\".\"t\"AStSET\"x_ewm_mean_by_g\"=s.\"x_ewm_mean_by_g\",\"x_ewm_var_by_g\"=s.\"x_ewm_var_by_g\"FROM(WITHvpAS(SELECT*,COUNT(x_clean)OVER(PARTITIONBY\"g\",blockORDERBYposROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvFROM\"s\".\"t__op_1__ewm_ordered\"),localAS(SELECTo.*,st.state,st.s_w2,st.s_x2w,st.valid_seenASvalid_in,st.has_state,b.x_first,SUM(o.x_clean*POWER(CAST(0.33333333333333337ASFLOAT8),-o.v))OVER(PARTITIONBYo.\"g\",o.blockORDERBYo.posROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASlocal_x_all,SUM(o.x_clean*o.x_clean*POWER(CAST(0.33333333333333337ASFLOAT8),-o.v))OVER(PARTITIONBYo.\"g\",o.blockORDERBYo.posROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASlocal_x2_all,SUM(CASEWHENo.v>1THENo.x_clean*POWER(CAST(0.33333333333333337ASFLOAT8),-(o.v-1))END)OVER(PARTITIONBYo.\"g\",o.blockORDERBYo.posROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASlocal_x_after,SUM(CASEWHENo.v>1THENo.x_clean*o.x_clean*POWER(CAST(0.33333333333333337ASFLOAT8),-(o.v-1))END)OVER(PARTITIONBYo.\"g\",o.blockORDERBYo.posROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASlocal_x2_afterFROMvpoJOIN\"s\".\"t__op_1__ewm_state\"stONo.block=st.blockANDo.\"g\"=st.\"g\"JOIN\"s\".\"t__op_1__ewm_blocks\"bONo.block=b.blockANDo.\"g\"=b.\"g\"),calcAS(SELECT*,CASEWHENx_cleanISNULLTHENNULLWHENhas_state=1THENPOWER(CAST(0.33333333333333337ASFLOAT8),v)*state+CAST(0.6666666666666666ASFLOAT8)*POWER(CAST(0.33333333333333337ASFLOAT8),v)*COALESCE(local_x_all,0)WHENv=1THENx_cleanWHENv>1THENPOWER(CAST(0.33333333333333337ASFLOAT8),v-1)*x_first+CAST(0.6666666666666666ASFLOAT8)*POWER(CAST(0.33333333333333337ASFLOAT8),v-1)*COALESCE(local_x_after,0)ENDASstate_t,CASEWHENhas_state=1THENPOWER(CAST(0.33333333333333337ASFLOAT8),2*v)*s_w2+CAST(0.4444444444444444ASFLOAT8)*(1-POWER(CAST(0.33333333333333337ASFLOAT8),2*v))/(1-CAST(0.11111111111111113ASFLOAT8))WHENv>=1THENPOWER(CAST(0.33333333333333337ASFLOAT8),2*(v-1))+CAST(0.4444444444444444ASFLOAT8)*(1-POWER(CAST(0.33333333333333337ASFLOAT8),2*(v-1)))/(1-CAST(0.11111111111111113ASFLOAT8))ENDASw2_t,CASEWHENx_cleanISNULLTHENNULLWHENhas_state=1THENPOWER(CAST(0.33333333333333337ASFLOAT8),v)*s_x2w+CAST(0.6666666666666666ASFLOAT8)*POWER(CAST(0.33333333333333337ASFLOAT8),v)*COALESCE(local_x2_all,0)WHENv=1THENx_clean*x_cleanWHENv>1THENPOWER(CAST(0.33333333333333337ASFLOAT8),v-1)*x_first*x_first+CAST(0.6666666666666666ASFLOAT8)*POWER(CAST(0.33333333333333337ASFLOAT8),v-1)*COALESCE(local_x2_after,0)ENDASx2w_t,CASEWHENhas_state=1THENvalid_in+vWHENv>0THENvELSE0ENDASvalid_tFROMlocal)SELECT_mf_idx,CASEWHENx_cleanISNOTNULLANDvalid_t>=0THENstate_tENDAS\"x_ewm_mean_by_g\",CASEWHENx_cleanISNOTNULLANDvalid_t>=GREATEST(0,2)AND(1-w2_t)>0THENGREATEST((x2w_t-state_t*state_t)/(1-w2_t),0)ENDAS\"x_ewm_var_by_g\"FROMcalc)ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT\"x_ewm_mean_by_g\",\"x_ewm_var_by_g\",\"x\",\"o\",\"g\"FROM\"s\".\"t\"ORDERBY\"_mf_idx\"",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS\"s\".\"t__op_1__ewm_state\"",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS\"s\".\"t__op_1__ewm_blocks\"",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS\"s\".\"t__op_1__ewm_ordered\"",
+    []
+   ]
+  ]
+ },
+ "ewm_no_order": {
+  "clickhouse": [
+   [
+    "fetchval",
+    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
+    [
+     "d1"
+    ]
+   ],
+   [
+    "exec",
+    "CREATETABLE`s`.`t__op_1__ewm_ordered`ASWITH__srcAS(SELECT`_mf_idx`AS_mf_idx,`g`,CASEWHEN(`x`ISNULLORisNaN(CAST(`x`ASFloat64)))THENNULLELSECAST(`x`ASFloat64)ENDASx_clean,CAST(ROW_NUMBER()OVER(PARTITIONBY`g`ORDERBY`_mf_idx`)ASInt64)ASrnFROM`s`.`t`),__blkAS(SELECT_mf_idx,`g`,x_clean,rn,CAST(FLOOR(CAST(rn-1ASFloat64)/314)ASInt64)ASblockFROM__src)SELECT_mf_idx,`g`,x_clean,rn,block,(rn-1)-block*314ASposFROM__blk",
+    []
+   ],
+   [
+    "exec",
+    "CREATETABLE`s`.`t__op_1__ewm_blocks`ASSELECT`g`,block,MAX(pos)+1ASblen,COUNT(x_clean)ASvalid_count,SUM(CASEWHENx_cleanISNOTNULLTHENPOWER(CAST(0.33333333333333337ASFloat64),-pos)ELSE0END)ASsum_z1,SUM(x_clean*POWER(CAST(0.33333333333333337ASFloat64),-pos))ASsum_xz,SUM(x_clean*x_clean*POWER(CAST(0.33333333333333337ASFloat64),-pos))ASsum_x2z,SUM(CASEWHENx_cleanISNOTNULLTHENPOWER(CAST(0.33333333333333337ASFloat64),-2*pos)ELSE0END)ASsum_z2FROM`s`.`t__op_1__ewm_ordered`GROUPBY`g`,block",
+    []
+   ],
+   [
+    "exec",
+    "CREATETABLE`s`.`t__op_1__ewm_state`ENGINE=MergeTree()ORDERBYtuple()ASWITHRECURSIVEst(`g`,block,s_num,s_den,s_w2,s_x2w,valid_seen)AS(SELECT`g`,CAST(0ASInt64),CAST(0ASFloat64),CAST(0ASFloat64),CAST(0ASFloat64),CAST(0ASFloat64),CAST(0ASInt64)FROM(SELECTDISTINCT`g`FROM`s`.`t__op_1__ewm_blocks`)gUNIONALLSELECTb.`g`,b.block+1,POWER(CAST(0.33333333333333337ASFloat64),b.blen)*st.s_num+POWER(CAST(0.33333333333333337ASFloat64),b.blen-1)*COALESCE(b.sum_xz,0),POWER(CAST(0.33333333333333337ASFloat64),b.blen)*st.s_den+POWER(CAST(0.33333333333333337ASFloat64),b.blen-1)*COALESCE(b.sum_z1,0),POWER(CAST(0.33333333333333337ASFloat64),2*b.blen)*st.s_w2+POWER(CAST(0.33333333333333337ASFloat64),2*(b.blen-1))*COALESCE(b.sum_z2,0),POWER(CAST(0.33333333333333337ASFloat64),b.blen)*st.s_x2w+POWER(CAST(0.33333333333333337ASFloat64),b.blen-1)*COALESCE(b.sum_x2z,0),st.valid_seen+b.valid_countFROMstJOIN`s`.`t__op_1__ewm_blocks`bONb.block=st.blockANDb.`g`=st.`g`)SELECT*FROMst",
+    []
+   ],
+   [
+    "fetchval",
+    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
+    [
+     "d1"
+    ]
+   ],
+   [
+    "exec",
+    "CREATETABLE`s`.`t__op_1__feat`ENGINE=MergeTree()ORDERBYtuple()ASWITHcalcAS(SELECTo._mf_idx,o.x_clean,o.pos,st.valid_seen+COUNT(o.x_clean)OVER(PARTITIONBYo.`g`,o.blockORDERBYo.posROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalid_t,POWER(CAST(0.33333333333333337ASFloat64),o.pos+1)*st.s_num+POWER(CAST(0.33333333333333337ASFloat64),o.pos)*SUM(o.x_clean*POWER(CAST(0.33333333333333337ASFloat64),-o.pos))OVER(PARTITIONBYo.`g`,o.blockORDERBYo.posROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASs_num_t,POWER(CAST(0.33333333333333337ASFloat64),o.pos+1)*st.s_den+POWER(CAST(0.33333333333333337ASFloat64),o.pos)*SUM(CASEWHENo.x_cleanISNOTNULLTHENPOWER(CAST(0.33333333333333337ASFloat64),-o.pos)ELSE0END)OVER(PARTITIONBYo.`g`,o.blockORDERBYo.posROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASs_den_t,POWER(CAST(0.33333333333333337ASFloat64),2*(o.pos+1))*st.s_w2+POWER(CAST(0.33333333333333337ASFloat64),2*o.pos)*SUM(CASEWHENo.x_cleanISNOTNULLTHENPOWER(CAST(0.33333333333333337ASFloat64),-2*o.pos)ELSE0END)OVER(PARTITIONBYo.`g`,o.blockORDERBYo.posROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASs_w2_t,POWER(CAST(0.33333333333333337ASFloat64),o.pos+1)*st.s_x2w+POWER(CAST(0.33333333333333337ASFloat64),o.pos)*SUM(o.x_clean*o.x_clean*POWER(CAST(0.33333333333333337ASFloat64),-o.pos))OVER(PARTITIONBYo.`g`,o.blockORDERBYo.posROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASs_x2w_tFROM`s`.`t__op_1__ewm_ordered`oJOIN`s`.`t__op_1__ewm_state`stONo.block=st.blockANDo.`g`=st.`g`)SELECT_mf_idx,CASEWHENx_cleanISNOTNULLANDvalid_t>=0ANDs_den_t>0THENs_num_t/s_den_tENDAS`x_ewm_mean_by_g`FROMcalc",
+    []
+   ],
+   [
+    "exec",
+    "CREATETABLE`s`.`t__op_1__wide`ENGINE=MergeTree()ORDERBYtuple()ASSELECTo.*,s.`x_ewm_mean_by_g`AS`x_ewm_mean_by_g`FROM`s`.`t`ASoLEFTJOIN`s`.`t__op_1__feat`ASsONo.`_mf_idx`=s.`_mf_idx`",
+    []
+   ],
+   [
+    "exec",
+    "CREATEORREPLACETABLE`s`.`t`ASSELECT*FROM`s`.`t__op_1__wide`",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLE`s`.`t__op_1__wide`",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS`s`.`t__op_1__feat`",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS`s`.`t__op_1__wide`",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT`x_ewm_mean_by_g`,`x`,`g`FROM`s`.`t`ORDERBY`_mf_idx`",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS`s`.`t__op_1__ewm_state`",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS`s`.`t__op_1__ewm_blocks`",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS`s`.`t__op_1__ewm_ordered`",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "fetchval",
+    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
+    [
+     "d1"
+    ]
+   ],
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_1__ewm_ordered\"ASWITH__srcAS(SELECT\"_mf_idx\"AS_mf_idx,\"g\",CASEWHEN(\"x\"ISNULLORisnan(CAST(\"x\"ASFLOAT8)))THENNULLELSECAST(\"x\"ASFLOAT8)ENDASx_clean,CAST(ROW_NUMBER()OVER(PARTITIONBY\"g\"ORDERBY\"_mf_idx\")ASBIGINT)ASrnFROM\"s\".\"t\"),__blkAS(SELECT_mf_idx,\"g\",x_clean,rn,CAST(FLOOR(CAST(rn-1ASFLOAT8)/314)ASBIGINT)ASblockFROM__src)SELECT_mf_idx,\"g\",x_clean,rn,block,(rn-1)-block*314ASposFROM__blk",
+    []
+   ],
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_1__ewm_blocks\"ASSELECT\"g\",block,MAX(pos)+1ASblen,COUNT(x_clean)ASvalid_count,SUM(CASEWHENx_cleanISNOTNULLTHENPOWER(CAST(0.33333333333333337ASFLOAT8),-pos)ELSE0END)ASsum_z1,SUM(x_clean*POWER(CAST(0.33333333333333337ASFLOAT8),-pos))ASsum_xz,SUM(x_clean*x_clean*POWER(CAST(0.33333333333333337ASFLOAT8),-pos))ASsum_x2z,SUM(CASEWHENx_cleanISNOTNULLTHENPOWER(CAST(0.33333333333333337ASFLOAT8),-2*pos)ELSE0END)ASsum_z2FROM\"s\".\"t__op_1__ewm_ordered\"GROUPBY\"g\",block",
+    []
+   ],
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_1__ewm_state\"ASWITHRECURSIVEst(\"g\",block,s_num,s_den,s_w2,s_x2w,valid_seen)AS(SELECT\"g\",CAST(0ASBIGINT),CAST(0ASFLOAT8),CAST(0ASFLOAT8),CAST(0ASFLOAT8),CAST(0ASFLOAT8),CAST(0ASBIGINT)FROM(SELECTDISTINCT\"g\"FROM\"s\".\"t__op_1__ewm_blocks\")gUNIONALLSELECTb.\"g\",b.block+1,POWER(CAST(0.33333333333333337ASFLOAT8),b.blen)*st.s_num+POWER(CAST(0.33333333333333337ASFLOAT8),b.blen-1)*COALESCE(b.sum_xz,0),POWER(CAST(0.33333333333333337ASFLOAT8),b.blen)*st.s_den+POWER(CAST(0.33333333333333337ASFLOAT8),b.blen-1)*COALESCE(b.sum_z1,0),POWER(CAST(0.33333333333333337ASFLOAT8),2*b.blen)*st.s_w2+POWER(CAST(0.33333333333333337ASFLOAT8),2*(b.blen-1))*COALESCE(b.sum_z2,0),POWER(CAST(0.33333333333333337ASFLOAT8),b.blen)*st.s_x2w+POWER(CAST(0.33333333333333337ASFLOAT8),b.blen-1)*COALESCE(b.sum_x2z,0),st.valid_seen+b.valid_countFROMstJOIN\"s\".\"t__op_1__ewm_blocks\"bONb.block=st.blockANDb.\"g\"=st.\"g\")SELECT*FROMst",
+    []
+   ],
+   [
+    "exec",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMNIFNOTEXISTS\"x_ewm_mean_by_g\"DOUBLEPRECISION",
+    []
+   ],
+   [
+    "exec",
+    "UPDATE\"s\".\"t\"AStSET\"x_ewm_mean_by_g\"=s.\"x_ewm_mean_by_g\"FROM(WITHcalcAS(SELECTo._mf_idx,o.x_clean,o.pos,st.valid_seen+COUNT(o.x_clean)OVER(PARTITIONBYo.\"g\",o.blockORDERBYo.posROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalid_t,POWER(CAST(0.33333333333333337ASFLOAT8),o.pos+1)*st.s_num+POWER(CAST(0.33333333333333337ASFLOAT8),o.pos)*SUM(o.x_clean*POWER(CAST(0.33333333333333337ASFLOAT8),-o.pos))OVER(PARTITIONBYo.\"g\",o.blockORDERBYo.posROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASs_num_t,POWER(CAST(0.33333333333333337ASFLOAT8),o.pos+1)*st.s_den+POWER(CAST(0.33333333333333337ASFLOAT8),o.pos)*SUM(CASEWHENo.x_cleanISNOTNULLTHENPOWER(CAST(0.33333333333333337ASFLOAT8),-o.pos)ELSE0END)OVER(PARTITIONBYo.\"g\",o.blockORDERBYo.posROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASs_den_t,POWER(CAST(0.33333333333333337ASFLOAT8),2*(o.pos+1))*st.s_w2+POWER(CAST(0.33333333333333337ASFLOAT8),2*o.pos)*SUM(CASEWHENo.x_cleanISNOTNULLTHENPOWER(CAST(0.33333333333333337ASFLOAT8),-2*o.pos)ELSE0END)OVER(PARTITIONBYo.\"g\",o.blockORDERBYo.posROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASs_w2_t,POWER(CAST(0.33333333333333337ASFLOAT8),o.pos+1)*st.s_x2w+POWER(CAST(0.33333333333333337ASFLOAT8),o.pos)*SUM(o.x_clean*o.x_clean*POWER(CAST(0.33333333333333337ASFLOAT8),-o.pos))OVER(PARTITIONBYo.\"g\",o.blockORDERBYo.posROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASs_x2w_tFROM\"s\".\"t__op_1__ewm_ordered\"oJOIN\"s\".\"t__op_1__ewm_state\"stONo.block=st.blockANDo.\"g\"=st.\"g\")SELECT_mf_idx,CASEWHENx_cleanISNOTNULLANDvalid_t>=0ANDs_den_t>0THENs_num_t/s_den_tENDAS\"x_ewm_mean_by_g\"FROMcalc)ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT\"x_ewm_mean_by_g\",\"x\",\"g\"FROM\"s\".\"t\"ORDERBY\"_mf_idx\"",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS\"s\".\"t__op_1__ewm_state\"",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS\"s\".\"t__op_1__ewm_blocks\"",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS\"s\".\"t__op_1__ewm_ordered\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "fetchval",
+    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
+    [
+     "d1"
+    ]
+   ],
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_1__ewm_ordered\"ASWITH__srcAS(SELECT\"_mf_idx\"AS_mf_idx,\"g\",CASEWHEN(\"x\"ISNULLORCAST(\"x\"ASFLOAT8)=CAST('NaN'ASFLOAT8))THENNULLELSECAST(\"x\"ASFLOAT8)ENDASx_clean,CAST(ROW_NUMBER()OVER(PARTITIONBY\"g\"ORDERBY\"_mf_idx\")ASBIGINT)ASrnFROM\"s\".\"t\"),__blkAS(SELECT_mf_idx,\"g\",x_clean,rn,CAST(FLOOR(CAST(rn-1ASFLOAT8)/314)ASBIGINT)ASblockFROM__src)SELECT_mf_idx,\"g\",x_clean,rn,block,(rn-1)-block*314ASposFROM__blk",
+    []
+   ],
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_1__ewm_blocks\"ASSELECT\"g\",block,MAX(pos)+1ASblen,COUNT(x_clean)ASvalid_count,SUM(CASEWHENx_cleanISNOTNULLTHENPOWER(CAST(0.33333333333333337ASFLOAT8),-pos)ELSE0END)ASsum_z1,SUM(x_clean*POWER(CAST(0.33333333333333337ASFLOAT8),-pos))ASsum_xz,SUM(x_clean*x_clean*POWER(CAST(0.33333333333333337ASFLOAT8),-pos))ASsum_x2z,SUM(CASEWHENx_cleanISNOTNULLTHENPOWER(CAST(0.33333333333333337ASFLOAT8),-2*pos)ELSE0END)ASsum_z2FROM\"s\".\"t__op_1__ewm_ordered\"GROUPBY\"g\",block",
+    []
+   ],
+   [
+    "exec",
+    "CREATETABLE\"s\".\"t__op_1__ewm_state\"ASWITHRECURSIVEst(\"g\",block,s_num,s_den,s_w2,s_x2w,valid_seen)AS(SELECT\"g\",CAST(0ASBIGINT),CAST(0ASFLOAT8),CAST(0ASFLOAT8),CAST(0ASFLOAT8),CAST(0ASFLOAT8),CAST(0ASBIGINT)FROM(SELECTDISTINCT\"g\"FROM\"s\".\"t__op_1__ewm_blocks\")gUNIONALLSELECTb.\"g\",b.block+1,POWER(CAST(0.33333333333333337ASFLOAT8),b.blen)*st.s_num+POWER(CAST(0.33333333333333337ASFLOAT8),b.blen-1)*COALESCE(b.sum_xz,0),POWER(CAST(0.33333333333333337ASFLOAT8),b.blen)*st.s_den+POWER(CAST(0.33333333333333337ASFLOAT8),b.blen-1)*COALESCE(b.sum_z1,0),POWER(CAST(0.33333333333333337ASFLOAT8),2*b.blen)*st.s_w2+POWER(CAST(0.33333333333333337ASFLOAT8),2*(b.blen-1))*COALESCE(b.sum_z2,0),POWER(CAST(0.33333333333333337ASFLOAT8),b.blen)*st.s_x2w+POWER(CAST(0.33333333333333337ASFLOAT8),b.blen-1)*COALESCE(b.sum_x2z,0),st.valid_seen+b.valid_countFROMstJOIN\"s\".\"t__op_1__ewm_blocks\"bONb.block=st.blockANDb.\"g\"=st.\"g\")SELECT*FROMst",
+    []
+   ],
+   [
+    "exec",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMNIFNOTEXISTS\"x_ewm_mean_by_g\"DOUBLEPRECISION",
+    []
+   ],
+   [
+    "exec",
+    "UPDATE\"s\".\"t\"AStSET\"x_ewm_mean_by_g\"=s.\"x_ewm_mean_by_g\"FROM(WITHcalcAS(SELECTo._mf_idx,o.x_clean,o.pos,st.valid_seen+COUNT(o.x_clean)OVER(PARTITIONBYo.\"g\",o.blockORDERBYo.posROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASvalid_t,POWER(CAST(0.33333333333333337ASFLOAT8),o.pos+1)*st.s_num+POWER(CAST(0.33333333333333337ASFLOAT8),o.pos)*SUM(o.x_clean*POWER(CAST(0.33333333333333337ASFLOAT8),-o.pos))OVER(PARTITIONBYo.\"g\",o.blockORDERBYo.posROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASs_num_t,POWER(CAST(0.33333333333333337ASFLOAT8),o.pos+1)*st.s_den+POWER(CAST(0.33333333333333337ASFLOAT8),o.pos)*SUM(CASEWHENo.x_cleanISNOTNULLTHENPOWER(CAST(0.33333333333333337ASFLOAT8),-o.pos)ELSE0END)OVER(PARTITIONBYo.\"g\",o.blockORDERBYo.posROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASs_den_t,POWER(CAST(0.33333333333333337ASFLOAT8),2*(o.pos+1))*st.s_w2+POWER(CAST(0.33333333333333337ASFLOAT8),2*o.pos)*SUM(CASEWHENo.x_cleanISNOTNULLTHENPOWER(CAST(0.33333333333333337ASFLOAT8),-2*o.pos)ELSE0END)OVER(PARTITIONBYo.\"g\",o.blockORDERBYo.posROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASs_w2_t,POWER(CAST(0.33333333333333337ASFLOAT8),o.pos+1)*st.s_x2w+POWER(CAST(0.33333333333333337ASFLOAT8),o.pos)*SUM(o.x_clean*o.x_clean*POWER(CAST(0.33333333333333337ASFLOAT8),-o.pos))OVER(PARTITIONBYo.\"g\",o.blockORDERBYo.posROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)ASs_x2w_tFROM\"s\".\"t__op_1__ewm_ordered\"oJOIN\"s\".\"t__op_1__ewm_state\"stONo.block=st.blockANDo.\"g\"=st.\"g\")SELECT_mf_idx,CASEWHENx_cleanISNOTNULLANDvalid_t>=0ANDs_den_t>0THENs_num_t/s_den_tENDAS\"x_ewm_mean_by_g\"FROMcalc)ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT\"x_ewm_mean_by_g\",\"x\",\"g\"FROM\"s\".\"t\"ORDERBY\"_mf_idx\"",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS\"s\".\"t__op_1__ewm_state\"",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS\"s\".\"t__op_1__ewm_blocks\"",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS\"s\".\"t__op_1__ewm_ordered\"",
+    []
+   ]
+  ]
+ },
+ "expanding_nunique": {
+  "clickhouse": [
+   [
+    "fetchval",
+    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
+    [
+     "d1"
+    ]
+   ],
+   [
+    "exec",
+    "CREATETABLE`s`.`t__op_1__feat`ENGINE=MergeTree()ORDERBYtuple()ASWITH__baseAS(SELECT`_mf_idx`,`g`,`x`ASv,ROW_NUMBER()OVER(PARTITIONBY`g`ORDERBY`o`,`_mf_idx`)AS__rnFROM`s`.`t`)SELECTb.`_mf_idx`,(SELECTcountDistinct(r.v)FROM__baserWHEREr.__rn<=b.__rnANDr.`g`=b.`g`)AS`x_expanding_nunique_by_g`FROM__baseb",
+    []
+   ],
+   [
+    "exec",
+    "CREATETABLE`s`.`t__op_1__wide`ENGINE=MergeTree()ORDERBYtuple()ASSELECTo.*,s.`x_expanding_nunique_by_g`AS`x_expanding_nunique_by_g`FROM`s`.`t`ASoLEFTJOIN`s`.`t__op_1__feat`ASsONo.`_mf_idx`=s.`_mf_idx`",
+    []
+   ],
+   [
+    "exec",
+    "CREATEORREPLACETABLE`s`.`t`ASSELECT*FROM`s`.`t__op_1__wide`",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLE`s`.`t__op_1__wide`",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS`s`.`t__op_1__feat`",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS`s`.`t__op_1__wide`",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT`x`,`x_expanding_nunique_by_g`,`o`,`g`FROM`s`.`t`ORDERBY`_mf_idx`",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "exec",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMNIFNOTEXISTS\"x_expanding_nunique_by_g\"BIGINT",
+    []
+   ],
+   [
+    "exec",
+    "UPDATE\"s\".\"t\"AStSET\"x_expanding_nunique_by_g\"=s.\"x_expanding_nunique_by_g\"FROM(SELECT\"_mf_idx\",COUNT(DISTINCT\"x\")OVER(PARTITIONBY\"g\"ORDERBY\"o\",\"_mf_idx\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"x_expanding_nunique_by_g\"FROM\"s\".\"t\")ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT\"x\",\"x_expanding_nunique_by_g\",\"o\",\"g\"FROM\"s\".\"t\"ORDERBY\"_mf_idx\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "exec",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMNIFNOTEXISTS\"x_expanding_nunique_by_g\"BIGINT",
+    []
+   ],
+   [
+    "exec",
+    "UPDATE\"s\".\"t\"AStSET\"x_expanding_nunique_by_g\"=s.\"x_expanding_nunique_by_g\"FROM(WITH__baseAS(SELECT\"_mf_idx\",\"g\",\"x\"ASv,ROW_NUMBER()OVER(PARTITIONBY\"g\"ORDERBY\"o\",\"_mf_idx\")AS__rnFROM\"s\".\"t\")SELECTb.\"_mf_idx\",(SELECTCOUNT(DISTINCTr.v)FROM__baserWHEREr.__rn<=b.__rnANDr.\"g\"=b.\"g\")AS\"x_expanding_nunique_by_g\"FROM__baseb)ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT\"x\",\"x_expanding_nunique_by_g\",\"o\",\"g\"FROM\"s\".\"t\"ORDERBY\"_mf_idx\"",
+    []
+   ]
+  ]
+ },
+ "expanding_quantile": {
+  "clickhouse": [
+   [
+    "fetchval",
+    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
+    [
+     "d1"
+    ]
+   ],
+   [
+    "exec",
+    "CREATETABLE`s`.`t__op_1__feat`ENGINE=MergeTree()ORDERBYtuple()ASWITH__baseAS(SELECT`_mf_idx`,`g`,`x`ASv,ROW_NUMBER()OVER(PARTITIONBY`g`ORDERBY`o`,`_mf_idx`)AS__rnFROM`s`.`t`)SELECTb.`_mf_idx`,(SELECTquantile(0.5)(r.v)FROM__baserWHEREr.__rn<=b.__rnANDr.`g`=b.`g`ANDr.vISNOTNULL)AS`x_expanding_q0.5_by_g`FROM__baseb",
+    []
+   ],
+   [
+    "exec",
+    "CREATETABLE`s`.`t__op_1__wide`ENGINE=MergeTree()ORDERBYtuple()ASSELECTo.*,s.`x_expanding_q0.5_by_g`AS`x_expanding_q0.5_by_g`FROM`s`.`t`ASoLEFTJOIN`s`.`t__op_1__feat`ASsONo.`_mf_idx`=s.`_mf_idx`",
+    []
+   ],
+   [
+    "exec",
+    "CREATEORREPLACETABLE`s`.`t`ASSELECT*FROM`s`.`t__op_1__wide`",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLE`s`.`t__op_1__wide`",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS`s`.`t__op_1__feat`",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS`s`.`t__op_1__wide`",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT`x`,`x_expanding_q0.5_by_g`,`o`,`g`FROM`s`.`t`ORDERBY`_mf_idx`",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "exec",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMNIFNOTEXISTS\"x_expanding_q0.5_by_g\"DOUBLEPRECISION",
+    []
+   ],
+   [
+    "exec",
+    "UPDATE\"s\".\"t\"AStSET\"x_expanding_q0.5_by_g\"=s.\"x_expanding_q0.5_by_g\"FROM(SELECT\"_mf_idx\",QUANTILE_CONT(\"x\",0.5)OVER(PARTITIONBY\"g\"ORDERBY\"o\",\"_mf_idx\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"x_expanding_q0.5_by_g\"FROM\"s\".\"t\")ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT\"x\",\"x_expanding_q0.5_by_g\",\"o\",\"g\"FROM\"s\".\"t\"ORDERBY\"_mf_idx\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "exec",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMNIFNOTEXISTS\"x_expanding_q0.5_by_g\"DOUBLEPRECISION",
+    []
+   ],
+   [
+    "exec",
+    "UPDATE\"s\".\"t\"AStSET\"x_expanding_q0.5_by_g\"=s.\"x_expanding_q0.5_by_g\"FROM(WITH__baseAS(SELECT\"_mf_idx\",\"g\",\"x\"ASv,ROW_NUMBER()OVER(PARTITIONBY\"g\"ORDERBY\"o\",\"_mf_idx\")AS__rnFROM\"s\".\"t\")SELECTb.\"_mf_idx\",(SELECTPERCENTILE_CONT(0.5)WITHINGROUP(ORDERBYr.v)FROM__baserWHEREr.__rn<=b.__rnANDr.\"g\"=b.\"g\"ANDr.vISNOTNULL)AS\"x_expanding_q0.5_by_g\"FROM__baseb)ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT\"x\",\"x_expanding_q0.5_by_g\",\"o\",\"g\"FROM\"s\".\"t\"ORDERBY\"_mf_idx\"",
+    []
+   ]
+  ]
+ },
+ "expanding_sum": {
+  "clickhouse": [
+   [
+    "fetchval",
+    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
+    [
+     "d1"
+    ]
+   ],
+   [
+    "exec",
+    "CREATETABLE`s`.`t__op_1__feat`ENGINE=MergeTree()ORDERBYtuple()ASSELECT`_mf_idx`,sum(`x`)OVER(PARTITIONBY`g`ORDERBY`o`,`_mf_idx`ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS`x_expanding_sum_by_g`FROM`s`.`t`",
+    []
+   ],
+   [
+    "exec",
+    "CREATETABLE`s`.`t__op_1__wide`ENGINE=MergeTree()ORDERBYtuple()ASSELECTo.*,s.`x_expanding_sum_by_g`AS`x_expanding_sum_by_g`FROM`s`.`t`ASoLEFTJOIN`s`.`t__op_1__feat`ASsONo.`_mf_idx`=s.`_mf_idx`",
+    []
+   ],
+   [
+    "exec",
+    "CREATEORREPLACETABLE`s`.`t`ASSELECT*FROM`s`.`t__op_1__wide`",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLE`s`.`t__op_1__wide`",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS`s`.`t__op_1__feat`",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS`s`.`t__op_1__wide`",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT`x`,`x_expanding_sum_by_g`,`o`,`g`FROM`s`.`t`ORDERBY`_mf_idx`",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "exec",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMNIFNOTEXISTS\"x_expanding_sum_by_g\"DOUBLEPRECISION",
+    []
+   ],
+   [
+    "exec",
+    "UPDATE\"s\".\"t\"AStSET\"x_expanding_sum_by_g\"=s.\"x_expanding_sum_by_g\"FROM(SELECT\"_mf_idx\",SUM(\"x\")OVER(PARTITIONBY\"g\"ORDERBY\"o\",\"_mf_idx\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"x_expanding_sum_by_g\"FROM\"s\".\"t\")ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT\"x\",\"x_expanding_sum_by_g\",\"o\",\"g\"FROM\"s\".\"t\"ORDERBY\"_mf_idx\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "exec",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMNIFNOTEXISTS\"x_expanding_sum_by_g\"DOUBLEPRECISION",
+    []
+   ],
+   [
+    "exec",
+    "UPDATE\"s\".\"t\"AStSET\"x_expanding_sum_by_g\"=s.\"x_expanding_sum_by_g\"FROM(SELECT\"_mf_idx\",SUM(\"x\")OVER(PARTITIONBY\"g\"ORDERBY\"o\",\"_mf_idx\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"x_expanding_sum_by_g\"FROM\"s\".\"t\")ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT\"x\",\"x_expanding_sum_by_g\",\"o\",\"g\"FROM\"s\".\"t\"ORDERBY\"_mf_idx\"",
     []
    ]
   ]
@@ -69,50 +833,81 @@
    ],
    [
     "exec",
-    "CREATETABLE`s`.`t__op_1`ENGINE=MergeTree()ORDERBYtuple()ASSELECT`g`,`o`,`x`,sum(`x`)OVER(PARTITIONBY`g`ORDERBY`o`ROWSBETWEEN2PRECEDINGANDCURRENTROW)AS`x_rolling_sum_w3_by_g`,avg(`x`)OVER(PARTITIONBY`g`ORDERBY`o`ROWSBETWEEN2PRECEDINGANDCURRENTROW)AS`x_rolling_mean_w3_by_g`FROM`s`.`t`",
+    "CREATETABLE`s`.`t__op_1__feat`ENGINE=MergeTree()ORDERBYtuple()ASSELECT`_mf_idx`,CASEWHENsum(if(isNull(`x`),0,1))OVER(PARTITIONBY`g`ORDERBY`o`,`_mf_idx`ROWSBETWEEN2PRECEDINGANDCURRENTROW)>=3THENsum(`x`)OVER(PARTITIONBY`g`ORDERBY`o`,`_mf_idx`ROWSBETWEEN2PRECEDINGANDCURRENTROW)ELSENULLENDAS`x_rolling_sum_w3_by_g`,CASEWHENsum(if(isNull(`x`),0,1))OVER(PARTITIONBY`g`ORDERBY`o`,`_mf_idx`ROWSBETWEEN2PRECEDINGANDCURRENTROW)>=3THENavg(`x`)OVER(PARTITIONBY`g`ORDERBY`o`,`_mf_idx`ROWSBETWEEN2PRECEDINGANDCURRENTROW)ELSENULLENDAS`x_rolling_mean_w3_by_g`FROM`s`.`t`",
+    []
+   ],
+   [
+    "exec",
+    "CREATETABLE`s`.`t__op_1__wide`ENGINE=MergeTree()ORDERBYtuple()ASSELECTo.*,s.`x_rolling_sum_w3_by_g`AS`x_rolling_sum_w3_by_g`,s.`x_rolling_mean_w3_by_g`AS`x_rolling_mean_w3_by_g`FROM`s`.`t`ASoLEFTJOIN`s`.`t__op_1__feat`ASsONo.`_mf_idx`=s.`_mf_idx`",
+    []
+   ],
+   [
+    "exec",
+    "CREATEORREPLACETABLE`s`.`t`ASSELECT*FROM`s`.`t__op_1__wide`",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLE`s`.`t__op_1__wide`",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS`s`.`t__op_1__feat`",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS`s`.`t__op_1__wide`",
     []
    ],
    [
     "fetch",
-    "SELECT`x`,`x_rolling_sum_w3_by_g`,`x_rolling_mean_w3_by_g`,`o`,`g`FROM`s`.`t__op_1`",
+    "SELECT`x`,`x_rolling_sum_w3_by_g`,`x_rolling_mean_w3_by_g`,`o`,`g`FROM`s`.`t`ORDERBY`_mf_idx`",
     []
    ]
   ],
   "duckdb": [
    [
-    "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
-    [
-     "d1"
-    ]
+    "exec",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMNIFNOTEXISTS\"x_rolling_sum_w3_by_g\"DOUBLEPRECISION",
+    []
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_1\"ASSELECT*,SUM(\"x\")OVER(PARTITIONBY\"g\"ORDERBY\"o\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)AS\"x_rolling_sum_w3_by_g\",AVG(\"x\")OVER(PARTITIONBY\"g\"ORDERBY\"o\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)AS\"x_rolling_mean_w3_by_g\"FROM\"s\".\"t\"",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMNIFNOTEXISTS\"x_rolling_mean_w3_by_g\"DOUBLEPRECISION",
+    []
+   ],
+   [
+    "exec",
+    "UPDATE\"s\".\"t\"AStSET\"x_rolling_sum_w3_by_g\"=s.\"x_rolling_sum_w3_by_g\",\"x_rolling_mean_w3_by_g\"=s.\"x_rolling_mean_w3_by_g\"FROM(SELECT\"_mf_idx\",CASEWHENCOUNT(\"x\")OVER(PARTITIONBY\"g\"ORDERBY\"o\",\"_mf_idx\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)>=3THENSUM(\"x\")OVER(PARTITIONBY\"g\"ORDERBY\"o\",\"_mf_idx\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)ELSENULLENDAS\"x_rolling_sum_w3_by_g\",CASEWHENCOUNT(\"x\")OVER(PARTITIONBY\"g\"ORDERBY\"o\",\"_mf_idx\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)>=3THENAVG(\"x\")OVER(PARTITIONBY\"g\"ORDERBY\"o\",\"_mf_idx\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)ELSENULLENDAS\"x_rolling_mean_w3_by_g\"FROM\"s\".\"t\")ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
     []
    ],
    [
     "fetch",
-    "SELECT\"x\",\"x_rolling_sum_w3_by_g\",\"x_rolling_mean_w3_by_g\",\"o\",\"g\"FROM\"s\".\"t__op_1\"",
+    "SELECT\"x\",\"x_rolling_sum_w3_by_g\",\"x_rolling_mean_w3_by_g\",\"o\",\"g\"FROM\"s\".\"t\"ORDERBY\"_mf_idx\"",
     []
    ]
   ],
   "postgres": [
    [
-    "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
-    [
-     "d1"
-    ]
+    "exec",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMNIFNOTEXISTS\"x_rolling_sum_w3_by_g\"DOUBLEPRECISION",
+    []
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_1\"ASSELECT*,SUM(\"x\")OVER(PARTITIONBY\"g\"ORDERBY\"o\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)AS\"x_rolling_sum_w3_by_g\",AVG(\"x\")OVER(PARTITIONBY\"g\"ORDERBY\"o\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)AS\"x_rolling_mean_w3_by_g\"FROM\"s\".\"t\"",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMNIFNOTEXISTS\"x_rolling_mean_w3_by_g\"DOUBLEPRECISION",
+    []
+   ],
+   [
+    "exec",
+    "UPDATE\"s\".\"t\"AStSET\"x_rolling_sum_w3_by_g\"=s.\"x_rolling_sum_w3_by_g\",\"x_rolling_mean_w3_by_g\"=s.\"x_rolling_mean_w3_by_g\"FROM(SELECT\"_mf_idx\",CASEWHENCOUNT(\"x\")OVER(PARTITIONBY\"g\"ORDERBY\"o\",\"_mf_idx\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)>=3THENSUM(\"x\")OVER(PARTITIONBY\"g\"ORDERBY\"o\",\"_mf_idx\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)ELSENULLENDAS\"x_rolling_sum_w3_by_g\",CASEWHENCOUNT(\"x\")OVER(PARTITIONBY\"g\"ORDERBY\"o\",\"_mf_idx\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)>=3THENAVG(\"x\")OVER(PARTITIONBY\"g\"ORDERBY\"o\",\"_mf_idx\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)ELSENULLENDAS\"x_rolling_mean_w3_by_g\"FROM\"s\".\"t\")ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
     []
    ],
    [
     "fetch",
-    "SELECT\"x\",\"x_rolling_sum_w3_by_g\",\"x_rolling_mean_w3_by_g\",\"o\",\"g\"FROM\"s\".\"t__op_1\"",
+    "SELECT\"x\",\"x_rolling_sum_w3_by_g\",\"x_rolling_mean_w3_by_g\",\"o\",\"g\"FROM\"s\".\"t\"ORDERBY\"_mf_idx\"",
     []
    ]
   ]
@@ -128,50 +923,71 @@
    ],
    [
     "exec",
-    "CREATETABLE`s`.`t__op_1`ENGINE=MergeTree()ORDERBYtuple()ASWITH__baseAS(SELECT*,ROW_NUMBER()OVER(PARTITIONBY`g`ORDERBY`o`)AS`__rn`FROM`s`.`t`)SELECTb.`g`,b.`o`,b.`x`,(SELECTcountDistinct(r.`x`)FROM__baserWHEREr.`__rn`BETWEENb.`__rn`-2ANDb.`__rn`)AS`x_rolling_nunique_w3_by_g`FROM__baseb",
+    "CREATETABLE`s`.`t__op_1__feat`ENGINE=MergeTree()ORDERBYtuple()ASWITH__baseAS(SELECT`_mf_idx`,`g`,`x`ASv,ROW_NUMBER()OVER(PARTITIONBY`g`ORDERBY`o`,`_mf_idx`)AS__rnFROM`s`.`t`)SELECTb.`_mf_idx`,CASEWHEN(SELECTCOUNT(r.v)FROM__baserWHEREr.__rnBETWEENb.__rn-2ANDb.__rnANDr.`g`=b.`g`)>=3THEN(SELECTcountDistinct(r.v)FROM__baserWHEREr.__rnBETWEENb.__rn-2ANDb.__rnANDr.`g`=b.`g`)ELSENULLENDAS`x_rolling_nunique_w3_by_g`FROM__baseb",
+    []
+   ],
+   [
+    "exec",
+    "CREATETABLE`s`.`t__op_1__wide`ENGINE=MergeTree()ORDERBYtuple()ASSELECTo.*,s.`x_rolling_nunique_w3_by_g`AS`x_rolling_nunique_w3_by_g`FROM`s`.`t`ASoLEFTJOIN`s`.`t__op_1__feat`ASsONo.`_mf_idx`=s.`_mf_idx`",
+    []
+   ],
+   [
+    "exec",
+    "CREATEORREPLACETABLE`s`.`t`ASSELECT*FROM`s`.`t__op_1__wide`",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLE`s`.`t__op_1__wide`",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS`s`.`t__op_1__feat`",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS`s`.`t__op_1__wide`",
     []
    ],
    [
     "fetch",
-    "SELECT`x`,`x_rolling_nunique_w3_by_g`,`o`,`g`FROM`s`.`t__op_1`",
+    "SELECT`x`,`x_rolling_nunique_w3_by_g`,`o`,`g`FROM`s`.`t`ORDERBY`_mf_idx`",
     []
    ]
   ],
   "duckdb": [
    [
-    "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
-    [
-     "d1"
-    ]
+    "exec",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMNIFNOTEXISTS\"x_rolling_nunique_w3_by_g\"BIGINT",
+    []
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_1\"ASSELECT*,COUNT(DISTINCT\"x\")OVER(PARTITIONBY\"g\"ORDERBY\"o\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)AS\"x_rolling_nunique_w3_by_g\"FROM\"s\".\"t\"",
+    "UPDATE\"s\".\"t\"AStSET\"x_rolling_nunique_w3_by_g\"=s.\"x_rolling_nunique_w3_by_g\"FROM(SELECT\"_mf_idx\",CASEWHENCOUNT(\"x\")OVER(PARTITIONBY\"g\"ORDERBY\"o\",\"_mf_idx\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)>=3THENCOUNT(DISTINCT\"x\")OVER(PARTITIONBY\"g\"ORDERBY\"o\",\"_mf_idx\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)ELSENULLENDAS\"x_rolling_nunique_w3_by_g\"FROM\"s\".\"t\")ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
     []
    ],
    [
     "fetch",
-    "SELECT\"x\",\"x_rolling_nunique_w3_by_g\",\"o\",\"g\"FROM\"s\".\"t__op_1\"",
+    "SELECT\"x\",\"x_rolling_nunique_w3_by_g\",\"o\",\"g\"FROM\"s\".\"t\"ORDERBY\"_mf_idx\"",
     []
    ]
   ],
   "postgres": [
    [
-    "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
-    [
-     "d1"
-    ]
+    "exec",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMNIFNOTEXISTS\"x_rolling_nunique_w3_by_g\"BIGINT",
+    []
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_1\"ASWITH__baseAS(SELECT*,ROW_NUMBER()OVER(PARTITIONBY\"g\"ORDERBY\"o\")AS__rnFROM\"s\".\"t\")SELECTb.*,(SELECTCOUNT(DISTINCTr.\"x\")FROM__baserWHEREr.__rnBETWEENb.__rn-2ANDb.__rn)AS\"x_rolling_nunique_w3_by_g\"FROM__baseb",
+    "UPDATE\"s\".\"t\"AStSET\"x_rolling_nunique_w3_by_g\"=s.\"x_rolling_nunique_w3_by_g\"FROM(WITH__baseAS(SELECT\"_mf_idx\",\"g\",\"x\"ASv,ROW_NUMBER()OVER(PARTITIONBY\"g\"ORDERBY\"o\",\"_mf_idx\")AS__rnFROM\"s\".\"t\")SELECTb.\"_mf_idx\",CASEWHEN(SELECTCOUNT(r.v)FROM__baserWHEREr.__rnBETWEENb.__rn-2ANDb.__rnANDr.\"g\"=b.\"g\")>=3THEN(SELECTCOUNT(DISTINCTr.v)FROM__baserWHEREr.__rnBETWEENb.__rn-2ANDb.__rnANDr.\"g\"=b.\"g\")ELSENULLENDAS\"x_rolling_nunique_w3_by_g\"FROM__baseb)ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
     []
    ],
    [
     "fetch",
-    "SELECT\"x\",\"x_rolling_nunique_w3_by_g\",\"o\",\"g\"FROM\"s\".\"t__op_1\"",
+    "SELECT\"x\",\"x_rolling_nunique_w3_by_g\",\"o\",\"g\"FROM\"s\".\"t\"ORDERBY\"_mf_idx\"",
     []
    ]
   ]
@@ -187,36 +1003,78 @@
    ],
    [
     "exec",
-    "CREATETABLE`s`.`t__op_1`ENGINE=MergeTree()ORDERBYtuple()ASWITH__baseAS(SELECT*,ROW_NUMBER()OVER(PARTITIONBY`g`ORDERBY`o`)AS`__rn`FROM`s`.`t`)SELECTb.`g`,b.`o`,b.`x`,(SELECTquantile(0.5)(r.`x`)FROM__baserWHEREr.`__rn`BETWEENb.`__rn`-2ANDb.`__rn`ANDr.`x`ISNOTNULL)AS`x_rolling_q0.5_w3_by_g`FROM__baseb",
+    "CREATETABLE`s`.`t__op_1__feat`ENGINE=MergeTree()ORDERBYtuple()ASWITH__baseAS(SELECT`_mf_idx`,`g`,`x`ASv,ROW_NUMBER()OVER(PARTITIONBY`g`ORDERBY`o`,`_mf_idx`)AS__rnFROM`s`.`t`)SELECTb.`_mf_idx`,CASEWHEN(SELECTCOUNT(r.v)FROM__baserWHEREr.__rnBETWEENb.__rn-2ANDb.__rnANDr.`g`=b.`g`)>=3THEN(SELECTquantile(0.5)(r.v)FROM__baserWHEREr.__rnBETWEENb.__rn-2ANDb.__rnANDr.`g`=b.`g`ANDr.vISNOTNULL)ELSENULLENDAS`x_rolling_q0.5_w3_by_g`FROM__baseb",
+    []
+   ],
+   [
+    "exec",
+    "CREATETABLE`s`.`t__op_1__wide`ENGINE=MergeTree()ORDERBYtuple()ASSELECTo.*,s.`x_rolling_q0.5_w3_by_g`AS`x_rolling_q0.5_w3_by_g`FROM`s`.`t`ASoLEFTJOIN`s`.`t__op_1__feat`ASsONo.`_mf_idx`=s.`_mf_idx`",
+    []
+   ],
+   [
+    "exec",
+    "CREATEORREPLACETABLE`s`.`t`ASSELECT*FROM`s`.`t__op_1__wide`",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLE`s`.`t__op_1__wide`",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS`s`.`t__op_1__feat`",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS`s`.`t__op_1__wide`",
     []
    ],
    [
     "fetch",
-    "SELECT`x`,`x_rolling_q0.5_w3_by_g`,`o`,`g`FROM`s`.`t__op_1`",
+    "SELECT`x`,`x_rolling_q0.5_w3_by_g`,`o`,`g`FROM`s`.`t`ORDERBY`_mf_idx`",
     []
    ]
   ],
   "duckdb": [
    [
-    "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
-    [
-     "d1"
-    ]
+    "exec",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMNIFNOTEXISTS\"x_rolling_q0.5_w3_by_g\"DOUBLEPRECISION",
+    []
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_1\"ASSELECT*,QUANTILE_CONT(\"x\",0.5)OVER(PARTITIONBY\"g\"ORDERBY\"o\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)AS\"x_rolling_q0.5_w3_by_g\"FROM\"s\".\"t\"",
+    "UPDATE\"s\".\"t\"AStSET\"x_rolling_q0.5_w3_by_g\"=s.\"x_rolling_q0.5_w3_by_g\"FROM(SELECT\"_mf_idx\",CASEWHENCOUNT(\"x\")OVER(PARTITIONBY\"g\"ORDERBY\"o\",\"_mf_idx\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)>=3THENQUANTILE_CONT(\"x\",0.5)OVER(PARTITIONBY\"g\"ORDERBY\"o\",\"_mf_idx\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)ELSENULLENDAS\"x_rolling_q0.5_w3_by_g\"FROM\"s\".\"t\")ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
     []
    ],
    [
     "fetch",
-    "SELECT\"x\",\"x_rolling_q0.5_w3_by_g\",\"o\",\"g\"FROM\"s\".\"t__op_1\"",
+    "SELECT\"x\",\"x_rolling_q0.5_w3_by_g\",\"o\",\"g\"FROM\"s\".\"t\"ORDERBY\"_mf_idx\"",
     []
    ]
   ],
   "postgres": [
    [
+    "exec",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMNIFNOTEXISTS\"x_rolling_q0.5_w3_by_g\"DOUBLEPRECISION",
+    []
+   ],
+   [
+    "exec",
+    "UPDATE\"s\".\"t\"AStSET\"x_rolling_q0.5_w3_by_g\"=s.\"x_rolling_q0.5_w3_by_g\"FROM(WITH__baseAS(SELECT\"_mf_idx\",\"g\",\"x\"ASv,ROW_NUMBER()OVER(PARTITIONBY\"g\"ORDERBY\"o\",\"_mf_idx\")AS__rnFROM\"s\".\"t\")SELECTb.\"_mf_idx\",CASEWHEN(SELECTCOUNT(r.v)FROM__baserWHEREr.__rnBETWEENb.__rn-2ANDb.__rnANDr.\"g\"=b.\"g\")>=3THEN(SELECTPERCENTILE_CONT(0.5)WITHINGROUP(ORDERBYr.v)FROM__baserWHEREr.__rnBETWEENb.__rn-2ANDb.__rnANDr.\"g\"=b.\"g\"ANDr.vISNOTNULL)ELSENULLENDAS\"x_rolling_q0.5_w3_by_g\"FROM__baseb)ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT\"x\",\"x_rolling_q0.5_w3_by_g\",\"o\",\"g\"FROM\"s\".\"t\"ORDERBY\"_mf_idx\"",
+    []
+   ]
+  ]
+ },
+ "rolling_rank": {
+  "clickhouse": [
+   [
     "fetchval",
     "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
     [
@@ -225,12 +1083,71 @@
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_1\"ASWITH__baseAS(SELECT*,ROW_NUMBER()OVER(PARTITIONBY\"g\"ORDERBY\"o\")AS\"__rn\"FROM\"s\".\"t\")SELECTb.*,(SELECTPERCENTILE_CONT(0.5)WITHINGROUP(ORDERBYr.\"x\")FROM__baserWHEREr.\"__rn\"BETWEENb.\"__rn\"-2ANDb.\"__rn\"ANDr.\"x\"ISNOTNULL)AS\"x_rolling_q0.5_w3_by_g\"FROM__baseb",
+    "CREATETABLE`s`.`t__op_1__feat`ENGINE=MergeTree()ORDERBYtuple()ASWITH__baseAS(SELECT`_mf_idx`,`g`,`x`ASv,ROW_NUMBER()OVER(PARTITIONBY`g`ORDERBY`o`,`_mf_idx`)AS__rnFROM`s`.`t`)SELECTb.`_mf_idx`,CASEWHEN(SELECTCOUNT(r.v)FROM__baserWHEREr.__rnBETWEENb.__rn-2ANDb.__rnANDr.`g`=b.`g`)>=3THEN(SELECTCOUNT(*)FROM__baserWHEREr.__rnBETWEENb.__rn-2ANDb.__rnANDr.`g`=b.`g`ANDr.v<=b.v)ELSENULLENDAS`x_rolling_rank_w3_by_g`FROM__baseb",
+    []
+   ],
+   [
+    "exec",
+    "CREATETABLE`s`.`t__op_1__wide`ENGINE=MergeTree()ORDERBYtuple()ASSELECTo.*,s.`x_rolling_rank_w3_by_g`AS`x_rolling_rank_w3_by_g`FROM`s`.`t`ASoLEFTJOIN`s`.`t__op_1__feat`ASsONo.`_mf_idx`=s.`_mf_idx`",
+    []
+   ],
+   [
+    "exec",
+    "CREATEORREPLACETABLE`s`.`t`ASSELECT*FROM`s`.`t__op_1__wide`",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLE`s`.`t__op_1__wide`",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS`s`.`t__op_1__feat`",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS`s`.`t__op_1__wide`",
     []
    ],
    [
     "fetch",
-    "SELECT\"x\",\"x_rolling_q0.5_w3_by_g\",\"o\",\"g\"FROM\"s\".\"t__op_1\"",
+    "SELECT`x`,`x_rolling_rank_w3_by_g`,`o`,`g`FROM`s`.`t`ORDERBY`_mf_idx`",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "exec",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMNIFNOTEXISTS\"x_rolling_rank_w3_by_g\"BIGINT",
+    []
+   ],
+   [
+    "exec",
+    "UPDATE\"s\".\"t\"AStSET\"x_rolling_rank_w3_by_g\"=s.\"x_rolling_rank_w3_by_g\"FROM(WITH__baseAS(SELECT\"_mf_idx\",\"g\",\"x\"ASv,ROW_NUMBER()OVER(PARTITIONBY\"g\"ORDERBY\"o\",\"_mf_idx\")AS__rnFROM\"s\".\"t\")SELECTb.\"_mf_idx\",CASEWHEN(SELECTCOUNT(r.v)FROM__baserWHEREr.__rnBETWEENb.__rn-2ANDb.__rnANDr.\"g\"=b.\"g\")>=3THEN(SELECTCOUNT(*)FROM__baserWHEREr.__rnBETWEENb.__rn-2ANDb.__rnANDr.\"g\"=b.\"g\"ANDr.v<=b.v)ELSENULLENDAS\"x_rolling_rank_w3_by_g\"FROM__baseb)ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT\"x\",\"x_rolling_rank_w3_by_g\",\"o\",\"g\"FROM\"s\".\"t\"ORDERBY\"_mf_idx\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "exec",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMNIFNOTEXISTS\"x_rolling_rank_w3_by_g\"BIGINT",
+    []
+   ],
+   [
+    "exec",
+    "UPDATE\"s\".\"t\"AStSET\"x_rolling_rank_w3_by_g\"=s.\"x_rolling_rank_w3_by_g\"FROM(WITH__baseAS(SELECT\"_mf_idx\",\"g\",\"x\"ASv,ROW_NUMBER()OVER(PARTITIONBY\"g\"ORDERBY\"o\",\"_mf_idx\")AS__rnFROM\"s\".\"t\")SELECTb.\"_mf_idx\",CASEWHEN(SELECTCOUNT(r.v)FROM__baserWHEREr.__rnBETWEENb.__rn-2ANDb.__rnANDr.\"g\"=b.\"g\")>=3THEN(SELECTCOUNT(*)FROM__baserWHEREr.__rnBETWEENb.__rn-2ANDb.__rnANDr.\"g\"=b.\"g\"ANDr.v<=b.v)ELSENULLENDAS\"x_rolling_rank_w3_by_g\"FROM__baseb)ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT\"x\",\"x_rolling_rank_w3_by_g\",\"o\",\"g\"FROM\"s\".\"t\"ORDERBY\"_mf_idx\"",
     []
    ]
   ]
@@ -246,50 +1163,71 @@
    ],
    [
     "exec",
-    "CREATETABLE`s`.`t__op_1`ENGINE=MergeTree()ORDERBYtuple()ASSELECT`g`,`o`,`x`,(stddevSamp(`x`)OVER(PARTITIONBY`g`ORDERBY`o`ROWSBETWEEN2PRECEDINGANDCURRENTROW)/sqrt(COUNT(`x`)OVER(PARTITIONBY`g`ORDERBY`o`ROWSBETWEEN2PRECEDINGANDCURRENTROW)))AS`x_rolling_sem_w3_by_g`FROM`s`.`t`",
+    "CREATETABLE`s`.`t__op_1__feat`ENGINE=MergeTree()ORDERBYtuple()ASSELECT`_mf_idx`,CASEWHENsum(if(isNull(`x`),0,1))OVER(PARTITIONBY`g`ORDERBY`o`,`_mf_idx`ROWSBETWEEN2PRECEDINGANDCURRENTROW)>=3THEN(stddevSamp(`x`)OVER(PARTITIONBY`g`ORDERBY`o`,`_mf_idx`ROWSBETWEEN2PRECEDINGANDCURRENTROW)/SQRT(sum(if(isNull(`x`),0,1))OVER(PARTITIONBY`g`ORDERBY`o`,`_mf_idx`ROWSBETWEEN2PRECEDINGANDCURRENTROW)))ELSENULLENDAS`x_rolling_sem_w3_by_g`FROM`s`.`t`",
+    []
+   ],
+   [
+    "exec",
+    "CREATETABLE`s`.`t__op_1__wide`ENGINE=MergeTree()ORDERBYtuple()ASSELECTo.*,s.`x_rolling_sem_w3_by_g`AS`x_rolling_sem_w3_by_g`FROM`s`.`t`ASoLEFTJOIN`s`.`t__op_1__feat`ASsONo.`_mf_idx`=s.`_mf_idx`",
+    []
+   ],
+   [
+    "exec",
+    "CREATEORREPLACETABLE`s`.`t`ASSELECT*FROM`s`.`t__op_1__wide`",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLE`s`.`t__op_1__wide`",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS`s`.`t__op_1__feat`",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS`s`.`t__op_1__wide`",
     []
    ],
    [
     "fetch",
-    "SELECT`x`,`x_rolling_sem_w3_by_g`,`o`,`g`FROM`s`.`t__op_1`",
+    "SELECT`x`,`x_rolling_sem_w3_by_g`,`o`,`g`FROM`s`.`t`ORDERBY`_mf_idx`",
     []
    ]
   ],
   "duckdb": [
    [
-    "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
-    [
-     "d1"
-    ]
+    "exec",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMNIFNOTEXISTS\"x_rolling_sem_w3_by_g\"DOUBLEPRECISION",
+    []
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_1\"ASSELECT*,(STDDEV_SAMP(\"x\")OVER(PARTITIONBY\"g\"ORDERBY\"o\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)/SQRT(COUNT(\"x\")OVER(PARTITIONBY\"g\"ORDERBY\"o\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)))AS\"x_rolling_sem_w3_by_g\"FROM\"s\".\"t\"",
+    "UPDATE\"s\".\"t\"AStSET\"x_rolling_sem_w3_by_g\"=s.\"x_rolling_sem_w3_by_g\"FROM(SELECT\"_mf_idx\",CASEWHENCOUNT(\"x\")OVER(PARTITIONBY\"g\"ORDERBY\"o\",\"_mf_idx\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)>=3THEN(STDDEV_SAMP(\"x\")OVER(PARTITIONBY\"g\"ORDERBY\"o\",\"_mf_idx\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)/SQRT(COUNT(\"x\")OVER(PARTITIONBY\"g\"ORDERBY\"o\",\"_mf_idx\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)))ELSENULLENDAS\"x_rolling_sem_w3_by_g\"FROM\"s\".\"t\")ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
     []
    ],
    [
     "fetch",
-    "SELECT\"x\",\"x_rolling_sem_w3_by_g\",\"o\",\"g\"FROM\"s\".\"t__op_1\"",
+    "SELECT\"x\",\"x_rolling_sem_w3_by_g\",\"o\",\"g\"FROM\"s\".\"t\"ORDERBY\"_mf_idx\"",
     []
    ]
   ],
   "postgres": [
    [
-    "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
-    [
-     "d1"
-    ]
+    "exec",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMNIFNOTEXISTS\"x_rolling_sem_w3_by_g\"DOUBLEPRECISION",
+    []
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_1\"ASSELECT*,(STDDEV(\"x\")OVER(PARTITIONBY\"g\"ORDERBY\"o\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)/SQRT(COUNT(\"x\")OVER(PARTITIONBY\"g\"ORDERBY\"o\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)))AS\"x_rolling_sem_w3_by_g\"FROM\"s\".\"t\"",
+    "UPDATE\"s\".\"t\"AStSET\"x_rolling_sem_w3_by_g\"=s.\"x_rolling_sem_w3_by_g\"FROM(SELECT\"_mf_idx\",CASEWHENCOUNT(\"x\")OVER(PARTITIONBY\"g\"ORDERBY\"o\",\"_mf_idx\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)>=3THEN(STDDEV_SAMP(\"x\")OVER(PARTITIONBY\"g\"ORDERBY\"o\",\"_mf_idx\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)/SQRT(COUNT(\"x\")OVER(PARTITIONBY\"g\"ORDERBY\"o\",\"_mf_idx\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)))ELSENULLENDAS\"x_rolling_sem_w3_by_g\"FROM\"s\".\"t\")ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
     []
    ],
    [
     "fetch",
-    "SELECT\"x\",\"x_rolling_sem_w3_by_g\",\"o\",\"g\"FROM\"s\".\"t__op_1\"",
+    "SELECT\"x\",\"x_rolling_sem_w3_by_g\",\"o\",\"g\"FROM\"s\".\"t\"ORDERBY\"_mf_idx\"",
     []
    ]
   ]
@@ -305,50 +1243,71 @@
    ],
    [
     "exec",
-    "CREATETABLE`s`.`t__op_1`ENGINE=MergeTree()ORDERBYtuple()ASSELECT`g`,`o`,`x`,sum(`x`)OVER(PARTITIONBY`g`ORDERBY`o`ROWSBETWEEN2PRECEDINGANDCURRENTROW)AS`x_rolling_sum_w3_by_g`FROM`s`.`t`",
+    "CREATETABLE`s`.`t__op_1__feat`ENGINE=MergeTree()ORDERBYtuple()ASSELECT`_mf_idx`,CASEWHENsum(if(isNull(`x`),0,1))OVER(PARTITIONBY`g`ORDERBY`o`,`_mf_idx`ROWSBETWEEN2PRECEDINGANDCURRENTROW)>=3THENsum(`x`)OVER(PARTITIONBY`g`ORDERBY`o`,`_mf_idx`ROWSBETWEEN2PRECEDINGANDCURRENTROW)ELSENULLENDAS`x_rolling_sum_w3_by_g`FROM`s`.`t`",
+    []
+   ],
+   [
+    "exec",
+    "CREATETABLE`s`.`t__op_1__wide`ENGINE=MergeTree()ORDERBYtuple()ASSELECTo.*,s.`x_rolling_sum_w3_by_g`AS`x_rolling_sum_w3_by_g`FROM`s`.`t`ASoLEFTJOIN`s`.`t__op_1__feat`ASsONo.`_mf_idx`=s.`_mf_idx`",
+    []
+   ],
+   [
+    "exec",
+    "CREATEORREPLACETABLE`s`.`t`ASSELECT*FROM`s`.`t__op_1__wide`",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLE`s`.`t__op_1__wide`",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS`s`.`t__op_1__feat`",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS`s`.`t__op_1__wide`",
     []
    ],
    [
     "fetch",
-    "SELECT`x`,`x_rolling_sum_w3_by_g`,`o`,`g`FROM`s`.`t__op_1`",
+    "SELECT`x`,`x_rolling_sum_w3_by_g`,`o`,`g`FROM`s`.`t`ORDERBY`_mf_idx`",
     []
    ]
   ],
   "duckdb": [
    [
-    "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
-    [
-     "d1"
-    ]
+    "exec",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMNIFNOTEXISTS\"x_rolling_sum_w3_by_g\"DOUBLEPRECISION",
+    []
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_1\"ASSELECT*,SUM(\"x\")OVER(PARTITIONBY\"g\"ORDERBY\"o\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)AS\"x_rolling_sum_w3_by_g\"FROM\"s\".\"t\"",
+    "UPDATE\"s\".\"t\"AStSET\"x_rolling_sum_w3_by_g\"=s.\"x_rolling_sum_w3_by_g\"FROM(SELECT\"_mf_idx\",CASEWHENCOUNT(\"x\")OVER(PARTITIONBY\"g\"ORDERBY\"o\",\"_mf_idx\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)>=3THENSUM(\"x\")OVER(PARTITIONBY\"g\"ORDERBY\"o\",\"_mf_idx\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)ELSENULLENDAS\"x_rolling_sum_w3_by_g\"FROM\"s\".\"t\")ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
     []
    ],
    [
     "fetch",
-    "SELECT\"x\",\"x_rolling_sum_w3_by_g\",\"o\",\"g\"FROM\"s\".\"t__op_1\"",
+    "SELECT\"x\",\"x_rolling_sum_w3_by_g\",\"o\",\"g\"FROM\"s\".\"t\"ORDERBY\"_mf_idx\"",
     []
    ]
   ],
   "postgres": [
    [
-    "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
-    [
-     "d1"
-    ]
+    "exec",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMNIFNOTEXISTS\"x_rolling_sum_w3_by_g\"DOUBLEPRECISION",
+    []
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_1\"ASSELECT*,SUM(\"x\")OVER(PARTITIONBY\"g\"ORDERBY\"o\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)AS\"x_rolling_sum_w3_by_g\"FROM\"s\".\"t\"",
+    "UPDATE\"s\".\"t\"AStSET\"x_rolling_sum_w3_by_g\"=s.\"x_rolling_sum_w3_by_g\"FROM(SELECT\"_mf_idx\",CASEWHENCOUNT(\"x\")OVER(PARTITIONBY\"g\"ORDERBY\"o\",\"_mf_idx\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)>=3THENSUM(\"x\")OVER(PARTITIONBY\"g\"ORDERBY\"o\",\"_mf_idx\"ROWSBETWEEN2PRECEDINGANDCURRENTROW)ELSENULLENDAS\"x_rolling_sum_w3_by_g\"FROM\"s\".\"t\")ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
     []
    ],
    [
     "fetch",
-    "SELECT\"x\",\"x_rolling_sum_w3_by_g\",\"o\",\"g\"FROM\"s\".\"t__op_1\"",
+    "SELECT\"x\",\"x_rolling_sum_w3_by_g\",\"o\",\"g\"FROM\"s\".\"t\"ORDERBY\"_mf_idx\"",
     []
    ]
   ]

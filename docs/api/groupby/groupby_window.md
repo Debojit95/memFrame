@@ -48,10 +48,10 @@ result = await dataset.groupby("region").arolling(
 
 The lower-level files are implementation details:
 
-- `src/memframe/core/analytix/groupby_window.py` builds and executes
-  backend-specific SQL in a single `GroupbyWindowOps` class that extends
-  `WindowOps` (`isinstance` branches for DuckDB / PostgreSQL /
-  ClickHouse).
+- `src/memframe/core/analytix/groupby_window/` builds and executes
+  backend-specific SQL in `GroupbyWindowOps` and its DuckDB / PostgreSQL /
+  ClickHouse subclasses. Grouped EWM reuses the ungrouped blockwise EWM
+  helpers in `core/analytix/window/base.py`.
 - `src/memframe/core/orchestrator/analytix/groupby_window.py` resolves
   the active dataset context, detects the column dtype, maps requested
   functions to dtype-appropriate engine methods, chains multi-function
@@ -68,7 +68,7 @@ The lower-level files are implementation details:
 
 | Synchronous | Asynchronous | Purpose |
 | --- | --- | --- |
-| `rolling(column, window, func, group_cols, order_by=None, q=0.5)` | `await arolling(...)` | Grouped rolling window; `func` is a string or list |
+| `rolling(column, window, func, group_cols, order_by=None, q=0.5, min_periods=None)` | `await arolling(...)` | Grouped rolling window; `func` is a string or list |
 | `expanding(column, func, group_cols, order_by=None, q=0.5, min_periods=1)` | `await aexpanding(...)` | Grouped expanding window |
 | `ewm(column, group_cols, order_by=None, com/span/halflife/alpha, ...)` | `await aewm(...)` | Grouped EWM (see note below) |
 
@@ -77,7 +77,7 @@ The lower-level files are implementation details:
 ### Builder
 
 `groupby(*columns)` returns the unified `GroupBy`; `.rolling(window,
-order_by)` / `.expanding(min_periods, order_by)` / `.ewm(...)` return
+order_by, min_periods=None)` / `.expanding(min_periods, order_by)` / `.ewm(...)` return
 fluent builders. Each terminal method has a synchronous and asynchronous
 form (`mean` / `amean`, …):
 
@@ -95,10 +95,8 @@ form (`mean` / `amean`, …):
 | `agg(column, funcs)` | Multi-aggregation chained into one table |
 
 !!! note
-    Grouped EWM (`ewm`) is currently unavailable: the engine path
-    depends on helpers (`_ensure_row_id`, `_alpha_from_params`,
-    `_compute_ewm_array`) that did not survive the window core split.
-    Rolling and expanding are fully supported; EWM needs an engine port.
+    Grouped EWM (`ewm`) uses the same blockwise SQL engine as ungrouped EWM,
+    partitioned by the group columns. See the EWM section below.
 
 ## Usage Overview
 
@@ -137,16 +135,16 @@ sample = dataset.groupby("region").expanding().sum("sales")
 | `group_cols` | `str` or `list[str]` | Column(s) partitioning the window. At least one is required. |
 | `window` | `int` | Rolling window size in rows (`ROWS BETWEEN window-1 PRECEDING AND CURRENT ROW`). |
 | `func` | `str` or `list[str]` | Aggregation(s): `sum`, `mean`/`avg`, `min`, `max`, `count`, `std`/`stddev`/`stddev_samp`, `var`/`variance`/`var_samp`, `quantile`, `sem`, `rank`, `nunique`, `first`/`first_value`, `last`/`last_value`. |
-| `order_by` | `str`, `list[str]`, or `None` | Row ordering inside each group. `None` (default) uses physical row order. |
+| `order_by` | `str`, `list[str]`, or `None` | Row ordering inside each group. `None` (default) uses the immutable upload order (`_mf_idx`). |
 | `q` | `float` | Quantile level for `quantile` (default `0.5`). |
-| `min_periods` | `int` | Minimum rows before an expanding value is produced (default `1`). |
+| `min_periods` | `int` or `None` | Minimum observations before a value is produced. Rolling default `None` → `window`; expanding default `1`. Must satisfy `0 <= min_periods <= window`. |
 | `new_table` | `str` or `None` | Kept for compatibility; the result is written to the source and `new_table` resolves to the source table. |
 | `map_feature` | `bool` | Deprecated/ignored. Generated columns are always written back to the source; the envelope carries `mapped_table` / `mapped_columns`. `new_table` is the source table (the ref target). |
 
-With no `order_by`, rows accumulate in physical storage order
-(PostgreSQL `ctid`, DuckDB `rowid`). ClickHouse has no stable row id, so
-a synthetic `_mf_row_num` (`ROW_NUMBER() OVER()`) is generated in a
-subquery to give the window a deterministic order.
+With no `order_by`, each group is ordered by the immutable upload index
+(`_mf_idx`) and the window runs in that natural order. With an explicit
+`order_by`, rows are grouped first, then ordered inside each group by
+`order_by..., _mf_idx`; the additional `_mf_idx` key makes ties deterministic.
 
 Result columns are named
 `<column>_rolling_<stat>_w<window>_by_<groups>` (rolling) or
@@ -196,10 +194,15 @@ result = dataset.groupby("region").rolling(3, order_by="month").agg(
 
 Each rolling call computes `AGG(col) OVER (PARTITION BY <groups> ORDER
 BY <order> ROWS BETWEEN window-1 PRECEDING AND CURRENT ROW)` and appends
-the result column(s) to a copy of the source rows:
+the result column(s) to a copy of the source rows.
+
+`min_periods` defaults to `window` (pandas parity), so the first `window - 1`
+rows of each group are `NULL`. Pass `min_periods=1` to aggregate the partial
+window instead:
 
 ```python
 result = dataset.groupby("region").rolling(3, order_by="month").mean("sales")
+result = dataset.groupby("region").rolling(3, order_by="month", min_periods=1).mean("sales")
 result = dataset.groupby("region").rolling(7, order_by="month").quantile("sales", q=0.9)
 ```
 
@@ -217,6 +220,29 @@ group through the current row) plus `min_periods`:
 result = dataset.groupby("region").expanding(order_by="month").sum("sales")
 result = dataset.groupby("region").expanding(order_by="month", min_periods=3).mean("sales")
 ```
+
+## EWM
+
+Grouped EWM runs the same blockwise SQL engine as the ungrouped `ewm`,
+partitioned by the group columns:
+
+```python
+result = dataset.groupby("region").ewm(span=3, order_by="month").mean("sales")
+result = dataset.groupby("region").ewm(
+    span=3, order_by="month", adjust=False,
+).agg("sales", ["mean", "var"])
+```
+
+- `order_by=None` uses natural upload order (`_mf_idx`) **inside each group**.
+- Explicit `order_by` is applied per group, with `_mf_idx` as a deterministic
+  tie-breaker.
+- Supported functions: `mean`, `sum`, `std`, `var`; options: `com`, `span`,
+  `halflife`, `alpha`, `adjust`, `ignore_na`, `min_periods`.
+- Values follow the unified ungrouped contract:
+  - `adjust=False` `sum` equals the EWMA state (same values as `mean`);
+  - `adjust=False` `var/std` need two valid points, so the first row is NULL;
+  - `adjust=True` + `ignore_na=False` decays state across null rows.
+- Result columns: `<column>_ewm_<func>_by_<groups>`.
 
 ## Specials: quantile, nunique, rank, sem
 
@@ -271,7 +297,7 @@ operation envelope; single-function calls also carry `new_column`:
     "is_error": False,
     "message": "Rolling mean on 'sales' grouped by ['region'] (window=2)",
     "result": <pandas.DataFrame>,
-    "new_table": "ab12CD__op_3",
+    "new_table": "ab12CD",                     # source table (ref target)
     "new_columns": ["sales_rolling_mean_w2_by_region"],
     "new_column": "sales_rolling_mean_w2_by_region",   # single-function calls only
     "window": 2,
@@ -289,17 +315,16 @@ missing column fails the call (`message == ""` on the raw envelope).
 ## Generated Tables
 
 Every grouped window operation writes its generated column(s) to the source
-upload table, then creates a separate narrow result table holding only the
-involved and generated columns. The deep cache stores that narrow table:
+upload table; the deep cache stores a ref to the source:
 
-- **PostgreSQL / DuckDB:** `CREATE TABLE … AS SELECT *,
-  <window> AS <target> FROM …` (quantile / nunique / rank use a
-  `ROW_NUMBER()` `__base` subquery; no-`order_by` calls stage a rowid
-  table first).
-- **ClickHouse:** `CREATE TABLE … ENGINE = MergeTree() ORDER BY tuple()
-  AS SELECT …` — windows computed inline; without `order_by` the source
-  is wrapped in a `_mf_row_num` subquery whose helper column is excluded
-  from the output.
+- **PostgreSQL / DuckDB:** grouped rolling/expanding compute a narrow
+  `(_mf_idx, <windows>)` feature query and backfill the source with one
+  `UPDATE` keyed by `_mf_idx`. The source is never cloned or swapped.
+  Specials (quantile / nunique / rank / datetime) use the same backfill over
+  a narrow ordered base.
+- **ClickHouse:** grouped rolling/expanding build a narrow feature table,
+  join it to the source by `_mf_idx`, and atomically swap it in with
+  `EXCHANGE TABLES`; the temp feature/wide tables are dropped.
 
 Operations apply `@record_call`, so repeat calls are recorded in the
 cache registry.
@@ -310,7 +335,7 @@ Grouped windows support DuckDB, PostgreSQL, and ClickHouse:
 
 - Identifiers are sanitized and quoted before SQL is generated.
 - `group_cols` and `order_by` may each be a single column, a list, or
-  (for `order_by`) omitted for physical order.
+  (for `order_by`) omitted for natural `_mf_idx` order inside each group.
 - Backend dialect differences (sample stddev/variance names,
   quantile/nunique/rank execution shapes, datetime epoch handling) are
   handled per backend.
