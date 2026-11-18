@@ -68,7 +68,7 @@ The lower-level files are implementation details:
 
 | Synchronous | Asynchronous | Purpose |
 | --- | --- | --- |
-| `rolling(column, window, func, group_cols, order_by=None, q=0.5, min_periods=None, center=False, closed=None)` | `await arolling(...)` | Grouped rolling window; `func` is a string or list |
+| `rolling(column, window, func, group_cols, order_by=None, q=0.5, min_periods=None, center=False, closed=None, win_type=None)` | `await arolling(...)` | Grouped rolling window; `func` is a string or list |
 | `expanding(column, func, group_cols, order_by=None, q=0.5, min_periods=1)` | `await aexpanding(...)` | Grouped expanding window |
 | `ewm(column, group_cols, order_by=None, com/span/halflife/alpha, ...)` | `await aewm(...)` | Grouped EWM (see note below) |
 
@@ -141,6 +141,7 @@ sample = dataset.groupby("region").expanding().sum("sales")
 | `func_kwargs` | `dict` or `None` | Per-function keyword arguments (`ddof`, rank `method`/`ascending`/`pct`, `q`). |
 | `center` | `bool` | Rolling only — centre the frame on the current row (default `False`). |
 | `closed` | `str` or `None` | Rolling only — `right` (default), `left`, `both`, `neither`. |
+| `win_type` | `str` or `None` | Rolling only — scipy window weights (`boxcar`, `triang`, `hann`, …) for weighted `sum`/`mean`. |
 | `min_periods` | `int` or `None` | Minimum observations before a value is produced. Rolling default `None` → `window`; expanding default `1`. Must satisfy `0 <= min_periods <= window`. |
 | `new_table` | `str` or `None` | Kept for compatibility; the result is written to the source and `new_table` resolves to the source table. |
 | `map_feature` | `bool` | Deprecated/ignored. Generated columns are always written back to the source; the envelope carries `mapped_table` / `mapped_columns`. `new_table` is the source table (the ref target). |
@@ -221,6 +222,12 @@ apply per group. `closed="neither"` needs `window >= 2`.
 ```python
 dataset.groupby("region").rolling(7, order_by="month").std("sales", ddof=0)
 dataset.groupby("region").rolling(7, order_by="month").rank("sales", method="dense")
+```
+
+`win_type` applies scipy window weights per group for weighted `sum`/`mean`:
+
+```python
+dataset.groupby("region").rolling(7, order_by="month", win_type="triang").mean("sales")
 ```
 
 `func` also accepts backend spellings directly (`AVG`, `STDDEV_SAMP`,

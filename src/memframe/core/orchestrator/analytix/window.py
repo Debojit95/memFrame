@@ -155,6 +155,7 @@ class WindowOrchestrator:
         min_periods: int = None,
         center: bool = False,
         closed: str = None,
+        win_type: str = None,
         func_kwargs: dict = None,
     ):
         ops = await self._ensure_ops()
@@ -229,6 +230,7 @@ class WindowOrchestrator:
                 min_periods=min_periods,
                 center=center,
                 closed=closed,
+                win_type=win_type,
                 backend=backend,
                 data_id=data_id,
             )
@@ -281,7 +283,7 @@ class WindowOrchestrator:
             op="window.rolling", column=column, window=window,
             func=requested_funcs, order_by=order_by,
             min_periods=min_periods, center=center, closed=closed,
-            func_kwargs=func_kwargs,
+            win_type=win_type, func_kwargs=func_kwargs,
         )
         involved = self._involved_cols(column, order_by)
 

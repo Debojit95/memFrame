@@ -629,6 +629,19 @@ class TestWindowOperations:
         ).mean()
         _assert_ordered_result(res_df, _generated_col(res_df, "sales"), expected)
 
+    def test_rolling_weighted_mean(
+        self, uploaded_ctx, time_series_df, backend_config
+    ):
+        result = uploaded_ctx.rolling(
+            column="sales", window=3, func="mean", order_by="date",
+            min_periods=1, win_type="triang",
+        )
+        res_df = get_result_df(result)
+        expected = _ordered(time_series_df)["sales"].rolling(
+            3, min_periods=1, win_type="triang"
+        ).mean()
+        _assert_ordered_result(res_df, _generated_col(res_df, "sales"), expected)
+
     def test_rolling_quantile_centered(
         self, uploaded_ctx, time_series_df, backend_config
     ):

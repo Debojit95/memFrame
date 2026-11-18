@@ -635,6 +635,25 @@ class TestGroupByWindowOperations:
         )
         assert_allclose_numeric(check[out_col], exp_vals)
 
+    def test_groupby_rolling_weighted_mean(
+        self, uploaded_ctx, sample_df, backend_config
+    ):
+        result = uploaded_ctx.groupby("group").rolling(
+            3, order_by="id", min_periods=1, win_type="hann"
+        ).mean("value")
+        res_df = get_result_df(result)
+        out_col = get_generated_col(result, "value_rolling_mean_w3_by_group")
+
+        check = res_df.sort_values(["group", "id"]).reset_index(drop=True)
+        exp_ordered = sample_df.sort_values(["group", "id"]).reset_index(drop=True)
+        expected = pd.concat(
+            [
+                grp["value"].rolling(3, min_periods=1, win_type="hann").mean()
+                for _, grp in exp_ordered.groupby("group", sort=False)
+            ]
+        )
+        assert_allclose_numeric(check[out_col], expected)
+
     def test_groupby_rolling_quantile_centered(
         self, uploaded_ctx, sample_df, backend_config
     ):

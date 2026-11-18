@@ -37,6 +37,12 @@ to [Semantic Versioning](https://semver.org/).
 - **`quantile(interpolation=...)`**: the pandas parameter is accepted on the
   builders and via `func_kwargs`. `"linear"` (pandas default) is supported;
   the other modes raise a clear `NotImplementedError` for now.
+- **Weighted windows (`win_type`)**: rolling (ungrouped + grouped) supports
+  scipy window weights for `sum`/`mean` — `boxcar`, `triang`, `bartlett`,
+  `parzen`, `bohman`, `blackman`, `blackmanharris`, `barthann`, `nuttall`,
+  `hann`, `hamming`, `cosine`. Weighted `std`/`var` and windows needing extra
+  parameters raise `NotImplementedError`. `scipy` is a dev/test dependency
+  only.
 
 ### Changed
 - **Rolling default now needs a full window**: `min_periods` defaults to

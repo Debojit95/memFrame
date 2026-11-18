@@ -62,7 +62,7 @@ named shorthands fix `func`. Builders accept `min_periods` at construction:
 
 | Synchronous (via builder or `rolling`) | Purpose |
 | --- | --- |
-| `rolling(column, window, func, order_by=None, q=0.5, min_periods=None, center=False, closed=None)` / `await arolling(...)` | Generic — `func` may be a string or list |
+| `rolling(column, window, func, order_by=None, q=0.5, min_periods=None, center=False, closed=None, win_type=None)` / `await arolling(...)` | Generic — `func` may be a string or list |
 | `.rolling(column, window).sum(order_by=None)` / `.asum(...)` | Rolling sum |
 | `.mean(...)` / `.amean(...)` | Rolling mean |
 | `.min(...)` / `.amin(...)` | Rolling minimum |
@@ -153,6 +153,7 @@ sample = dataset.ewm(column="sales", span=3, func="mean")
 | `center` | `bool` | Rolling only — centre the frame on the current row by shifting it forward `(window - 1) // 2` rows (default `False`). |
 | `func_kwargs` | `dict` or `None` | Per-function keyword arguments, e.g. `{"std": {"ddof": 0}, "rank": {"method": "dense"}}`. |
 | `closed` | `str` or `None` | Rolling only — which frame edges are included: `right` (default), `left`, `both`, `neither`. |
+| `win_type` | `str` or `None` | Rolling only — apply scipy window weights. Supported: `boxcar`, `triang`, `bartlett`, `parzen`, `bohman`, `blackman`, `blackmanharris`, `barthann`, `nuttall`, `hann`, `hamming`, `cosine`. Weighted `sum`/`mean` only. |
 | `min_periods` | `int` or `None` | Minimum observations in the frame before a value is emitted. Rolling default `None` → `window` (pandas parity); expanding default `1`; EWM default `0`. Must satisfy `0 <= min_periods <= window`. |
 
 `order_by` accepts a single column or a list:
@@ -200,6 +201,29 @@ Supported per-function parameters: `ddof` for `std`/`var`/`sem`, `q` for
 `"linear"` (the pandas default) is implemented so far; `"lower"`, `"higher"`,
 `"nearest"`, and `"midpoint"` raise a clear error until per-row element
 selection is ported.
+
+## Weighted Windows
+
+`win_type` applies scipy-compatible window weights to a rolling `sum` or
+`mean` (`boxcar` is the unweighted frame; pass `None` for that):
+
+```python
+dataset.rolling(column="sales", window=5, func="mean", order_by="day",
+                win_type="triang")
+dataset.on("sales").rolling(5, win_type="hann").mean(order_by="day")
+```
+
+- Supported weights: `boxcar`, `triang`, `bartlett`, `parzen`, `bohman`,
+  `blackman`, `blackmanharris`, `barthann`, `nuttall`, `hann`, `hamming`,
+  `cosine` — the same arrays `scipy.signal.get_window(..., fftbins=False)`
+  returns.
+- `gaussian`, `exponential`, `tukey`, `kaiser`, `taylor`, `lanczos` need extra
+  window parameters and raise `NotImplementedError`.
+- Weighted `std`/`var` raise: pandas computes them with rotating weights, which
+  is a different contract.
+- Weighted frames use the default shape only (`center=False`,
+  `closed="right"`), and the window is capped at 512 rows (the weighted scan
+  runs as a weights join).
 
 ## Type Support
 

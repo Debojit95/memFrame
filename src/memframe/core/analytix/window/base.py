@@ -158,6 +158,191 @@ class WindowOps:
         # pandas needs n > ddof; NULL otherwise (no negative variances).
         return f"CASE WHEN ({n}) > {ddof} THEN {moment} ELSE NULL END"
 
+    @staticmethod
+    def _reject_win_type(win_type):
+        if win_type:
+            raise NotImplementedError(
+                "win_type applies to sum/mean only"
+            )
+
+    _WIN_TYPES = (
+        "boxcar", "triang", "bartlett", "parzen", "bohman", "blackman",
+        "blackmanharris", "barthann", "nuttall", "hann", "hamming", "cosine",
+    )
+    _WIN_MAX = 512
+
+    @classmethod
+    def _window_weights(cls, win_type, window) -> list:
+        """Closed-form scipy window weights (oldest row first)."""
+        import math
+
+        key = (win_type or "").lower()
+        if key not in cls._WIN_TYPES:
+            raise NotImplementedError(
+                f"win_type={win_type!r} is not supported; supported: "
+                f"{list(cls._WIN_TYPES)}"
+            )
+        w = int(window)
+        if w < 1:
+            raise ValueError("window must be >= 1")
+        if w > cls._WIN_MAX:
+            raise ValueError(
+                f"win_type windows are capped at {cls._WIN_MAX} rows"
+            )
+        if w == 1:
+            return [1.0]
+        n = w - 1
+
+        def cos(k, mult=1.0):
+            return math.cos(mult * 2.0 * math.pi * k / n)
+
+        out = []
+        for i in range(w):
+            if key == "boxcar":
+                v = 1.0
+            elif key == "triang":
+                denom = (w + 1) / 2.0 if w % 2 else w / 2.0
+                v = 1.0 - abs(i - n / 2.0) / denom
+            elif key == "bartlett":
+                v = 1.0 - abs(i - n / 2.0) / (n / 2.0)
+            elif key == "hann":
+                v = 0.5 - 0.5 * cos(i)
+            elif key == "hamming":
+                v = 0.54 - 0.46 * cos(i)
+            elif key == "blackman":
+                v = 0.42 - 0.5 * cos(i) + 0.08 * cos(i, 2.0)
+            elif key == "blackmanharris":
+                v = (
+                    0.35875 - 0.48829 * cos(i) + 0.14128 * cos(i, 2.0)
+                    - 0.01168 * cos(i, 3.0)
+                )
+            elif key == "barthann":
+                v = (
+                    0.62 - 0.48 * abs(i / n - 0.5)
+                    - 0.38 * cos(i)
+                )
+            elif key == "nuttall":
+                v = (
+                    0.3635819 - 0.4891775 * cos(i) + 0.1365995 * cos(i, 2.0)
+                    - 0.0106411 * cos(i, 3.0)
+                )
+            elif key == "cosine":
+                v = math.sin(math.pi * (i + 0.5) / w)
+            elif key == "bohman":
+                if i in (0, w - 1):
+                    v = 0.0  # scipy clips the radial endpoints
+                else:
+                    x = abs(2.0 * i / n - 1.0)
+                    v = (
+                        (1.0 - x) * math.cos(math.pi * x)
+                        + math.sin(math.pi * x) / math.pi
+                    )
+            else:  # parzen
+                u = abs(i - n / 2.0) / (w / 2.0)
+                if u <= 0.5:
+                    v = 1.0 - 6.0 * u * u * (1.0 - u)
+                else:
+                    v = 2.0 * (1.0 - u) ** 3
+            out.append(v)
+        return out
+
+    async def _rolling_weighted(
+        self, table, schema, column, order_by, window, raw_aggs,
+        min_periods, ddof, win_type, backend, data_id, new_table,
+        group_cols=None, center=False, closed=None,
+    ):
+        """Weighted rolling aggregates via a weights join (win_type)."""
+        if int(window) < 1:
+            return self._error_response("window must be >= 1")
+        if center or closed not in (None, "right"):
+            raise NotImplementedError(
+                "win_type supports the default frame only "
+                "(center=False, closed='right')"
+            )
+        weights = self._window_weights(win_type, window)
+        safe_col = SQLIdentifierSanitizer.sanitize(column)
+        safe_groups = [
+            SQLIdentifierSanitizer.sanitize(c) for c in (group_cols or [])
+        ]
+        orders = self._order_keys(order_by)
+        w = int(window) - 1
+
+        aliases = {"sum": "sum", "mean": "mean", "avg": "mean"}
+        keys = [aliases.get(str(a).strip().lower()) for a in raw_aggs]
+        bad = [a for a in raw_aggs if aliases.get(str(a).strip().lower()) is None]
+        if bad:
+            return self._error_response(
+                f"win_type supports sum/mean only, not {bad} "
+                "(pandas computes weighted std/var with rotating weights)"
+            )
+
+        if safe_groups:
+            base = self._group_base_cte(
+                table, schema, safe_col, safe_groups, orders,
+            )
+            group_eq = self._group_eq(safe_groups)
+        else:
+            base = self._window_base_cte(table, schema, safe_col, orders)
+            group_eq = ""
+
+        # Oldest frame row (offset w) carries weights[0].
+        rows = [
+            f"SELECT {w - i} AS __off, {weights[i]!r} AS __wt"
+            for i in range(len(weights))
+        ]
+        weight_cte = "\n                    UNION ALL ".join(rows)
+
+        suffix = f"_by_{'_'.join(safe_groups)}" if safe_groups else ""
+        sw = "SUM(CASE WHEN r.v IS NOT NULL THEN w.__wt END)"
+        swx = "SUM(w.__wt * r.v)"
+        cnt = "SUM(CASE WHEN r.v IS NOT NULL THEN 1 ELSE 0 END)"
+        exprs = []
+        names = []
+        for alias in keys:
+            col_name = f"{safe_col}_rolling_{alias}_w{window}{suffix}"
+            if alias == "sum":
+                value = swx
+            else:  # mean
+                value = f"({swx} / NULLIF({sw}, 0))"
+            value = self._min_periods_gate(value, f"({cnt})", min_periods)
+            names.append(col_name)
+            exprs.append(f"{value} AS {self.db.quote_identifier(col_name)}")
+
+        feature_sql = f"""
+            WITH {base},
+            __w AS (
+                    {weight_cte}
+            )
+            SELECT b.{self.db.quote_identifier("_mf_idx")} AS {self.db.quote_identifier("_mf_idx")},
+                {", ".join(exprs)}
+            FROM __base b
+            JOIN __base r
+              ON r.__rn BETWEEN b.__rn - {w} AND b.__rn{group_eq}
+            JOIN __w w ON w.__off = b.__rn - r.__rn
+            GROUP BY b.{self.db.quote_identifier("_mf_idx")}
+        """
+        await self._merge_features(
+            table, schema, feature_sql, names,
+            [self._ewm_float_type()] * len(names),
+            backend=backend, data_id=data_id,
+        )
+        preview_cols = [column, *names]
+        if order_by:
+            preview_cols += [c for c in orders if c != "_mf_idx"]
+        preview_cols += safe_groups
+        preview_cols = list(dict.fromkeys(preview_cols))
+        res = await self._preview_data(table, schema, preview_cols)
+        response = self._success_response(
+            f"Rolling {', '.join(keys)} on '{column}' "
+            f"(window={window}, win_type={win_type})",
+            res, new_table=table, new_columns=names,
+            window=window, min_periods=min_periods, win_type=win_type,
+            source_updated=True,
+        )
+        if len(names) == 1:
+            response["new_column"] = names[0]
+        return response
+
     _QUANTILE_INTERPOLATIONS = (
         "linear", "lower", "higher", "nearest", "midpoint",
     )
@@ -432,10 +617,12 @@ class WindowOps:
         self, table, schema, column, order_by=None, window=3, stat="mean",
         backend=None, data_id=None, new_table=None, min_periods=None,
         center: bool = False, closed: Optional[str] = None,
+        win_type: Optional[str] = None
     ):
         try:
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
+            self._reject_win_type(win_type)
             if int(window) < 1:
                 return self._error_response("window must be >= 1")
             min_p = self._resolve_min_periods(min_periods, window)
@@ -656,6 +843,7 @@ class WindowOps:
     center: bool = False,
     closed: Optional[str] = None,
     ddof: int = 1,
+    win_type: Optional[str] = None,
     new_table: Optional[str] = None) -> Dict[str, Any]:
         try:
             if backend is None or data_id is None:
@@ -675,6 +863,14 @@ class WindowOps:
 
             if int(window) < 1:
                 return self._error_response("window must be >= 1")
+
+            if win_type:
+                return await self._rolling_weighted(
+                    table, schema, column, order_by, window, raw_aggs,
+                    self._resolve_min_periods(min_periods, window),
+                    self._resolve_ddof(ddof), win_type, backend, data_id,
+                    new_table, center=center, closed=closed,
+                )
 
             # --- 1. Narrow ordering: explicit keys, else the upload index ---
             min_p = self._resolve_min_periods(min_periods, window)
@@ -829,10 +1025,12 @@ class WindowOps:
         closed: Optional[str] = None,
         label: Optional[str] = None,
         interpolation: str = "linear",
+        win_type: Optional[str] = None
     ):
         try:
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
+            self._reject_win_type(win_type)
             if int(window) < 1:
                 return self._error_response("window must be >= 1")
             min_p = self._resolve_min_periods(min_periods, window)
@@ -909,10 +1107,12 @@ class WindowOps:
         center: bool = False,
         closed: Optional[str] = None,
         ddof: int = 1,
+        win_type: Optional[str] = None
     ):
         try:
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
+            self._reject_win_type(win_type)
             if int(window) < 1:
                 return self._error_response("window must be >= 1")
             min_p = self._resolve_min_periods(min_periods, window)
@@ -956,10 +1156,12 @@ class WindowOps:
         min_periods: Optional[int] = None,
         center: bool = False,
         closed: Optional[str] = None,
+        win_type: Optional[str] = None
     ):
         try:
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
+            self._reject_win_type(win_type)
             if int(window) < 1:
                 return self._error_response("window must be >= 1")
             min_p = self._resolve_min_periods(min_periods, window)
@@ -1033,10 +1235,12 @@ class WindowOps:
         method: str = "average",
         ascending: bool = True,
         pct: bool = False,
+        win_type: Optional[str] = None
     ):
         try:
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
+            self._reject_win_type(win_type)
             if int(window) < 1:
                 return self._error_response("window must be >= 1")
             min_p = self._resolve_min_periods(min_periods, window)
@@ -1291,10 +1495,12 @@ class WindowOps:
         new_table: Optional[str] = None,
         label: Optional[str] = None,
         interpolation: str = "linear",
+        win_type: Optional[str] = None
     ):
         try:
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
+            self._reject_win_type(win_type)
             self._resolve_interpolation(interpolation)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
             orders = self._order_keys(order_by)
@@ -1368,10 +1574,12 @@ class WindowOps:
         order_by=None, min_periods=1, ddof=1,
         backend=None, data_id=None,
         new_table: Optional[str] = None,
+        win_type: Optional[str] = None
     ):
         try:
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
+            self._reject_win_type(win_type)
             ddof = self._resolve_ddof(ddof)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
             orders = self._order_keys(order_by)
@@ -1412,10 +1620,12 @@ class WindowOps:
         method: str = "average",
         ascending: bool = True,
         pct: bool = False,
+        win_type: Optional[str] = None
     ):
         try:
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
+            self._reject_win_type(win_type)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
             orders = self._order_keys(order_by)
             new_col = f"{safe_col}_expanding_rank"
@@ -1450,10 +1660,12 @@ class WindowOps:
         order_by=None, min_periods=1,
         backend=None, data_id=None,
         new_table: Optional[str] = None,
+        win_type: Optional[str] = None
     ):
         try:
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
+            self._reject_win_type(win_type)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
             orders = self._order_keys(order_by)
             order_sql = ", ".join(self.db.quote_identifier(c) for c in orders)
@@ -1519,10 +1731,12 @@ class WindowOps:
         order_by=None, stat="mean", min_periods=1,
         backend=None, data_id=None,
         new_table: Optional[str] = None,
+        win_type: Optional[str] = None
     ):
         try:
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
+            self._reject_win_type(win_type)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
             orders = self._order_keys(order_by)
             stat_key = stat.lower()

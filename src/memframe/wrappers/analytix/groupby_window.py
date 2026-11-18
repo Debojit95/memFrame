@@ -22,9 +22,12 @@ class GroupByRollingWrapper(GroupByRolling):
     """Fluent grouped rolling window builder with async/sync operations."""
 
     def __init__(self, group_window: GroupByWindow, window: int, order_by,
-                 min_periods=None, center=False, closed=None):
+                 min_periods=None, center=False, closed=None, win_type=None):
         """Initialize rolling builder with parent group window and ordering."""
-        super().__init__(group_window, window, order_by, min_periods, center, closed)
+        super().__init__(
+            group_window, window, order_by, min_periods, center, closed,
+            win_type,
+        )
 
     # ------------------------------------------------------------------
     #  helper that routes through orchestrator (keeps @record_call active)
@@ -41,6 +44,7 @@ class GroupByRollingWrapper(GroupByRolling):
             min_periods=self.min_periods,
             center=self.center,
             closed=self.closed,
+            win_type=self.win_type,
             func_kwargs={func_name: extra} if extra else None,
         )
 
@@ -457,10 +461,11 @@ class GroupByWindowWrapper(GroupByWindow):
         super().__init__(*args, **kwargs)
 
     def rolling(self, window: int, order_by=None, min_periods: int = None,
-                center: bool = False, closed: str = None) -> GroupByRollingWrapper:
+                center: bool = False, closed: str = None,
+                win_type: str = None) -> GroupByRollingWrapper:
         """Create grouped rolling window builder."""
         return GroupByRollingWrapper(
-            self, window, order_by, min_periods, center, closed,
+            self, window, order_by, min_periods, center, closed, win_type,
         )
 
     def expanding(self, min_periods: int = 1, order_by=None) -> GroupByExpandingWrapper:
@@ -497,6 +502,7 @@ class GroupByWindowStatsWrapper(GroupByWindowOrchestrator):
         min_periods: int = None,
         center: bool = False,
         closed: str = None,
+        win_type: str = None,
         func_kwargs: dict = None,
         map_feature: bool = False,
     ) -> Dict[str, Any]:
@@ -505,6 +511,7 @@ class GroupByWindowStatsWrapper(GroupByWindowOrchestrator):
                                      group_cols=group_cols, order_by=order_by, q=q,
                                      min_periods=min_periods,
                                      center=center, closed=closed,
+                                     win_type=win_type,
                                      func_kwargs=func_kwargs,
                                      map_feature=map_feature)
 
@@ -520,6 +527,7 @@ class GroupByWindowStatsWrapper(GroupByWindowOrchestrator):
         min_periods: int = None,
         center: bool = False,
         closed: str = None,
+        win_type: str = None,
         func_kwargs: dict = None,
         map_feature: bool = False,
     ) -> Dict[str, Any]:
@@ -528,6 +536,7 @@ class GroupByWindowStatsWrapper(GroupByWindowOrchestrator):
                                    group_cols=group_cols, order_by=order_by, q=q,
                                    min_periods=min_periods,
                                    center=center, closed=closed,
+                                   win_type=win_type,
                                    func_kwargs=func_kwargs,
                                    map_feature=map_feature)
 

@@ -46,8 +46,10 @@ class GroupByWindow:
 
     def rolling(self, window: int, order_by: Union[str, List[str]] = None,
                 min_periods: int = None, center: bool = False,
-                closed: str = None) -> "GroupByRolling":
-        return GroupByRolling(self, window, order_by, min_periods, center, closed)
+                closed: str = None, win_type: str = None) -> "GroupByRolling":
+        return GroupByRolling(
+            self, window, order_by, min_periods, center, closed, win_type,
+        )
     
     def expanding(self, min_periods: int = 1, order_by: Union[str, List[str]] = None) -> "GroupByExpanding":
         return GroupByExpanding(self, min_periods, order_by)
@@ -60,13 +62,14 @@ class GroupByWindow:
 class GroupByRolling:
     
     def __init__(self, group_window: GroupByWindow, window: int, order_by,
-                 min_periods=None, center=False, closed=None):
+                 min_periods=None, center=False, closed=None, win_type=None):
         self._gw = group_window
         self.window = window
         self.order_by = order_by
         self.min_periods = min_periods
         self.center = center
         self.closed = closed
+        self.win_type = win_type
 
 
     async def _run(self, method_suffix: str, column: str, **extra_kwargs):
@@ -80,6 +83,7 @@ class GroupByRolling:
             min_periods=self.min_periods,
             center=self.center,
             closed=self.closed,
+            win_type=self.win_type,
             **extra_kwargs,
         )
 
@@ -133,6 +137,7 @@ class GroupByRolling:
             min_periods=self.min_periods,
             center=self.center,
             closed=self.closed,
+            win_type=self.win_type,
             **kwargs,
         )
 
@@ -438,6 +443,7 @@ class GroupByWindowOrchestrator:
         min_periods: int = None,
         center: bool = False,
         closed: str = None,
+        win_type: str = None,
         func_kwargs: dict = None,
         map_feature: bool = False,
     ) -> Dict[str, Any]:
@@ -512,6 +518,7 @@ class GroupByWindowOrchestrator:
                 min_periods=min_periods,
                 center=center,
                 closed=closed,
+                win_type=win_type,
                 backend=backend,
                 data_id=data_id,
             )
@@ -548,7 +555,7 @@ class GroupByWindowOrchestrator:
             group_cols=group_cols, func=requested_funcs, order_by=order_by,
             window=locals().get("window"),
             min_periods=min_periods, center=center, closed=closed,
-            func_kwargs=func_kwargs,
+            win_type=win_type, func_kwargs=func_kwargs,
         )
         involved = self._involved_cols(column, group_cols, order_by)
 

@@ -142,6 +142,7 @@ class GroupbyWindowOps(WindowOps):
         center: bool = False,
         closed: Optional[str] = None,
         ddof: int = 1,
+        win_type: Optional[str] = None,
         new_table: str = None,
     ) -> Dict[str, Any]:
         """Generic rolling aggregation with PARTITION BY group_cols."""
@@ -162,6 +163,15 @@ class GroupbyWindowOps(WindowOps):
                 return self._error_response("At least one aggregation function is required")
 
             min_p = self._resolve_min_periods(min_periods, window)
+
+            if win_type:
+                return await self._rolling_weighted(
+                    table, schema, column, order_by, window, raw_aggs,
+                    min_p, self._resolve_ddof(ddof), win_type, backend,
+                    data_id, new_table, group_cols=safe_groups,
+                    center=center, closed=closed,
+                )
+
             ddof = self._resolve_ddof(ddof)
             orders = self._order_keys(order_by)
             order_sql = ", ".join(self.db.quote_identifier(c) for c in orders)
@@ -314,10 +324,12 @@ class GroupbyWindowOps(WindowOps):
         q=0.5, backend=None, data_id=None, new_table=None, min_periods=None,
         center: bool = False, closed: Optional[str] = None,
         label: Optional[str] = None, interpolation: str = "linear",
+        win_type: Optional[str] = None
     ):
         try:
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
+            self._reject_win_type(win_type)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
             safe_groups = [SQLIdentifierSanitizer.sanitize(c) for c in group_cols]
             if int(window) < 1:
@@ -396,10 +408,12 @@ class GroupbyWindowOps(WindowOps):
         self, table, schema, column, group_cols, order_by=None, window=3,
         backend=None, data_id=None, new_table=None, min_periods=None,
         center: bool = False, closed: Optional[str] = None, ddof: int = 1,
+        win_type: Optional[str] = None
     ):
         try:
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
+            self._reject_win_type(win_type)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
             safe_groups = [SQLIdentifierSanitizer.sanitize(c) for c in group_cols]
             if int(window) < 1:
@@ -439,10 +453,12 @@ class GroupbyWindowOps(WindowOps):
         self, table, schema, column, group_cols, order_by=None, window=3,
         backend=None, data_id=None, new_table=None, min_periods=None,
         center: bool = False, closed: Optional[str] = None,
+        win_type: Optional[str] = None
     ):
         try:
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
+            self._reject_win_type(win_type)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
             safe_groups = [SQLIdentifierSanitizer.sanitize(c) for c in group_cols]
             if int(window) < 1:
@@ -516,10 +532,12 @@ class GroupbyWindowOps(WindowOps):
         backend=None, data_id=None, new_table=None, min_periods=None,
         center: bool = False, closed: Optional[str] = None,
         method: str = "average", ascending: bool = True, pct: bool = False,
+        win_type: Optional[str] = None
     ):
         try:
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
+            self._reject_win_type(win_type)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
             safe_groups = [SQLIdentifierSanitizer.sanitize(c) for c in group_cols]
             if int(window) < 1:
@@ -567,31 +585,33 @@ class GroupbyWindowOps(WindowOps):
     async def rolling_max_datetime_groupby(self, *args, **kwargs):
         return await self._rolling_agg_with_partition(*args, agg="MAX", **kwargs)
     async def rolling_mean_datetime_groupby(
-        self, table, schema, column, group_cols, order_by=None, window=3, backend=None, data_id=None, new_table=None, min_periods=None, center=False, closed=None,
+        self, table, schema, column, group_cols, order_by=None, window=3, backend=None, data_id=None, new_table=None, min_periods=None, center=False, closed=None, win_type=None,
     ):
         return await self._rolling_datetime_stat_with_partition(
-            table, schema, column, group_cols, order_by, window, stat="mean", backend=backend, data_id=data_id, new_table=new_table, min_periods=min_periods, center=center, closed=closed,
+            table, schema, column, group_cols, order_by, window, stat="mean", backend=backend, data_id=data_id, new_table=new_table, min_periods=min_periods, center=center, closed=closed, win_type=win_type,
         )
     async def rolling_median_datetime_groupby(
-        self, table, schema, column, group_cols, order_by=None, window=3, backend=None, data_id=None, new_table=None, min_periods=None, center=False, closed=None,
+        self, table, schema, column, group_cols, order_by=None, window=3, backend=None, data_id=None, new_table=None, min_periods=None, center=False, closed=None, win_type=None,
     ):
         return await self._rolling_datetime_stat_with_partition(
-            table, schema, column, group_cols, order_by, window, stat="median", backend=backend, data_id=data_id, new_table=new_table, min_periods=min_periods, center=center, closed=closed,
+            table, schema, column, group_cols, order_by, window, stat="median", backend=backend, data_id=data_id, new_table=new_table, min_periods=min_periods, center=center, closed=closed, win_type=win_type,
         )
     async def rolling_mode_datetime_groupby(
-        self, table, schema, column, group_cols, order_by=None, window=3, backend=None, data_id=None, new_table=None, min_periods=None, center=False, closed=None,
+        self, table, schema, column, group_cols, order_by=None, window=3, backend=None, data_id=None, new_table=None, min_periods=None, center=False, closed=None, win_type=None,
     ):
         return await self._rolling_datetime_stat_with_partition(
-            table, schema, column, group_cols, order_by, window, stat="mode", backend=backend, data_id=data_id, new_table=new_table, min_periods=min_periods, center=center, closed=closed,
+            table, schema, column, group_cols, order_by, window, stat="mode", backend=backend, data_id=data_id, new_table=new_table, min_periods=min_periods, center=center, closed=closed, win_type=win_type,
         )
     async def _rolling_datetime_stat_with_partition(
         self, table, schema, column, group_cols, order_by, window, stat,
         backend, data_id, new_table=None, min_periods=None,
         center: bool = False, closed: Optional[str] = None,
+        win_type: Optional[str] = None
     ):
         try:
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
+            self._reject_win_type(win_type)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
             safe_groups = [SQLIdentifierSanitizer.sanitize(c) for c in group_cols]
             if int(window) < 1:
@@ -869,10 +889,12 @@ class GroupbyWindowOps(WindowOps):
         self, table, schema, column, group_cols, order_by=None, q=0.5,
         min_periods=1, backend=None, data_id=None, new_table=None,
         label: Optional[str] = None, interpolation: str = "linear",
+        win_type: Optional[str] = None
     ):
         try:
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
+            self._reject_win_type(win_type)
             self._resolve_interpolation(interpolation)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
             safe_groups = [SQLIdentifierSanitizer.sanitize(c) for c in group_cols]
@@ -954,10 +976,12 @@ class GroupbyWindowOps(WindowOps):
     async def expanding_sem_groupby(
         self, table, schema, column, group_cols, order_by=None,
         min_periods=1, ddof=1, backend=None, data_id=None, new_table=None,
+        win_type: Optional[str] = None
     ):
         try:
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
+            self._reject_win_type(win_type)
             ddof = self._resolve_ddof(ddof)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
             safe_groups = [SQLIdentifierSanitizer.sanitize(c) for c in group_cols]
@@ -999,10 +1023,12 @@ class GroupbyWindowOps(WindowOps):
         self, table, schema, column, group_cols, order_by=None,
         min_periods=1, backend=None, data_id=None, new_table=None,
         method: str = "average", ascending: bool = True, pct: bool = False,
+        win_type: Optional[str] = None
     ):
         try:
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
+            self._reject_win_type(win_type)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
             safe_groups = [SQLIdentifierSanitizer.sanitize(c) for c in group_cols]
             orders = self._order_keys(order_by)
@@ -1042,10 +1068,12 @@ class GroupbyWindowOps(WindowOps):
     async def expanding_nunique_groupby(
         self, table, schema, column, group_cols, order_by=None,
         min_periods=1, backend=None, data_id=None, new_table=None,
+        win_type: Optional[str] = None
     ):
         try:
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
+            self._reject_win_type(win_type)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
             safe_groups = [SQLIdentifierSanitizer.sanitize(c) for c in group_cols]
             orders = self._order_keys(order_by)
@@ -1143,10 +1171,12 @@ class GroupbyWindowOps(WindowOps):
     async def _expanding_datetime_stat_with_partition(
         self, table, schema, column, group_cols, order_by, stat, min_periods,
         backend, data_id, new_table=None,
+        win_type: Optional[str] = None
     ):
         try:
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
+            self._reject_win_type(win_type)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
             safe_groups = [SQLIdentifierSanitizer.sanitize(c) for c in group_cols]
             orders = self._order_keys(order_by)
