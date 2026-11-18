@@ -134,7 +134,7 @@ sample = dataset.groupby("region").expanding().sum("sales")
 | --- | --- | --- |
 | `column` | `str` | Value column the window runs over. |
 | `group_cols` | `str` or `list[str]` | Column(s) partitioning the window. At least one is required. |
-| `window` | `int` | Rolling window size in rows (`ROWS BETWEEN window-1 PRECEDING AND CURRENT ROW`). |
+| `window` | `int`, `timedelta`, or offset `str` | Rolling window: rows (`window-1 PRECEDING AND CURRENT ROW`) or a duration (`"3D"`) with a datetime `order_by`. |
 | `func` | `str` or `list[str]` | Aggregation(s): `sum`, `mean`/`avg`, `min`, `max`, `count`, `std`/`stddev`/`stddev_samp`, `var`/`variance`/`var_samp`, `quantile`, `median`, `sem`, `rank`, `nunique`, `first`/`first_value`, `last`/`last_value`. |
 | `order_by` | `str`, `list[str]`, or `None` | Row ordering inside each group. `None` (default) uses the immutable upload order (`_mf_idx`). |
 | `q` | `float` | Quantile level for `quantile` (default `0.5`). |
@@ -228,6 +228,14 @@ dataset.groupby("region").rolling(7, order_by="month").rank("sales", method="den
 
 ```python
 dataset.groupby("region").rolling(7, order_by="month", win_type="triang").mean("sales")
+```
+
+Passing a duration (`window="3D"` / `timedelta`) windows by time per group
+instead of by row count; a datetime `order_by` is required and `min_periods`
+defaults to `1`:
+
+```python
+dataset.groupby("region").rolling("3D", order_by="date").mean("sales")
 ```
 
 `func` also accepts backend spellings directly (`AVG`, `STDDEV_SAMP`,

@@ -635,6 +635,41 @@ class TestGroupByWindowOperations:
         )
         assert_allclose_numeric(check[out_col], exp_vals)
 
+    def test_groupby_rolling_time_window(
+        self, connected_memframe, backend_config
+    ):
+        frame = pd.DataFrame(
+            {
+                "g": ["a"] * 4 + ["b"] * 3,
+                "x": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0],
+                "t": pd.to_datetime(
+                    [
+                        "2024-01-01", "2024-01-01", "2024-01-03",
+                        "2024-01-04", "2024-01-04", "2024-01-06",
+                        "2024-01-10",
+                    ]
+                ),
+            }
+        )
+        context = connected_memframe.upload_df(frame, filename="gb_time")
+        result = context.groupby("g").rolling(
+            "3D", order_by="t"
+        ).mean("x")
+        res_df = get_result_df(result)
+        out_col = get_generated_col(
+            result, "x_rolling_mean_w259200s_by_g"
+        )
+
+        ordered = frame.sort_values(["g", "t"], kind="mergesort")
+        expected = pd.concat(
+            [
+                grp.rolling("3D", on="t")["x"].mean()
+                for _, grp in ordered.groupby("g", sort=False)
+            ]
+        )
+        check = res_df.sort_values(["g", "t"]).reset_index(drop=True)
+        assert_allclose_numeric(check[out_col], expected)
+
     def test_groupby_rolling_weighted_mean(
         self, uploaded_ctx, sample_df, backend_config
     ):

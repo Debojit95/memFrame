@@ -629,6 +629,30 @@ class TestWindowOperations:
         ).mean()
         _assert_ordered_result(res_df, _generated_col(res_df, "sales"), expected)
 
+    def test_rolling_time_window_mean(
+        self, uploaded_ctx, time_series_df, backend_config
+    ):
+        result = uploaded_ctx.rolling(
+            column="sales", window="3D", func="mean", order_by="date"
+        )
+        res_df = get_result_df(result)
+        expected = _ordered(time_series_df).rolling(
+            "3D", on="date"
+        )["sales"].mean()
+        _assert_ordered_result(res_df, _generated_col(res_df, "sales"), expected)
+
+    def test_rolling_time_window_sum(
+        self, uploaded_ctx, time_series_df, backend_config
+    ):
+        result = uploaded_ctx.rolling(
+            column="sales", window="36h", func="sum", order_by="date"
+        )
+        res_df = get_result_df(result)
+        expected = _ordered(time_series_df).rolling(
+            "36h", on="date"
+        )["sales"].sum()
+        _assert_ordered_result(res_df, _generated_col(res_df, "sales"), expected)
+
     def test_rolling_weighted_mean(
         self, uploaded_ctx, time_series_df, backend_config
     ):

@@ -165,6 +165,201 @@ class WindowOps:
                 "win_type applies to sum/mean only"
             )
 
+    @staticmethod
+    def _parse_window(window):
+        """Return ("rows", n, tag) or ("time", seconds, tag)."""
+        import datetime as _dt
+
+        import pandas as pd
+
+        if isinstance(window, bool):
+            raise ValueError("window must be an int, timedelta or offset string")
+        if isinstance(window, int):
+            if window < 1:
+                raise ValueError("window must be >= 1")
+            return "rows", window, window
+        if isinstance(window, _dt.timedelta):
+            secs = window.total_seconds()
+        elif isinstance(window, str):
+            try:
+                secs = pd.Timedelta(window).total_seconds()
+            except ValueError as exc:
+                raise ValueError(f"invalid window {window!r}") from exc
+        else:
+            raise ValueError(
+                "window must be an int, timedelta or offset string"
+            )
+        if secs <= 0:
+            raise ValueError("window must be positive")
+        return "time", secs, f"{secs:g}s"
+
+    def _reject_time_window(self, window):
+        kind, _secs, _tag = self._parse_window(window)
+        if kind == "time":
+            raise NotImplementedError(
+                "time-based windows support sum/mean/min/max/count/std/var"
+            )
+
+    def _epoch_expr(self, column_expr: str) -> str:
+        return f"date_part('epoch', {column_expr})"
+
+    async def _rolling_time_agg(
+        self, table, schema, column, order_by, window, raw_aggs,
+        min_periods, ddof, backend, data_id, new_table, group_cols=None,
+    ):
+        """Correlated time-window aggregation (strict left edge, row order)."""
+        kind, secs, tag = self._parse_window(window)
+        if kind != "time":
+            raise ValueError("window is not time-based")
+        if isinstance(order_by, (list, tuple)):
+            return self._error_response(
+                "time-based windows need a single datetime order_by column"
+            )
+        if not order_by:
+            return self._error_response(
+                "time-based windows require order_by (the datetime column)"
+            )
+        safe_col = SQLIdentifierSanitizer.sanitize(column)
+        safe_groups = [
+            SQLIdentifierSanitizer.sanitize(c) for c in (group_cols or [])
+        ]
+        orders = self._order_keys(order_by)
+        order_type = await self._get_column_sql_type(table, schema, orders[0])
+        if order_type and not any(
+            marker in str(order_type).upper() for marker in ("DATE", "TIME")
+        ):
+            return self._error_response(
+                "time-based windows need a datetime order_by column"
+            )
+        q = self.db.quote_identifier
+        order_sql = ", ".join(q(c) for c in orders)
+        qual = self._qualified_table(table, schema)
+
+        aliases = {
+            "sum": "sum", "mean": "mean", "avg": "mean", "min": "min",
+            "max": "max", "count": "count", "std": "std", "stddev": "std",
+            "stddev_samp": "std", "var": "var", "variance": "var",
+            "var_samp": "var",
+        }
+        keys = [aliases.get(str(a).strip().lower()) for a in raw_aggs]
+        if any(k is None for k in keys):
+            return self._error_response(
+                "time-based windows support sum/mean/min/max/count/std/var"
+            )
+        if not keys:
+            return self._error_response(
+                "At least one aggregation function is required"
+            )
+
+        group_cols_sql = ", ".join(q(c) for c in safe_groups)
+        select_groups = f"{group_cols_sql}, " if safe_groups else ""
+        partition = (
+            f"PARTITION BY {group_cols_sql} " if safe_groups else ""
+        )
+        base = f"""__base AS (
+                SELECT {q("_mf_idx")}, {select_groups}{q(safe_col)} AS v,
+                       ROW_NUMBER() OVER ({partition}ORDER BY {order_sql}) AS __rn,
+                       {self._epoch_expr(q(orders[0]))} AS __ord
+                FROM {qual}
+            )"""
+        group_eq = ""
+        if safe_groups:
+            group_eq = "".join(
+                f" AND r.{q(c)} = b.{q(c)}" for c in safe_groups
+            )
+
+        suffix = f"_by_{'_'.join(safe_groups)}" if safe_groups else ""
+        frame_where = (
+            f"r.__rn <= b.__rn AND r.__ord > b.__ord - {secs:g}{group_eq}"
+        )
+
+        def agg_sql(expr: str) -> str:
+            return f"(SELECT {expr} FROM __base r WHERE {frame_where})"
+
+        cnt = agg_sql("COUNT(r.v)")
+        rows = agg_sql("COUNT(r.__rn)")
+        exprs = []
+        names = []
+        for key in keys:
+            col_name = f"{safe_col}_rolling_{key}_w{tag}{suffix}"
+            if key == "sum":
+                value = agg_sql("SUM(r.v)")
+            elif key == "mean":
+                value = agg_sql("AVG(r.v)")
+            elif key == "count":
+                value = cnt
+            elif key in ("min", "max"):
+                value = agg_sql(f"{key.upper()}(r.v)")
+            elif key == "std":
+                value = agg_sql(self._agg_std("r.v", ddof, "COUNT(r.v)"))
+            else:
+                value = agg_sql(self._agg_var("r.v", ddof, "COUNT(r.v)"))
+            gate_count = rows if key == "count" else cnt
+            gated = self._min_periods_gate(value, gate_count, min_periods)
+            if key == "sum" and min_periods == 0:
+                gated = f"COALESCE({gated}, 0)"
+            names.append(col_name)
+            exprs.append(f"{gated} AS {q(col_name)}")
+
+        feature_sql = f"""
+            WITH {base}
+            SELECT b.{q("_mf_idx")} AS {q("_mf_idx")},
+                {", ".join(exprs)}
+            FROM __base b
+        """
+        await self._merge_features(
+            table, schema, feature_sql, names,
+            [self._ewm_float_type()] * len(names),
+            backend=backend, data_id=data_id,
+        )
+        preview_cols = [column, *names]
+        if order_by:
+            preview_cols += [c for c in orders if c != "_mf_idx"]
+        preview_cols += safe_groups
+        preview_cols = list(dict.fromkeys(preview_cols))
+        res = await self._preview_data(table, schema, preview_cols)
+        response = self._success_response(
+            f"Rolling {', '.join(keys)} on '{column}' (window={window})",
+            res, new_table=table, new_columns=names, window=window,
+            min_periods=min_periods, source_updated=True,
+        )
+        if len(names) == 1:
+            response["new_column"] = names[0]
+        return response
+
+    def _agg_std(self, expr, ddof, count_sql):
+        if ddof == 0:
+            return f"{self._std_pop_agg()}({expr})"
+        if ddof == 1:
+            return f"{self._std_samp_agg()}({expr})"
+        return f"SQRT({self._agg_var(expr, ddof, count_sql)})"
+
+    def _agg_var(self, expr, ddof, count_sql):
+        if ddof == 0:
+            return f"{self._var_pop_agg()}({expr})"
+        if ddof == 1:
+            return f"{self._var_samp_agg()}({expr})"
+        moment = (
+            f"((SUM(({expr}) * ({expr})) - SUM({expr}) * SUM({expr}) / "
+            f"{count_sql}) / NULLIF({count_sql} - {ddof}, 0))"
+        )
+        return f"CASE WHEN {count_sql} > {ddof} THEN {moment} ELSE NULL END"
+
+    def _time_order_sql(self, order_by, q_col):
+        """Ordering expression + frame for an epoch-based time window."""
+        if isinstance(order_by, (list, tuple)):
+            raise ValueError(
+                "time-based windows need a single datetime order_by column"
+            )
+        if not order_by:
+            raise ValueError(
+                "time-based windows require order_by (the datetime column)"
+            )
+        col = SQLIdentifierSanitizer.sanitize(order_by)
+        if isinstance(self.db, ClickHouseAdapter):
+            return f"toUnixTimestamp({self.db.quote_identifier(col)})"
+        return self.db.quote_identifier(col)
+
     _WIN_TYPES = (
         "boxcar", "triang", "bartlett", "parzen", "bohman", "blackman",
         "blackmanharris", "barthann", "nuttall", "hann", "hamming", "cosine",
@@ -252,6 +447,7 @@ class WindowOps:
         group_cols=None, center=False, closed=None,
     ):
         """Weighted rolling aggregates via a weights join (win_type)."""
+        self._reject_time_window(window)
         if int(window) < 1:
             return self._error_response("window must be >= 1")
         if center or closed not in (None, "right"):
@@ -623,6 +819,7 @@ class WindowOps:
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
             self._reject_win_type(win_type)
+            self._reject_time_window(window)
             if int(window) < 1:
                 return self._error_response("window must be >= 1")
             min_p = self._resolve_min_periods(min_periods, window)
@@ -715,17 +912,21 @@ class WindowOps:
             )
 
     def _resolve_min_periods(self, min_periods, window) -> int:
-        """Resolve pandas' rolling min_periods: None means the window size."""
-        window = int(window)
+        """Resolve pandas' rolling min_periods.
+
+        Integer windows default to the window size; time windows default to 1.
+        """
+        kind, value, _tag = self._parse_window(window)
+        default = int(value) if kind == "rows" else 1
         if min_periods is None:
-            return window
+            return default
         if isinstance(min_periods, bool) or not isinstance(min_periods, int):
             raise ValueError("min_periods must be an integer")
         if min_periods < 0:
             raise ValueError("min_periods must be >= 0")
-        if min_periods > window:
+        if kind == "rows" and min_periods > default:
             raise ValueError(
-                f"min_periods {min_periods} must be <= window {window}"
+                f"min_periods {min_periods} must be <= window {default}"
             )
         return min_periods
 
@@ -861,8 +1062,7 @@ class WindowOps:
             if not raw_aggs:
                 return self._error_response("At least one aggregation function is required")
 
-            if int(window) < 1:
-                return self._error_response("window must be >= 1")
+            kind, win_value, tag = self._parse_window(window)
 
             if win_type:
                 return await self._rolling_weighted(
@@ -872,14 +1072,27 @@ class WindowOps:
                     new_table, center=center, closed=closed,
                 )
 
+            if kind == "time":
+                if center or closed not in (None, "right"):
+                    return self._error_response(
+                        "time-based windows support closed='right' only"
+                    )
+                return await self._rolling_time_agg(
+                    table, schema, column, order_by, window, raw_aggs,
+                    self._resolve_min_periods(min_periods, window),
+                    self._resolve_ddof(ddof), backend, data_id, new_table,
+                )
+
             # --- 1. Narrow ordering: explicit keys, else the upload index ---
             min_p = self._resolve_min_periods(min_periods, window)
             ddof = self._resolve_ddof(ddof)
+            q_col = self.db.quote_identifier(safe_col)
             safe_orders = self._order_keys(order_by)
-            order_sql = ", ".join(self.db.quote_identifier(c) for c in safe_orders)
+            order_sql = ", ".join(
+                self.db.quote_identifier(c) for c in safe_orders
+            )
             frame = self._rolling_frame(window, center, closed)
             qualified = self._qualified_table(table, schema)
-            q_col = self.db.quote_identifier(safe_col)
             source_col_type = await self._get_column_sql_type(table, schema, safe_col)
             count_over = (
                 f"{self._count_expr(q_col)} OVER "
@@ -913,7 +1126,7 @@ class WindowOps:
                 else:
                     return self._error_response(f"Unsupported aggregation '{raw}' for _rolling_agg")
 
-                base_col_name = f"{safe_col}_rolling_{alias_key}_w{window}"
+                base_col_name = f"{safe_col}_rolling_{alias_key}_w{tag}"
                 col_name = base_col_name
                 suffix = 2
                 while col_name in used_col_names:
@@ -1031,6 +1244,7 @@ class WindowOps:
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
             self._reject_win_type(win_type)
+            self._reject_time_window(window)
             if int(window) < 1:
                 return self._error_response("window must be >= 1")
             min_p = self._resolve_min_periods(min_periods, window)
@@ -1113,6 +1327,7 @@ class WindowOps:
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
             self._reject_win_type(win_type)
+            self._reject_time_window(window)
             if int(window) < 1:
                 return self._error_response("window must be >= 1")
             min_p = self._resolve_min_periods(min_periods, window)
@@ -1162,6 +1377,7 @@ class WindowOps:
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
             self._reject_win_type(win_type)
+            self._reject_time_window(window)
             if int(window) < 1:
                 return self._error_response("window must be >= 1")
             min_p = self._resolve_min_periods(min_periods, window)
@@ -1241,6 +1457,7 @@ class WindowOps:
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
             self._reject_win_type(win_type)
+            self._reject_time_window(window)
             if int(window) < 1:
                 return self._error_response("window must be >= 1")
             min_p = self._resolve_min_periods(min_periods, window)

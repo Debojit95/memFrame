@@ -17,6 +17,9 @@ class ClickHouseWindowOps(ClickHouseEWMHooks, WindowOps):
     def _datetime_epoch_expr(self, column_expr: str) -> str:
         return f"toUnixTimestamp({column_expr})"
 
+    def _epoch_expr(self, column_expr: str) -> str:
+        return f"toUnixTimestamp({column_expr})"
+
     def _median_epoch_sql(self, epoch_expr: str) -> str:
         return f"quantile(0.5)({epoch_expr})"
 

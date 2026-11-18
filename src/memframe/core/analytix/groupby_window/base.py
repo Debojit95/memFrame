@@ -152,8 +152,7 @@ class GroupbyWindowOps(WindowOps):
 
             safe_col = SQLIdentifierSanitizer.sanitize(column)
             safe_groups = [SQLIdentifierSanitizer.sanitize(c) for c in group_cols]
-            if int(window) < 1:
-                return self._error_response("window must be >= 1")
+            kind, win_value, tag = self._parse_window(window)
 
             if isinstance(agg, str):
                 raw_aggs = [agg]
@@ -173,13 +172,26 @@ class GroupbyWindowOps(WindowOps):
                 )
 
             ddof = self._resolve_ddof(ddof)
+            if kind == "time":
+                if center or closed not in (None, "right"):
+                    return self._error_response(
+                        "time-based windows support closed='right' only"
+                    )
+                return await self._rolling_time_agg(
+                    table, schema, column, order_by, window, raw_aggs,
+                    min_p, self._resolve_ddof(ddof), backend, data_id,
+                    new_table, group_cols=safe_groups,
+                )
+
             orders = self._order_keys(order_by)
-            order_sql = ", ".join(self.db.quote_identifier(c) for c in orders)
+            order_sql = ", ".join(
+                self.db.quote_identifier(c) for c in orders
+            )
+            frame = self._rolling_frame(window, center, closed)
+            q_col = self.db.quote_identifier(safe_col)
             part = self._ewm_partition(safe_groups)
             qualified = self._qualified_table(table, schema)
-            q_col = self.db.quote_identifier(safe_col)
             source_type = await self._get_column_sql_type(table, schema, safe_col)
-            frame = self._rolling_frame(window, center, closed)
             count_over = (
                 f"{self._count_expr(q_col)} "
                 f"OVER ({part}ORDER BY {order_sql} {frame})"
@@ -199,7 +211,7 @@ class GroupbyWindowOps(WindowOps):
                     )
                 sql_agg, alias_key = spec
 
-                base_col = f"{safe_col}_rolling_{alias_key}_w{window}_by_{suffix_group}"
+                base_col = f"{safe_col}_rolling_{alias_key}_w{tag}_by_{suffix_group}"
                 col_name = base_col
                 suffix = 2
                 while col_name in used_col_names:
@@ -330,6 +342,7 @@ class GroupbyWindowOps(WindowOps):
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
             self._reject_win_type(win_type)
+            self._reject_time_window(window)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
             safe_groups = [SQLIdentifierSanitizer.sanitize(c) for c in group_cols]
             if int(window) < 1:
@@ -414,6 +427,7 @@ class GroupbyWindowOps(WindowOps):
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
             self._reject_win_type(win_type)
+            self._reject_time_window(window)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
             safe_groups = [SQLIdentifierSanitizer.sanitize(c) for c in group_cols]
             if int(window) < 1:
@@ -459,6 +473,7 @@ class GroupbyWindowOps(WindowOps):
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
             self._reject_win_type(win_type)
+            self._reject_time_window(window)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
             safe_groups = [SQLIdentifierSanitizer.sanitize(c) for c in group_cols]
             if int(window) < 1:
@@ -538,6 +553,7 @@ class GroupbyWindowOps(WindowOps):
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
             self._reject_win_type(win_type)
+            self._reject_time_window(window)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
             safe_groups = [SQLIdentifierSanitizer.sanitize(c) for c in group_cols]
             if int(window) < 1:
@@ -612,6 +628,7 @@ class GroupbyWindowOps(WindowOps):
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
             self._reject_win_type(win_type)
+            self._reject_time_window(window)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
             safe_groups = [SQLIdentifierSanitizer.sanitize(c) for c in group_cols]
             if int(window) < 1:

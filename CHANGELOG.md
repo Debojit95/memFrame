@@ -37,6 +37,12 @@ to [Semantic Versioning](https://semver.org/).
 - **`quantile(interpolation=...)`**: the pandas parameter is accepted on the
   builders and via `func_kwargs`. `"linear"` (pandas default) is supported;
   the other modes raise a clear `NotImplementedError` for now.
+- **Time-based windows**: `rolling(..., window="3D")` (or a `timedelta`)
+  windows by duration for `sum`/`mean`/`min`/`max`/`count`/`std`/`var`,
+  ungrouped and grouped, on all three backends. The frame is `(t - window, t]`
+  with row-order tie handling, `min_periods` defaults to `1`, and a datetime
+  `order_by` is required. `center`, non-`right` `closed`, `win_type`, and the
+  specials are rejected for time windows.
 - **Weighted windows (`win_type`)**: rolling (ungrouped + grouped) supports
   scipy window weights for `sum`/`mean` — `boxcar`, `triang`, `bartlett`,
   `parzen`, `bohman`, `blackman`, `blackmanharris`, `barthann`, `nuttall`,
