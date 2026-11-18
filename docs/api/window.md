@@ -152,7 +152,7 @@ sample = dataset.ewm(column="sales", span=3, func="mean")
 | `q` | `float` | Quantile in `[0, 1]` for `quantile` (default `0.5`). |
 | `center` | `bool` | Rolling only — centre the frame on the current row by shifting it forward `(window - 1) // 2` rows (default `False`). |
 | `func_kwargs` | `dict` or `None` | Per-function keyword arguments, e.g. `{"std": {"ddof": 0}, "rank": {"method": "dense"}}`. |
-| `closed` | `str` or `None` | Rolling only — which frame edges are included: `right` (default), `left`, `both`, `neither`. |
+| `closed` | `str` or `None` | Rolling only — which frame edges are included: `right` (default), `left`, `both`, `neither` (row and time windows). |
 | `win_type` | `str` or `None` | Rolling only — apply scipy window weights. Supported: `boxcar`, `triang`, `bartlett`, `parzen`, `bohman`, `blackman`, `blackmanharris`, `barthann`, `nuttall`, `hann`, `hamming`, `cosine`. Weighted `sum`/`mean` only. |
 | `min_periods` | `int` or `None` | Minimum observations in the frame before a value is emitted. Rolling default `None` → `window` (pandas parity); expanding default `1`; EWM default `0`. Must satisfy `0 <= min_periods <= window`. |
 
@@ -214,16 +214,18 @@ dataset.rolling(column="sales", window=pd.Timedelta("36h"), func="sum",
 dataset.on("sales").rolling(datetime.timedelta(days=3)).mean(order_by="date")
 ```
 
-- The frame is `(t - window, t]` — a strict left edge, like pandas.
+- The frame defaults to `(t - window, t]` — a strict left edge, like pandas.
+  `closed` selects the edges: `right` (default), `left`, `both`, `neither`.
   Rows that share a timestamp are ordered by row position, so ties are not
   grouped (again matching pandas).
 - Supported aggregations: `sum`, `mean`, `min`, `max`, `count`, `std`, `var`
-  (plus `ddof`). `count` is gated on the rows in the frame.
+  (with `ddof`), plus the specials — `quantile`, `median`, `sem`, `rank`,
+  `nunique`, and the datetime `mean`/`median`/`mode`. `count` is gated on the
+  rows in the frame.
 - `min_periods` defaults to `1`; set it explicitly to require more
   observations.
-- Not supported with time windows: `center`, `closed` other than `right`,
-  `win_type`, and the specials (`quantile`, `median`, `sem`, `rank`,
-  `nunique`, `first`, `last`, datetime stats) — they raise a clear
+- Still rejected for time windows: `center`, `win_type`, and `first`/`last`
+  (MemFrame extras that need ordered selection). They raise a clear
   `NotImplementedError`/error envelope.
 - Generated columns carry the duration tag, e.g.
   `sales_rolling_mean_w259200s` for three days.

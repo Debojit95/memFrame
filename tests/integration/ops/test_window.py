@@ -641,6 +641,45 @@ class TestWindowOperations:
         )["sales"].mean()
         _assert_ordered_result(res_df, _generated_col(res_df, "sales"), expected)
 
+    def test_rolling_time_window_quantile(
+        self, uploaded_ctx, time_series_df, backend_config
+    ):
+        result = uploaded_ctx.rolling(
+            column="sales", window="3D", func="quantile", q=0.5,
+            order_by="date", min_periods=1,
+        )
+        res_df = get_result_df(result)
+        expected = _ordered(time_series_df).set_index(
+            "date", drop=False
+        ).rolling("3D", min_periods=1)["sales"].quantile(0.5)
+        _assert_ordered_result(res_df, _generated_col(res_df, "sales"), expected)
+
+    def test_rolling_time_window_sem(
+        self, uploaded_ctx, time_series_df, backend_config
+    ):
+        result = uploaded_ctx.rolling(
+            column="sales", window="3D", func="sem",
+            order_by="date", min_periods=1,
+        )
+        res_df = get_result_df(result)
+        expected = _ordered(time_series_df).set_index(
+            "date", drop=False
+        ).rolling("3D", min_periods=1)["sales"].sem()
+        _assert_ordered_result(res_df, _generated_col(res_df, "sales"), expected)
+
+    def test_rolling_time_window_closed_both(
+        self, uploaded_ctx, time_series_df, backend_config
+    ):
+        result = uploaded_ctx.rolling(
+            column="sales", window="2D", func="mean", order_by="date",
+            closed="both", min_periods=1,
+        )
+        res_df = get_result_df(result)
+        expected = _ordered(time_series_df).set_index(
+            "date", drop=False
+        ).rolling("2D", closed="both", min_periods=1)["sales"].mean()
+        _assert_ordered_result(res_df, _generated_col(res_df, "sales"), expected)
+
     def test_rolling_time_window_sum(
         self, uploaded_ctx, time_series_df, backend_config
     ):

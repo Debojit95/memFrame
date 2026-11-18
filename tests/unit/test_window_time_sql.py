@@ -117,7 +117,7 @@ def test_grouped_time_window_matches_pandas(ctx):
         ({"order_by": None}, "order_by"),
         ({"order_by": ["t"]}, "single datetime order_by"),
         ({"order_by": "x"}, "datetime"),
-        ({"func": "quantile"}, "time-based windows"),
+        ({"func": "first"}, "time-based windows"),
         ({"win_type": "hann"}, "time-based windows"),
     ],
 )
@@ -129,3 +129,159 @@ def test_time_window_validation(ctx, kwargs, message):
     response = wrapper.rolling(**call)
     assert response["is_error"] is True
     assert message in str(response.get("failed_funcs") or response.get("error_message"))
+
+
+@pytest.mark.parametrize("func", ["quantile", "median", "sem", "rank", "nunique"])
+def test_time_window_specials_match_pandas(ctx, func):
+    frame = _frame()
+    wrapper = WindowWrapper(ctx.upload_df(frame, filename=f"ts_{func}"))
+    response = wrapper.rolling(
+        column="x", window="3D", func=func, order_by="t", min_periods=1
+    )
+    assert response["is_error"] is False, response.get("failed_funcs")
+    got = response["result"].sort_values("t")
+    column = [c for c in got.columns if c.startswith("x_rolling")][0]
+
+    roll = frame.set_index("t", drop=False).rolling("3D", min_periods=1)["x"]
+    if func == "quantile":
+        expected = roll.quantile(0.5).to_numpy()
+    elif func == "median":
+        expected = roll.median().to_numpy()
+    elif func == "sem":
+        expected = roll.sem().to_numpy()
+    elif func == "rank":
+        expected = roll.rank().to_numpy()
+    else:
+        expected = roll.apply(
+            lambda v: pd.Series(v).nunique(), raw=True
+        ).to_numpy()
+
+    np.testing.assert_allclose(
+        got[column].to_numpy(dtype=float), expected,
+        equal_nan=True, rtol=1e-9,
+    )
+
+
+def test_time_window_datetime_stats(ctx):
+    stamps = pd.to_datetime(
+        [
+            "2024-01-01", "2024-01-01", "2024-01-03", "2024-01-04",
+            "2024-01-04", "2024-01-06", "2024-01-10",
+        ]
+    )
+    frame = pd.DataFrame({"d": stamps, "t": stamps})
+    wrapper = WindowWrapper(ctx.upload_df(frame, filename="ts_dt"))
+
+    ts = frame["t"].to_numpy()
+    ns = frame["d"].to_numpy().astype("int64")
+    window = np.timedelta64(3, "D")
+    exp_mean, exp_median = [], []
+    for i in range(len(ts)):
+        mask = (ts > ts[i] - window) & (np.arange(len(ts)) <= i)
+        arr = np.sort(ns[mask])
+        exp_mean.append(arr.mean())
+        exp_median.append(np.median(arr))
+
+    for func, expected, atol in (
+        ("mean", exp_mean, 1e9),
+        ("median", exp_median, 1e6),
+    ):
+        response = wrapper.rolling(
+            column="d", window="3D", func=func, order_by="t", min_periods=1
+        )
+        assert response["is_error"] is False, response.get("failed_funcs")
+        got = response["result"].sort_values("t")
+        column = [c for c in got.columns if c.startswith("d_rolling")][0]
+        got_ns = (
+            pd.to_datetime(got[column]).astype("int64").to_numpy()
+        )
+        np.testing.assert_allclose(
+            got_ns, np.asarray(expected), rtol=0, atol=atol,
+        )
+
+    response = wrapper.rolling(
+        column="d", window="3D", func="mode", order_by="t", min_periods=1
+    )
+    assert response["is_error"] is False, response.get("failed_funcs")
+
+
+@pytest.mark.parametrize("closed", ["right", "left", "both", "neither"])
+def test_time_window_closed_matches_pandas(ctx, closed):
+    frame = pd.DataFrame(
+        {
+            "x": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+            "t": pd.to_datetime(
+                [
+                    "2024-01-01", "2024-01-01", "2024-01-02",
+                    "2024-01-03", "2024-01-04", "2024-01-05",
+                ]
+            ),
+        }
+    )
+    wrapper = WindowWrapper(ctx.upload_df(frame, filename=f"ts_c_{closed}"))
+    for func in ("sum", "mean"):
+        response = wrapper.rolling(
+            column="x", window="2D", func=func, order_by="t",
+            closed=closed, min_periods=1,
+        )
+        assert response["is_error"] is False, response.get("failed_funcs")
+        got = response["result"].sort_values("t")
+        column = [c for c in got.columns if c.startswith("x_rolling")][0]
+        roll = frame.set_index("t", drop=False).rolling(
+            "2D", closed=closed, min_periods=1
+        )["x"]
+        expected = getattr(roll, func)().to_numpy()
+        np.testing.assert_allclose(
+            got[column].to_numpy(dtype=float), expected,
+            equal_nan=True, rtol=1e-9,
+        )
+
+
+def test_grouped_time_window_specials(ctx):
+    frame = _frame().assign(g=["a"] * 3 + ["b"] * 4)
+    context = ctx.upload_df(frame, filename="ts_grouped")
+    wrapper = GroupByWindowStatsWrapper(context)
+    ordered = frame.sort_values(["g", "t"], kind="mergesort")
+
+    for func in ("quantile", "median"):
+        response = asyncio.run(
+            wrapper.arolling(
+                column="x", window="3D", func=func, group_cols="g",
+                order_by="t", min_periods=1,
+            )
+        )
+        assert response["is_error"] is False, response.get("failed_funcs")
+        got = response["result"].sort_values(["g", "t"])
+
+        expected = pd.concat(
+            [
+                (
+                    grp.set_index("t", drop=False).rolling(
+                        "3D", min_periods=1
+                    )["x"].quantile(0.5)
+                    if func == "quantile"
+                    else getattr(
+                        grp.set_index("t", drop=False).rolling(
+                            "3D", min_periods=1
+                        )["x"],
+                        func,
+                    )()
+                )
+                for _, grp in ordered.groupby("g", sort=False)
+            ]
+        ).to_numpy()
+        column = [c for c in got.columns if c.startswith("x_rolling")][0]
+        np.testing.assert_allclose(
+            got[column].to_numpy(dtype=float), expected,
+            equal_nan=True, rtol=1e-9,
+        )
+
+
+def test_time_window_center_is_rejected(ctx):
+    frame = _frame()
+    wrapper = WindowWrapper(ctx.upload_df(frame, filename="ts_center"))
+    response = wrapper.rolling(
+        column="x", window="3D", func="mean", order_by="t", center=True
+    )
+    assert response["is_error"] is True
+    assert "center" in str(response.get("failed_funcs"))

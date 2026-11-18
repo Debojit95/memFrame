@@ -74,17 +74,19 @@ class GroupbyWindowOps(WindowOps):
 
     def _group_base_cte(
         self, table, schema, safe_col, safe_groups, orders, name="__base",
+        ord_expr=None,
     ) -> str:
         q = self.db.quote_identifier
         group_cols = ", ".join(q(c) for c in safe_groups)
         order_sql = ", ".join(q(c) for c in orders)
         qualified = self._qualified_table(table, schema)
+        extra = f", {ord_expr} AS __ord" if ord_expr else ""
         return f"""{name} AS (
                 SELECT {q("_mf_idx")}, {group_cols}, {q(safe_col)} AS v,
                        ROW_NUMBER() OVER (
                            PARTITION BY {group_cols}
                            ORDER BY {order_sql}
-                       ) AS __rn
+                       ) AS __rn{extra}
                 FROM {qualified}
             )"""
 
@@ -173,14 +175,11 @@ class GroupbyWindowOps(WindowOps):
 
             ddof = self._resolve_ddof(ddof)
             if kind == "time":
-                if center or closed not in (None, "right"):
-                    return self._error_response(
-                        "time-based windows support closed='right' only"
-                    )
                 return await self._rolling_time_agg(
                     table, schema, column, order_by, window, raw_aggs,
                     min_p, self._resolve_ddof(ddof), backend, data_id,
-                    new_table, group_cols=safe_groups,
+                    new_table, group_cols=safe_groups, closed=closed,
+                    center=center,
                 )
 
             orders = self._order_keys(order_by)
@@ -342,11 +341,10 @@ class GroupbyWindowOps(WindowOps):
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
             self._reject_win_type(win_type)
-            self._reject_time_window(window)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
             safe_groups = [SQLIdentifierSanitizer.sanitize(c) for c in group_cols]
-            if int(window) < 1:
-                return self._error_response("window must be >= 1")
+            spec = self._window_spec(window, center, closed)
+            win_tag = spec["tag"]
             min_p = self._resolve_min_periods(min_periods, window)
             self._resolve_interpolation(interpolation)
 
@@ -354,12 +352,15 @@ class GroupbyWindowOps(WindowOps):
             order_sql = ", ".join(self.db.quote_identifier(c) for c in orders)
             part = self._ewm_partition(safe_groups)
             q_col = self.db.quote_identifier(safe_col)
-            rn_lo, rn_hi = self._rolling_rn(window, center, closed)
-            frame = self._rolling_frame(window, center, closed)
+            pred = self._frame_predicate(spec)
+            frame = (
+                self._rolling_frame(window, center, closed)
+                if spec["kind"] == "rows" else None
+            )
             tag = label or f"q{q}"
-            new_col = f"{safe_col}_rolling_{tag}_w{window}_by_{'_'.join(safe_groups)}"
+            new_col = f"{safe_col}_rolling_{tag}_w{win_tag}_by_{'_'.join(safe_groups)}"
 
-            if isinstance(self.db, DuckDBAdapter):
+            if isinstance(self.db, DuckDBAdapter) and spec["kind"] == "rows":
                 count_over = (
                     f"{self._count_expr(q_col)} "
                     f"OVER ({part}ORDER BY {order_sql} {frame})"
@@ -375,19 +376,24 @@ class GroupbyWindowOps(WindowOps):
                     f"FROM {self._qualified_table(table, schema)}"
                 )
             else:
+                ord_expr = (
+                    self._epoch_expr(self.db.quote_identifier(orders[0]))
+                    if spec["kind"] == "time" else None
+                )
                 base = self._group_base_cte(
                     table, schema, safe_col, safe_groups, orders,
+                    ord_expr=ord_expr,
                 )
                 group_eq = self._group_eq(safe_groups)
                 count_subq = f"""
                     SELECT COUNT(r.v) FROM __base r
-                    WHERE r.__rn BETWEEN {rn_lo} AND {rn_hi}
+                    WHERE {pred}
                       {group_eq}
                 """
                 quantile_subq = f"""
                     SELECT {self._quantile_cont_sql("r.v", q)}
                     FROM __base r
-                    WHERE r.__rn BETWEEN {rn_lo} AND {rn_hi}
+                    WHERE {pred}
                       {group_eq}
                       AND r.v IS NOT NULL
                 """
@@ -427,11 +433,10 @@ class GroupbyWindowOps(WindowOps):
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
             self._reject_win_type(win_type)
-            self._reject_time_window(window)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
             safe_groups = [SQLIdentifierSanitizer.sanitize(c) for c in group_cols]
-            if int(window) < 1:
-                return self._error_response("window must be >= 1")
+            spec = self._window_spec(window, center, closed)
+            win_tag = spec["tag"]
             min_p = self._resolve_min_periods(min_periods, window)
             ddof = self._resolve_ddof(ddof)
 
@@ -439,8 +444,48 @@ class GroupbyWindowOps(WindowOps):
             order_sql = ", ".join(self.db.quote_identifier(c) for c in orders)
             part = self._ewm_partition(safe_groups)
             q_col = self.db.quote_identifier(safe_col)
-            frame = self._rolling_frame(window, center, closed)
-            new_col = f"{safe_col}_rolling_sem_w{window}_by_{'_'.join(safe_groups)}"
+            frame = (
+                self._rolling_frame(window, center, closed)
+                if spec["kind"] == "rows" else None
+            )
+            new_col = f"{safe_col}_rolling_sem_w{win_tag}_by_{'_'.join(safe_groups)}"
+            if spec["kind"] == "time":
+                ord_expr = self._epoch_expr(
+                    self.db.quote_identifier(orders[0])
+                )
+                base = self._group_base_cte(
+                    table, schema, safe_col, safe_groups, orders,
+                    ord_expr=ord_expr,
+                )
+                pred = (
+                    f"{self._frame_predicate(spec)}"
+                    f"{self._group_eq(safe_groups)}"
+                )
+                n_sql = f"(SELECT COUNT(r.v) FROM __base r WHERE {pred})"
+                std_sql = (
+                    f"(SELECT {self._std_samp_agg()}(r.v) FROM __base r "
+                    f"WHERE {pred})"
+                )
+                denom = (
+                    f"CASE WHEN {n_sql} > {ddof} "
+                    f"THEN SQRT({n_sql} - {ddof}) ELSE NULL END"
+                )
+                expr = self._min_periods_gate(
+                    f"({std_sql} / {denom})", n_sql, min_p,
+                )
+                feature_sql = f"""
+                    WITH {base}
+                    SELECT b.{self.db.quote_identifier("_mf_idx")},
+                        {expr} AS {self.db.quote_identifier(new_col)}
+                    FROM __base b
+                """
+                return await self._finish_grouped_special(
+                    table, schema, column, new_col, feature_sql,
+                    self._ewm_float_type(), backend, data_id,
+                    safe_groups, order_by,
+                    f"Rolling SEM on '{column}' grouped by {safe_groups}",
+                    window=window, min_periods=min_p,
+                )
             count_over = (
                 f"{self._count_expr(q_col)} "
                 f"OVER ({part}ORDER BY {order_sql} {frame})"
@@ -473,22 +518,24 @@ class GroupbyWindowOps(WindowOps):
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
             self._reject_win_type(win_type)
-            self._reject_time_window(window)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
             safe_groups = [SQLIdentifierSanitizer.sanitize(c) for c in group_cols]
-            if int(window) < 1:
-                return self._error_response("window must be >= 1")
+            spec = self._window_spec(window, center, closed)
+            win_tag = spec["tag"]
             min_p = self._resolve_min_periods(min_periods, window)
 
             orders = self._order_keys(order_by)
             order_sql = ", ".join(self.db.quote_identifier(c) for c in orders)
             part = self._ewm_partition(safe_groups)
             q_col = self.db.quote_identifier(safe_col)
-            rn_lo, rn_hi = self._rolling_rn(window, center, closed)
-            frame = self._rolling_frame(window, center, closed)
-            new_col = f"{safe_col}_rolling_nunique_w{window}_by_{'_'.join(safe_groups)}"
+            pred = self._frame_predicate(spec)
+            frame = (
+                self._rolling_frame(window, center, closed)
+                if spec["kind"] == "rows" else None
+            )
+            new_col = f"{safe_col}_rolling_nunique_w{win_tag}_by_{'_'.join(safe_groups)}"
 
-            if isinstance(self.db, DuckDBAdapter):
+            if isinstance(self.db, DuckDBAdapter) and spec["kind"] == "rows":
                 count_over = (
                     f"{self._count_expr(q_col)} "
                     f"OVER ({part}ORDER BY {order_sql} {frame})"
@@ -506,19 +553,24 @@ class GroupbyWindowOps(WindowOps):
                     f"FROM {self._qualified_table(table, schema)}"
                 )
             else:
+                ord_expr = (
+                    self._epoch_expr(self.db.quote_identifier(orders[0]))
+                    if spec["kind"] == "time" else None
+                )
                 base = self._group_base_cte(
                     table, schema, safe_col, safe_groups, orders,
+                    ord_expr=ord_expr,
                 )
                 group_eq = self._group_eq(safe_groups)
                 count_subq = f"""
                     SELECT COUNT(r.v) FROM __base r
-                    WHERE r.__rn BETWEEN {rn_lo} AND {rn_hi}
+                    WHERE {pred}
                       {group_eq}
                 """
                 distinct_subq = f"""
                     SELECT {self._distinct_count_sql("r.v")}
                     FROM __base r
-                    WHERE r.__rn BETWEEN {rn_lo} AND {rn_hi}
+                    WHERE {pred}
                       {group_eq}
                 """
                 expr = self._min_periods_gate(
@@ -553,23 +605,20 @@ class GroupbyWindowOps(WindowOps):
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
             self._reject_win_type(win_type)
-            self._reject_time_window(window)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
             safe_groups = [SQLIdentifierSanitizer.sanitize(c) for c in group_cols]
-            if int(window) < 1:
-                return self._error_response("window must be >= 1")
+            spec = self._window_spec(window, center, closed)
+            win_tag = spec["tag"]
             min_p = self._resolve_min_periods(min_periods, window)
 
             orders = self._order_keys(order_by)
-            rn_lo, rn_hi = self._rolling_rn(window, center, closed)
-            new_col = f"{safe_col}_rolling_rank_w{window}_by_{'_'.join(safe_groups)}"
+            pred = self._frame_predicate(spec)
+            new_col = f"{safe_col}_rolling_rank_w{win_tag}_by_{'_'.join(safe_groups)}"
             base = self._group_base_cte(
                 table, schema, safe_col, safe_groups, orders,
             )
             group_eq = self._group_eq(safe_groups)
-            frame_where = (
-                f"r.__rn BETWEEN {rn_lo} AND {rn_hi}{group_eq}"
-            )
+            frame_where = f"{pred}{group_eq}"
             count_sql = (
                 f"(SELECT COUNT(r.v) FROM __base r WHERE {frame_where})"
             )
@@ -628,18 +677,17 @@ class GroupbyWindowOps(WindowOps):
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
             self._reject_win_type(win_type)
-            self._reject_time_window(window)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
             safe_groups = [SQLIdentifierSanitizer.sanitize(c) for c in group_cols]
-            if int(window) < 1:
-                return self._error_response("window must be >= 1")
+            spec = self._window_spec(window, center, closed)
+            win_tag = spec["tag"]
             min_p = self._resolve_min_periods(min_periods, window)
 
             orders = self._order_keys(order_by)
-            rn_lo, rn_hi = self._rolling_rn(window, center, closed)
+            pred = self._frame_predicate(spec)
             stat_key = stat.lower()
             new_col = (
-                f"{safe_col}_rolling_{stat_key}_w{window}_by_"
+                f"{safe_col}_rolling_{stat_key}_w{win_tag}_by_"
                 f"{'_'.join(safe_groups)}"
             )
             base = self._group_base_cte(
@@ -658,7 +706,7 @@ class GroupbyWindowOps(WindowOps):
                     FROM (
                         SELECT {inner} AS value_epoch
                         FROM __base r
-                        WHERE r.__rn BETWEEN {rn_lo} AND {rn_hi}
+                        WHERE {pred}
                           {group_eq}
                           AND r.v IS NOT NULL
                     ) __agg
@@ -671,7 +719,7 @@ class GroupbyWindowOps(WindowOps):
                     FROM (
                         SELECT {inner} AS value_epoch
                         FROM __base r
-                        WHERE r.__rn BETWEEN {rn_lo} AND {rn_hi}
+                        WHERE {pred}
                           {group_eq}
                           AND r.v IS NOT NULL
                     ) __agg
@@ -683,7 +731,7 @@ class GroupbyWindowOps(WindowOps):
                         FROM (
                             SELECT r.v AS v, COUNT(*) AS cnt
                             FROM __base r
-                            WHERE r.__rn BETWEEN {rn_lo} AND {rn_hi}
+                            WHERE {pred}
                               {group_eq}
                               AND r.v IS NOT NULL
                             GROUP BY r.v
@@ -693,7 +741,7 @@ class GroupbyWindowOps(WindowOps):
                     value_sql = f"""
                         SELECT r.v
                         FROM __base r
-                        WHERE r.__rn BETWEEN {rn_lo} AND {rn_hi}
+                        WHERE {pred}
                           {group_eq}
                           AND r.v IS NOT NULL
                         GROUP BY r.v
@@ -707,7 +755,7 @@ class GroupbyWindowOps(WindowOps):
 
             count_subq = f"""
                 SELECT COUNT(r.v) FROM __base r
-                WHERE r.__rn BETWEEN {rn_lo} AND {rn_hi}
+                WHERE {pred}
                   {group_eq}
             """
             expr = self._min_periods_gate(
