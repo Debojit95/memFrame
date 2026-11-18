@@ -196,6 +196,11 @@ dataset.rolling(
 Supported per-function parameters: `ddof` for `std`/`var`/`sem`, `q` for
 `quantile`/`median`, and `method`/`ascending`/`pct` for `rank`.
 
+`quantile` also accepts `interpolation`, matching the pandas signature. Only
+`"linear"` (the pandas default) is implemented so far; `"lower"`, `"higher"`,
+`"nearest"`, and `"midpoint"` raise a clear error until per-row element
+selection is ported.
+
 ## Type Support
 
 The orchestrator samples the target column and infers one of three kinds, then
@@ -344,7 +349,8 @@ Both forms → `[NULL, NULL, 100, 100, 100]`.
 ### `quantile`
 
 Interpolated quantile `q` (default `0.5`, the median) over the window and gated
-by the same `min_periods` rule as the other functions. Result column
+by the same `min_periods` rule as the other functions. `interpolation` is
+`"linear"` (pandas default); other modes raise until implemented. Result column
 `sales_rolling_q0.5_w3`.
 
 Parameters: `column`, `window`, `q` (default `0.5`), `order_by`.

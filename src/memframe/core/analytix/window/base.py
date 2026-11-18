@@ -158,6 +158,27 @@ class WindowOps:
         # pandas needs n > ddof; NULL otherwise (no negative variances).
         return f"CASE WHEN ({n}) > {ddof} THEN {moment} ELSE NULL END"
 
+    _QUANTILE_INTERPOLATIONS = (
+        "linear", "lower", "higher", "nearest", "midpoint",
+    )
+
+    @classmethod
+    def _resolve_interpolation(cls, interpolation) -> str:
+        key = (interpolation or "linear").lower()
+        if key not in cls._QUANTILE_INTERPOLATIONS:
+            raise ValueError(
+                f"interpolation must be one of "
+                f"{cls._QUANTILE_INTERPOLATIONS}"
+            )
+        if key != "linear":
+            # ponytail: non-linear interpolation needs per-row element
+            # selection, which the backends cannot do portably yet.
+            raise NotImplementedError(
+                f"interpolation={key!r} is not implemented yet; "
+                "only 'linear' is supported"
+            )
+        return key
+
     _RANK_METHODS = ("average", "min", "max", "first", "dense")
 
     def _rank_sql(self, frame_where, count_sql, method="average",
@@ -807,6 +828,7 @@ class WindowOps:
         center: bool = False,
         closed: Optional[str] = None,
         label: Optional[str] = None,
+        interpolation: str = "linear",
     ):
         try:
             if backend is None or data_id is None:
@@ -814,6 +836,7 @@ class WindowOps:
             if int(window) < 1:
                 return self._error_response("window must be >= 1")
             min_p = self._resolve_min_periods(min_periods, window)
+            self._resolve_interpolation(interpolation)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
             orders = self._order_keys(order_by)
             order_sql = ", ".join(self.db.quote_identifier(c) for c in orders)
@@ -1267,10 +1290,12 @@ class WindowOps:
         backend=None, data_id=None,
         new_table: Optional[str] = None,
         label: Optional[str] = None,
+        interpolation: str = "linear",
     ):
         try:
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
+            self._resolve_interpolation(interpolation)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
             orders = self._order_keys(order_by)
             order_sql = ", ".join(self.db.quote_identifier(c) for c in orders)

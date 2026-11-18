@@ -313,7 +313,7 @@ class GroupbyWindowOps(WindowOps):
         self, table, schema, column, group_cols, order_by=None, window=3,
         q=0.5, backend=None, data_id=None, new_table=None, min_periods=None,
         center: bool = False, closed: Optional[str] = None,
-        label: Optional[str] = None,
+        label: Optional[str] = None, interpolation: str = "linear",
     ):
         try:
             if backend is None or data_id is None:
@@ -323,6 +323,7 @@ class GroupbyWindowOps(WindowOps):
             if int(window) < 1:
                 return self._error_response("window must be >= 1")
             min_p = self._resolve_min_periods(min_periods, window)
+            self._resolve_interpolation(interpolation)
 
             orders = self._order_keys(order_by)
             order_sql = ", ".join(self.db.quote_identifier(c) for c in orders)
@@ -867,17 +868,22 @@ class GroupbyWindowOps(WindowOps):
     async def expanding_quantile_groupby(
         self, table, schema, column, group_cols, order_by=None, q=0.5,
         min_periods=1, backend=None, data_id=None, new_table=None,
+        label: Optional[str] = None, interpolation: str = "linear",
     ):
         try:
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
+            self._resolve_interpolation(interpolation)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
             safe_groups = [SQLIdentifierSanitizer.sanitize(c) for c in group_cols]
             orders = self._order_keys(order_by)
             order_sql = ", ".join(self.db.quote_identifier(c) for c in orders)
             part = self._ewm_partition(safe_groups)
             q_col = self.db.quote_identifier(safe_col)
-            new_col = f"{safe_col}_expanding_q{q}_by_{'_'.join(safe_groups)}"
+            new_col = (
+                f"{safe_col}_expanding_{label or f'q{q}'}_by_"
+                f"{'_'.join(safe_groups)}"
+            )
             frame = "ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW"
 
             if isinstance(self.db, DuckDBAdapter):

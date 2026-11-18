@@ -261,18 +261,24 @@ class RollingWindowBuilderWrapper:
         self,
         q: float = 0.5,
         order_by: Union[str, List[str]] = None,
+        interpolation: str = "linear",
     ):
         """Asynchronously compute rolling quantile."""
-        return await self.aapply("quantile", order_by, q)
+        return await self.aapply(
+            "quantile", order_by, q, interpolation=interpolation,
+        )
 
     @async_to_sync
     async def quantile(
         self,
         q: float = 0.5,
         order_by: Union[str, List[str]] = None,
+        interpolation: str = "linear",
     ):
         """Synchronously compute rolling quantile."""
-        return await self.aquantile(q, order_by)
+        return await self.aquantile(
+            q, order_by, interpolation=interpolation,
+        )
 
     async def amedian(
         self,
@@ -541,18 +547,24 @@ class ExpandingWindowBuilderWrapper:
         self,
         q: float = 0.5,
         order_by: Union[str, List[str]] = None,
+        interpolation: str = "linear",
     ):
         """Asynchronously compute expanding quantile."""
-        return await self.aapply("quantile", order_by, q)
+        return await self.aapply(
+            "quantile", order_by, q, interpolation=interpolation,
+        )
 
     @async_to_sync
     async def quantile(
         self,
         q: float = 0.5,
         order_by: Union[str, List[str]] = None,
+        interpolation: str = "linear",
     ):
         """Synchronously compute expanding quantile."""
-        return await self.aquantile(q, order_by)
+        return await self.aquantile(
+            q, order_by, interpolation=interpolation,
+        )
 
     async def amedian(
         self,

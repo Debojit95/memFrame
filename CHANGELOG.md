@@ -34,6 +34,9 @@ to [Semantic Versioning](https://semver.org/).
 - **Numeric `median`**: rolling and expanding median (ungrouped and grouped)
   now run through the window percentile pipeline. Rolling/expanding `rank`
   gained `method`/`ascending`/`pct`.
+- **`quantile(interpolation=...)`**: the pandas parameter is accepted on the
+  builders and via `func_kwargs`. `"linear"` (pandas default) is supported;
+  the other modes raise a clear `NotImplementedError` for now.
 
 ### Changed
 - **Rolling default now needs a full window**: `min_periods` defaults to

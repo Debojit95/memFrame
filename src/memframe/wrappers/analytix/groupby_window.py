@@ -135,9 +135,12 @@ class GroupByRollingWrapper(GroupByRolling):
         """Synchronously compute grouped rolling last value."""
         return await self.alast(column)
 
-    async def aquantile(self, column: str, q: float = 0.5) -> Dict[str, Any]:
+    async def aquantile(self, column: str, q: float = 0.5,
+                        interpolation: str = "linear") -> Dict[str, Any]:
         """Asynchronously compute grouped rolling quantile."""
-        return await self._call_core("quantile", column, q=q)
+        return await self._call_core(
+            "quantile", column, q=q, interpolation=interpolation,
+        )
 
     @async_to_sync
     async def quantile(self, column: str, q: float = 0.5) -> Dict[str, Any]:
@@ -301,9 +304,12 @@ class GroupByExpandingWrapper(GroupByExpanding):
         """Synchronously compute grouped expanding last value."""
         return await self.alast(column)
 
-    async def aquantile(self, column: str, q: float = 0.5) -> Dict[str, Any]:
+    async def aquantile(self, column: str, q: float = 0.5,
+                        interpolation: str = "linear") -> Dict[str, Any]:
         """Asynchronously compute grouped expanding quantile."""
-        return await self._call_core("quantile", column, q=q)
+        return await self._call_core(
+            "quantile", column, q=q, interpolation=interpolation,
+        )
     @async_to_sync
     async def quantile(self, column: str, q: float = 0.5) -> Dict[str, Any]:
         """Synchronously compute grouped expanding quantile."""

@@ -432,3 +432,34 @@ def test_grouped_median_ddof_and_rank(ctx):
         grouped.rolling(3, min_periods=1).rank().to_numpy(),
         equal_nan=True, rtol=1e-12,
     )
+
+
+def test_quantile_interpolation_default_and_unsupported(ctx):
+    frame = pd.DataFrame({"x": [1.0, 2.0, 3.0, 4.0], "o": list(range(4))})
+    wrapper = WindowWrapper(ctx.upload_df(frame, filename="pqi"))
+
+    response = wrapper.rolling(
+        column="x", window=3, func="quantile", order_by="o",
+        q=0.25, func_kwargs={"quantile": {"interpolation": "linear"}},
+    )
+    assert response["is_error"] is False, response.get("failed_funcs")
+    got = response["result"].sort_values("o")
+    np.testing.assert_allclose(
+        got["x_rolling_q0.25_w3"].to_numpy(dtype=float),
+        frame["x"].rolling(3).quantile(0.25).to_numpy(),
+        equal_nan=True, rtol=1e-12,
+    )
+
+    response = wrapper.rolling(
+        column="x", window=3, func="quantile", order_by="o",
+        func_kwargs={"quantile": {"interpolation": "lower"}},
+    )
+    assert response["is_error"] is True
+    assert "interpolation" in response["failed_funcs"]["quantile"]
+
+    response = wrapper.rolling(
+        column="x", window=3, func="quantile", order_by="o",
+        func_kwargs={"quantile": {"interpolation": "bogus"}},
+    )
+    assert response["is_error"] is True
+    assert "interpolation" in response["failed_funcs"]["quantile"]
