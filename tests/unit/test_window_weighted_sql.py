@@ -3,6 +3,9 @@ import asyncio
 import numpy as np
 import pandas as pd
 import pytest
+
+# scipy is a test-only oracle: pandas' win_type needs it as well, so it is
+# listed in the tox/CI dependencies (not a runtime dependency).
 from scipy.signal import get_window
 
 from memframe.core.analytix.window.base import WindowOps
