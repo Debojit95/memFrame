@@ -201,10 +201,11 @@ dataset.rolling(
 Supported per-function parameters: `ddof` for `std`/`var`/`sem`, `q` for
 `quantile`/`median`, and `method`/`ascending`/`pct` for `rank`.
 
-`quantile` also accepts `interpolation`, matching the pandas signature. Only
-`"linear"` (the pandas default) is implemented so far; `"lower"`, `"higher"`,
-`"nearest"`, and `"midpoint"` raise a clear error until per-row element
-selection is ported.
+`quantile` also accepts `interpolation`, matching the pandas signature:
+`"linear"` (default), `"lower"`, `"higher"`, `"nearest"`, and `"midpoint"`.
+`"linear"` runs natively; the other modes compute the position
+`q * (count - 1)` and pick the element(s) around it, exactly like pandas
+(see the `quantile` section).
 
 ## Time-Based Windows
 
@@ -410,11 +411,31 @@ Both forms → `[NULL, NULL, 100, 100, 100]`.
 ### `quantile`
 
 Interpolated quantile `q` (default `0.5`, the median) over the window and gated
-by the same `min_periods` rule as the other functions. `interpolation` is
-`"linear"` (pandas default); other modes raise until implemented. Result column
+by the same `min_periods` rule as the other functions. Result column
 `sales_rolling_q0.5_w3`.
 
-Parameters: `column`, `window`, `q` (default `0.5`), `order_by`.
+Parameters: `column`, `window`, `q` (default `0.5`), `order_by`, and
+`interpolation`:
+
+| `interpolation` | value |
+| --- | --- |
+| `linear` (default) | interpolates between the two neighbours |
+| `lower` | element at `floor(q * (n - 1))` |
+| `higher` | element at `ceil(q * (n - 1))` |
+| `midpoint` | average of the lower and higher elements |
+| `nearest` | closest element; exact halves round to the even index |
+
+`q` accepts `[0, 1]` (`0` → minimum, `1` → maximum). When `q * (n - 1)` lands
+on an integer every mode returns the same element, and a single observation
+returns that value. Set the mode through the builder or `func_kwargs`:
+
+```python
+dataset.on("sales").rolling(7).quantile(q=0.9, interpolation="higher")
+dataset.rolling(
+    column="sales", window=7, func="quantile", q=0.9, order_by="day",
+    func_kwargs={"quantile": {"interpolation": "nearest"}},
+)
+```
 
 ```python
 result = dataset.rolling(column="sales", window=3, func="quantile", q=0.5, order_by="day")

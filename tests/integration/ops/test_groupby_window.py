@@ -635,6 +635,89 @@ class TestGroupByWindowOperations:
         )
         assert_allclose_numeric(check[out_col], exp_vals)
 
+    def test_groupby_rolling_time_window_first_last(
+        self, connected_memframe, backend_config
+    ):
+        frame = pd.DataFrame(
+            {
+                "g": ["a"] * 4 + ["b"] * 3,
+                "x": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0],
+                "d": pd.to_datetime(
+                    [
+                        "2024-01-01", "2024-01-02", "2024-01-03",
+                        "2024-01-04", "2024-01-01", "2024-01-03",
+                        "2024-01-05",
+                    ]
+                ),
+                "t": pd.to_datetime(
+                    [
+                        "2024-01-01", "2024-01-02", "2024-01-03",
+                        "2024-01-04", "2024-01-01", "2024-01-03",
+                        "2024-01-05",
+                    ]
+                ),
+            }
+        )
+        context = connected_memframe.upload_df(frame, filename="gb_fl")
+        result = context.groupby("g").rolling(
+            "3D", order_by="t"
+        ).last("d")
+        res_df = get_result_df(result)
+        out_col = get_generated_col(result, "d_rolling_last_w259200s_by_g")
+
+        ordered = frame.sort_values(["g", "t"], kind="mergesort")
+        gts = ordered["t"].to_numpy()
+        gds = ordered["d"].to_numpy()
+        gids = ordered["g"].to_numpy()
+        expected = []
+        for group in pd.unique(gids):
+            idxs = np.flatnonzero(gids == group)
+            for j, pos in enumerate(idxs):
+                mask = (
+                    gts[idxs] > gts[pos] - np.timedelta64(3, "D")
+                ) & (gts[idxs] <= gts[pos])
+                expected.append(gds[idxs[np.flatnonzero(mask)[-1]]])
+        check = res_df.sort_values(["g", "t"]).reset_index(drop=True)
+        np.testing.assert_array_equal(
+            pd.to_datetime(check[out_col]).to_numpy(),
+            pd.to_datetime(expected).to_numpy(),
+        )
+
+    def test_groupby_rolling_quantile_interpolation(
+        self, connected_memframe, backend_config
+    ):
+        frame = pd.DataFrame(
+            {
+                "g": ["a"] * 4 + ["b"] * 4,
+                "x": [1.0, 2.0, 4.0, 8.0, 10.0, 20.0, 40.0, 80.0],
+                "t": pd.to_datetime(
+                    [
+                        "2024-01-01", "2024-01-02", "2024-01-03",
+                        "2024-01-05", "2024-01-01", "2024-01-02",
+                        "2024-01-04", "2024-01-06",
+                    ]
+                ),
+            }
+        )
+        context = connected_memframe.upload_df(frame, filename="gb_qi")
+        result = context.groupby("g").rolling(
+            "3D", order_by="t"
+        ).quantile("x", q=0.75, interpolation="nearest")
+        res_df = get_result_df(result)
+        out_col = get_generated_col(result, "x_rolling_q0.75_w259200s_by_g")
+
+        ordered = frame.sort_values(["g", "t"], kind="mergesort")
+        expected = pd.concat(
+            [
+                grp.set_index("t", drop=False).rolling("3D")["x"].quantile(
+                    0.75, interpolation="nearest"
+                )
+                for _, grp in ordered.groupby("g", sort=False)
+            ]
+        )
+        check = res_df.sort_values(["g", "t"]).reset_index(drop=True)
+        assert_allclose_numeric(check[out_col], expected)
+
     def test_groupby_rolling_skew_time_window(
         self, connected_memframe, backend_config
     ):

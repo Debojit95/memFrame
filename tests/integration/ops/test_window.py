@@ -642,6 +642,23 @@ class TestWindowOperations:
         )["sales"].mean()
         _assert_ordered_result(res_df, _generated_col(res_df, "sales"), expected)
 
+    def test_rolling_quantile_interpolations(
+        self, uploaded_ctx, time_series_df, backend_config
+    ):
+        for interpolation in ("lower", "higher", "nearest", "midpoint"):
+            result = uploaded_ctx.rolling(
+                column="sales", window=4, func="quantile", q=0.25,
+                order_by="date", min_periods=1,
+                func_kwargs={"quantile": {"interpolation": interpolation}},
+            )
+            res_df = get_result_df(result)
+            expected = _ordered(time_series_df)["sales"].rolling(
+                4, min_periods=1
+            ).quantile(0.25, interpolation=interpolation)
+            _assert_ordered_result(
+                res_df, _generated_col(res_df, "sales"), expected
+            )
+
     def test_rolling_time_window_centered(
         self, uploaded_ctx, time_series_df, backend_config
     ):

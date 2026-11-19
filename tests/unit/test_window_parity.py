@@ -454,8 +454,18 @@ def test_quantile_interpolation_default_and_unsupported(ctx):
         column="x", window=3, func="quantile", order_by="o",
         func_kwargs={"quantile": {"interpolation": "lower"}},
     )
-    assert response["is_error"] is True
-    assert "interpolation" in response["failed_funcs"]["quantile"]
+    assert response["is_error"] is False, response.get("failed_funcs")
+    got = response["result"].sort_values("o")
+    np.testing.assert_allclose(
+        got["x_rolling_q0.25_w3"].to_numpy(dtype=float)
+        if "x_rolling_q0.25_w3" in got.columns
+        else got["x_rolling_q0.5_w3"].to_numpy(dtype=float),
+        frame["x"].rolling(3).quantile(
+            0.25 if "x_rolling_q0.25_w3" in got.columns else 0.5,
+            interpolation="lower",
+        ).to_numpy(),
+        equal_nan=True, rtol=1e-9,
+    )
 
     response = wrapper.rolling(
         column="x", window=3, func="quantile", order_by="o",

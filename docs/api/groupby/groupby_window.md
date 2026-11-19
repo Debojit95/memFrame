@@ -222,6 +222,9 @@ apply per group. `closed="neither"` needs `window >= 2`.
 ```python
 dataset.groupby("region").rolling(7, order_by="month").std("sales", ddof=0)
 dataset.groupby("region").rolling(7, order_by="month").rank("sales", method="dense")
+dataset.groupby("region").rolling(7, order_by="month").quantile(
+    "sales", q=0.9, interpolation="higher",
+)
 ```
 
 `win_type` applies scipy window weights per group for weighted `sum`/`mean`:

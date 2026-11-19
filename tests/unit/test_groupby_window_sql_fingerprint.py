@@ -127,6 +127,10 @@ def _scenarios():
             "t", "s", "x", ["g"], order_by="o", window="3D", q=0.5,
             backend=backend, data_id=data_id,
         ),
+        "rolling_quantile_nearest": lambda ops, backend: ops.rolling_quantile_groupby(
+            "t", "s", "x", ["g"], order_by="o", window=3, q=0.5,
+            interpolation="nearest", backend=backend, data_id=data_id,
+        ),
         "rolling_skew": lambda ops, backend: ops.rolling_skew_groupby(
             "t", "s", "x", ["g"], order_by="o", window=4,
             backend=backend, data_id=data_id,

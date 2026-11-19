@@ -346,7 +346,7 @@ class GroupbyWindowOps(WindowOps):
             spec = self._window_spec(window, center, closed)
             win_tag = spec["tag"]
             min_p = self._resolve_min_periods(min_periods, window)
-            self._resolve_interpolation(interpolation)
+            interp = self._resolve_interpolation(interpolation)
 
             orders = self._order_keys(order_by)
             order_sql = ", ".join(self.db.quote_identifier(c) for c in orders)
@@ -360,7 +360,11 @@ class GroupbyWindowOps(WindowOps):
             tag = label or f"q{q}"
             new_col = f"{safe_col}_rolling_{tag}_w{win_tag}_by_{'_'.join(safe_groups)}"
 
-            if isinstance(self.db, DuckDBAdapter) and spec["kind"] == "rows":
+            if (
+                isinstance(self.db, DuckDBAdapter)
+                and spec["kind"] == "rows"
+                and interp == "linear"
+            ):
                 count_over = (
                     f"{self._count_expr(q_col)} "
                     f"OVER ({part}ORDER BY {order_sql} {frame})"
@@ -385,21 +389,26 @@ class GroupbyWindowOps(WindowOps):
                     ord_expr=ord_expr,
                 )
                 group_eq = self._group_eq(safe_groups)
-                count_subq = f"""
-                    SELECT COUNT(r.v) FROM __base r
-                    WHERE {pred}
-                      {group_eq}
-                """
-                quantile_subq = f"""
-                    SELECT {self._quantile_cont_sql("r.v", q)}
-                    FROM __base r
-                    WHERE {pred}
-                      {group_eq}
-                      AND r.v IS NOT NULL
-                """
-                expr = self._min_periods_gate(
-                    f"({quantile_subq})", f"({count_subq})", min_p,
-                )
+                if interp == "linear":
+                    count_subq = f"""
+                        SELECT COUNT(r.v) FROM __base r
+                        WHERE {pred}
+                          {group_eq}
+                    """
+                    quantile_subq = f"""
+                        SELECT {self._quantile_cont_sql("r.v", q)}
+                        FROM __base r
+                        WHERE {pred}
+                          {group_eq}
+                          AND r.v IS NOT NULL
+                    """
+                    expr = self._min_periods_gate(
+                        f"({quantile_subq})", f"({count_subq})", min_p,
+                    )
+                else:
+                    expr = self._array_quantile_sql(
+                        f"{pred}{group_eq}", q, interp, min_p,
+                    )
                 feature_sql = f"""
                     WITH {base}
                     SELECT b.{self.db.quote_identifier("_mf_idx")},
@@ -988,7 +997,7 @@ class GroupbyWindowOps(WindowOps):
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
             self._reject_win_type(win_type)
-            self._resolve_interpolation(interpolation)
+            interp = self._resolve_interpolation(interpolation)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
             safe_groups = [SQLIdentifierSanitizer.sanitize(c) for c in group_cols]
             orders = self._order_keys(order_by)
@@ -1001,7 +1010,7 @@ class GroupbyWindowOps(WindowOps):
             )
             frame = "ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW"
 
-            if isinstance(self.db, DuckDBAdapter):
+            if isinstance(self.db, DuckDBAdapter) and interp == "linear":
                 count_over = (
                     f"{self._count_expr(q_col)} OVER "
                     f"({part}ORDER BY {order_sql} {frame})"
@@ -1027,25 +1036,29 @@ class GroupbyWindowOps(WindowOps):
                     table, schema, safe_col, safe_groups, orders,
                 )
                 group_eq = self._group_eq(safe_groups)
-                quantile_subq = f"""
-                    SELECT {self._quantile_cont_sql("r.v", q)}
-                    FROM __base r
-                    WHERE r.__rn <= b.__rn
-                      {group_eq}
-                      AND r.v IS NOT NULL
-                """
-                count_subq = f"""
-                    SELECT COUNT(r.v) FROM __base r
-                    WHERE r.__rn <= b.__rn
-                      {group_eq}
-                """
-                if min_periods > 1:
-                    expr = (
-                        f"CASE WHEN ({count_subq}) >= {min_periods} "
-                        f"THEN ({quantile_subq}) ELSE NULL END"
-                    )
+                pred = f"r.__rn <= b.__rn{group_eq}"
+                if interp == "linear":
+                    quantile_subq = f"""
+                        SELECT {self._quantile_cont_sql("r.v", q)}
+                        FROM __base r
+                        WHERE {pred}
+                          AND r.v IS NOT NULL
+                    """
+                    count_subq = f"""
+                        SELECT COUNT(r.v) FROM __base r
+                        WHERE {pred}
+                    """
+                    if min_periods > 1:
+                        expr = (
+                            f"CASE WHEN ({count_subq}) >= {min_periods} "
+                            f"THEN ({quantile_subq}) ELSE NULL END"
+                        )
+                    else:
+                        expr = f"({quantile_subq})"
                 else:
-                    expr = f"({quantile_subq})"
+                    expr = self._array_quantile_sql(
+                        pred, q, interp, int(min_periods or 0),
+                    )
                 feature_sql = f"""
                     WITH {base}
                     SELECT b.{self.db.quote_identifier("_mf_idx")},

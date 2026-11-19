@@ -34,9 +34,11 @@ to [Semantic Versioning](https://semver.org/).
 - **Numeric `median`**: rolling and expanding median (ungrouped and grouped)
   now run through the window percentile pipeline. Rolling/expanding `rank`
   gained `method`/`ascending`/`pct`.
-- **`quantile(interpolation=...)`**: the pandas parameter is accepted on the
-  builders and via `func_kwargs`. `"linear"` (pandas default) is supported;
-  the other modes raise a clear `NotImplementedError` for now.
+- **`quantile(interpolation=...)`**: all pandas modes now work — `linear`
+  (default, native), `lower`, `higher`, `nearest`, and `midpoint` — for
+  rolling and expanding, ungrouped and grouped, including time windows and
+  `center`/`closed`. Non-linear modes index the sorted frame; `nearest`
+  rounds exact halves to the even index and `q` accepts `[0, 1]`.
 - **Centred time windows**: `rolling(window="3D", center=True)` now works —
   both edges shift by `window / 2`, so the frame looks ahead by half a window
   (`(t - w/2, t + w/2]` by default) and honours `closed`. Applies to every

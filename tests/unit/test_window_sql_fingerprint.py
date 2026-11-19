@@ -166,6 +166,13 @@ def _scenarios():
         "t", "s", "num", order_by="g", window="3D", q=0.5,
         backend=b, data_id=DATA_ID,
     )
+    for _interp in ("lower", "higher", "nearest", "midpoint"):
+        s[f"rolling_quantile_{_interp}"] = (
+            lambda o, b, i=_interp: o.rolling_quantile(
+                "t", "s", "num", order_by="g", window=3, q=0.5,
+                backend=b, data_id=DATA_ID, interpolation=i,
+            )
+        )
     s["rolling_skew"] = lambda o, b: o.rolling_skew(
         "t", "s", "num", order_by="g", window=4, backend=b, data_id=DATA_ID
     )

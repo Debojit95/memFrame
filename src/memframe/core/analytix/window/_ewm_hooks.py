@@ -37,6 +37,34 @@ class ClickHouseEWMHooks:
     def _ewm_uses_transaction(self) -> bool:
         return False
 
+    # ------------------------------------------------------------------
+    #  Window SQL hooks shared by the ungrouped and grouped CH engines
+    # ------------------------------------------------------------------
+    def _epoch_expr(self, column_expr: str) -> str:
+        return f"toUnixTimestamp({column_expr})"
+
+    def _center_anchor(self, alias="r", base="b") -> str:
+        # ClickHouse mis-plans correlated scans whose only predicates compare
+        # a non-unique column (duplicated rows); anchor on the unique __rn.
+        return f" AND {alias}.__rn >= {base}.__rn - 1000000000"
+
+    def _ordered_value_sql(self, where, mode, value_expr="r.v") -> str:
+        idx = 1 if mode == "first" else -1
+        return (
+            f"(SELECT arrayElement(arraySort(x -> x.1, "
+            f"groupArray((r.__rn, {value_expr}))), {idx}).2 "
+            f"FROM __base r WHERE {where})"
+        )
+
+    def _quantile_array_from(self, where) -> str:
+        return (
+            "(SELECT arraySort(groupArray(r.v)) AS v, count() AS n "
+            f"FROM __base r WHERE {where} AND r.v IS NOT NULL)"
+        )
+
+    def _quantile_elem(self, idx_sql) -> str:
+        return f"arrayElement(s.v, toUInt32({idx_sql}))"
+
     def _is_missing_sql(self, expr: str) -> str:
         return f"({expr} IS NULL OR isNaN({self._ewm_cast_float(expr)}))"
 

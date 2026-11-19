@@ -565,13 +565,6 @@ class WindowOps:
                 f"interpolation must be one of "
                 f"{cls._QUANTILE_INTERPOLATIONS}"
             )
-        if key != "linear":
-            # ponytail: non-linear interpolation needs per-row element
-            # selection, which the backends cannot do portably yet.
-            raise NotImplementedError(
-                f"interpolation={key!r} is not implemented yet; "
-                "only 'linear' is supported"
-            )
         return key
 
     _RANK_METHODS = ("average", "min", "max", "first", "dense")
@@ -1036,6 +1029,52 @@ class WindowOps:
             f"AND {alias}.__ord {right} {base}.__ord"
         )
 
+    def _quantile_array_from(self, where) -> str:
+        """Sorted frame values plus their count (PostgreSQL/DuckDB)."""
+        return (
+            "(SELECT array_agg(r.v ORDER BY r.v) AS v, COUNT(*) AS n "
+            f"FROM __base r WHERE {where} AND r.v IS NOT NULL)"
+        )
+
+    def _quantile_elem(self, idx_sql) -> str:
+        return f"s.v[{idx_sql}]"
+
+    def _array_quantile_sql(self, where, q, interpolation, min_periods):
+        """Scalar subquery for a non-linear quantile over the frame."""
+        qf = float(q)
+        pos = f"({qf!r} * (s.n - 1))"
+        lo = f"CAST(FLOOR({pos}) AS BIGINT) + 1"
+        hi = f"CAST(CEIL({pos}) AS BIGINT) + 1"
+        frac = f"({pos} - FLOOR({pos}))"
+        lo_e = self._quantile_elem(lo)
+        hi_e = self._quantile_elem(hi)
+        if interpolation == "lower":
+            value = lo_e
+        elif interpolation == "higher":
+            value = f"CASE WHEN {frac} = 0 THEN {lo_e} ELSE {hi_e} END"
+        elif interpolation == "midpoint":
+            value = (
+                f"CASE WHEN {frac} = 0 THEN {lo_e} "
+                f"ELSE ({lo_e} + {hi_e}) / 2.0 END"
+            )
+        else:  # nearest (half to even, like pandas/numpy)
+            value = (
+                f"CASE WHEN {frac} = 0 THEN {lo_e} "
+                f"WHEN {frac} = 0.5 "
+                f"AND MOD(CAST(FLOOR({pos}) AS BIGINT), 2) = 0 THEN {lo_e} "
+                f"WHEN {frac} = 0.5 THEN {hi_e} "
+                f"WHEN {frac} < 0.5 THEN {lo_e} ELSE {hi_e} END"
+            )
+        gate = (
+            f"WHEN s.n < {min_periods} THEN NULL "
+            if min_periods > 0 else ""
+        )
+        return (
+            f"(SELECT CASE WHEN s.n = 0 THEN NULL {gate}"
+            f"ELSE {value} END "
+            f"FROM {self._quantile_array_from(where)} s)"
+        )
+
     def _center_anchor(self, alias="r", base="b") -> str:
         """Extra correlation anchor for centered time frames."""
         return ""
@@ -1315,7 +1354,7 @@ class WindowOps:
             spec = self._window_spec(window, center, closed)
             win_tag = spec["tag"]
             min_p = self._resolve_min_periods(min_periods, window)
-            self._resolve_interpolation(interpolation)
+            interp = self._resolve_interpolation(interpolation)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
             orders = self._order_keys(order_by)
             order_sql = ", ".join(self.db.quote_identifier(c) for c in orders)
@@ -1327,7 +1366,11 @@ class WindowOps:
             )
             new_col = f"{safe_col}_rolling_{label or f'q{q}'}_w{win_tag}"
 
-            if isinstance(self.db, DuckDBAdapter) and spec["kind"] == "rows":
+            if (
+                isinstance(self.db, DuckDBAdapter)
+                and spec["kind"] == "rows"
+                and interp == "linear"
+            ):
                 count_over = (
                     f"{self._count_expr(q_col)} OVER "
                     f"(ORDER BY {order_sql} {frame})"
@@ -1350,19 +1393,24 @@ class WindowOps:
                 base = self._window_base_cte(
                     table, schema, safe_col, orders, ord_expr=ord_expr,
                 )
-                count_subq = f"""
-                    SELECT COUNT(r.v) FROM __base r
-                    WHERE {pred}
-                """
-                quantile_subq = f"""
-                    SELECT {self._quantile_cont_sql("r.v", q)}
-                    FROM __base r
-                    WHERE {pred}
-                      AND r.v IS NOT NULL
-                """
-                expr = self._min_periods_gate(
-                    f"({quantile_subq})", f"({count_subq})", min_p,
-                )
+                if interp == "linear":
+                    count_subq = f"""
+                        SELECT COUNT(r.v) FROM __base r
+                        WHERE {pred}
+                    """
+                    quantile_subq = f"""
+                        SELECT {self._quantile_cont_sql("r.v", q)}
+                        FROM __base r
+                        WHERE {pred}
+                          AND r.v IS NOT NULL
+                    """
+                    expr = self._min_periods_gate(
+                        f"({quantile_subq})", f"({count_subq})", min_p,
+                    )
+                else:
+                    expr = self._array_quantile_sql(
+                        pred, q, interp, min_p,
+                    )
                 feature_sql = f"""
                     WITH {base}
                     SELECT b.{self.db.quote_identifier("_mf_idx")},
@@ -2014,7 +2062,7 @@ class WindowOps:
             if backend is None or data_id is None:
                 return self._error_response("backend and data_id required")
             self._reject_win_type(win_type)
-            self._resolve_interpolation(interpolation)
+            interp = self._resolve_interpolation(interpolation)
             safe_col = SQLIdentifierSanitizer.sanitize(column)
             orders = self._order_keys(order_by)
             order_sql = ", ".join(self.db.quote_identifier(c) for c in orders)
@@ -2022,7 +2070,7 @@ class WindowOps:
             new_col = f"{safe_col}_expanding_{label or f'q{q}'}"
             frame = "ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW"
 
-            if isinstance(self.db, DuckDBAdapter):
+            if isinstance(self.db, DuckDBAdapter) and interp == "linear":
                 count_over = (
                     f"{self._count_expr(q_col)} OVER "
                     f"(ORDER BY {order_sql} {frame})"
@@ -2045,23 +2093,29 @@ class WindowOps:
                 )
             else:
                 base = self._window_base_cte(table, schema, safe_col, orders)
-                count_subq = """
-                    SELECT COUNT(r.v) FROM __base r
-                    WHERE r.__rn <= b.__rn
-                """
-                quantile_subq = f"""
-                    SELECT {self._quantile_cont_sql("r.v", q)}
-                    FROM __base r
-                    WHERE r.__rn <= b.__rn
-                      AND r.v IS NOT NULL
-                """
-                if min_periods > 1:
-                    expr = (
-                        f"CASE WHEN ({count_subq}) >= {min_periods} "
-                        f"THEN ({quantile_subq}) ELSE NULL END"
-                    )
+                pred = "r.__rn <= b.__rn"
+                if interp == "linear":
+                    count_subq = f"""
+                        SELECT COUNT(r.v) FROM __base r
+                        WHERE {pred}
+                    """
+                    quantile_subq = f"""
+                        SELECT {self._quantile_cont_sql("r.v", q)}
+                        FROM __base r
+                        WHERE {pred}
+                          AND r.v IS NOT NULL
+                    """
+                    if min_periods > 1:
+                        expr = (
+                            f"CASE WHEN ({count_subq}) >= {min_periods} "
+                            f"THEN ({quantile_subq}) ELSE NULL END"
+                        )
+                    else:
+                        expr = f"({quantile_subq})"
                 else:
-                    expr = f"({quantile_subq})"
+                    expr = self._array_quantile_sql(
+                        pred, q, interp, int(min_periods or 0),
+                    )
                 feature_sql = f"""
                     WITH {base}
                     SELECT b.{self.db.quote_identifier("_mf_idx")},

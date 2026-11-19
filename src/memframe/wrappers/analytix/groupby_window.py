@@ -165,9 +165,10 @@ class GroupByRollingWrapper(GroupByRolling):
         )
 
     @async_to_sync
-    async def quantile(self, column: str, q: float = 0.5) -> Dict[str, Any]:
+    async def quantile(self, column: str, q: float = 0.5,
+                       interpolation: str = "linear") -> Dict[str, Any]:
         """Synchronously compute grouped rolling quantile."""
-        return await self.aquantile(column, q)
+        return await self.aquantile(column, q, interpolation=interpolation)
 
     async def arank(self, column: str, method: str = "average",
                     ascending: bool = True, pct: bool = False) -> Dict[str, Any]:
@@ -351,9 +352,10 @@ class GroupByExpandingWrapper(GroupByExpanding):
             "quantile", column, q=q, interpolation=interpolation,
         )
     @async_to_sync
-    async def quantile(self, column: str, q: float = 0.5) -> Dict[str, Any]:
+    async def quantile(self, column: str, q: float = 0.5,
+                       interpolation: str = "linear") -> Dict[str, Any]:
         """Synchronously compute grouped expanding quantile."""
-        return await self.aquantile(column, q)
+        return await self.aquantile(column, q, interpolation=interpolation)
 
     async def arank(self, column: str, method: str = "average",
                     ascending: bool = True, pct: bool = False) -> Dict[str, Any]:
