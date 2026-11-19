@@ -631,6 +631,86 @@
    ]
   ]
  },
+ "expanding_skew": {
+  "clickhouse": [
+   [
+    "fetchval",
+    "SELECTCOALESCE(MAX(opidx),0)FROMmemframe_csv_registry.memframe_cache_registryWHEREdata_id=?",
+    [
+     "abc123"
+    ]
+   ],
+   [
+    "exec",
+    "CREATETABLE`s`.`t__op_1__feat`ENGINE=MergeTree()ORDERBYtuple()ASWITH__baseAS(SELECT`_mf_idx`,`num`ASv,ROW_NUMBER()OVER(ORDERBY`g`,`_mf_idx`)AS__rnFROM`s`.`t`)SELECTb.`_mf_idx`,CASEWHEN(SELECTCOUNT(r.v)FROM__baserWHEREr.__rn<=b.__rn)>=3THEN(SELECTCASEWHEN__n<3THENNULLWHEN__mx=__mnTHEN0WHEN__b<=1e-14THENNULLELSESQRT(__n*(__n-1))*__c/((__n-2)*__b*SQRT(__b))ENDAS__valFROM(SELECT__n,__mn,__mx,__a,__a2,__a3,__a2-__a*__aAS__b,__a3-__a*__a*__a-3*__a*(__a2-__a*__a)AS__cFROM(SELECTCOUNT(*)AS__n,MIN(r.v)AS__mn,MAX(r.v)AS__mx,AVG(r.v)AS__a,AVG(r.v*r.v)AS__a2,AVG(r.v*r.v*r.v)AS__a3FROM__baserWHEREr.__rn<=b.__rnANDr.vISNOTNULL)__l1)__l2)ELSENULLENDAS`num_expanding_skew`FROM__baseb",
+    []
+   ],
+   [
+    "exec",
+    "CREATETABLE`s`.`t__op_1__wide`ENGINE=MergeTree()ORDERBYtuple()ASSELECTo.*,s.`num_expanding_skew`AS`num_expanding_skew`FROM`s`.`t`ASoLEFTJOIN`s`.`t__op_1__feat`ASsONo.`_mf_idx`=s.`_mf_idx`",
+    []
+   ],
+   [
+    "exec",
+    "CREATEORREPLACETABLE`s`.`t`ASSELECT*FROM`s`.`t__op_1__wide`",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLE`s`.`t__op_1__wide`",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS`s`.`t__op_1__feat`",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS`s`.`t__op_1__wide`",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT`num`,`num_expanding_skew`,`g`FROM`s`.`t`ORDERBY`_mf_idx`",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "exec",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMNIFNOTEXISTS\"num_expanding_skew\"DOUBLEPRECISION",
+    []
+   ],
+   [
+    "exec",
+    "UPDATE\"s\".\"t\"AStSET\"num_expanding_skew\"=s.\"num_expanding_skew\"FROM(WITH__baseAS(SELECT\"_mf_idx\",\"num\"ASv,ROW_NUMBER()OVER(ORDERBY\"g\",\"_mf_idx\")AS__rnFROM\"s\".\"t\")SELECTb.\"_mf_idx\",CASEWHEN(SELECTCOUNT(r.v)FROM__baserWHEREr.__rn<=b.__rn)>=3THEN(SELECTCASEWHEN__n<3THENNULLWHEN__mx=__mnTHEN0WHEN__b<=1e-14THENNULLELSESQRT(__n*(__n-1))*__c/((__n-2)*__b*SQRT(__b))ENDAS__valFROM(SELECT__n,__mn,__mx,__a,__a2,__a3,__a2-__a*__aAS__b,__a3-__a*__a*__a-3*__a*(__a2-__a*__a)AS__cFROM(SELECTCOUNT(*)AS__n,MIN(r.v)AS__mn,MAX(r.v)AS__mx,AVG(r.v)AS__a,AVG(r.v*r.v)AS__a2,AVG(r.v*r.v*r.v)AS__a3FROM__baserWHEREr.__rn<=b.__rnANDr.vISNOTNULL)__l1)__l2)ELSENULLENDAS\"num_expanding_skew\"FROM__baseb)ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT\"num\",\"num_expanding_skew\",\"g\"FROM\"s\".\"t\"ORDERBY\"_mf_idx\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "exec",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMNIFNOTEXISTS\"num_expanding_skew\"DOUBLEPRECISION",
+    []
+   ],
+   [
+    "exec",
+    "UPDATE\"s\".\"t\"AStSET\"num_expanding_skew\"=s.\"num_expanding_skew\"FROM(WITH__baseAS(SELECT\"_mf_idx\",\"num\"ASv,ROW_NUMBER()OVER(ORDERBY\"g\",\"_mf_idx\")AS__rnFROM\"s\".\"t\")SELECTb.\"_mf_idx\",CASEWHEN(SELECTCOUNT(r.v)FROM__baserWHEREr.__rn<=b.__rn)>=3THEN(SELECTCASEWHEN__n<3THENNULLWHEN__mx=__mnTHEN0WHEN__b<=1e-14THENNULLELSESQRT(__n*(__n-1))*__c/((__n-2)*__b*SQRT(__b))ENDAS__valFROM(SELECT__n,__mn,__mx,__a,__a2,__a3,__a2-__a*__aAS__b,__a3-__a*__a*__a-3*__a*(__a2-__a*__a)AS__cFROM(SELECTCOUNT(*)AS__n,MIN(r.v)AS__mn,MAX(r.v)AS__mx,AVG(r.v)AS__a,AVG(r.v*r.v)AS__a2,AVG(r.v*r.v*r.v)AS__a3FROM__baserWHEREr.__rn<=b.__rnANDr.vISNOTNULL)__l1)__l2)ELSENULLENDAS\"num_expanding_skew\"FROM__baseb)ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT\"num\",\"num_expanding_skew\",\"g\"FROM\"s\".\"t\"ORDERBY\"_mf_idx\"",
+    []
+   ]
+  ]
+ },
  "expanding_std_ordered": {
   "clickhouse": [
    [
@@ -1107,6 +1187,86 @@
    [
     "fetch",
     "SELECT\"num_rolling_first_w3\",\"num\",\"g\"FROM\"s\".\"t\"ORDERBY\"_mf_idx\"",
+    []
+   ]
+  ]
+ },
+ "rolling_kurt": {
+  "clickhouse": [
+   [
+    "fetchval",
+    "SELECTCOALESCE(MAX(opidx),0)FROMmemframe_csv_registry.memframe_cache_registryWHEREdata_id=?",
+    [
+     "abc123"
+    ]
+   ],
+   [
+    "exec",
+    "CREATETABLE`s`.`t__op_1__feat`ENGINE=MergeTree()ORDERBYtuple()ASWITH__baseAS(SELECT`_mf_idx`,`num`ASv,ROW_NUMBER()OVER(ORDERBY`g`,`_mf_idx`)AS__rnFROM`s`.`t`)SELECTb.`_mf_idx`,CASEWHEN(SELECTCOUNT(r.v)FROM__baserWHEREr.__rnBETWEENb.__rn+(-3)ANDb.__rn+(0))>=4THEN(SELECTCASEWHEN__n<4THENNULLWHEN__mx=__mnTHEN-3WHEN__b<=1e-14THENNULLELSE((__n*__n-1)*__d/(__b*__b)-3*(__n-1)*(__n-1))/((__n-2)*(__n-3))ENDAS__valFROM(SELECT__n,__mn,__mx,__a,__b,__c,__a4-__a*__a*__a*__a-6*__b*__a*__a-4*__c*__aAS__dFROM(SELECT__n,__mn,__mx,__a,__a2,__a3,__a4,__a2-__a*__aAS__b,__a3-__a*__a*__a-3*__a*(__a2-__a*__a)AS__cFROM(SELECTCOUNT(*)AS__n,MIN(r.v)AS__mn,MAX(r.v)AS__mx,AVG(r.v)AS__a,AVG(r.v*r.v)AS__a2,AVG(r.v*r.v*r.v)AS__a3,AVG(r.v*r.v*r.v*r.v)AS__a4FROM__baserWHEREr.__rnBETWEENb.__rn+(-3)ANDb.__rn+(0)ANDr.vISNOTNULL)__l1)__l2)__l3)ELSENULLENDAS`num_rolling_kurt_w4`FROM__baseb",
+    []
+   ],
+   [
+    "exec",
+    "CREATETABLE`s`.`t__op_1__wide`ENGINE=MergeTree()ORDERBYtuple()ASSELECTo.*,s.`num_rolling_kurt_w4`AS`num_rolling_kurt_w4`FROM`s`.`t`ASoLEFTJOIN`s`.`t__op_1__feat`ASsONo.`_mf_idx`=s.`_mf_idx`",
+    []
+   ],
+   [
+    "exec",
+    "CREATEORREPLACETABLE`s`.`t`ASSELECT*FROM`s`.`t__op_1__wide`",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLE`s`.`t__op_1__wide`",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS`s`.`t__op_1__feat`",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS`s`.`t__op_1__wide`",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT`num`,`num_rolling_kurt_w4`,`g`FROM`s`.`t`ORDERBY`_mf_idx`",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "exec",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMNIFNOTEXISTS\"num_rolling_kurt_w4\"DOUBLEPRECISION",
+    []
+   ],
+   [
+    "exec",
+    "UPDATE\"s\".\"t\"AStSET\"num_rolling_kurt_w4\"=s.\"num_rolling_kurt_w4\"FROM(WITH__baseAS(SELECT\"_mf_idx\",\"num\"ASv,ROW_NUMBER()OVER(ORDERBY\"g\",\"_mf_idx\")AS__rnFROM\"s\".\"t\")SELECTb.\"_mf_idx\",CASEWHEN(SELECTCOUNT(r.v)FROM__baserWHEREr.__rnBETWEENb.__rn+(-3)ANDb.__rn+(0))>=4THEN(SELECTCASEWHEN__n<4THENNULLWHEN__mx=__mnTHEN-3WHEN__b<=1e-14THENNULLELSE((__n*__n-1)*__d/(__b*__b)-3*(__n-1)*(__n-1))/((__n-2)*(__n-3))ENDAS__valFROM(SELECT__n,__mn,__mx,__a,__b,__c,__a4-__a*__a*__a*__a-6*__b*__a*__a-4*__c*__aAS__dFROM(SELECT__n,__mn,__mx,__a,__a2,__a3,__a4,__a2-__a*__aAS__b,__a3-__a*__a*__a-3*__a*(__a2-__a*__a)AS__cFROM(SELECTCOUNT(*)AS__n,MIN(r.v)AS__mn,MAX(r.v)AS__mx,AVG(r.v)AS__a,AVG(r.v*r.v)AS__a2,AVG(r.v*r.v*r.v)AS__a3,AVG(r.v*r.v*r.v*r.v)AS__a4FROM__baserWHEREr.__rnBETWEENb.__rn+(-3)ANDb.__rn+(0)ANDr.vISNOTNULL)__l1)__l2)__l3)ELSENULLENDAS\"num_rolling_kurt_w4\"FROM__baseb)ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT\"num\",\"num_rolling_kurt_w4\",\"g\"FROM\"s\".\"t\"ORDERBY\"_mf_idx\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "exec",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMNIFNOTEXISTS\"num_rolling_kurt_w4\"DOUBLEPRECISION",
+    []
+   ],
+   [
+    "exec",
+    "UPDATE\"s\".\"t\"AStSET\"num_rolling_kurt_w4\"=s.\"num_rolling_kurt_w4\"FROM(WITH__baseAS(SELECT\"_mf_idx\",\"num\"ASv,ROW_NUMBER()OVER(ORDERBY\"g\",\"_mf_idx\")AS__rnFROM\"s\".\"t\")SELECTb.\"_mf_idx\",CASEWHEN(SELECTCOUNT(r.v)FROM__baserWHEREr.__rnBETWEENb.__rn+(-3)ANDb.__rn+(0))>=4THEN(SELECTCASEWHEN__n<4THENNULLWHEN__mx=__mnTHEN-3WHEN__b<=1e-14THENNULLELSE((__n*__n-1)*__d/(__b*__b)-3*(__n-1)*(__n-1))/((__n-2)*(__n-3))ENDAS__valFROM(SELECT__n,__mn,__mx,__a,__b,__c,__a4-__a*__a*__a*__a-6*__b*__a*__a-4*__c*__aAS__dFROM(SELECT__n,__mn,__mx,__a,__a2,__a3,__a4,__a2-__a*__aAS__b,__a3-__a*__a*__a-3*__a*(__a2-__a*__a)AS__cFROM(SELECTCOUNT(*)AS__n,MIN(r.v)AS__mn,MAX(r.v)AS__mx,AVG(r.v)AS__a,AVG(r.v*r.v)AS__a2,AVG(r.v*r.v*r.v)AS__a3,AVG(r.v*r.v*r.v*r.v)AS__a4FROM__baserWHEREr.__rnBETWEENb.__rn+(-3)ANDb.__rn+(0)ANDr.vISNOTNULL)__l1)__l2)__l3)ELSENULLENDAS\"num_rolling_kurt_w4\"FROM__baseb)ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT\"num\",\"num_rolling_kurt_w4\",\"g\"FROM\"s\".\"t\"ORDERBY\"_mf_idx\"",
     []
    ]
   ]
@@ -1677,6 +1837,166 @@
    [
     "fetch",
     "SELECT\"num\",\"num_rolling_sem_w3\",\"g\"FROM\"s\".\"t\"ORDERBY\"_mf_idx\"",
+    []
+   ]
+  ]
+ },
+ "rolling_skew": {
+  "clickhouse": [
+   [
+    "fetchval",
+    "SELECTCOALESCE(MAX(opidx),0)FROMmemframe_csv_registry.memframe_cache_registryWHEREdata_id=?",
+    [
+     "abc123"
+    ]
+   ],
+   [
+    "exec",
+    "CREATETABLE`s`.`t__op_1__feat`ENGINE=MergeTree()ORDERBYtuple()ASWITH__baseAS(SELECT`_mf_idx`,`num`ASv,ROW_NUMBER()OVER(ORDERBY`g`,`_mf_idx`)AS__rnFROM`s`.`t`)SELECTb.`_mf_idx`,CASEWHEN(SELECTCOUNT(r.v)FROM__baserWHEREr.__rnBETWEENb.__rn+(-3)ANDb.__rn+(0))>=4THEN(SELECTCASEWHEN__n<3THENNULLWHEN__mx=__mnTHEN0WHEN__b<=1e-14THENNULLELSESQRT(__n*(__n-1))*__c/((__n-2)*__b*SQRT(__b))ENDAS__valFROM(SELECT__n,__mn,__mx,__a,__a2,__a3,__a2-__a*__aAS__b,__a3-__a*__a*__a-3*__a*(__a2-__a*__a)AS__cFROM(SELECTCOUNT(*)AS__n,MIN(r.v)AS__mn,MAX(r.v)AS__mx,AVG(r.v)AS__a,AVG(r.v*r.v)AS__a2,AVG(r.v*r.v*r.v)AS__a3FROM__baserWHEREr.__rnBETWEENb.__rn+(-3)ANDb.__rn+(0)ANDr.vISNOTNULL)__l1)__l2)ELSENULLENDAS`num_rolling_skew_w4`FROM__baseb",
+    []
+   ],
+   [
+    "exec",
+    "CREATETABLE`s`.`t__op_1__wide`ENGINE=MergeTree()ORDERBYtuple()ASSELECTo.*,s.`num_rolling_skew_w4`AS`num_rolling_skew_w4`FROM`s`.`t`ASoLEFTJOIN`s`.`t__op_1__feat`ASsONo.`_mf_idx`=s.`_mf_idx`",
+    []
+   ],
+   [
+    "exec",
+    "CREATEORREPLACETABLE`s`.`t`ASSELECT*FROM`s`.`t__op_1__wide`",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLE`s`.`t__op_1__wide`",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS`s`.`t__op_1__feat`",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS`s`.`t__op_1__wide`",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT`num`,`num_rolling_skew_w4`,`g`FROM`s`.`t`ORDERBY`_mf_idx`",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "exec",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMNIFNOTEXISTS\"num_rolling_skew_w4\"DOUBLEPRECISION",
+    []
+   ],
+   [
+    "exec",
+    "UPDATE\"s\".\"t\"AStSET\"num_rolling_skew_w4\"=s.\"num_rolling_skew_w4\"FROM(WITH__baseAS(SELECT\"_mf_idx\",\"num\"ASv,ROW_NUMBER()OVER(ORDERBY\"g\",\"_mf_idx\")AS__rnFROM\"s\".\"t\")SELECTb.\"_mf_idx\",CASEWHEN(SELECTCOUNT(r.v)FROM__baserWHEREr.__rnBETWEENb.__rn+(-3)ANDb.__rn+(0))>=4THEN(SELECTCASEWHEN__n<3THENNULLWHEN__mx=__mnTHEN0WHEN__b<=1e-14THENNULLELSESQRT(__n*(__n-1))*__c/((__n-2)*__b*SQRT(__b))ENDAS__valFROM(SELECT__n,__mn,__mx,__a,__a2,__a3,__a2-__a*__aAS__b,__a3-__a*__a*__a-3*__a*(__a2-__a*__a)AS__cFROM(SELECTCOUNT(*)AS__n,MIN(r.v)AS__mn,MAX(r.v)AS__mx,AVG(r.v)AS__a,AVG(r.v*r.v)AS__a2,AVG(r.v*r.v*r.v)AS__a3FROM__baserWHEREr.__rnBETWEENb.__rn+(-3)ANDb.__rn+(0)ANDr.vISNOTNULL)__l1)__l2)ELSENULLENDAS\"num_rolling_skew_w4\"FROM__baseb)ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT\"num\",\"num_rolling_skew_w4\",\"g\"FROM\"s\".\"t\"ORDERBY\"_mf_idx\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "exec",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMNIFNOTEXISTS\"num_rolling_skew_w4\"DOUBLEPRECISION",
+    []
+   ],
+   [
+    "exec",
+    "UPDATE\"s\".\"t\"AStSET\"num_rolling_skew_w4\"=s.\"num_rolling_skew_w4\"FROM(WITH__baseAS(SELECT\"_mf_idx\",\"num\"ASv,ROW_NUMBER()OVER(ORDERBY\"g\",\"_mf_idx\")AS__rnFROM\"s\".\"t\")SELECTb.\"_mf_idx\",CASEWHEN(SELECTCOUNT(r.v)FROM__baserWHEREr.__rnBETWEENb.__rn+(-3)ANDb.__rn+(0))>=4THEN(SELECTCASEWHEN__n<3THENNULLWHEN__mx=__mnTHEN0WHEN__b<=1e-14THENNULLELSESQRT(__n*(__n-1))*__c/((__n-2)*__b*SQRT(__b))ENDAS__valFROM(SELECT__n,__mn,__mx,__a,__a2,__a3,__a2-__a*__aAS__b,__a3-__a*__a*__a-3*__a*(__a2-__a*__a)AS__cFROM(SELECTCOUNT(*)AS__n,MIN(r.v)AS__mn,MAX(r.v)AS__mx,AVG(r.v)AS__a,AVG(r.v*r.v)AS__a2,AVG(r.v*r.v*r.v)AS__a3FROM__baserWHEREr.__rnBETWEENb.__rn+(-3)ANDb.__rn+(0)ANDr.vISNOTNULL)__l1)__l2)ELSENULLENDAS\"num_rolling_skew_w4\"FROM__baseb)ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT\"num\",\"num_rolling_skew_w4\",\"g\"FROM\"s\".\"t\"ORDERBY\"_mf_idx\"",
+    []
+   ]
+  ]
+ },
+ "rolling_skew_time": {
+  "clickhouse": [
+   [
+    "fetchval",
+    "SELECTCOALESCE(MAX(opidx),0)FROMmemframe_csv_registry.memframe_cache_registryWHEREdata_id=?",
+    [
+     "abc123"
+    ]
+   ],
+   [
+    "exec",
+    "CREATETABLE`s`.`t__op_1__feat`ENGINE=MergeTree()ORDERBYtuple()ASWITH__baseAS(SELECT`_mf_idx`,`num`ASv,ROW_NUMBER()OVER(ORDERBY`g`,`_mf_idx`)AS__rn,toUnixTimestamp(`g`)AS__ordFROM`s`.`t`)SELECTb.`_mf_idx`,CASEWHEN(SELECTCOUNT(r.v)FROM__baserWHEREr.__rn<=b.__rnANDr.__ord>b.__ord-259200ANDr.__ord<=b.__ord)>=1THEN(SELECTCASEWHEN__n<3THENNULLWHEN__mx=__mnTHEN0WHEN__b<=1e-14THENNULLELSESQRT(__n*(__n-1))*__c/((__n-2)*__b*SQRT(__b))ENDAS__valFROM(SELECT__n,__mn,__mx,__a,__a2,__a3,__a2-__a*__aAS__b,__a3-__a*__a*__a-3*__a*(__a2-__a*__a)AS__cFROM(SELECTCOUNT(*)AS__n,MIN(r.v)AS__mn,MAX(r.v)AS__mx,AVG(r.v)AS__a,AVG(r.v*r.v)AS__a2,AVG(r.v*r.v*r.v)AS__a3FROM__baserWHEREr.__rn<=b.__rnANDr.__ord>b.__ord-259200ANDr.__ord<=b.__ordANDr.vISNOTNULL)__l1)__l2)ELSENULLENDAS`num_rolling_skew_w259200s`FROM__baseb",
+    []
+   ],
+   [
+    "exec",
+    "CREATETABLE`s`.`t__op_1__wide`ENGINE=MergeTree()ORDERBYtuple()ASSELECTo.*,s.`num_rolling_skew_w259200s`AS`num_rolling_skew_w259200s`FROM`s`.`t`ASoLEFTJOIN`s`.`t__op_1__feat`ASsONo.`_mf_idx`=s.`_mf_idx`",
+    []
+   ],
+   [
+    "exec",
+    "CREATEORREPLACETABLE`s`.`t`ASSELECT*FROM`s`.`t__op_1__wide`",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLE`s`.`t__op_1__wide`",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS`s`.`t__op_1__feat`",
+    []
+   ],
+   [
+    "exec",
+    "DROPTABLEIFEXISTS`s`.`t__op_1__wide`",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT`num`,`num_rolling_skew_w259200s`,`g`FROM`s`.`t`ORDERBY`_mf_idx`",
+    []
+   ]
+  ],
+  "duckdb": [
+   [
+    "exec",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMNIFNOTEXISTS\"num_rolling_skew_w259200s\"DOUBLEPRECISION",
+    []
+   ],
+   [
+    "exec",
+    "UPDATE\"s\".\"t\"AStSET\"num_rolling_skew_w259200s\"=s.\"num_rolling_skew_w259200s\"FROM(WITH__baseAS(SELECT\"_mf_idx\",\"num\"ASv,ROW_NUMBER()OVER(ORDERBY\"g\",\"_mf_idx\")AS__rn,date_part('epoch',\"g\")AS__ordFROM\"s\".\"t\")SELECTb.\"_mf_idx\",CASEWHEN(SELECTCOUNT(r.v)FROM__baserWHEREr.__rn<=b.__rnANDr.__ord>b.__ord-259200ANDr.__ord<=b.__ord)>=1THEN(SELECTCASEWHEN__n<3THENNULLWHEN__mx=__mnTHEN0WHEN__b<=1e-14THENNULLELSESQRT(__n*(__n-1))*__c/((__n-2)*__b*SQRT(__b))ENDAS__valFROM(SELECT__n,__mn,__mx,__a,__a2,__a3,__a2-__a*__aAS__b,__a3-__a*__a*__a-3*__a*(__a2-__a*__a)AS__cFROM(SELECTCOUNT(*)AS__n,MIN(r.v)AS__mn,MAX(r.v)AS__mx,AVG(r.v)AS__a,AVG(r.v*r.v)AS__a2,AVG(r.v*r.v*r.v)AS__a3FROM__baserWHEREr.__rn<=b.__rnANDr.__ord>b.__ord-259200ANDr.__ord<=b.__ordANDr.vISNOTNULL)__l1)__l2)ELSENULLENDAS\"num_rolling_skew_w259200s\"FROM__baseb)ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT\"num\",\"num_rolling_skew_w259200s\",\"g\"FROM\"s\".\"t\"ORDERBY\"_mf_idx\"",
+    []
+   ]
+  ],
+  "postgres": [
+   [
+    "exec",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMNIFNOTEXISTS\"num_rolling_skew_w259200s\"DOUBLEPRECISION",
+    []
+   ],
+   [
+    "exec",
+    "UPDATE\"s\".\"t\"AStSET\"num_rolling_skew_w259200s\"=s.\"num_rolling_skew_w259200s\"FROM(WITH__baseAS(SELECT\"_mf_idx\",\"num\"ASv,ROW_NUMBER()OVER(ORDERBY\"g\",\"_mf_idx\")AS__rn,date_part('epoch',\"g\")AS__ordFROM\"s\".\"t\")SELECTb.\"_mf_idx\",CASEWHEN(SELECTCOUNT(r.v)FROM__baserWHEREr.__rn<=b.__rnANDr.__ord>b.__ord-259200ANDr.__ord<=b.__ord)>=1THEN(SELECTCASEWHEN__n<3THENNULLWHEN__mx=__mnTHEN0WHEN__b<=1e-14THENNULLELSESQRT(__n*(__n-1))*__c/((__n-2)*__b*SQRT(__b))ENDAS__valFROM(SELECT__n,__mn,__mx,__a,__a2,__a3,__a2-__a*__aAS__b,__a3-__a*__a*__a-3*__a*(__a2-__a*__a)AS__cFROM(SELECTCOUNT(*)AS__n,MIN(r.v)AS__mn,MAX(r.v)AS__mx,AVG(r.v)AS__a,AVG(r.v*r.v)AS__a2,AVG(r.v*r.v*r.v)AS__a3FROM__baserWHEREr.__rn<=b.__rnANDr.__ord>b.__ord-259200ANDr.__ord<=b.__ordANDr.vISNOTNULL)__l1)__l2)ELSENULLENDAS\"num_rolling_skew_w259200s\"FROM__baseb)ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
+    []
+   ],
+   [
+    "fetch",
+    "SELECT\"num\",\"num_rolling_skew_w259200s\",\"g\"FROM\"s\".\"t\"ORDERBY\"_mf_idx\"",
     []
    ]
   ]

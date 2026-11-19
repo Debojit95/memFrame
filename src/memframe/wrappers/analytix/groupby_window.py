@@ -112,6 +112,24 @@ class GroupByRollingWrapper(GroupByRolling):
         """Synchronously compute grouped rolling count."""
         return await self.acount(column)
 
+    async def askew(self, column: str) -> Dict[str, Any]:
+        """Asynchronously compute grouped rolling skewness."""
+        return await self._call_core("skew", column)
+
+    @async_to_sync
+    async def skew(self, column: str) -> Dict[str, Any]:
+        """Synchronously compute grouped rolling skewness."""
+        return await self.askew(column)
+
+    async def akurt(self, column: str) -> Dict[str, Any]:
+        """Asynchronously compute grouped rolling kurtosis."""
+        return await self._call_core("kurt", column)
+
+    @async_to_sync
+    async def kurt(self, column: str) -> Dict[str, Any]:
+        """Synchronously compute grouped rolling kurtosis."""
+        return await self.akurt(column)
+
     async def anunique(self, column: str) -> Dict[str, Any]:
         """Asynchronously compute grouped rolling unique count."""
         return await self._call_core("nunique", column)
@@ -283,6 +301,24 @@ class GroupByExpandingWrapper(GroupByExpanding):
     async def count(self, column: str) -> Dict[str, Any]:
         """Synchronously compute grouped expanding count."""
         return await self.acount(column)
+
+    async def askew(self, column: str) -> Dict[str, Any]:
+        """Asynchronously compute grouped expanding skewness."""
+        return await self._call_core("skew", column)
+
+    @async_to_sync
+    async def skew(self, column: str) -> Dict[str, Any]:
+        """Synchronously compute grouped expanding skewness."""
+        return await self.askew(column)
+
+    async def akurt(self, column: str) -> Dict[str, Any]:
+        """Asynchronously compute grouped expanding kurtosis."""
+        return await self._call_core("kurt", column)
+
+    @async_to_sync
+    async def kurt(self, column: str) -> Dict[str, Any]:
+        """Synchronously compute grouped expanding kurtosis."""
+        return await self.akurt(column)
 
     async def anunique(self, column: str) -> Dict[str, Any]:
         """Asynchronously compute grouped expanding unique count."""

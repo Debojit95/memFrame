@@ -641,6 +641,23 @@ class TestWindowOperations:
         )["sales"].mean()
         _assert_ordered_result(res_df, _generated_col(res_df, "sales"), expected)
 
+    def test_rolling_skew_kurt(
+        self, uploaded_ctx, time_series_df, backend_config
+    ):
+        for func in ("skew", "kurt"):
+            result = uploaded_ctx.rolling(
+                column="sales", window=4, func=func, order_by="date",
+                min_periods=1,
+            )
+            res_df = get_result_df(result)
+            expected = getattr(
+                _ordered(time_series_df)["sales"].rolling(4, min_periods=1),
+                func,
+            )()
+            _assert_ordered_result(
+                res_df, _generated_col(res_df, "sales"), expected
+            )
+
     def test_rolling_time_window_quantile(
         self, uploaded_ctx, time_series_df, backend_config
     ):

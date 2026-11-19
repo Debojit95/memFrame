@@ -156,6 +156,18 @@ def _scenarios():
         "t", "s", "num", order_by="g", window="3D", q=0.5,
         backend=b, data_id=DATA_ID,
     )
+    s["rolling_skew"] = lambda o, b: o.rolling_skew(
+        "t", "s", "num", order_by="g", window=4, backend=b, data_id=DATA_ID
+    )
+    s["rolling_kurt"] = lambda o, b: o.rolling_kurt(
+        "t", "s", "num", order_by="g", window=4, backend=b, data_id=DATA_ID
+    )
+    s["rolling_skew_time"] = lambda o, b: o.rolling_skew(
+        "t", "s", "num", order_by="g", window="3D", backend=b, data_id=DATA_ID
+    )
+    s["expanding_skew"] = lambda o, b: o.expanding_skew(
+        "t", "s", "num", order_by="g", min_periods=3, backend=b, data_id=DATA_ID
+    )
     s["rolling_weighted_mean"] = lambda o, b: o.rolling_mean(
         "t", "s", "num", order_by="g", window=3, win_type="triang",
         backend=b, data_id=DATA_ID,

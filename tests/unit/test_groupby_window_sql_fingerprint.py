@@ -123,6 +123,10 @@ def _scenarios():
             "t", "s", "x", ["g"], order_by="o", window="3D", q=0.5,
             backend=backend, data_id=data_id,
         ),
+        "rolling_skew": lambda ops, backend: ops.rolling_skew_groupby(
+            "t", "s", "x", ["g"], order_by="o", window=4,
+            backend=backend, data_id=data_id,
+        ),
         "rolling_weighted_mean": lambda ops, backend: ops.rolling_mean_groupby(
             "t", "s", "x", ["g"], order_by="o", window=3, win_type="triang",
             backend=backend, data_id=data_id,

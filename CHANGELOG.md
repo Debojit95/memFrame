@@ -37,6 +37,11 @@ to [Semantic Versioning](https://semver.org/).
 - **`quantile(interpolation=...)`**: the pandas parameter is accepted on the
   builders and via `func_kwargs`. `"linear"` (pandas default) is supported;
   the other modes raise a clear `NotImplementedError` for now.
+- **`skew` / `kurt`**: rolling and expanding skewness and excess kurtosis
+  (ungrouped + grouped), matching pandas' bias-corrected sample definitions.
+  They are stateless closed forms, so `center`/`closed`, time windows, and
+  grouped partitions all work. Windows below 3/4 observations and
+  near-zero-variance frames return `NULL`; identical values return `0`/`-3`.
 - **Time-based windows**: `rolling(..., window="3D")` (or a `timedelta`)
   windows by duration, ungrouped and grouped, on all three backends. The frame
   is `(t - window, t]` with row-order tie handling, `min_periods` defaults to

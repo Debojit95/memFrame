@@ -644,6 +644,20 @@ class GroupbyWindowOps(WindowOps):
         except Exception as e:
             return self._error_response(f"rolling rank group-by error: {str(e)}")
 
+    async def rolling_skew_groupby(self, table, schema, column, group_cols,
+                                   order_by=None, window=3, **kwargs):
+        return await self._rolling_moment(
+            table, schema, column, order_by, window, "skew",
+            group_cols=group_cols, **kwargs,
+        )
+
+    async def rolling_kurt_groupby(self, table, schema, column, group_cols,
+                                   order_by=None, window=3, **kwargs):
+        return await self._rolling_moment(
+            table, schema, column, order_by, window, "kurt",
+            group_cols=group_cols, **kwargs,
+        )
+
     # ---------- Rolling Datetime Group‑By ----------
     async def rolling_min_datetime_groupby(self, *args, **kwargs):
         return await self._rolling_agg_with_partition(*args, agg="MIN", **kwargs)
@@ -950,6 +964,20 @@ class GroupbyWindowOps(WindowOps):
     async def expanding_last_groupby(self, *args, group_cols=None, **kwargs):
         return await self._expanding_agg_with_partition(*args, group_cols=group_cols, agg="LAST_VALUE", **kwargs)
     # ---------- Expanding Specials ----------
+    async def expanding_skew_groupby(self, table, schema, column, group_cols,
+                                     order_by=None, **kwargs):
+        return await self._expanding_moment(
+            table, schema, column, order_by, "skew",
+            group_cols=group_cols, **kwargs,
+        )
+
+    async def expanding_kurt_groupby(self, table, schema, column, group_cols,
+                                     order_by=None, **kwargs):
+        return await self._expanding_moment(
+            table, schema, column, order_by, "kurt",
+            group_cols=group_cols, **kwargs,
+        )
+
     async def expanding_quantile_groupby(
         self, table, schema, column, group_cols, order_by=None, q=0.5,
         min_periods=1, backend=None, data_id=None, new_table=None,

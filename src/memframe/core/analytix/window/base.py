@@ -1575,6 +1575,186 @@ class WindowOps:
             return self._error_response(str(e))
 
     # --------------------------------------------------
+    # SKEW / KURT
+    # --------------------------------------------------
+    def _moment_sql(self, stat, where, min_periods, count_sql):
+        """Correlated skew/kurt expression over a frame predicate."""
+        stat = stat.lower()
+        a4 = ", AVG(r.v * r.v * r.v * r.v) AS __a4" if stat == "kurt" else ""
+        level1 = f"""
+            SELECT COUNT(*) AS __n, MIN(r.v) AS __mn, MAX(r.v) AS __mx,
+                   AVG(r.v) AS __a, AVG(r.v * r.v) AS __a2,
+                   AVG(r.v * r.v * r.v) AS __a3{a4}
+            FROM __base r
+            WHERE {where} AND r.v IS NOT NULL
+        """
+        pick_a4 = ", __a4" if stat == "kurt" else ""
+        level2 = f"""
+            SELECT __n, __mn, __mx, __a, __a2, __a3{pick_a4},
+                   __a2 - __a * __a AS __b,
+                   __a3 - __a * __a * __a
+                     - 3 * __a * (__a2 - __a * __a) AS __c
+            FROM ({level1}) __l1
+        """
+        if stat == "skew":
+            outer = f"""
+                SELECT CASE
+                    WHEN __n < 3 THEN NULL
+                    WHEN __mx = __mn THEN 0
+                    WHEN __b <= 1e-14 THEN NULL
+                    ELSE SQRT(__n * (__n - 1)) * __c
+                         / ((__n - 2) * __b * SQRT(__b))
+                END AS __val
+                FROM ({level2}) __l2
+            """
+        else:
+            level3 = f"""
+                SELECT __n, __mn, __mx, __a, __b, __c,
+                       __a4 - __a * __a * __a * __a
+                         - 6 * __b * __a * __a - 4 * __c * __a AS __d
+                FROM ({level2}) __l2
+            """
+            outer = f"""
+                SELECT CASE
+                    WHEN __n < 4 THEN NULL
+                    WHEN __mx = __mn THEN -3
+                    WHEN __b <= 1e-14 THEN NULL
+                    ELSE ((__n * __n - 1) * __d / (__b * __b)
+                          - 3 * (__n - 1) * (__n - 1))
+                         / ((__n - 2) * (__n - 3))
+                END AS __val
+                FROM ({level3}) __l3
+            """
+        return self._min_periods_gate(f"({outer})", count_sql, min_periods)
+
+    async def _rolling_moment(
+        self, table, schema, column, order_by, window, stat, backend=None,
+        data_id=None, new_table=None, min_periods=None, center=False,
+        closed=None, win_type=None, group_cols=None,
+    ):
+        try:
+            if backend is None or data_id is None:
+                return self._error_response("backend and data_id required")
+            self._reject_win_type(win_type)
+            spec = self._window_spec(window, center, closed)
+            win_tag = spec["tag"]
+            min_p = self._resolve_min_periods(min_periods, window)
+            safe_col = SQLIdentifierSanitizer.sanitize(column)
+            safe_groups = [
+                SQLIdentifierSanitizer.sanitize(c) for c in (group_cols or [])
+            ]
+            orders = self._order_keys(order_by)
+            ord_expr = (
+                self._epoch_expr(self.db.quote_identifier(orders[0]))
+                if spec["kind"] == "time" else None
+            )
+            q = self.db.quote_identifier
+            suffix = f"_by_{'_'.join(safe_groups)}" if safe_groups else ""
+            new_col = f"{safe_col}_rolling_{stat.lower()}_w{win_tag}{suffix}"
+            if safe_groups:
+                base = self._group_base_cte(
+                    table, schema, safe_col, safe_groups, orders,
+                    ord_expr=ord_expr,
+                )
+                group_eq = self._group_eq(safe_groups)
+            else:
+                base = self._window_base_cte(
+                    table, schema, safe_col, orders, ord_expr=ord_expr,
+                )
+                group_eq = ""
+            where = f"{self._frame_predicate(spec)}{group_eq}"
+            count_sql = f"(SELECT COUNT(r.v) FROM __base r WHERE {where})"
+            expr = self._moment_sql(stat, where, min_p, count_sql)
+            feature_sql = f"""
+                WITH {base}
+                SELECT b.{q("_mf_idx")},
+                    {expr} AS {q(new_col)}
+                FROM __base b
+            """
+            message = (
+                f"Rolling {stat.lower()} on '{column}'"
+                + (f" grouped by {safe_groups}" if safe_groups else "")
+            )
+            if safe_groups:
+                return await self._finish_grouped_special(
+                    table, schema, column, new_col, feature_sql,
+                    self._ewm_float_type(), backend, data_id,
+                    safe_groups, order_by, message,
+                    window=window, min_periods=min_p,
+                )
+            return await self._finish_window_special(
+                table, schema, column, new_col, feature_sql,
+                self._ewm_float_type(), backend, data_id, order_by,
+                message, window=window, min_periods=min_p,
+            )
+        except Exception as e:
+            return self._error_response(f"rolling {stat} error: {str(e)}")
+
+    async def _expanding_moment(
+        self, table, schema, column, order_by, stat, backend=None,
+        data_id=None, new_table=None, min_periods=1, win_type=None,
+        group_cols=None,
+    ):
+        try:
+            if backend is None or data_id is None:
+                return self._error_response("backend and data_id required")
+            self._reject_win_type(win_type)
+            safe_col = SQLIdentifierSanitizer.sanitize(column)
+            safe_groups = [
+                SQLIdentifierSanitizer.sanitize(c) for c in (group_cols or [])
+            ]
+            orders = self._order_keys(order_by)
+            q = self.db.quote_identifier
+            suffix = f"_by_{'_'.join(safe_groups)}" if safe_groups else ""
+            new_col = f"{safe_col}_expanding_{stat.lower()}{suffix}"
+            if safe_groups:
+                base = self._group_base_cte(
+                    table, schema, safe_col, safe_groups, orders,
+                )
+                group_eq = self._group_eq(safe_groups)
+            else:
+                base = self._window_base_cte(table, schema, safe_col, orders)
+                group_eq = ""
+            where = f"r.__rn <= b.__rn{group_eq}"
+            count_sql = f"(SELECT COUNT(r.v) FROM __base r WHERE {where})"
+            expr = self._moment_sql(stat, where, int(min_periods or 0), count_sql)
+            feature_sql = f"""
+                WITH {base}
+                SELECT b.{q("_mf_idx")},
+                    {expr} AS {q(new_col)}
+                FROM __base b
+            """
+            message = (
+                f"Expanding {stat.lower()} on '{column}'"
+                + (f" grouped by {safe_groups}" if safe_groups else "")
+            )
+            if safe_groups:
+                return await self._finish_grouped_special(
+                    table, schema, column, new_col, feature_sql,
+                    self._ewm_float_type(), backend, data_id,
+                    safe_groups, order_by, message, min_periods=min_periods,
+                )
+            return await self._finish_window_special(
+                table, schema, column, new_col, feature_sql,
+                self._ewm_float_type(), backend, data_id, order_by,
+                message, min_periods=min_periods,
+            )
+        except Exception as e:
+            return self._error_response(f"expanding {stat} error: {str(e)}")
+
+    async def rolling_skew(self, *args, **kwargs):
+        return await self._rolling_moment(*args, stat="skew", **kwargs)
+
+    async def rolling_kurt(self, *args, **kwargs):
+        return await self._rolling_moment(*args, stat="kurt", **kwargs)
+
+    async def expanding_skew(self, *args, **kwargs):
+        return await self._expanding_moment(*args, stat="skew", **kwargs)
+
+    async def expanding_kurt(self, *args, **kwargs):
+        return await self._expanding_moment(*args, stat="kurt", **kwargs)
+
+    # --------------------------------------------------
     # CATEGORICAL API
     # --------------------------------------------------
     async def rolling_first(self, *args, **kwargs):

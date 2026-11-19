@@ -74,6 +74,8 @@ named shorthands fix `func`. Builders accept `min_periods` at construction:
 | `.median(...)` / `.amedian(...)` | Rolling median |
 | `.sem(...)` / `.asem(...)` | Rolling standard error |
 | `.rank(method='average', ascending=True, pct=False)` / `.arank(...)` | Rolling rank within the window |
+| `.skew(...)` / `.askew(...)` | Rolling skewness (needs 3 observations) |
+| `.kurt(...)` / `.akurt(...)` | Rolling excess kurtosis (needs 4 observations) |
 | `.nunique(...)` / `.anunique(...)` | Rolling distinct count |
 | `.first(...)` / `.afirst(...)` | First value in the window |
 | `.last(...)` / `.alast(...)` | Last value in the window |
@@ -97,6 +99,8 @@ Expanding methods mirror rolling but have no `window`; they add `min_periods`
 | `.median(...)` / `.amedian(...)` | Running median |
 | `.sem(...)` / `.asem(...)` | Running standard error |
 | `.rank(method='average', ascending=True, pct=False)` / `.arank(...)` | Running rank |
+| `.skew(...)` / `.askew(...)` | Running skewness |
+| `.kurt(...)` / `.akurt(...)` | Running excess kurtosis |
 | `.nunique(...)` / `.anunique(...)` | Running distinct count |
 | `.first(...)` / `.afirst(...)` | Running first value |
 | `.last(...)` / `.alast(...)` | Running last value |
@@ -465,6 +469,22 @@ result = dataset.rolling(column="sales", window=3, func="nunique")
 
 Both forms → `[NULL, NULL, 3, 3, 3]`.
 
+### `skew` / `kurt`
+
+Bias-corrected sample skewness and excess kurtosis, following pandas. `skew`
+needs at least 3 observations and `kurt` at least 4; windows that are shorter
+than that (or whose variance is effectively zero) return `NULL`. A window
+where every value is identical returns `0` for `skew` and `-3` for `kurt`.
+Result columns `sales_rolling_skew_w3` / `sales_rolling_kurt_w3`.
+
+```python
+result = dataset.rolling(column="sales", window=5, func="skew", order_by="day")
+result = dataset.on("sales").rolling(5).kurt(order_by="day")
+```
+
+They are stateless closed forms, so they also work with `center`, `closed`,
+time windows, and per group.
+
 ### `first`
 
 First value in the window (the value `w - 1` rows back, or the first row of the
@@ -694,6 +714,17 @@ result = dataset.expanding(column="sales", func="nunique")
 ```
 
 Both forms → `[1, 2, 3, 4, 5]`.
+
+### `skew` / `kurt`
+
+Running bias-corrected skewness and excess kurtosis. Both return `NULL` until
+enough observations exist (3 for `skew`, 4 for `kurt`); identical values give
+`0` / `-3`. Result columns `sales_expanding_skew` / `sales_expanding_kurt`.
+
+```python
+result = dataset.expanding(column="sales", func="skew", order_by="day")
+result = dataset.on("sales").expanding().kurt(order_by="day")
+```
 
 ### `first`
 

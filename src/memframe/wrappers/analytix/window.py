@@ -342,6 +342,36 @@ class RollingWindowBuilderWrapper:
             order_by, method=method, ascending=ascending, pct=pct,
         )
 
+    async def askew(
+        self,
+        order_by: Union[str, List[str]] = None,
+    ):
+        """Asynchronously compute rolling skewness."""
+        return await self.aapply("skew", order_by)
+
+    @async_to_sync
+    async def skew(
+        self,
+        order_by: Union[str, List[str]] = None,
+    ):
+        """Synchronously compute rolling skewness."""
+        return await self.askew(order_by)
+
+    async def akurt(
+        self,
+        order_by: Union[str, List[str]] = None,
+    ):
+        """Asynchronously compute rolling kurtosis."""
+        return await self.aapply("kurt", order_by)
+
+    @async_to_sync
+    async def kurt(
+        self,
+        order_by: Union[str, List[str]] = None,
+    ):
+        """Synchronously compute rolling kurtosis."""
+        return await self.akurt(order_by)
+
     async def anunique(
         self,
         order_by: Union[str, List[str]] = None,
@@ -627,6 +657,36 @@ class ExpandingWindowBuilderWrapper:
         return await self.arank(
             order_by, method=method, ascending=ascending, pct=pct,
         )
+
+    async def askew(
+        self,
+        order_by: Union[str, List[str]] = None,
+    ):
+        """Asynchronously compute expanding skewness."""
+        return await self.aapply("skew", order_by)
+
+    @async_to_sync
+    async def skew(
+        self,
+        order_by: Union[str, List[str]] = None,
+    ):
+        """Synchronously compute expanding skewness."""
+        return await self.askew(order_by)
+
+    async def akurt(
+        self,
+        order_by: Union[str, List[str]] = None,
+    ):
+        """Asynchronously compute expanding kurtosis."""
+        return await self.aapply("kurt", order_by)
+
+    @async_to_sync
+    async def kurt(
+        self,
+        order_by: Union[str, List[str]] = None,
+    ):
+        """Synchronously compute expanding kurtosis."""
+        return await self.akurt(order_by)
 
     async def anunique(
         self,
