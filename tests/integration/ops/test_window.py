@@ -10,10 +10,10 @@ import numpy as np
 import pandas as pd
 import pytest
 
-import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 
 from memframe.main import MemFrame
+from pdf_report import render_df_to_pdf_page
 
 # ----------------------------------------------------------------------
 # Backend configuration – set environment variables for PostgreSQL
@@ -431,45 +431,6 @@ def _prepare_pdf_df(df: pd.DataFrame) -> pd.DataFrame:
             pdf_df[col] = pdf_df[col].astype(str)
     return pdf_df
 
-def render_df_to_pdf_page(
-    pdf,
-    title,
-    method_call,
-    original_df,
-    memframe_df,
-    pandas_df,
-    backend,
-    status="PASSED",
-    error_message="",
-    pandas_call="",
-):
-    sections = [
-        ("Original", original_df.head(10)),
-        ("MemFrame Result", memframe_df.head(10)),
-        ("Pandas Result", pandas_df.head(10)),
-    ]
-    fig_height = max(8, 2 + sum(max(2, len(df) + 2) for _, df in sections) * 0.4)
-    fig, axes = plt.subplots(3, 1, figsize=(16, fig_height))
-    fig.suptitle(f"{title}  [{backend}]  {status}", fontsize=12, fontweight="bold")
-    fig.text(0.01, 0.965, f"Call: {method_call}", fontsize=10, family="monospace")
-    if pandas_call:
-        fig.text(0.01, 0.94, f"Pandas: {pandas_call}", fontsize=10, family="monospace")
-    if error_message:
-        fig.text(0.01, 0.915, f"Failure: {error_message}", fontsize=9, color="crimson")
-    for ax, (label, df) in zip(axes, sections):
-        ax.axis("off")
-        ax.set_title(label, fontsize=10, loc="left")
-        if df.empty:
-            ax.text(0.01, 0.5, "(empty)", fontsize=9, transform=ax.transAxes)
-            continue
-        table = ax.table(cellText=df.values, colLabels=df.columns, cellLoc="center", loc="center")
-        table.auto_set_font_size(False)
-        table.set_fontsize(8)
-        table.scale(1.1, 1.2)
-    plt.tight_layout(rect=[0, 0, 1, 0.93])
-    pdf.savefig(fig)
-    plt.close(fig)
-
 # ----------------------------------------------------------------------
 # Test class
 # ----------------------------------------------------------------------
@@ -826,7 +787,7 @@ class TestWindowOperations:
 
         self._record_result(
             test_name="rolling_source_mutation_and_narrow_cache",
-            method_call='rolling(column="sales", window=3, func="mean", order_by="date") twice',
+            method_call='rolling(column="sales", window=3, func="mean", order_by="date")  # run twice',
             pandas_call='_ordered(df)["sales"].rolling(3).mean()',
             original_df=time_series_df,
             memframe_df=second,
@@ -874,7 +835,7 @@ class TestWindowOperations:
 
         self._record_result(
             test_name="rolling_multi_func_keeps_base_and_view",
-            method_call='rolling(column="sales", window=3, func=["mean", "sum"], order_by="date") twice',
+            method_call='rolling(column="sales", window=3, func=["mean", "sum"], order_by="date")  # run twice',
             pandas_call='_ordered(df)["sales"].rolling(3).agg(["mean", "sum"])',
             original_df=time_series_df,
             memframe_df=second,
@@ -1124,7 +1085,7 @@ class TestWindowOperations:
         assert quantile_df[_generated_col(quantile_df, "sales")].isna().all()
         self._record_result(
             test_name="rolling_window_larger_than_frame",
-            method_call='rolling(column="sales", window=10, ...) on a 6-row frame',
+            method_call='rolling(column="sales", window=10, func="mean", order_by="date")  # 6-row frame',
             pandas_call='_ordered(df)["sales"].rolling(10).mean()',
             original_df=time_series_df,
             memframe_df=res_df,
@@ -1239,7 +1200,7 @@ class TestWindowOperations:
         assert_series_equal_loose(original_sales[mask], expected_sales[mask])
         self._record_result(
             test_name="mutation_safety",
-            method_call="rolling then check original unchanged",
+            method_call='rolling(column="sales", window=3, func="mean", order_by="date")  # source unchanged',
             pandas_call='time_series_df  # unchanged by rolling',
             original_df=time_series_df,
             memframe_df=original,

@@ -10,10 +10,10 @@ import pandas as pd
 import numpy as np
 import pytest
 
-import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 
 from memframe.main import MemFrame
+from pdf_report import render_df_to_pdf_page
 
 # ----------------------------------------------------------------------
 # Backend configuration – set environment variables for PostgreSQL
@@ -368,46 +368,6 @@ def _prepare_pdf_df(df: pd.DataFrame) -> pd.DataFrame:
     return pdf_df
 
 
-def render_df_to_pdf_page(
-    pdf,
-    title,
-    method_call,
-    original_df,
-    memframe_df,
-    pandas_df,
-    backend,
-    status="PASSED",
-    error_message="",
-    pandas_call="",
-):
-    sections = [
-        ("Original", original_df.head(10)),
-        ("MemFrame Result", memframe_df.head(10)),
-        ("Pandas Result", pandas_df.head(10)),
-    ]
-    fig_height = max(8, 2 + sum(max(2, len(df) + 2) for _, df in sections) * 0.4)
-    fig, axes = plt.subplots(3, 1, figsize=(16, fig_height))
-    fig.suptitle(f"{title}  [{backend}]  {status}", fontsize=12, fontweight="bold")
-    fig.text(0.01, 0.965, f"Call: {method_call}", fontsize=10, family="monospace")
-    if pandas_call:
-        fig.text(0.01, 0.94, f"Pandas: {pandas_call}", fontsize=10, family="monospace")
-    if error_message:
-        fig.text(0.01, 0.915, f"Failure: {error_message}", fontsize=9, color="crimson")
-    for ax, (label, df) in zip(axes, sections):
-        ax.axis("off")
-        ax.set_title(label, fontsize=10, loc="left")
-        if df.empty:
-            ax.text(0.01, 0.5, "(empty)", fontsize=9, transform=ax.transAxes)
-            continue
-        table = ax.table(cellText=df.values, colLabels=df.columns, cellLoc="center", loc="center")
-        table.auto_set_font_size(False)
-        table.set_fontsize(8)
-        table.scale(1.1, 1.2)
-    plt.tight_layout(rect=[0, 0, 1, 0.93])
-    pdf.savefig(fig)
-    plt.close(fig)
-
-
 # ----------------------------------------------------------------------
 # Test class
 # ----------------------------------------------------------------------
@@ -564,7 +524,7 @@ class TestGroupByWindowOperations:
         pandas_df[out_col] = np.asarray(exp_vals).reshape(-1)
         self._record_result(
             "direct_rolling_mean",
-            'arolling("value",2,"mean",group_cols="group",order_by="id")',
+            'await GroupByWindowStatsWrapper(ctx).arolling(column="value", window=2, func="mean", group_cols="group", order_by="id")',
             sample_df, res_df, pandas_df, backend_config["connection_type"],
             pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].rolling(2).mean()',
         )
@@ -591,7 +551,7 @@ class TestGroupByWindowOperations:
         pandas_df[out_col] = np.asarray(exp_vals).reshape(-1)
         self._record_result(
             "direct_rolling_sum",
-            'arolling("value",3,"sum",group_cols="group",order_by="id")',
+            'await GroupByWindowStatsWrapper(ctx).arolling(column="value", window=3, func="sum", group_cols="group", order_by="id")',
             sample_df, res_df, pandas_df, backend_config["connection_type"],
             pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].rolling(3).sum()',
         )
@@ -610,7 +570,7 @@ class TestGroupByWindowOperations:
         pandas_df[out_col] = np.asarray(exp_vals).reshape(-1)
         self._record_result(
             "groupby_rolling_mean",
-            '.groupby("group").rolling(2).mean("value")',
+            'dataset.groupby("group").rolling(2).mean("value")',
             sample_df, res_df, pandas_df, backend_config["connection_type"],
             pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].rolling(2).mean()',
         )
@@ -907,7 +867,7 @@ class TestGroupByWindowOperations:
         pandas_df[out_col] = np.asarray(exp_vals).reshape(-1)
         self._record_result(
             "groupby_rolling_sum",
-            '.groupby("group").rolling(3).sum("value")',
+            'dataset.groupby("group").rolling(3).sum("value")',
             sample_df, res_df, pandas_df, backend_config["connection_type"],
             pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].rolling(3).sum()',
         )
@@ -925,7 +885,7 @@ class TestGroupByWindowOperations:
         pandas_df[out_col] = np.asarray(exp_vals).reshape(-1)
         self._record_result(
             "groupby_rolling_max",
-            '.groupby("group").rolling(2).max("value")',
+            'dataset.groupby("group").rolling(2).max("value")',
             sample_df, res_df, pandas_df, backend_config["connection_type"],
             pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].rolling(2).max()',
         )
@@ -941,7 +901,7 @@ class TestGroupByWindowOperations:
         pandas_df[out_col] = self._pandas_rolling(sample_df, ["group"], "value", 2, "mean").values
         self._record_result(
             "groupby_rolling_no_order",
-            '.groupby("group").rolling(2).mean("value")',
+            'dataset.groupby("group").rolling(2).mean("value")',
             sample_df, res_df, pandas_df, backend_config["connection_type"],
             pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].rolling(2).mean()',
         )
@@ -962,7 +922,7 @@ class TestGroupByWindowOperations:
         pandas_df[out_col] = np.asarray(exp_vals).reshape(-1)
         self._record_result(
             "groupby_expanding_mean",
-            '.groupby("group").expanding(min_periods=1).mean("value")',
+            'dataset.groupby("group").expanding(min_periods=1).mean("value")',
             sample_df, res_df, pandas_df, backend_config["connection_type"],
             pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].expanding().mean()',
         )
@@ -982,7 +942,7 @@ class TestGroupByWindowOperations:
         pandas_df[out_col] = np.asarray(exp_vals).reshape(-1)
         self._record_result(
             "groupby_expanding_sum",
-            '.groupby("group").expanding(min_periods=1).sum("value")',
+            'dataset.groupby("group").expanding(min_periods=1).sum("value")',
             sample_df, res_df, pandas_df, backend_config["connection_type"],
             pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].expanding().sum()',
         )
@@ -1006,7 +966,7 @@ class TestGroupByWindowOperations:
 
         self._record_result(
             "groupby_ewm",
-            '.groupby("group").ewm(span=3, order_by="id").mean("value")',
+            'dataset.groupby("group").ewm(span=3, order_by="id").mean("value")',
             sample_df, first_df, second_df, backend_config["connection_type"],
             pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].ewm(span=3).mean()',
         )
@@ -1095,7 +1055,7 @@ class TestGroupByWindowOperations:
         pandas_df["value_rolling_sum_w2_by_group"] = self._pandas_rolling(exp_ordered, ["group"], "value", 2, "sum").values
         self._record_result(
             "groupby_rolling_agg",
-            '.groupby("group").rolling(2).agg("value",["mean","sum"])',
+            'dataset.groupby("group").rolling(2).agg("value",["mean","sum"])',
             sample_df, res_df, pandas_df, backend_config["connection_type"],
             pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].rolling(2).agg(["mean", "sum"])',
         )
@@ -1114,7 +1074,7 @@ class TestGroupByWindowOperations:
         pandas_df[out_col] = np.asarray(exp_vals).reshape(-1)
         self._record_result(
             "groupby_multicolumn_rolling",
-            '.groupby("group", "sub").rolling(2).sum("value")',
+            'dataset.groupby("group", "sub").rolling(2).sum("value")',
             sample_df, res_df, pandas_df, backend_config["connection_type"],
             pandas_call='df.sort_values(["group", "sub", "id"]).groupby(["group", "sub"])["value"].rolling(2).sum()',
         )
@@ -1134,7 +1094,7 @@ class TestGroupByWindowOperations:
         pandas_df[out_col] = np.asarray(exp_vals).reshape(-1)
         self._record_result(
             "groupby_multicolumn_expanding",
-            '.groupby("group", "sub").expanding().mean("value")',
+            'dataset.groupby("group", "sub").expanding().mean("value")',
             sample_df, res_df, pandas_df, backend_config["connection_type"],
             pandas_call='df.sort_values(["group", "sub", "id"]).groupby(["group", "sub"])["value"].expanding().mean()',
         )
@@ -1161,7 +1121,7 @@ class TestGroupByWindowOperations:
         pandas_df[out_col] = np.asarray(exp_vals).reshape(-1)
         self._record_result(
             "direct_multicolumn_rolling",
-            'arolling("value",2,"max",group_cols=["group","sub"],order_by="id")',
+            'await GroupByWindowStatsWrapper(ctx).arolling(column="value", window=2, func="max", group_cols=["group", "sub"], order_by="id")',
             sample_df, res_df, pandas_df, backend_config["connection_type"],
             pandas_call='df.sort_values(["group", "sub", "id"]).groupby(["group", "sub"])["value"].rolling(2).max()',
         )
@@ -1282,7 +1242,8 @@ class TestGroupByWindowOperations:
         assert_allclose_numeric(check["value_rolling_mean_w2_by_group"], exp_vals)
         self._record_result(
             "map_feature_true_then_false",
-            'rolling agg map_feature=True then map_feature=False',
+            'dataset.groupby("group").rolling(2, order_by="id")'
+            '.agg("value", ["mean"])  # map_feature=True then False',
             sample_df, mapped, exp_ordered, backend_config["connection_type"],
             pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].rolling(2).mean()  # rerun drops and re-adds',
         )
@@ -1303,7 +1264,7 @@ class TestGroupByWindowOperations:
         )
         self._record_result(
             "source_gains_generated_column",
-            '.groupby("group").rolling(2).mean("value")',
+            'dataset.groupby("group").rolling(2).mean("value")',
             sample_df, after_op, original_uploaded, backend_config["connection_type"],
             pandas_call='df.groupby("group")["value"].rolling(2).mean()',
         )
