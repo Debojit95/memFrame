@@ -241,12 +241,14 @@ class WindowOps:
             "sum": "sum", "mean": "mean", "avg": "mean", "min": "min",
             "max": "max", "count": "count", "std": "std", "stddev": "std",
             "stddev_samp": "std", "var": "var", "variance": "var",
-            "var_samp": "var",
+            "var_samp": "var", "first": "first", "last": "last",
+            "first_value": "first", "last_value": "last",
         }
         keys = [aliases.get(str(a).strip().lower()) for a in raw_aggs]
         if any(k is None for k in keys):
             return self._error_response(
-                "time-based windows support sum/mean/min/max/count/std/var"
+                "time-based windows support "
+                "sum/mean/min/max/count/std/var/first/last"
             )
         if not keys:
             return self._error_response(
@@ -278,8 +280,11 @@ class WindowOps:
 
         cnt = agg_sql("COUNT(r.v)")
         rows = agg_sql("COUNT(r.__rn)")
+        source_type = await self._get_column_sql_type(table, schema, safe_col)
+        float_type = self._ewm_float_type()
         exprs = []
         names = []
+        col_types = []
         for key in keys:
             col_name = f"{safe_col}_rolling_{key}_w{tag}{suffix}"
             if key == "sum":
@@ -290,6 +295,8 @@ class WindowOps:
                 value = cnt
             elif key in ("min", "max"):
                 value = agg_sql(f"{key.upper()}(r.v)")
+            elif key in ("first", "last"):
+                value = self._ordered_value_sql(frame_where, key)
             elif key == "std":
                 value = agg_sql(self._agg_std("r.v", ddof, "COUNT(r.v)"))
             else:
@@ -299,6 +306,14 @@ class WindowOps:
             if key == "sum" and min_periods == 0:
                 gated = f"COALESCE({gated}, 0)"
             names.append(col_name)
+            if key in ("first", "last"):
+                col_types.append(
+                    self._window_result_sql_type(
+                        source_type, key, "FIRST_VALUE",
+                    )
+                )
+            else:
+                col_types.append(float_type)
             exprs.append(f"{gated} AS {q(col_name)}")
 
         feature_sql = f"""
@@ -308,8 +323,7 @@ class WindowOps:
             FROM __base b
         """
         await self._merge_features(
-            table, schema, feature_sql, names,
-            [self._ewm_float_type()] * len(names),
+            table, schema, feature_sql, names, col_types,
             backend=backend, data_id=data_id,
         )
         preview_cols = [column, *names]
@@ -989,16 +1003,15 @@ class WindowOps:
         if kind == "rows":
             lo, hi = self._rolling_offsets(value, center, closed)
             return {"kind": "rows", "lo": lo, "hi": hi, "tag": value}
-        if center:
-            raise NotImplementedError(
-                "time-based windows do not support center"
-            )
         key = "right" if closed is None else closed
         if key not in self._ROLLING_CLOSED:
             raise ValueError(
                 f"closed must be one of {self._ROLLING_CLOSED} or None"
             )
-        return {"kind": "time", "secs": value, "closed": key, "tag": tag}
+        return {
+            "kind": "time", "secs": value, "closed": key, "tag": tag,
+            "center": bool(center),
+        }
 
     def _frame_predicate(self, spec, alias="r", base="b") -> str:
         """Correlated frame predicate for a window spec."""
@@ -1010,10 +1023,29 @@ class WindowOps:
         key = spec["closed"]
         left = ">" if key in ("right", "neither") else ">="
         right = "<=" if key in ("right", "both") else "<"
+        if spec.get("center"):
+            half = spec["secs"] / 2.0
+            return (
+                f"{alias}.__ord {left} {base}.__ord - {half:g} "
+                f"AND {alias}.__ord {right} {base}.__ord + {half:g}"
+                f"{self._center_anchor(alias, base)}"
+            )
         return (
             f"{alias}.__rn <= {base}.__rn "
             f"AND {alias}.__ord {left} {base}.__ord - {spec['secs']:g} "
             f"AND {alias}.__ord {right} {base}.__ord"
+        )
+
+    def _center_anchor(self, alias="r", base="b") -> str:
+        """Extra correlation anchor for centered time frames."""
+        return ""
+
+    def _ordered_value_sql(self, where, mode, value_expr="r.v") -> str:
+        """Value at the earliest (first) or latest (last) row in the frame."""
+        order = "__rn" if mode == "first" else "__rn DESC"
+        return (
+            f"(SELECT (array_agg({value_expr} ORDER BY {order}))[1] "
+            f"FROM __base r WHERE {where})"
         )
 
     def _rolling_frame(self, window, center=False, closed=None) -> str:

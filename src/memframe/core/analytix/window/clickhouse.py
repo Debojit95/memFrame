@@ -44,3 +44,16 @@ class ClickHouseWindowOps(ClickHouseEWMHooks, WindowOps):
 
     def _distinct_count_sql(self, expr: str) -> str:
         return f"countDistinct({expr})"
+
+    def _center_anchor(self, alias="r", base="b") -> str:
+        # ClickHouse mis-plans correlated scans whose only predicates compare
+        # a non-unique column (duplicated rows); anchor on the unique __rn.
+        return f" AND {alias}.__rn >= {base}.__rn - 1000000000"
+
+    def _ordered_value_sql(self, where, mode, value_expr="r.v") -> str:
+        idx = 1 if mode == "first" else -1
+        return (
+            f"(SELECT arrayElement(arraySort(x -> x.1, "
+            f"groupArray((r.__rn, {value_expr}))), {idx}).2 "
+            f"FROM __base r WHERE {where})"
+        )

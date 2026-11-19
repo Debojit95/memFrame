@@ -145,6 +145,16 @@ def _scenarios():
     s["rolling_dt_mode_ordered"] = lambda o, b: o.rolling_mode_datetime(
         "t", "s", "ts", order_by="g", window=3, backend=b, data_id=DATA_ID
     )
+    s["rolling_time_center"] = lambda o, b: o.rolling_mean(
+        "t", "s", "num", order_by="g", window="3D", center=True,
+        backend=b, data_id=DATA_ID,
+    )
+    s["rolling_first_time"] = lambda o, b: o.rolling_first(
+        "t", "s", "num", order_by="g", window="3D", backend=b, data_id=DATA_ID
+    )
+    s["rolling_last_time"] = lambda o, b: o.rolling_last(
+        "t", "s", "num", order_by="g", window="3D", backend=b, data_id=DATA_ID
+    )
     s["rolling_time_mean"] = lambda o, b: o.rolling_mean(
         "t", "s", "num", order_by="g", window="3D", backend=b, data_id=DATA_ID
     )

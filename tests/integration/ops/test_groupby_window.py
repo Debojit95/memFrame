@@ -672,6 +672,39 @@ class TestGroupByWindowOperations:
             rtol=1e-6, atol=1e-9, equal_nan=True,
         )
 
+    def test_groupby_rolling_centered_time_window(
+        self, connected_memframe, backend_config
+    ):
+        frame = pd.DataFrame(
+            {
+                "g": ["a"] * 4 + ["b"] * 3,
+                "x": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0],
+                "t": pd.to_datetime(
+                    [
+                        "2024-01-01", "2024-01-02", "2024-01-03",
+                        "2024-01-05", "2024-01-01", "2024-01-03",
+                        "2024-01-05",
+                    ]
+                ),
+            }
+        )
+        context = connected_memframe.upload_df(frame, filename="gb_center")
+        result = context.groupby("g").rolling(
+            "2D", order_by="t", center=True
+        ).sum("x")
+        res_df = get_result_df(result)
+        out_col = get_generated_col(result, "x_rolling_sum_w172800s_by_g")
+
+        ordered = frame.sort_values(["g", "t"], kind="mergesort")
+        expected = pd.concat(
+            [
+                grp.rolling("2D", on="t", center=True)["x"].sum()
+                for _, grp in ordered.groupby("g", sort=False)
+            ]
+        )
+        check = res_df.sort_values(["g", "t"]).reset_index(drop=True)
+        assert_allclose_numeric(check[out_col], expected)
+
     def test_groupby_rolling_time_window_quantile(
         self, connected_memframe, backend_config
     ):

@@ -37,7 +37,7 @@
    ],
    [
     "exec",
-    "CREATETABLE`s`.`t__op_1__wide`ENGINE=MergeTree()ORDERBYtuple()ASSELECTo.*,s.`x_ewm_mean_by_g`AS`x_ewm_mean_by_g`FROM`s`.`t`ASoLEFTJOIN`s`.`t__op_1__feat`ASsONo.`_mf_idx`=s.`_mf_idx`",
+    "CREATETABLE`s`.`t__op_1__wide`ENGINE=MergeTree()ORDERBYtuple()ASSELECTo.`g`,o.`o`,o.`x`,s.`x_ewm_mean_by_g`AS`x_ewm_mean_by_g`FROM`s`.`t`ASoLEFTJOIN`s`.`t__op_1__feat`ASsONo.`_mf_idx`=s.`_mf_idx`",
     []
    ],
    [
@@ -228,7 +228,7 @@
    ],
    [
     "exec",
-    "CREATETABLE`s`.`t__op_1__wide`ENGINE=MergeTree()ORDERBYtuple()ASSELECTo.*,s.`x_ewm_mean_by_g`AS`x_ewm_mean_by_g`,s.`x_ewm_var_by_g`AS`x_ewm_var_by_g`FROM`s`.`t`ASoLEFTJOIN`s`.`t__op_1__feat`ASsONo.`_mf_idx`=s.`_mf_idx`",
+    "CREATETABLE`s`.`t__op_1__wide`ENGINE=MergeTree()ORDERBYtuple()ASSELECTo.`g`,o.`o`,o.`x`,s.`x_ewm_mean_by_g`AS`x_ewm_mean_by_g`,s.`x_ewm_var_by_g`AS`x_ewm_var_by_g`FROM`s`.`t`ASoLEFTJOIN`s`.`t__op_1__feat`ASsONo.`_mf_idx`=s.`_mf_idx`",
     []
    ],
    [
@@ -429,7 +429,7 @@
    ],
    [
     "exec",
-    "CREATETABLE`s`.`t__op_1__wide`ENGINE=MergeTree()ORDERBYtuple()ASSELECTo.*,s.`x_ewm_mean_by_g`AS`x_ewm_mean_by_g`FROM`s`.`t`ASoLEFTJOIN`s`.`t__op_1__feat`ASsONo.`_mf_idx`=s.`_mf_idx`",
+    "CREATETABLE`s`.`t__op_1__wide`ENGINE=MergeTree()ORDERBYtuple()ASSELECTo.`g`,o.`o`,o.`x`,s.`x_ewm_mean_by_g`AS`x_ewm_mean_by_g`FROM`s`.`t`ASoLEFTJOIN`s`.`t__op_1__feat`ASsONo.`_mf_idx`=s.`_mf_idx`",
     []
    ],
    [
@@ -598,7 +598,7 @@
    ],
    [
     "exec",
-    "CREATETABLE`s`.`t__op_1__wide`ENGINE=MergeTree()ORDERBYtuple()ASSELECTo.*,s.`x_expanding_nunique_by_g`AS`x_expanding_nunique_by_g`FROM`s`.`t`ASoLEFTJOIN`s`.`t__op_1__feat`ASsONo.`_mf_idx`=s.`_mf_idx`",
+    "CREATETABLE`s`.`t__op_1__wide`ENGINE=MergeTree()ORDERBYtuple()ASSELECTo.`g`,o.`o`,o.`x`,s.`x_expanding_nunique_by_g`AS`x_expanding_nunique_by_g`FROM`s`.`t`ASoLEFTJOIN`s`.`t__op_1__feat`ASsONo.`_mf_idx`=s.`_mf_idx`",
     []
    ],
    [
@@ -678,7 +678,7 @@
    ],
    [
     "exec",
-    "CREATETABLE`s`.`t__op_1__wide`ENGINE=MergeTree()ORDERBYtuple()ASSELECTo.*,s.`x_expanding_q0.5_by_g`AS`x_expanding_q0.5_by_g`FROM`s`.`t`ASoLEFTJOIN`s`.`t__op_1__feat`ASsONo.`_mf_idx`=s.`_mf_idx`",
+    "CREATETABLE`s`.`t__op_1__wide`ENGINE=MergeTree()ORDERBYtuple()ASSELECTo.`g`,o.`o`,o.`x`,s.`x_expanding_q0.5_by_g`AS`x_expanding_q0.5_by_g`FROM`s`.`t`ASoLEFTJOIN`s`.`t__op_1__feat`ASsONo.`_mf_idx`=s.`_mf_idx`",
     []
    ],
    [
@@ -758,7 +758,7 @@
    ],
    [
     "exec",
-    "CREATETABLE`s`.`t__op_1__wide`ENGINE=MergeTree()ORDERBYtuple()ASSELECTo.*,s.`x_expanding_sum_by_g`AS`x_expanding_sum_by_g`FROM`s`.`t`ASoLEFTJOIN`s`.`t__op_1__feat`ASsONo.`_mf_idx`=s.`_mf_idx`",
+    "CREATETABLE`s`.`t__op_1__wide`ENGINE=MergeTree()ORDERBYtuple()ASSELECTo.`g`,o.`o`,o.`x`,s.`x_expanding_sum_by_g`AS`x_expanding_sum_by_g`FROM`s`.`t`ASoLEFTJOIN`s`.`t__op_1__feat`ASsONo.`_mf_idx`=s.`_mf_idx`",
     []
    ],
    [
@@ -838,7 +838,7 @@
    ],
    [
     "exec",
-    "CREATETABLE`s`.`t__op_1__wide`ENGINE=MergeTree()ORDERBYtuple()ASSELECTo.*,s.`x_rolling_sum_w3_by_g`AS`x_rolling_sum_w3_by_g`,s.`x_rolling_mean_w3_by_g`AS`x_rolling_mean_w3_by_g`FROM`s`.`t`ASoLEFTJOIN`s`.`t__op_1__feat`ASsONo.`_mf_idx`=s.`_mf_idx`",
+    "CREATETABLE`s`.`t__op_1__wide`ENGINE=MergeTree()ORDERBYtuple()ASSELECTo.`g`,o.`o`,o.`x`,s.`x_rolling_sum_w3_by_g`AS`x_rolling_sum_w3_by_g`,s.`x_rolling_mean_w3_by_g`AS`x_rolling_mean_w3_by_g`FROM`s`.`t`ASoLEFTJOIN`s`.`t__op_1__feat`ASsONo.`_mf_idx`=s.`_mf_idx`",
     []
    ],
    [
@@ -928,7 +928,7 @@
    ],
    [
     "exec",
-    "CREATETABLE`s`.`t__op_1__wide`ENGINE=MergeTree()ORDERBYtuple()ASSELECTo.*,s.`x_rolling_nunique_w3_by_g`AS`x_rolling_nunique_w3_by_g`FROM`s`.`t`ASoLEFTJOIN`s`.`t__op_1__feat`ASsONo.`_mf_idx`=s.`_mf_idx`",
+    "CREATETABLE`s`.`t__op_1__wide`ENGINE=MergeTree()ORDERBYtuple()ASSELECTo.`g`,o.`o`,o.`x`,s.`x_rolling_nunique_w3_by_g`AS`x_rolling_nunique_w3_by_g`FROM`s`.`t`ASoLEFTJOIN`s`.`t__op_1__feat`ASsONo.`_mf_idx`=s.`_mf_idx`",
     []
    ],
    [
@@ -1008,7 +1008,7 @@
    ],
    [
     "exec",
-    "CREATETABLE`s`.`t__op_1__wide`ENGINE=MergeTree()ORDERBYtuple()ASSELECTo.*,s.`x_rolling_q0.5_w3_by_g`AS`x_rolling_q0.5_w3_by_g`FROM`s`.`t`ASoLEFTJOIN`s`.`t__op_1__feat`ASsONo.`_mf_idx`=s.`_mf_idx`",
+    "CREATETABLE`s`.`t__op_1__wide`ENGINE=MergeTree()ORDERBYtuple()ASSELECTo.`g`,o.`o`,o.`x`,s.`x_rolling_q0.5_w3_by_g`AS`x_rolling_q0.5_w3_by_g`FROM`s`.`t`ASoLEFTJOIN`s`.`t__op_1__feat`ASsONo.`_mf_idx`=s.`_mf_idx`",
     []
    ],
    [
@@ -1088,7 +1088,7 @@
    ],
    [
     "exec",
-    "CREATETABLE`s`.`t__op_1__wide`ENGINE=MergeTree()ORDERBYtuple()ASSELECTo.*,s.`x_rolling_rank_w3_by_g`AS`x_rolling_rank_w3_by_g`FROM`s`.`t`ASoLEFTJOIN`s`.`t__op_1__feat`ASsONo.`_mf_idx`=s.`_mf_idx`",
+    "CREATETABLE`s`.`t__op_1__wide`ENGINE=MergeTree()ORDERBYtuple()ASSELECTo.`g`,o.`o`,o.`x`,s.`x_rolling_rank_w3_by_g`AS`x_rolling_rank_w3_by_g`FROM`s`.`t`ASoLEFTJOIN`s`.`t__op_1__feat`ASsONo.`_mf_idx`=s.`_mf_idx`",
     []
    ],
    [
@@ -1168,7 +1168,7 @@
    ],
    [
     "exec",
-    "CREATETABLE`s`.`t__op_1__wide`ENGINE=MergeTree()ORDERBYtuple()ASSELECTo.*,s.`x_rolling_sem_w3_by_g`AS`x_rolling_sem_w3_by_g`FROM`s`.`t`ASoLEFTJOIN`s`.`t__op_1__feat`ASsONo.`_mf_idx`=s.`_mf_idx`",
+    "CREATETABLE`s`.`t__op_1__wide`ENGINE=MergeTree()ORDERBYtuple()ASSELECTo.`g`,o.`o`,o.`x`,s.`x_rolling_sem_w3_by_g`AS`x_rolling_sem_w3_by_g`FROM`s`.`t`ASoLEFTJOIN`s`.`t__op_1__feat`ASsONo.`_mf_idx`=s.`_mf_idx`",
     []
    ],
    [
@@ -1248,7 +1248,7 @@
    ],
    [
     "exec",
-    "CREATETABLE`s`.`t__op_1__wide`ENGINE=MergeTree()ORDERBYtuple()ASSELECTo.*,s.`x_rolling_skew_w4_by_g`AS`x_rolling_skew_w4_by_g`FROM`s`.`t`ASoLEFTJOIN`s`.`t__op_1__feat`ASsONo.`_mf_idx`=s.`_mf_idx`",
+    "CREATETABLE`s`.`t__op_1__wide`ENGINE=MergeTree()ORDERBYtuple()ASSELECTo.`g`,o.`o`,o.`x`,s.`x_rolling_skew_w4_by_g`AS`x_rolling_skew_w4_by_g`FROM`s`.`t`ASoLEFTJOIN`s`.`t__op_1__feat`ASsONo.`_mf_idx`=s.`_mf_idx`",
     []
    ],
    [
@@ -1328,7 +1328,7 @@
    ],
    [
     "exec",
-    "CREATETABLE`s`.`t__op_1__wide`ENGINE=MergeTree()ORDERBYtuple()ASSELECTo.*,s.`x_rolling_sum_w3_by_g`AS`x_rolling_sum_w3_by_g`FROM`s`.`t`ASoLEFTJOIN`s`.`t__op_1__feat`ASsONo.`_mf_idx`=s.`_mf_idx`",
+    "CREATETABLE`s`.`t__op_1__wide`ENGINE=MergeTree()ORDERBYtuple()ASSELECTo.`g`,o.`o`,o.`x`,s.`x_rolling_sum_w3_by_g`AS`x_rolling_sum_w3_by_g`FROM`s`.`t`ASoLEFTJOIN`s`.`t__op_1__feat`ASsONo.`_mf_idx`=s.`_mf_idx`",
     []
    ],
    [
@@ -1392,6 +1392,11 @@
    ]
   ]
  },
+ "rolling_time_center": {
+  "clickhouse": [],
+  "duckdb": [],
+  "postgres": []
+ },
  "rolling_time_quantile": {
   "clickhouse": [
    [
@@ -1408,7 +1413,7 @@
    ],
    [
     "exec",
-    "CREATETABLE`s`.`t__op_1__wide`ENGINE=MergeTree()ORDERBYtuple()ASSELECTo.*,s.`x_rolling_q0.5_w259200s_by_g`AS`x_rolling_q0.5_w259200s_by_g`FROM`s`.`t`ASoLEFTJOIN`s`.`t__op_1__feat`ASsONo.`_mf_idx`=s.`_mf_idx`",
+    "CREATETABLE`s`.`t__op_1__wide`ENGINE=MergeTree()ORDERBYtuple()ASSELECTo.`g`,o.`o`,o.`x`,s.`x_rolling_q0.5_w259200s_by_g`AS`x_rolling_q0.5_w259200s_by_g`FROM`s`.`t`ASoLEFTJOIN`s`.`t__op_1__feat`ASsONo.`_mf_idx`=s.`_mf_idx`",
     []
    ],
    [
@@ -1488,7 +1493,7 @@
    ],
    [
     "exec",
-    "CREATETABLE`s`.`t__op_1__wide`ENGINE=MergeTree()ORDERBYtuple()ASSELECTo.*,s.`x_rolling_mean_w3_by_g`AS`x_rolling_mean_w3_by_g`FROM`s`.`t`ASoLEFTJOIN`s`.`t__op_1__feat`ASsONo.`_mf_idx`=s.`_mf_idx`",
+    "CREATETABLE`s`.`t__op_1__wide`ENGINE=MergeTree()ORDERBYtuple()ASSELECTo.`g`,o.`o`,o.`x`,s.`x_rolling_mean_w3_by_g`AS`x_rolling_mean_w3_by_g`FROM`s`.`t`ASoLEFTJOIN`s`.`t__op_1__feat`ASsONo.`_mf_idx`=s.`_mf_idx`",
     []
    ],
    [

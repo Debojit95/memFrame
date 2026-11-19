@@ -37,6 +37,13 @@ to [Semantic Versioning](https://semver.org/).
 - **`quantile(interpolation=...)`**: the pandas parameter is accepted on the
   builders and via `func_kwargs`. `"linear"` (pandas default) is supported;
   the other modes raise a clear `NotImplementedError` for now.
+- **Centred time windows**: `rolling(window="3D", center=True)` now works —
+  both edges shift by `window / 2`, so the frame looks ahead by half a window
+  (`(t - w/2, t + w/2]` by default) and honours `closed`. Applies to every
+  aggregation, the specials, and grouped windows.
+- **`first` / `last` on time windows**: return the value of the earliest /
+  latest row in the frame, keeping the column type (timestamps stay
+  timestamps, text stays text) and preserving nulls.
 - **`skew` / `kurt`**: rolling and expanding skewness and excess kurtosis
   (ungrouped + grouped), matching pandas' bias-corrected sample definitions.
   They are stateless closed forms, so `center`/`closed`, time windows, and
@@ -47,9 +54,10 @@ to [Semantic Versioning](https://semver.org/).
   is `(t - window, t]` with row-order tie handling, `min_periods` defaults to
   `1`, and a datetime `order_by` is required. All aggregations work —
   `sum`/`mean`/`min`/`max`/`count`/`std`/`var` and the specials
-  (`quantile`/`median`/`sem`/`rank`/`nunique`, datetime stats) — and `closed`
-  accepts `right` (default), `left`, `both`, `neither`. `center`, `win_type`,
-  and `first`/`last` are still rejected for time windows.
+  (`quantile`/`median`/`sem`/`rank`/`nunique`/`skew`/`kurt`, datetime stats)
+  plus `first`/`last` — and `closed`
+  accepts `right` (default), `left`, `both`, `neither`. Only `win_type` is
+  still rejected for time windows.
 - **Weighted windows (`win_type`)**: rolling (ungrouped + grouped) supports
   scipy window weights for `sum`/`mean` — `boxcar`, `triang`, `bartlett`,
   `parzen`, `bohman`, `blackman`, `blackmanharris`, `barthann`, `nuttall`,

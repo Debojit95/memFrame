@@ -154,7 +154,7 @@ sample = dataset.ewm(column="sales", span=3, func="mean")
 | `func` | `str` or `list[str]` | Aggregation(s) to apply. A list chains them into a single output table. |
 | `order_by` | `str`, `list[str]`, or `None` | Row ordering for the window. `None` (default) uses the immutable upload order (`_mf_idx`). A list orders by multiple columns. |
 | `q` | `float` | Quantile in `[0, 1]` for `quantile` (default `0.5`). |
-| `center` | `bool` | Rolling only — centre the frame on the current row by shifting it forward `(window - 1) // 2` rows (default `False`). |
+| `center` | `bool` | Rolling only — centre the frame on the current row: row windows shift by `(window - 1) // 2` rows, time windows by `window / 2` (default `False`). |
 | `func_kwargs` | `dict` or `None` | Per-function keyword arguments, e.g. `{"std": {"ddof": 0}, "rank": {"method": "dense"}}`. |
 | `closed` | `str` or `None` | Rolling only — which frame edges are included: `right` (default), `left`, `both`, `neither` (row and time windows). |
 | `win_type` | `str` or `None` | Rolling only — apply scipy window weights. Supported: `boxcar`, `triang`, `bartlett`, `parzen`, `bohman`, `blackman`, `blackmanharris`, `barthann`, `nuttall`, `hann`, `hamming`, `cosine`. Weighted `sum`/`mean` only. |
@@ -222,15 +222,20 @@ dataset.on("sales").rolling(datetime.timedelta(days=3)).mean(order_by="date")
   `closed` selects the edges: `right` (default), `left`, `both`, `neither`.
   Rows that share a timestamp are ordered by row position, so ties are not
   grouped (again matching pandas).
+- `center=True` shifts both edges by `window / 2`, so the frame becomes
+  `(t - window/2, t + window/2]` (edges still follow `closed`). Centred frames
+  look ahead, so later rows are included.
 - Supported aggregations: `sum`, `mean`, `min`, `max`, `count`, `std`, `var`
-  (with `ddof`), plus the specials — `quantile`, `median`, `sem`, `rank`,
-  `nunique`, and the datetime `mean`/`median`/`mode`. `count` is gated on the
-  rows in the frame.
+  (with `ddof`), the specials — `quantile`, `median`, `sem`, `rank`,
+  `nunique`, `skew`, `kurt`, and the datetime `mean`/`median`/`mode` — plus
+  `first`/`last`. `count` is gated on the rows in the frame.
+- `first` / `last` return the value of the earliest / latest row in the frame
+  (by position), including when that value is null. They are MemFrame extras
+  (pandas' `Rolling` has no `first`/`last`) and keep the column's type, so
+  datetime and text columns come back unchanged.
 - `min_periods` defaults to `1`; set it explicitly to require more
   observations.
-- Still rejected for time windows: `center`, `win_type`, and `first`/`last`
-  (MemFrame extras that need ordered selection). They raise a clear
-  `NotImplementedError`/error envelope.
+- Still rejected for time windows: `win_type`.
 - Generated columns carry the duration tag, e.g.
   `sales_rolling_mean_w259200s` for three days.
 

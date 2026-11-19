@@ -77,6 +77,17 @@ class ClickHouseEWMHooks:
             for c in columns
         )
         rid = self.db.quote_identifier(self._row_id_col)
+        # A re-run regenerates the same columns; CH rejects `o.*` + the same
+        # name, so project the source without them.
+        try:
+            src_types = await self.db.get_column_types(table, schema) or {}
+        except Exception:
+            src_types = {}
+        keep = [c for c in src_types if c not in set(columns)]
+        src_cols = (
+            ", ".join(f"o.{self.db.quote_identifier(c)}" for c in keep)
+            if keep else "o.*"
+        )
         try:
             await self._exec(
                 f"CREATE TABLE {q_feat} ENGINE = MergeTree() ORDER BY tuple() AS "
@@ -84,7 +95,7 @@ class ClickHouseEWMHooks:
             )
             await self._exec(
                 f"CREATE TABLE {q_wide} ENGINE = MergeTree() ORDER BY tuple() AS "
-                f"SELECT o.*, {feats} FROM {q_src} AS o "
+                f"SELECT {src_cols}, {feats} FROM {q_src} AS o "
                 f"LEFT JOIN {q_feat} AS s ON o.{rid} = s.{rid}"
             )
             await swap_table_into_source(

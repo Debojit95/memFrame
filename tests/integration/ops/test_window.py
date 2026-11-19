@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from typing import Any, Dict, List
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -640,6 +641,45 @@ class TestWindowOperations:
             "3D", on="date"
         )["sales"].mean()
         _assert_ordered_result(res_df, _generated_col(res_df, "sales"), expected)
+
+    def test_rolling_time_window_centered(
+        self, uploaded_ctx, time_series_df, backend_config
+    ):
+        result = uploaded_ctx.rolling(
+            column="sales", window="2D", func="mean", order_by="date",
+            center=True, closed="both", min_periods=1,
+        )
+        res_df = get_result_df(result)
+        expected = _ordered(time_series_df).rolling(
+            "2D", on="date", center=True, closed="both", min_periods=1
+        )["sales"].mean()
+        _assert_ordered_result(res_df, _generated_col(res_df, "sales"), expected)
+
+    def test_rolling_time_window_first_last(
+        self, uploaded_ctx, time_series_df, backend_config
+    ):
+        ordered = _ordered(time_series_df)
+        for func in ("first", "last"):
+            result = uploaded_ctx.rolling(
+                column="date", window="2D", func=func, order_by="date",
+                min_periods=1,
+            )
+            res_df = get_result_df(result)
+            out_col = _generated_col(res_df, "date")
+            actual = res_df.sort_values("date").reset_index(drop=True)[out_col]
+
+            ts = ordered["date"].to_numpy()
+            expected = []
+            for i in range(len(ts)):
+                mask = (ts > ts[i] - np.timedelta64(2, "D")) & (
+                    np.arange(len(ts)) <= i
+                )
+                picked = ts[np.flatnonzero(mask)]
+                expected.append(picked[0] if func == "first" else picked[-1])
+            np.testing.assert_array_equal(
+                pd.to_datetime(actual).to_numpy(),
+                np.asarray(expected, dtype="datetime64[ns]"),
+            )
 
     def test_rolling_skew_kurt(
         self, uploaded_ctx, time_series_df, backend_config

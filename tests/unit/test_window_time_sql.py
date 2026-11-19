@@ -117,7 +117,6 @@ def test_grouped_time_window_matches_pandas(ctx):
         ({"order_by": None}, "order_by"),
         ({"order_by": ["t"]}, "single datetime order_by"),
         ({"order_by": "x"}, "datetime"),
-        ({"func": "first"}, "time-based windows"),
         ({"win_type": "hann"}, "time-based windows"),
     ],
 )
@@ -277,11 +276,201 @@ def test_grouped_time_window_specials(ctx):
         )
 
 
-def test_time_window_center_is_rejected(ctx):
-    frame = _frame()
-    wrapper = WindowWrapper(ctx.upload_df(frame, filename="ts_center"))
-    response = wrapper.rolling(
-        column="x", window="3D", func="mean", order_by="t", center=True
+@pytest.mark.parametrize("window", ["2D", "36h"])
+@pytest.mark.parametrize("closed", [None, "right", "left", "both", "neither"])
+@pytest.mark.parametrize("func", ["sum", "mean", "count"])
+def test_centered_time_window_matches_pandas(ctx, window, closed, func):
+    ts = pd.to_datetime(
+        ["2024-01-01", "2024-01-01", "2024-01-02", "2024-01-03",
+         "2024-01-03", "2024-01-04"]
     )
-    assert response["is_error"] is True
-    assert "center" in str(response.get("failed_funcs"))
+    frame = pd.DataFrame({"x": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0], "t": ts})
+    wrapper = WindowWrapper(
+        ctx.upload_df(frame, filename=f"tc_{window}_{closed}_{func}")
+    )
+    kwargs = {"center": True}
+    if closed:
+        kwargs["closed"] = closed
+    response = wrapper.rolling(
+        column="x", window=window, func=func, order_by="t", **kwargs
+    )
+    assert response["is_error"] is False, response.get("failed_funcs")
+    got = response["result"].sort_values("t")
+    column = [c for c in got.columns if c.startswith("x_rolling")][0]
+    expected = getattr(
+        frame.rolling(window, on="t", **kwargs)["x"], func
+    )().to_numpy()
+    np.testing.assert_allclose(
+        got[column].to_numpy(dtype=float), expected,
+        equal_nan=True, rtol=1e-9,
+    )
+
+
+@pytest.mark.parametrize("func", ["quantile", "skew"])
+def test_centered_time_window_specials(ctx, func):
+    ts = pd.to_datetime(
+        ["2024-01-01", "2024-01-02", "2024-01-03", "2024-01-04", "2024-01-05"]
+    )
+    frame = pd.DataFrame({"x": [1.0, 2.0, 4.0, 8.0, 16.0], "t": ts})
+    wrapper = WindowWrapper(ctx.upload_df(frame, filename=f"tcs_{func}"))
+    response = wrapper.rolling(
+        column="x", window="2D", func=func, order_by="t",
+        center=True, min_periods=1,
+    )
+    assert response["is_error"] is False, response.get("failed_funcs")
+    got = response["result"].sort_values("t")
+    column = [c for c in got.columns if c.startswith("x_rolling")][0]
+    roll = frame.set_index("t", drop=False).rolling(
+        "2D", center=True, min_periods=1
+    )["x"]
+    expected = (
+        roll.quantile(0.5) if func == "quantile" else roll.skew()
+    ).to_numpy()
+    np.testing.assert_allclose(
+        got[column].to_numpy(dtype=float), expected,
+        equal_nan=True, rtol=1e-8, atol=1e-10,
+    )
+
+
+@pytest.mark.parametrize("center", [False, True])
+@pytest.mark.parametrize("func", ["first", "last"])
+def test_time_window_first_last(ctx, center, func):
+    ts = pd.to_datetime(
+        ["2024-01-01", "2024-01-01", "2024-01-02", "2024-01-03",
+         "2024-01-03", "2024-01-04"]
+    )
+    values = [None, 2.0, 3.0, 4.0, 5.0, 6.0]
+    frame = pd.DataFrame({"x": values, "t": ts})
+    wrapper = WindowWrapper(
+        ctx.upload_df(frame, filename=f"tfl_{center}_{func}")
+    )
+    response = wrapper.rolling(
+        column="x", window="2D", func=func, order_by="t",
+        center=center, min_periods=1,
+    )
+    assert response["is_error"] is False, response.get("failed_funcs")
+    got = response["result"].sort_values("t")
+    column = [c for c in got.columns if c.startswith("x_rolling")][0]
+
+    ts_v = ts.to_numpy()
+    expected = []
+    for i in range(len(ts_v)):
+        if center:
+            mask = (ts_v > ts_v[i] - np.timedelta64(1, "D")) & (
+                ts_v <= ts_v[i] + np.timedelta64(1, "D")
+            )
+        else:
+            mask = (
+                (ts_v > ts_v[i] - np.timedelta64(2, "D"))
+                & (np.arange(len(ts_v)) <= i)
+            )
+        picked = np.asarray(values, dtype=object)[np.flatnonzero(mask)]
+        expected.append(
+            picked[0] if func == "first" else picked[-1]
+        )
+    np.testing.assert_allclose(
+        got[column].to_numpy(dtype=float), np.asarray(expected, dtype=float),
+        equal_nan=True,
+    )
+
+
+def test_time_window_first_last_preserve_types(ctx):
+    ts = pd.to_datetime(
+        ["2024-01-01", "2024-01-02", "2024-01-03"]
+    )
+    frame = pd.DataFrame(
+        {
+            "d": ts,
+            "s": ["a", "b", "c"],
+            "x": [1.0, 2.0, 3.0],
+            "t": ts,
+        }
+    )
+    wrapper = WindowWrapper(ctx.upload_df(frame, filename="tfl_types"))
+    for func in ("first", "last"):
+        response = wrapper.rolling(
+            column="d", window="2D", func=func, order_by="t", min_periods=1
+        )
+        assert response["is_error"] is False, response.get("failed_funcs")
+        got = response["result"].sort_values("t")
+        column = [c for c in got.columns if c.startswith("d_rolling")][0]
+        assert str(got[column].dtype).startswith("datetime64")
+        assert got[column].tolist()[2] == (ts[1] if func == "first" else ts[2])
+
+        response = wrapper.rolling(
+            column="s", window="2D", func=func, order_by="t", min_periods=1
+        )
+        assert response["is_error"] is False, response.get("failed_funcs")
+        got = response["result"].sort_values("t")
+        column = [c for c in got.columns if c.startswith("s_rolling")][0]
+        assert got[column].tolist()[2] == ("b" if func == "first" else "c")
+
+
+def test_grouped_centered_and_first_last(ctx):
+    ts = pd.to_datetime(
+        ["2024-01-01", "2024-01-02", "2024-01-04",
+         "2024-01-01", "2024-01-03", "2024-01-05"]
+    )
+    frame = pd.DataFrame(
+        {
+            "g": ["a"] * 3 + ["b"] * 3,
+            "x": [1.0, 2.0, 3.0, 10.0, 20.0, 30.0],
+            "t": ts,
+        }
+    )
+    context = ctx.upload_df(frame, filename="tcg")
+    wrapper = GroupByWindowStatsWrapper(context)
+    ordered = frame.sort_values(["g", "t"], kind="mergesort")
+
+    response = asyncio.run(
+        wrapper.arolling(
+            column="x", window="2D", func="sum", group_cols="g",
+            order_by="t", center=True, min_periods=1,
+        )
+    )
+    assert response["is_error"] is False, response.get("failed_funcs")
+    got = response["result"].sort_values(["g", "t"])
+    expected = pd.concat(
+        [
+            grp.rolling("2D", on="t", center=True, min_periods=1)["x"].sum()
+            for _, grp in ordered.groupby("g", sort=False)
+        ]
+    ).to_numpy()
+    np.testing.assert_allclose(
+        got["x_rolling_sum_w172800s_by_g"].to_numpy(dtype=float), expected,
+        equal_nan=True, rtol=1e-9,
+    )
+
+    response = asyncio.run(
+        wrapper.arolling(
+            column="x", window="2D", func="last", group_cols="g",
+            order_by="t", min_periods=1,
+        )
+    )
+    assert response["is_error"] is False, response.get("failed_funcs")
+    got = response["result"].sort_values(["g", "t"])
+    expected_last = (
+        ordered.groupby("g", sort=False)["x"].last().to_numpy()
+    )
+    assert got["x_rolling_last_w172800s_by_g"].to_numpy(dtype=float)[-1] == (
+        expected_last[1]
+    )
+
+
+def test_centered_time_window_min_periods(ctx):
+    ts = pd.to_datetime(
+        ["2024-01-01", "2024-01-02", "2024-01-03", "2024-01-04"]
+    )
+    frame = pd.DataFrame({"x": [1.0, 2.0, 3.0, 4.0], "t": ts})
+    wrapper = WindowWrapper(ctx.upload_df(frame, filename="tcmp"))
+    response = wrapper.rolling(
+        column="x", window="2D", func="sum", order_by="t",
+        center=True, min_periods=3,
+    )
+    assert response["is_error"] is False, response.get("failed_funcs")
+    got = response["result"].sort_values("t")
+    np.testing.assert_allclose(
+        got["x_rolling_sum_w172800s"].to_numpy(dtype=float),
+        frame.rolling("2D", on="t", center=True, min_periods=3)["x"].sum(),
+        equal_nan=True, rtol=1e-9,
+    )

@@ -232,17 +232,18 @@ dataset.groupby("region").rolling(7, order_by="month", win_type="triang").mean("
 
 Passing a duration (`window="3D"` / `timedelta`) windows by time per group
 instead of by row count; a datetime `order_by` is required and `min_periods`
-defaults to `1`. `closed` (`right`/`left`/`both`/`neither`) applies, and the
-specials (`quantile`, `median`, `sem`, `rank`, `nunique`, datetime stats) work
-per group too:
+defaults to `1`. `closed` (`right`/`left`/`both`/`neither`), `center`, and
+every aggregation (including the specials, `skew`/`kurt`, and
+`first`/`last`) work per group too:
 
 ```python
 dataset.groupby("region").rolling("3D", order_by="date").mean("sales")
 dataset.groupby("region").rolling("3D", order_by="date").quantile("sales", q=0.9)
 dataset.groupby("region").rolling("2D", order_by="date", closed="both").sum("sales")
+dataset.groupby("region").rolling("2D", order_by="date", center=True).sum("sales")
 ```
 
-`center`, `win_type`, and `first`/`last` remain unsupported for time windows.
+`win_type` remains unsupported for time windows.
 
 `func` also accepts backend spellings directly (`AVG`, `STDDEV_SAMP`,
 `first_value`, …); unknown names fail the whole call with `is_error

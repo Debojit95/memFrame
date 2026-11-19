@@ -119,6 +119,10 @@ def _scenarios():
             "t", "s", "x", ["g"], order_by="o", window=3,
             backend=backend, data_id=data_id,
         ),
+        "rolling_time_center": lambda ops, backend: ops.rolling_mean_groupby(
+            "t", "s", "x", ["g"], order_by="o", window="3D", center=True,
+            backend=backend, data_id=data_id,
+        ),
         "rolling_time_quantile": lambda ops, backend: ops.rolling_quantile_groupby(
             "t", "s", "x", ["g"], order_by="o", window="3D", q=0.5,
             backend=backend, data_id=data_id,
