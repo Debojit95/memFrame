@@ -7,10 +7,9 @@ exposed through a `ContextManager`. It provides
 pandas-`groupby().rolling()`-like analytics: rolling fixed-size windows
 and expanding unbounded windows computed **per group** (`PARTITION BY`
 the group columns), in-engine across DuckDB, PostgreSQL, and ClickHouse.
-Each call adds the generated column(s) to the source upload table and
-returns a separate narrow result table (`<table>__op_<n>`) containing only
-the involved and generated columns. The narrow table is what the deep
-cache stores.
+Each call adds the generated column(s) to the source upload table and returns
+a preview of the involved and generated columns; the deep cache stores a ref
+to the source, so a cached replay returns the same columns.
 
 Users normally call grouped window methods through the unified `groupby`
 builder on a dataset context returned by an upload operation. There are
@@ -55,7 +54,7 @@ The lower-level files are implementation details:
 - `src/memframe/core/orchestrator/analytix/groupby_window.py` resolves
   the active dataset context, detects the column dtype, maps requested
   functions to dtype-appropriate engine methods, chains multi-function
-  requests into one cache table, and applies `@record_call`.
+  requests onto one working table, and applies `@record_call`.
 - `src/memframe/wrappers/analytix/groupby_window.py` exposes the
   synchronous and asynchronous builder methods plus the direct API.
 - `src/memframe/wrappers/analytix/groupby.py` is the unified `GroupBy`
@@ -68,8 +67,8 @@ The lower-level files are implementation details:
 
 | Synchronous | Asynchronous | Purpose |
 | --- | --- | --- |
-| `rolling(column, window, func, group_cols, order_by=None, q=0.5, min_periods=None, center=False, closed=None, win_type=None)` | `await arolling(...)` | Grouped rolling window; `func` is a string or list |
-| `expanding(column, func, group_cols, order_by=None, q=0.5, min_periods=1)` | `await aexpanding(...)` | Grouped expanding window |
+| `rolling(column, window, func, group_cols, order_by=None, q=0.5, min_periods=None, center=False, closed=None, win_type=None, func_kwargs=None)` | `await arolling(...)` | Grouped rolling window; `func` is a string or list |
+| `expanding(column, func, group_cols, order_by=None, q=0.5, min_periods=1, func_kwargs=None)` | `await aexpanding(...)` | Grouped expanding window |
 | `ewm(column, group_cols, order_by=None, com/span/halflife/alpha, ...)` | `await aewm(...)` | Grouped EWM (see note below) |
 
 `group_cols` accepts a single column name or a list of names.
@@ -77,23 +76,23 @@ The lower-level files are implementation details:
 ### Builder
 
 `groupby(*columns)` returns the unified `GroupBy`; `.rolling(window,
-order_by, min_periods=None, center=False, closed=None)` /
+order_by, min_periods=None, center=False, closed=None, win_type=None)` /
 `.expanding(min_periods, order_by)` / `.ewm(...)` return
 fluent builders. Each terminal method has a synchronous and asynchronous
 form (`mean` / `amean`, …):
 
 | Rolling / Expanding terminals | Purpose |
 | --- | --- |
-| `sum(column)` / `mean(column)` | Running sum / mean within each group |
-| `min(column)` / `max(column)` | Running minimum / maximum |
-| `count(column)` | Running non-null count |
-| `std(column)` / `var(column)` | Running sample stddev / variance |
-| `quantile(column, q=0.5)` | Running quantile |
-| `sem(column)` | Running standard error |
-| `rank(column)` | Running rank within the window |
-| `nunique(column)` | Running distinct count |
-| `first(column)` / `last(column)` | First / last value in the window |
-| `agg(column, funcs)` | Multi-aggregation chained into one table |
+| `sum(column)` / `mean(column)` | Rolling/expanding sum / mean per group |
+| `min(column)` / `max(column)` | Minimum / maximum |
+| `count(column)` | Non-null count |
+| `std(column, ddof=1)` / `var(column, ddof=1)` / `sem(column, ddof=1)` | Sample stddev / variance / standard error |
+| `quantile(column, q=0.5, interpolation='linear')` / `median(column)` | Quantile / median |
+| `rank(column, method='average', ascending=True, pct=False)` | Rank within the window |
+| `skew(column)` / `kurt(column)` | Skewness / excess kurtosis |
+| `nunique(column)` | Distinct count |
+| `first(column)` / `last(column)` | First / last value in the frame |
+| `agg(column, funcs)` | Multi-aggregation in one call |
 
 !!! note
     Grouped EWM (`ewm`) uses the same blockwise SQL engine as ungrouped EWM,
@@ -121,7 +120,7 @@ sample = await dataset.groupby("region").aexpanding(
 )
 ```
 
-`order_by` is optional — omit it to use physical row order:
+`order_by` is optional — omit it to use the natural `_mf_idx` order inside each group:
 
 ```python
 sample = dataset.groupby("region").rolling(3).mean("sales")
@@ -137,12 +136,12 @@ sample = dataset.groupby("region").expanding().sum("sales")
 | `window` | `int`, `timedelta`, or offset `str` | Rolling window: rows (`window-1 PRECEDING AND CURRENT ROW`) or a duration (`"3D"`) with a datetime `order_by`. |
 | `func` | `str` or `list[str]` | Aggregation(s): `sum`, `mean`/`avg`, `min`, `max`, `count`, `std`/`stddev`/`stddev_samp`, `var`/`variance`/`var_samp`, `quantile`, `median`, `sem`, `rank`, `skew`, `kurt`, `nunique`, `first`/`first_value`, `last`/`last_value`. |
 | `order_by` | `str`, `list[str]`, or `None` | Row ordering inside each group. `None` (default) uses the immutable upload order (`_mf_idx`). |
-| `q` | `float` | Quantile level for `quantile` (default `0.5`). |
-| `func_kwargs` | `dict` or `None` | Per-function keyword arguments (`ddof`, rank `method`/`ascending`/`pct`, `q`). |
+| `q` | `float` | Quantile level for `quantile`/`median` (default `0.5`). |
+| `func_kwargs` | `dict` or `None` | Per-function keyword arguments (`ddof`, rank `method`/`ascending`/`pct`, quantile `interpolation`/`q`). |
 | `center` | `bool` | Rolling only — centre the frame on the current row (default `False`). |
 | `closed` | `str` or `None` | Rolling only — `right` (default), `left`, `both`, `neither`. |
 | `win_type` | `str` or `None` | Rolling only — scipy window weights (`boxcar`, `triang`, `hann`, …) for weighted `sum`/`mean`. |
-| `min_periods` | `int` or `None` | Minimum observations before a value is produced. Rolling default `None` → `window`; expanding default `1`. Must satisfy `0 <= min_periods <= window`. |
+| `min_periods` | `int` or `None` | Minimum observations before a value is produced. Rolling default `None` → `window`; expanding default `1`. Must satisfy `0 <= min_periods`; row windows also require `<= window` (time windows have no upper bound). |
 | `new_table` | `str` or `None` | Kept for compatibility; the result is written to the source and `new_table` resolves to the source table. |
 | `map_feature` | `bool` | Deprecated/ignored. Generated columns are always written back to the source; the envelope carries `mapped_table` / `mapped_columns`. `new_table` is the source table (the ref target). |
 
@@ -153,8 +152,10 @@ With no `order_by`, each group is ordered by the immutable upload index
 
 Result columns are named
 `<column>_rolling_<stat>_w<window>_by_<groups>` (rolling) or
-`<column>_expanding_<stat>_by_<groups>` (expanding); duplicate requests
-get a numeric suffix (`_2`, …).
+`<column>_expanding_<stat>_by_<groups>` (expanding). `<window>` is the row
+count, or the duration tag for time windows (`w259200s`); `<stat>` is the
+function label (`mean`, `q0.5`, `median`, `skew`, …). Duplicate requests get
+a numeric suffix (`_2`, …).
 
 ## Multicolumn Group-By
 
@@ -197,9 +198,12 @@ result = dataset.groupby("region").rolling(3, order_by="month").agg(
 
 ## Rolling
 
-Each rolling call computes `AGG(col) OVER (PARTITION BY <groups> ORDER
-BY <order> ROWS BETWEEN window-1 PRECEDING AND CURRENT ROW)` and appends
-the result column(s) to a copy of the source rows.
+Each rolling call aggregates a frame partitioned by the group columns and
+ordered by `<order>`. The default row frame is
+`ROWS BETWEEN window-1 PRECEDING AND CURRENT ROW`; `center`/`closed` shift or
+open the edges, and time windows use `(t - window, t]` (or
+`(t - window/2, t + window/2]` when centred) instead of row offsets. The
+result column(s) are merged back into the source.
 
 `min_periods` defaults to `window` (pandas parity), so the first `window - 1`
 rows of each group are `NULL`. Pass `min_periods=1` to aggregate the partial
@@ -249,9 +253,9 @@ dataset.groupby("region").rolling("2D", order_by="date", center=True).sum("sales
 `win_type` remains unsupported for time windows.
 
 `func` also accepts backend spellings directly (`AVG`, `STDDEV_SAMP`,
-`first_value`, …); unknown names fail the whole call with `is_error
-True`, while dtype-unsupported names are reported per-function in
-`skipped_funcs`/`failed_funcs` with `is_partial True`.
+`first_value`, …). Unknown names and functions unsupported for the detected
+dtype are skipped (`skipped_funcs`, `is_partial True`); a call only fails when
+no requested function can run.
 
 ## Expanding
 
@@ -286,36 +290,50 @@ result = dataset.groupby("region").ewm(
   - `adjust=True` + `ignore_na=False` decays state across null rows.
 - Result columns: `<column>_ewm_<func>_by_<groups>`.
 
-## Specials: quantile, nunique, rank, sem
+## Specials: quantile, median, sem, rank, nunique, skew/kurt
 
-These use backend-specific execution but identical builder signatures:
+These share the builder signatures above:
 
-- `quantile`: DuckDB windowed `QUANTILE_CONT`; PostgreSQL and
-  ClickHouse fall back to a correlated subquery over a `ROW_NUMBER()`
-  base (`PERCENTILE_CONT … WITHIN GROUP` / `quantile(q)(…)`).
-- `nunique`: DuckDB windowed `COUNT(DISTINCT …)`; PostgreSQL and
-  ClickHouse use the correlated-subquery form (`countDistinct` on
-  ClickHouse).
-- `rank`: correlated `COUNT(*)` subquery on all backends.
-- `sem`: windowed `stddev / sqrt(count)` (`stddevSamp` on ClickHouse).
+- `quantile` / `median`: `linear` uses the native window on DuckDB and a
+  correlated `PERCENTILE_CONT … WITHIN GROUP` (PostgreSQL) /
+  `quantile(q)(…)` (ClickHouse) elsewhere. Non-linear interpolations index the
+  sorted frame (`array_agg` + subscript on PostgreSQL/DuckDB,
+  `arraySort`/`arrayElement` on ClickHouse). `median` is the linear `0.5`
+  quantile.
+- `sem`: sample standard deviation over `sqrt(count - ddof)`
+  (`stddevSamp` on ClickHouse).
+- `rank`: correlated `COUNT(*)` subqueries on all backends; supports
+  `method` / `ascending` / `pct`.
+- `nunique`: DuckDB windowed `COUNT(DISTINCT …)`; PostgreSQL and ClickHouse
+  use a correlated distinct count (`countDistinct` on ClickHouse).
+- `skew` / `kurt`: closed-form moment subqueries on all backends.
+- `first` / `last`: `FIRST_VALUE`/`LAST_VALUE` for row windows; time windows
+  read the earliest/latest row from the narrow base and keep the column type.
+- Datetime `mean`/`median`/`mode` aggregate the epoch value and convert back.
+
+With a time window (`window="3D"`) all of these run over the epoch frame
+`(t - window, t]` (plus `closed`/`center` rules) instead of row offsets.
 
 The orchestrator detects the value column dtype (numeric / datetime /
 categorical) and maps each requested function to the dtype-appropriate
-engine method; datetime columns support `min`/`max`/`mean`/`median`/
-`mode`/`count`/`nunique`/`rank`/`first`/`last` via epoch conversion.
+engine method; datetime columns support `min`/`max`/`mean`/`median`/`mode`/
+`count`/`nunique`/`rank`/`first`/`last`. `min`/`max`/`first`/`last` use the
+raw values; `mean`/`median`/`mode` aggregate epoch seconds and convert back.
 
 ## Source Write-Back
 
 Every grouped window call writes its generated column(s) back to the source
-table by replacing the source with the row-aligned window result, then creates
-the narrow `involved + generated` result table that `@record_call` stores.
+table in place: PostgreSQL/DuckDB add the columns and backfill them with one
+`UPDATE` keyed by `_mf_idx`; ClickHouse builds a narrow feature table and
+swaps it in with `EXCHANGE TABLES`. The response carries a preview DataFrame
+and `@record_call` stores a ref to the source.
 
 ```python
 result = dataset.groupby("region").rolling(3, order_by="month").agg(
     "sales", ["mean"]
 )
 # source now has: region, month, sales, sales_rolling_mean_w3_by_region
-# result["new_table"] has: sales, region, month, sales_rolling_mean_w3_by_region
+# result (preview) has: sales, region, month, sales_rolling_mean_w3_by_region
 ```
 
 Rules:
@@ -326,8 +344,8 @@ Rules:
   write-back is always on.
 - If the column name already exists from anything else, the call fails and
   the source is left unchanged — drop or rename it first.
-- Backend swaps keep the original table name: DuckDB `CREATE OR REPLACE`,
-  PostgreSQL create-swap-rename, ClickHouse atomic `EXCHANGE TABLES`.
+- Write-back keeps the original table name: DuckDB/PostgreSQL backfill the
+  source in place; ClickHouse atomically exchanges the feature table in.
 
 ## Return Values and Errors
 
@@ -362,8 +380,8 @@ upload table; the deep cache stores a ref to the source:
 - **PostgreSQL / DuckDB:** grouped rolling/expanding compute a narrow
   `(_mf_idx, <windows>)` feature query and backfill the source with one
   `UPDATE` keyed by `_mf_idx`. The source is never cloned or swapped.
-  Specials (quantile / nunique / rank / datetime) use the same backfill over
-  a narrow ordered base.
+  Specials (quantile/median, sem, rank, nunique, skew/kurt, first/last,
+  datetime) use the same backfill over a narrow ordered base.
 - **ClickHouse:** grouped rolling/expanding build a narrow feature table,
   join it to the source by `_mf_idx`, and atomically swap it in with
   `EXCHANGE TABLES`; the temp feature/wide tables are dropped.
@@ -382,7 +400,7 @@ Grouped windows support DuckDB, PostgreSQL, and ClickHouse:
   quantile/nunique/rank execution shapes, datetime epoch handling) are
   handled per backend.
 - The per-backend SQL is locked by
-  `tests/unit/test_groupby_window_sql_fingerprint.py` (6 scenarios × 3
+  `tests/unit/test_groupby_window_sql_fingerprint.py` (17 scenarios × 3
   backends).
 
 ## Errors

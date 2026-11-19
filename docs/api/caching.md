@@ -51,10 +51,12 @@ result_cols = '["salary","cleaned_salary_mean_filled"]'
 ```
 
 A hit selects `result_cols` from `ref_table`. No cache copy is created and no
-working table is relocated. Row-aligned window/grouped ops use
-`publish_row_aligned`, which writes the wide result's feature columns into
-the source (in place on PostgreSQL, swap on DuckDB/ClickHouse) and then
-records the same source ref.
+working table is relocated. Window/expanding engines write their feature
+columns straight into the source (in-place `UPDATE` on PostgreSQL/DuckDB,
+feature table + `EXCHANGE TABLES` on ClickHouse); `publish_row_aligned` then
+records the same source ref. Other row-aligned operations that hand over a
+wide table use `swap_table_into_source` (in place on PostgreSQL,
+`CREATE OR REPLACE` on DuckDB, `EXCHANGE TABLES` on ClickHouse).
 
 `owns_table` is `false` for source refs. Cache clear/delete never drops a
 source table.

@@ -56,13 +56,14 @@ The lower-level files are implementation details:
 ### Rolling
 
 Each rolling method has a synchronous and asynchronous form. Direct rolling
-takes `(column, window, func, order_by=None, q=0.5, min_periods=None)`; the
-named shorthands fix `func`. Builders accept `min_periods` at construction:
-`dataset.on("sales").rolling(7, min_periods=1).mean()`.
+takes `(column, window, func, order_by=None, q=0.5, min_periods=None,
+center=False, closed=None, win_type=None, func_kwargs=None)`; the named
+shorthands fix `func`. Builders take the same frame options at construction:
+`dataset.on("sales").rolling(7, min_periods=1, win_type="hann").mean()`.
 
 | Synchronous (via builder or `rolling`) | Purpose |
 | --- | --- |
-| `rolling(column, window, func, order_by=None, q=0.5, min_periods=None, center=False, closed=None, win_type=None)` / `await arolling(...)` | Generic — `func` may be a string or list |
+| `rolling(column, window, func, order_by=None, q=0.5, min_periods=None, center=False, closed=None, win_type=None, func_kwargs=None)` / `await arolling(...)` | Generic — `func` may be a string or list |
 | `.rolling(column, window).sum(order_by=None)` / `.asum(...)` | Rolling sum |
 | `.mean(...)` / `.amean(...)` | Rolling mean |
 | `.min(...)` / `.amin(...)` | Rolling minimum |
@@ -70,7 +71,7 @@ named shorthands fix `func`. Builders accept `min_periods` at construction:
 | `.count(...)` / `.acount(...)` | Rolling non-null count |
 | `.std(...)` / `.astd(...)` | Rolling sample standard deviation (`ddof=1`) |
 | `.var(...)` / `.avar(...)` | Rolling sample variance |
-| `.quantile(q=0.5, order_by=None)` / `.aquantile(...)` | Rolling quantile |
+| `.quantile(q=0.5, order_by=None, interpolation='linear')` / `.aquantile(...)` | Rolling quantile |
 | `.median(...)` / `.amedian(...)` | Rolling median |
 | `.sem(...)` / `.asem(...)` | Rolling standard error |
 | `.rank(method='average', ascending=True, pct=False)` / `.arank(...)` | Rolling rank within the window |
@@ -87,15 +88,15 @@ Expanding methods mirror rolling but have no `window`; they add `min_periods`
 
 | Synchronous | Purpose |
 | --- | --- |
-| `expanding(column, func, order_by=None, q=0.5, min_periods=1)` / `await aexpanding(...)` | Generic |
-| `.expanding(column).sum(min_periods=1)` / `.asum(...)` | Running sum |
+| `expanding(column, func, order_by=None, q=0.5, min_periods=1, func_kwargs=None)` / `await aexpanding(...)` | Generic |
+| `.expanding(column, min_periods=1).sum(order_by=None)` / `.asum(...)` | Running sum |
 | `.mean(...)` / `.amean(...)` | Running mean |
 | `.min(...)` / `.amin(...)` | Running minimum |
 | `.max(...)` / `.amax(...)` | Running maximum |
 | `.count(...)` / `.acount(...)` | Running non-null count |
 | `.std(...)` / `.astd(...)` | Running sample standard deviation |
 | `.var(...)` / `.avar(...)` | Running sample variance |
-| `.quantile(q=0.5, min_periods=1)` / `.aquantile(...)` | Running quantile |
+| `.quantile(q=0.5, order_by=None, interpolation='linear')` / `.aquantile(...)` | Running quantile |
 | `.median(...)` / `.amedian(...)` | Running median |
 | `.sem(...)` / `.asem(...)` | Running standard error |
 | `.rank(method='average', ascending=True, pct=False)` / `.arank(...)` | Running rank |
@@ -137,7 +138,7 @@ sample = await dataset.aexpanding(column="sales", func="sum", order_by="date", m
 sample = await dataset.aewm(column="sales", span=3, func="mean", order_by="date")
 ```
 
-`order_by` is optional — omit it to use physical row order:
+`order_by` is optional — omit it to use the natural `_mf_idx` upload order:
 
 ```python
 sample = dataset.rolling(column="sales", window=7, func="mean")
@@ -158,7 +159,7 @@ sample = dataset.ewm(column="sales", span=3, func="mean")
 | `func_kwargs` | `dict` or `None` | Per-function keyword arguments, e.g. `{"std": {"ddof": 0}, "rank": {"method": "dense"}}`. |
 | `closed` | `str` or `None` | Rolling only — which frame edges are included: `right` (default), `left`, `both`, `neither` (row and time windows). |
 | `win_type` | `str` or `None` | Rolling only — apply scipy window weights. Supported: `boxcar`, `triang`, `bartlett`, `parzen`, `bohman`, `blackman`, `blackmanharris`, `barthann`, `nuttall`, `hann`, `hamming`, `cosine`. Weighted `sum`/`mean` only. |
-| `min_periods` | `int` or `None` | Minimum observations in the frame before a value is emitted. Rolling default `None` → `window` (pandas parity); expanding default `1`; EWM default `0`. Must satisfy `0 <= min_periods <= window`. |
+| `min_periods` | `int` or `None` | Minimum observations in the frame before a value is emitted. Rolling default `None` → `window` (pandas parity); expanding default `1`; EWM default `0`. Must satisfy `0 <= min_periods`; row windows also require `<= window` (time windows have no upper bound). |
 
 `order_by` accepts a single column or a list:
 
@@ -180,9 +181,9 @@ source still receives every generated value, only the returned preview is
 capped.
 
 > **Ordered vs. unordered:** every example below is shown twice — once with
-> `order_by` and once without. On a freshly uploaded frame the physical order
-> matches insertion order, so both forms produce the same values; they diverge
-> only once rows have been reordered (for example by a prior sort or merge).
+> `order_by` and once without. With no `order_by` the engine always uses the
+> immutable `_mf_idx` upload order, so the two forms agree on a freshly
+> uploaded frame and a no-order window is unaffected by a later sort or merge.
 
 ## Aggregation Parameters
 
@@ -270,9 +271,10 @@ maps each requested function to the dtype-appropriate engine method:
 
 | Function | numeric | datetime | categorical |
 | --- | --- | --- | --- |
-| `sum`, `mean`, `std`, `var`, `quantile`, `sem` | ✅ | — | — |
+| `sum`, `std`, `var`, `sem`, `quantile`, `skew`, `kurt` | ✅ | — | — |
+| `mean`, `median` | ✅ | ✅ | — |
 | `min`, `max`, `count`, `nunique`, `rank`, `first`, `last` | ✅ | ✅ | ✅ |
-| `median`, `mode` | — | ✅ | — |
+| `mode` | — | ✅ | — |
 
 Datetime columns route `min`/`max` through the generic value aggregation, while
 `mean`/`median`/`mode` are computed over the column's epoch value and converted
@@ -332,7 +334,7 @@ Total of the values in the window (nulls ignored). Result column
 # ordered by a column
 result = dataset.rolling(column="sales", window=3, func="sum", order_by="day")
 
-# no order_by — physical row order
+# no order_by — natural `_mf_idx` order
 result = dataset.rolling(column="sales", window=3, func="sum")
 ```
 
@@ -504,8 +506,8 @@ where every value is identical returns `0` for `skew` and `-3` for `kurt`.
 Result columns `sales_rolling_skew_w3` / `sales_rolling_kurt_w3`.
 
 ```python
-result = dataset.rolling(column="sales", window=5, func="skew", order_by="day")
-result = dataset.on("sales").rolling(5).kurt(order_by="day")
+result = dataset.rolling(column="sales", window=3, func="skew", order_by="day")
+result = dataset.on("sales").rolling(3).kurt(order_by="day")
 ```
 
 They are stateless closed forms, so they also work with `center`, `closed`,
@@ -578,9 +580,10 @@ granularity; timestamp columns keep their time component.
 
 ### Rank and nunique details
 
-`nunique` is a native windowed distinct count on DuckDB and ClickHouse. On
-**PostgreSQL** there is no windowed distinct-count, so it falls back to a
-Python pass over the ordered values and writes the counts back in chunks.
+`nunique` is a native windowed distinct count on DuckDB. PostgreSQL and
+ClickHouse use a correlated `COUNT(DISTINCT …)` (`countDistinct` on
+ClickHouse) over the narrow ordered base — there is no Python fallback.
+`rank` ranks the current row inside the frame (see the frame notes above).
 
 ---
 
@@ -907,7 +910,7 @@ dataset.on("sales").rolling(7).quantile(q=0.5, order_by="date")
 dataset.on("sales").expanding(min_periods=3).mean(order_by="date")
 dataset.on("sales").ewm(span=3).mean(order_by="date")
 
-# without order_by — physical row order
+# without order_by — natural `_mf_idx` order
 dataset.on("sales").rolling(7).sum()
 dataset.on("sales").rolling(7).mean()
 dataset.on("sales").rolling(7).std()
@@ -972,8 +975,9 @@ columns; the deep cache stores a ref to the source.
   generated column(s) to the source and backfill them in one windowed
   `UPDATE` keyed by `_mf_idx` — the source is never cloned or swapped.
   EWM builds narrow `ordered`/`blocks`/`state` temps, runs the blockwise
-  feature SQL, and uses the same backfill by `_mf_idx`. Specials (quantile,
-  rank, nunique, datetime stats) use a narrow ordered base and the same
+  feature SQL, and uses the same backfill by `_mf_idx`. Specials
+  (`quantile`/`median`, `sem`, `rank`, `nunique`, `skew`/`kurt`,
+  `first`/`last`, datetime stats) use a narrow ordered base and the same
   backfill.
 - **ClickHouse:** each operation builds a narrow feature table, joins it to
   the source by `_mf_idx`, and atomically swaps the result into the source
@@ -999,12 +1003,12 @@ row but still mutates the source.
 Window operations support DuckDB, PostgreSQL, and ClickHouse:
 
 - Identifiers are sanitized and quoted before SQL is generated.
-- `order_by` may be a single column, a list, or omitted (physical order).
-- Backend dialect differences (quantile, stddev/variance, and distinct-count
-  implementations) are handled per backend; PostgreSQL's windowed distinct-count
-  falls back to Python.
+- `order_by` may be a single column, a list, or omitted (natural `_mf_idx` order).
+- Backend dialect differences (quantile interpolation/indexing,
+  stddev/variance names, distinct counts, epoch handling, and ordered value
+  extraction) are handled per backend.
 - The per-backend SQL is locked by
-  `tests/unit/test_window_sql_fingerprint.py` (21 scenarios × 3 backends).
+  `tests/unit/test_window_sql_fingerprint.py` (36 scenarios × 3 backends).
 
 ## Errors
 
