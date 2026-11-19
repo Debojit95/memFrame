@@ -1122,7 +1122,7 @@
    ],
    [
     "exec",
-    "CREATETABLE`s`.`t__op_1__feat`ENGINE=MergeTree()ORDERBYtuple()ASSELECT`_mf_idx`,CASEWHENsum(if(isNull(`num`),0,1))OVER(ORDERBY`g`,`_mf_idx`ROWSBETWEEN2PRECEDINGANDCURRENTROW)>=3THENFIRST_VALUE(`num`)OVER(ORDERBY`g`,`_mf_idx`ROWSBETWEEN2PRECEDINGANDCURRENTROW)ELSENULLENDAS`num_rolling_first_w3`FROM`s`.`t`",
+    "CREATETABLE`s`.`t__op_1__feat`ENGINE=MergeTree()ORDERBYtuple()ASSELECT`_mf_idx`,CASEWHENsum(if(isNull(`num`),0,1))OVER(ORDERBY`g`,`_mf_idx`ROWSBETWEEN2PRECEDINGANDCURRENTROW)>=3THENfirst_value_respect_nulls(`num`)OVER(ORDERBY`g`,`_mf_idx`ROWSBETWEEN2PRECEDINGANDCURRENTROW)ELSENULLENDAS`num_rolling_first_w3`FROM`s`.`t`",
     []
    ],
    [
@@ -1362,7 +1362,7 @@
    ],
    [
     "exec",
-    "CREATETABLE`s`.`t__op_1__feat`ENGINE=MergeTree()ORDERBYtuple()ASSELECT`_mf_idx`,CASEWHENsum(if(isNull(`num`),0,1))OVER(ORDERBY`g`,`_mf_idx`ROWSBETWEEN2PRECEDINGANDCURRENTROW)>=3THENLAST_VALUE(`num`)OVER(ORDERBY`g`,`_mf_idx`ROWSBETWEEN2PRECEDINGANDCURRENTROW)ELSENULLENDAS`num_rolling_last_w3`FROM`s`.`t`",
+    "CREATETABLE`s`.`t__op_1__feat`ENGINE=MergeTree()ORDERBYtuple()ASSELECT`_mf_idx`,CASEWHENsum(if(isNull(`num`),0,1))OVER(ORDERBY`g`,`_mf_idx`ROWSBETWEEN2PRECEDINGANDCURRENTROW)>=3THENlast_value_respect_nulls(`num`)OVER(ORDERBY`g`,`_mf_idx`ROWSBETWEEN2PRECEDINGANDCURRENTROW)ELSENULLENDAS`num_rolling_last_w3`FROM`s`.`t`",
     []
    ],
    [
@@ -2172,7 +2172,7 @@
    ],
    [
     "exec",
-    "CREATETABLE`s`.`t__op_1__feat`ENGINE=MergeTree()ORDERBYtuple()ASWITH__baseAS(SELECT`_mf_idx`,`num`ASv,ROW_NUMBER()OVER(ORDERBY`g`,`_mf_idx`)AS__rnFROM`s`.`t`)SELECTb.`_mf_idx`,CASEWHEN(SELECTCOUNT(r.v)FROM__baserWHEREr.__rnBETWEENb.__rn+(-2)ANDb.__rn+(0))>=3THENCASEWHENb.vISNULLTHENNULLELSE((SELECTCOUNT(*)FROM__baserWHEREr.__rnBETWEENb.__rn+(-2)ANDb.__rn+(0)ANDr.v<b.v)+((SELECTCOUNT(*)FROM__baserWHEREr.__rnBETWEENb.__rn+(-2)ANDb.__rn+(0)ANDr.v=b.v)+1)/2.0)ENDELSENULLENDAS`num_rolling_rank_w3`FROM__baseb",
+    "CREATETABLE`s`.`t__op_1__feat`ENGINE=MergeTree()ORDERBYtuple()ASWITH__baseAS(SELECT`_mf_idx`,`num`ASv,ROW_NUMBER()OVER(ORDERBY`g`,`_mf_idx`)AS__rnFROM`s`.`t`)SELECTb.`_mf_idx`,CASEWHEN(SELECTCOUNT(r.v)FROM__baserWHEREr.__rnBETWEENb.__rn+(-2)ANDb.__rn+(0))>=3THENCASEWHENb.vISNULLTHENNULLELSE(((((SELECTCOUNT(*)FROM__baserWHEREr.__rnBETWEENb.__rn+(-2)ANDb.__rn+(0)ANDr.v<=b.v))-((SELECTCOUNT(*)FROM__baserWHEREr.__rnBETWEENb.__rn+(-2)ANDb.__rn+(0)ANDr.v=b.v))))+(((SELECTCOUNT(*)FROM__baserWHEREr.__rnBETWEENb.__rn+(-2)ANDb.__rn+(0)ANDr.v=b.v))+1)/2.0)ENDELSENULLENDAS`num_rolling_rank_w3`FROM__baseb",
     []
    ],
    [

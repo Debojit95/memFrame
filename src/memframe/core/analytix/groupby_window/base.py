@@ -50,13 +50,19 @@ class GroupbyWindowOps(WindowOps):
         }
         if key in agg_map:
             return agg_map[key]
-        if key in ("std", "stddev", "stddev_samp"):
+        if key in (
+            "std", "stddev", "stddev_samp", "stddevsamp",
+            "stddev_pop", "stddevpop",
+        ):
             if isinstance(self.db, PostgresAdapter):
                 return ("STDDEV", "std")
             if isinstance(self.db, DuckDBAdapter):
                 return ("STDDEV_SAMP", "std")
             raise self._unsupported_backend_error()
-        if key in ("var", "variance", "var_samp"):
+        if key in (
+            "var", "variance", "var_samp", "varsamp",
+            "var_pop", "varpop",
+        ):
             if isinstance(self.db, PostgresAdapter):
                 return ("VARIANCE", "var")
             if isinstance(self.db, DuckDBAdapter):
@@ -310,20 +316,10 @@ class GroupbyWindowOps(WindowOps):
     async def rolling_count_groupby(self, table, schema, column, group_cols, order_by=None, window=3, **kwargs):
         return await self._rolling_agg_with_partition(table, schema, column, group_cols, order_by, window, agg="COUNT", **kwargs)
     async def rolling_std_groupby(self, table, schema, column, group_cols, order_by=None, window=3, **kwargs):
-        if isinstance(self.db, PostgresAdapter):
-            func = "STDDEV"
-        elif isinstance(self.db, DuckDBAdapter):
-            func = "STDDEV_SAMP"
-        else:
-            raise self._unsupported_backend_error()
+        func = self._std_samp_agg()
         return await self._rolling_agg_with_partition(table, schema, column, group_cols, order_by, window, agg=func, **kwargs)
     async def rolling_var_groupby(self, table, schema, column, group_cols, order_by=None, window=3, **kwargs):
-        if isinstance(self.db, PostgresAdapter):
-            func = "VARIANCE"
-        elif isinstance(self.db, DuckDBAdapter):
-            func = "VAR_SAMP"
-        else:
-            raise self._unsupported_backend_error()
+        func = self._var_samp_agg()
         return await self._rolling_agg_with_partition(table, schema, column, group_cols, order_by, window, agg=func, **kwargs)
     async def rolling_first_groupby(self, table, schema, column, group_cols, order_by=None, window=3, **kwargs):
         return await self._rolling_agg_with_partition(table, schema, column, group_cols, order_by, window, agg="FIRST_VALUE", **kwargs)
@@ -953,20 +949,10 @@ class GroupbyWindowOps(WindowOps):
     async def expanding_count_groupby(self, *args, group_cols=None, **kwargs):
         return await self._expanding_agg_with_partition(*args, group_cols=group_cols, agg="COUNT", **kwargs)
     async def expanding_std_groupby(self, *args, group_cols=None, **kwargs):
-        if isinstance(self.db, PostgresAdapter):
-            func = "STDDEV"
-        elif isinstance(self.db, DuckDBAdapter):
-            func = "STDDEV_SAMP"
-        else:
-            raise self._unsupported_backend_error()
+        func = self._std_samp_agg()
         return await self._expanding_agg_with_partition(*args, group_cols=group_cols, agg=func, **kwargs)
     async def expanding_var_groupby(self, *args, group_cols=None, **kwargs):
-        if isinstance(self.db, PostgresAdapter):
-            func = "VARIANCE"
-        elif isinstance(self.db, DuckDBAdapter):
-            func = "VAR_SAMP"
-        else:
-            raise self._unsupported_backend_error()
+        func = self._var_samp_agg()
         return await self._expanding_agg_with_partition(*args, group_cols=group_cols, agg=func, **kwargs)
     async def expanding_first_groupby(self, *args, group_cols=None, **kwargs):
         return await self._expanding_agg_with_partition(*args, group_cols=group_cols, agg="FIRST_VALUE", **kwargs)

@@ -7,6 +7,18 @@ to [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Fixed
+- **ClickHouse `rank`**: strict `<`/`>` comparisons against the outer row are
+  written as `<=`/`>=` minus `=`, so rank methods, ties, `ascending`, and
+  `pct` return the same values as the other backends (CH mis-plans the
+  correlated strict comparisons).
+- **ClickHouse `first`/`last`**: use `first_value_respect_nulls` /
+  `last_value_respect_nulls`, so a leading/current NULL is preserved like
+  PostgreSQL and DuckDB (previously ClickHouse skipped NULLs).
+- **ClickHouse `var`**: `rolling`/`expanding` and grouped `std`/`var` accept
+  the backend's `varSamp`/`stddevSamp` spellings instead of erroring or
+  raising "unsupported backend".
+- **`rank(pct=True)` on PostgreSQL**: the rank value is multiplied by `1.0`
+  before dividing, so integer ranks no longer truncate.
 - **Grouped special windows**: correlated quantile/rank/nunique/datetime
   subqueries on PostgreSQL and ClickHouse now filter by the group keys, so
   values no longer leak across partitions.

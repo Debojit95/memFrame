@@ -240,9 +240,10 @@ class WindowOps:
         aliases = {
             "sum": "sum", "mean": "mean", "avg": "mean", "min": "min",
             "max": "max", "count": "count", "std": "std", "stddev": "std",
-            "stddev_samp": "std", "var": "var", "variance": "var",
-            "var_samp": "var", "first": "first", "last": "last",
-            "first_value": "first", "last_value": "last",
+            "stddev_samp": "std", "stddevsamp": "std", "var": "var",
+            "variance": "var", "var_samp": "var", "varsamp": "var",
+            "first": "first", "last": "last", "first_value": "first",
+            "last_value": "last",
         }
         keys = [aliases.get(str(a).strip().lower()) for a in raw_aggs]
         if any(k is None for k in keys):
@@ -605,7 +606,7 @@ class WindowOps:
                 f"WHERE {frame_where} AND r.v {leq} b.v)"
             )
         if pct:
-            value = f"({value} / NULLIF({count_sql}, 0))"
+            value = f"(({value}) * 1.0 / NULLIF({count_sql}, 0))"
         return f"CASE WHEN b.v IS NULL THEN NULL ELSE {value} END"
 
     def _rank_type(self, method, pct):
@@ -1079,6 +1080,12 @@ class WindowOps:
         """Extra correlation anchor for centered time frames."""
         return ""
 
+    def _first_value_fn(self) -> str:
+        return "FIRST_VALUE"
+
+    def _last_value_fn(self) -> str:
+        return "LAST_VALUE"
+
     def _ordered_value_sql(self, where, mode, value_expr="r.v") -> str:
         """Value at the earliest (first) or latest (last) row in the frame."""
         order = "__rn" if mode == "first" else "__rn DESC"
@@ -1211,8 +1218,10 @@ class WindowOps:
             agg_map = {
                 "sum": "SUM", "avg": "AVG", "mean": "AVG",
                 "min": "MIN", "max": "MAX", "count": "COUNT",
-                "first_value": "FIRST_VALUE", "last_value": "LAST_VALUE",
-                "first": "FIRST_VALUE", "last": "LAST_VALUE",
+                "first_value": self._first_value_fn(),
+                "last_value": self._last_value_fn(),
+                "first": self._first_value_fn(),
+                "last": self._last_value_fn(),
             }
             new_cols: List[str] = []
             exprs: List[str] = []
@@ -1224,10 +1233,16 @@ class WindowOps:
                 if key in agg_map:
                     sql_agg = agg_map[key]
                     alias_key = key
-                elif key in ("std", "stddev", "stddev_pop", "stddev_samp"):
+                elif key in (
+                    "std", "stddev", "stddev_pop", "stddevpop",
+                    "stddev_samp", "stddevsamp",
+                ):
                     sql_agg = self._std_samp_agg()
                     alias_key = "std"
-                elif key in ("var", "variance", "var_samp"):
+                elif key in (
+                    "var", "variance", "var_pop", "varpop",
+                    "var_samp", "varsamp",
+                ):
                     sql_agg = self._var_samp_agg()
                     alias_key = "var"
                 else:
@@ -1901,8 +1916,10 @@ class WindowOps:
             agg_map = {
                 "sum": "SUM", "avg": "AVG", "mean": "AVG",
                 "min": "MIN", "max": "MAX", "count": "COUNT",
-                "first": "FIRST_VALUE", "last": "LAST_VALUE",
-                "first_value": "FIRST_VALUE", "last_value": "LAST_VALUE",
+                "first": self._first_value_fn(),
+                "last": self._last_value_fn(),
+                "first_value": self._first_value_fn(),
+                "last_value": self._last_value_fn(),
             }
             new_cols: List[str] = []
             exprs: List[str] = []

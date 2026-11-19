@@ -39,5 +39,11 @@ class ClickHouseWindowOps(ClickHouseEWMHooks, WindowOps):
     def _quantile_cont_sql(self, col_quoted: str, q) -> str:
         return f"quantile({q})({col_quoted})"
 
+    def _first_value_fn(self) -> str:
+        return "first_value_respect_nulls"
+
+    def _last_value_fn(self) -> str:
+        return "last_value_respect_nulls"
+
     def _distinct_count_sql(self, expr: str) -> str:
         return f"countDistinct({expr})"

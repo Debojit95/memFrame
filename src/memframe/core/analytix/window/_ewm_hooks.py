@@ -56,6 +56,40 @@ class ClickHouseEWMHooks:
             f"FROM __base r WHERE {where})"
         )
 
+    def _rank_sql(self, frame_where, count_sql, method="average",
+                  ascending=True, pct=False) -> str:
+        # ClickHouse mishandles strict inequalities against an outer column
+        # in correlated subqueries, so derive them from <=/>= minus '='.
+        def cnt(cond: str) -> str:
+            return (
+                f"(SELECT COUNT(*) FROM __base r WHERE {frame_where} "
+                f"AND {cond})"
+            )
+
+        eq = cnt("r.v = b.v")
+        if ascending:
+            less = f"(({cnt('r.v <= b.v')}) - ({eq}))"
+        else:
+            less = f"(({cnt('r.v >= b.v')}) - ({eq}))"
+
+        if method == "min":
+            value = f"(({less}) + 1)"
+        elif method == "max":
+            value = f"(({less}) + ({eq}))"
+        elif method == "average":
+            value = f"(({less}) + (({eq}) + 1) / 2.0)"
+        elif method == "first":
+            after = cnt("r.v = b.v AND r.__rn >= b.__rn")
+            value = f"(({less}) + (({eq}) - ({after})) + 1)"
+        else:  # dense
+            value = (
+                f"(SELECT COUNT(DISTINCT r.v) FROM __base r "
+                f"WHERE {frame_where} AND r.v {('<=' if ascending else '>=')} b.v)"
+            )
+        if pct:
+            value = f"(({value}) * 1.0 / NULLIF({count_sql}, 0))"
+        return f"CASE WHEN b.v IS NULL THEN NULL ELSE {value} END"
+
     def _quantile_array_from(self, where) -> str:
         return (
             "(SELECT arraySort(groupArray(r.v)) AS v, count() AS n "
