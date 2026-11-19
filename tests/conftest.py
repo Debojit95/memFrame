@@ -60,7 +60,8 @@ def pytest_addoption(parser):
         dest="db_params",
         default=None,
         help=(
-            "JSON object with connection params. DuckDB accepts db_path. "
+            "JSON object with connection params. DuckDB accepts db_path "
+            "(default: a fresh temp file per run). "
             "Postgres accepts host, port, user, password, database, and optional backend. "
             "ClickHouse accepts host, port, user, password, database, secure, timeout, and optional backend."
         ),

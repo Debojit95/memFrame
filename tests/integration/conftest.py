@@ -10,6 +10,36 @@ import pandas as pd
 import pytest
 
 from memframe.main import MemFrame
+from tests.db_test_utils import default_duckdb_test_path
+
+
+@pytest.fixture(autouse=True)
+def _suppress_inline_plot_display():
+    """Plot ops must not open Plotly's browser renderer during tests.
+
+    Without this, every plot test launches a real browser (seconds to
+    minutes of blocking per test on WSL) just to verify the figure.
+    """
+    from memframe.utils.plot_renderer import suppress_inline_display
+
+    with suppress_inline_display():
+        yield
+
+
+def pytest_sessionfinish(session, exitstatus):
+    """Drop the auto-generated DuckDB temp file after a green run.
+
+    It lives on tmpfs (~200 MB for a full run) and is worthless once the
+    tests pass. On failure it is kept for inspection.
+    """
+    if exitstatus != 0 or os.getenv("MEMFRAME_DUCKDB_TEST_PATH"):
+        return
+    for suite in ("integration", "inspect"):
+        try:
+            os.remove(default_duckdb_test_path(suite))
+        except OSError:
+            pass
+
 
 LOCAL_DB = "local"
 REMOTE_DB = "remote"
@@ -85,7 +115,7 @@ def _validate_duckdb_params(params: Dict[str, Any]) -> Dict[str, Any]:
     unknown = sorted(set(params) - allowed)
     if unknown:
         raise _usage_error(f"DuckDB does not accept params: {', '.join(unknown)}")
-    db_path = params.get("db_path", "memFrame_new.duckdb")
+    db_path = params.get("db_path", default_duckdb_test_path("integration"))
     if not isinstance(db_path, str) or not db_path.strip():
         raise _usage_error("DuckDB param 'db_path' must be a non-empty string")
     return {"db_path": db_path}

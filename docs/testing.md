@@ -91,8 +91,9 @@ UPLOAD_CSV_FILEPATH=tests/datasets/sample.csv
 UPLOAD_PARQUET_FILEPATH=tests/datasets/sample.parquet
 
 DUCKDB_UPLOAD_DB_BACKEND=duckdb
-DUCKDB_UPLOAD_DB_PARAMS='{"db_path":"memFrame_new.duckdb"}'
-DUCKDB_DB_PARAMS='{"db_path":"memFrame_new.duckdb"}'
+# DuckDB defaults to a fresh temp file per run; ':memory:' is equally fast.
+DUCKDB_UPLOAD_DB_PARAMS='{"db_path":":memory:"}'
+DUCKDB_DB_PARAMS='{"db_path":":memory:"}'
 
 POSTGRES_UPLOAD_DB_BACKEND=postgres
 POSTGRES_UPLOAD_DB_PARAMS='{"backend":"postgres","host":"localhost","port":5432,"user":"postgres","password":"secret","database":"memframe_test"}'
@@ -120,6 +121,13 @@ temp-file behavior, so DuckDB tests use the `db_path` you specify. Omit both to
 keep the fresh-temp-file-per-run behavior. The file is git-ignored; commit
 `UPLOAD_CSV_FILEPATH`/`UPLOAD_PARQUET_FILEPATH` and any shared/example values in
 `.env.test.example` instead.
+
+Running `pytest` directly (instead of `run_tests.py`) uses the same temp-file
+default: `$TMPDIR/memframe-tests/integration-<run>.duckdb`. Point it elsewhere
+with `MEMFRAME_DUCKDB_TEST_PATH=/path/to/db.duckdb` or
+`--db-params '{"db_path": ...}'`. Never point tests at a persistent DuckDB file
+on a 9p/network mount under WSL: connecting to a large file there costs seconds
+per test.
 
 ## Backends
 

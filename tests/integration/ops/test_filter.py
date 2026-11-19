@@ -16,6 +16,7 @@ from memframe.core.analytix.filter.filter_I import F
 from memframe.main import MemFrame
 from memframe.utils.str_filter_parser import ParseError
 from memframe.wrappers.analytix.filter import FilteringWrapper
+from tests.db_test_utils import default_duckdb_test_path
 
 # ----------------------------------------------------------------------
 # Backend configuration – set environment variables for PostgreSQL
@@ -107,7 +108,7 @@ def _validate_duckdb_params(params: Dict[str, Any]) -> Dict[str, Any]:
     if unknown:
         raise _usage_error(f"DuckDB does not accept params: {', '.join(unknown)}")
 
-    db_path = params.get("db_path", "memFrame_new.duckdb")
+    db_path = params.get("db_path", default_duckdb_test_path("integration"))
     if not isinstance(db_path, str) or not db_path.strip():
         raise _usage_error("DuckDB param 'db_path' must be a non-empty string")
     return {"db_path": db_path}

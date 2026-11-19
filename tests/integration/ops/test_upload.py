@@ -1,10 +1,10 @@
 from memframe import MemFrame
 from memframe.core.ingestion.upload.base import Uploader
+from tests.db_test_utils import default_duckdb_test_path
 
 
 import asyncio
 import json
-import os
 from pathlib import Path
 from typing import Any, Dict
 import pandas as pd
@@ -64,6 +64,7 @@ def _connection_config(db_backend: str | None, db_params: Dict[str, Any]) -> tup
         return "remote", params
 
     params.pop("backend", None)
+    params.setdefault("db_path", default_duckdb_test_path("integration"))
     return "local", params
 
 
@@ -194,7 +195,7 @@ async def _upload_and_column_types(
 
 
 def _memory_params() -> Dict[str, Any]:
-    return {"backend": "duckdb", "db_path": f"memframe_test_{os.getpid()}.duckdb"}
+    return {"backend": "duckdb", "db_path": ":memory:"}
 
 
 class TestTypeInference:
