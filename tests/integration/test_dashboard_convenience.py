@@ -4,6 +4,11 @@ Runs the full planner -> specialist -> dashboard-agent pipeline against a live
 LLM. Skipped unless OLLAMA_API_KEY is present and MEMFRAME_RUN_LIVE_TESTS=1,
 so normal commit/release gates never depend on external model availability.
 """
+if __name__ == "__main__":
+    from _bootstrap import direct
+
+    direct(__file__)
+
 
 import asyncio
 import os

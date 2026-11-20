@@ -1,3 +1,8 @@
+if __name__ == "__main__":
+    from _bootstrap import direct
+
+    direct(__file__)
+
 from memframe import MemFrame
 from memframe.core.ingestion.upload.base import Uploader
 from tests.db_test_utils import default_duckdb_test_path

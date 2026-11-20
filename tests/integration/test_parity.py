@@ -5,6 +5,11 @@ deterministic pandas reference. When multiple backends are configured, each
 instance checks its backend against the same reference, so all backends must
 agree transitively.
 """
+if __name__ == "__main__":
+    from _bootstrap import direct
+
+    direct(__file__)
+
 
 import asyncio
 

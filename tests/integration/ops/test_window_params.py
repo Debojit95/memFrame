@@ -1,6 +1,11 @@
 """Backend-parametrized integration matrix for the rolling/expanding params."""
 
 from __future__ import annotations
+if __name__ == "__main__":
+    from _bootstrap import direct
+
+    direct(__file__)
+
 
 import itertools
 

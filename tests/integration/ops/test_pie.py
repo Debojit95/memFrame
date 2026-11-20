@@ -1,3 +1,8 @@
+if __name__ == "__main__":
+    from _bootstrap import direct
+
+    direct(__file__)
+
 # tests/test_pie.py
 
 import os

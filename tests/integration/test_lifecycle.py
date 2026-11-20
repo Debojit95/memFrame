@@ -3,6 +3,11 @@
 Covers upload → list → set-active → operate → history → delete → cache-clear,
 the end-to-end lifecycle a production user runs against each backend.
 """
+if __name__ == "__main__":
+    from _bootstrap import direct
+
+    direct(__file__)
+
 
 import asyncio
 

@@ -4,6 +4,11 @@ Runs against whatever backends are selected via MEMFRAME_TEST_BACKENDS
 (default: duckdb only). Postgres/ClickHouse require a live server and are
 skipped automatically when unreachable.
 """
+if __name__ == "__main__":
+    from _bootstrap import direct
+
+    direct(__file__)
+
 
 import asyncio
 import os

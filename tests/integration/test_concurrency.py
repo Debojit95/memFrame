@@ -4,6 +4,11 @@ Sequential opidx monotonicity and the cold→warm cache transition. Concurrent
 writers on the same data_id are a documented limitation (MAX(opidx)+1 can race);
 those are not tested here.
 """
+if __name__ == "__main__":
+    from _bootstrap import direct
+
+    direct(__file__)
+
 
 import asyncio
 
