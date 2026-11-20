@@ -76,8 +76,8 @@ columns (`uint64` values past 9.2e18 overflow at insert); `float32`/`float64`,
 `bool`, `datetime64` (tz-aware becomes tz-stamped); `str`/`object`/`string`/
 `category` → text; `decimal`, `date`, `bytes` map natively. Anything else falls
 back to text (lossy). Empty input raises — a table needs typed columns.
-`df.columns` selects/orders columns at construction, pandas semantics verbatim;
-the pandas index is used for alignment only and dropped (tables are unordered).
+`columns=` selects/orders columns at construction; the pandas index is used
+for alignment only and dropped (tables are unordered).
 
 ## Domains
 

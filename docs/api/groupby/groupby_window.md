@@ -136,19 +136,24 @@ sample = ctx.groupby("region").expanding().sum("sales")
 
 ## Common Parameters
 
+See [Rolling Reference](../rolling-reference.md) for the full window-form,
+offset-alias, `center`/`closed`, and grouped-rolling matrix.
+
 | Parameter | Type | Description |
 | --- | --- | --- |
 | `column` | `str` | Value column the window runs over. |
 | `group_cols` | `str` or `list[str]` | Column(s) partitioning the window. At least one is required. |
-| `window` | `int`, `timedelta`, or offset `str` | Rolling window: rows (`window-1 PRECEDING AND CURRENT ROW`) or a duration (`"3D"`) with a datetime `order_by`. |
+| `window` | `int`, `timedelta`, or duration `str` | Rolling window: rows (`window-1 PRECEDING AND CURRENT ROW`) or a fixed duration (`"3D"`, `"36h"`, `timedelta(days=3)`) with a datetime `order_by`. `BaseIndexer` is not supported. |
 | `func` | `str` or `list[str]` | Aggregation(s): `sum`, `mean`/`avg`, `min`, `max`, `count`, `std`/`stddev`/`stddev_samp`, `var`/`variance`/`var_samp`, `quantile`, `median`, `sem`, `rank`, `skew`, `kurt`, `nunique`, `first`/`first_value`, `last`/`last_value`. |
-| `order_by` | `str`, `list[str]`, or `None` | Row ordering inside each group. `None` (default) uses the immutable upload order (`_mf_idx`). |
+| `order_by` | `str`, `list[str]`, or `None` | Row ordering inside each group (the equivalent of the `on` parameter). `None` (default) uses the immutable upload order (`_mf_idx`). Time windows require one datetime column. |
 | `q` | `float` | Quantile level for `quantile`/`median` (default `0.5`). |
 | `func_kwargs` | `dict` or `None` | Per-function keyword arguments (`ddof`, rank `method`/`ascending`/`pct`, quantile `interpolation`/`q`). |
 | `center` | `bool` | Rolling only — centre the frame on the current row (default `False`). |
 | `closed` | `str` or `None` | Rolling only — `right` (default), `left`, `both`, `neither`. |
-| `win_type` | `str` or `None` | Rolling only — scipy window weights (`boxcar`, `triang`, `hann`, …) for weighted `sum`/`mean`. |
-| `min_periods` | `int` or `None` | Minimum observations before a value is produced. Rolling default `None` → `window`; expanding default `1`. Must satisfy `0 <= min_periods`; row windows also require `<= window` (time windows have no upper bound). |
+| `win_type` | `str` or `None` | Rolling only — scipy window weights (`boxcar`, `triang`, `bartlett`, `parzen`, `bohman`, `blackman`, `blackmanharris`, `barthann`, `nuttall`, `hann`, `hamming`, `cosine`) for weighted `sum`/`mean`. See [`scipy.signal.windows`](https://docs.scipy.org/doc/scipy/reference/signal.windows.html). |
+| `min_periods` | `int` or `None` | Minimum observations before a value is produced. Rolling default `None` → `window` for row windows and `1` for time windows; expanding default `1`. Must satisfy `0 <= min_periods`; row windows also require `<= window` (time windows have no upper bound). |
+| `step` | — | Not exposed by memFrame; passing it raises `TypeError`. |
+| `method` | — | Not exposed by memFrame; passing it raises `TypeError`. |
 | `new_table` | `str` or `None` | Kept for compatibility; the result is written to the source and `new_table` resolves to the source table. |
 | `map_feature` | `bool` | Deprecated/ignored. Generated columns are always written back to the source; the envelope carries `mapped_table` / `mapped_columns`. `new_table` is the source table (the ref target). |
 
@@ -186,18 +191,6 @@ AVG("sales") OVER (PARTITION BY "region"
   where the frame edges sit). Sort the result yourself for display.
 - **Ties** (`first`/`last`/`rank`, identical timestamps) are broken by
   `_mf_idx`, i.e. by upload order.
-
-The pandas mirror is "sort within each group, then restore the row order" —
-sorting the whole frame by the group keys is unnecessary, and it leaves the
-pandas result group-major instead of upload order:
-
-```python
-expected = (
-    df.sort_values("month", kind="mergesort")          # skip when order_by is None
-      .groupby("region")["sales"].rolling(3).mean()
-      .droplevel(0).reindex(df.index)                    # back to the original row order
-)
-```
 
 Result columns are named
 `<column>_rolling_<stat>_w<window>_by_<groups>` (rolling) or
@@ -254,7 +247,7 @@ open the edges, and time windows use `(t - window, t]` (or
 `(t - window/2, t + window/2]` when centred) instead of row offsets. The
 result column(s) are merged back into the source.
 
-`min_periods` defaults to `window` (pandas parity), so the first `window - 1`
+`min_periods` defaults to `window`, so the first `window - 1`
 rows of each group are `NULL`. Pass `min_periods=1` to aggregate the partial
 window instead:
 

@@ -150,18 +150,23 @@ sample = ctx.ewm(column="sales", span=3, func="mean")
 
 ## Common Parameters
 
+See [Rolling Reference](rolling-reference.md) for the full window-form,
+offset-alias, `center`/`closed`, and grouped-rolling matrix.
+
 | Parameter | Type | Description |
 | --- | --- | --- |
 | `column` | `str` | Column to window over. |
-| `window` | `int`, `timedelta`, or offset `str` | Rolling window: rows when an int (**inclusive of the current row**, `window=3` → 2 preceding + current), or a duration (`"3D"`, `"36h"`, `timedelta(days=3)`) for time-based windows. |
+| `window` | `int`, `timedelta`, or duration `str` | Rolling window: rows when an int (**inclusive of the current row**, `window=3` → 2 preceding + current), or a duration (`"3D"`, `"36h"`, `timedelta(days=3)`) for time-based windows. Fixed durations only; `BaseIndexer` is not supported. |
 | `func` | `str` or `list[str]` | Aggregation(s) to apply. A list chains them into a single output table. |
-| `order_by` | `str`, `list[str]`, or `None` | Row ordering for the window. `None` (default) uses the immutable upload order (`_mf_idx`). A list orders by multiple columns. |
+| `order_by` | `str`, `list[str]`, or `None` | Row ordering for the window (the memFrame equivalent of the `on` parameter). `None` (default) uses the immutable upload order (`_mf_idx`). A list orders by multiple columns. Time windows require one datetime column. |
 | `q` | `float` | Quantile in `[0, 1]` for `quantile` (default `0.5`). |
 | `center` | `bool` | Rolling only — centre the frame on the current row: row windows shift by `(window - 1) // 2` rows, time windows by `window / 2` (default `False`). |
 | `func_kwargs` | `dict` or `None` | Per-function keyword arguments, e.g. `{"std": {"ddof": 0}, "rank": {"method": "dense"}}`. |
 | `closed` | `str` or `None` | Rolling only — which frame edges are included: `right` (default), `left`, `both`, `neither` (row and time windows). |
-| `win_type` | `str` or `None` | Rolling only — apply scipy window weights. Supported: `boxcar`, `triang`, `bartlett`, `parzen`, `bohman`, `blackman`, `blackmanharris`, `barthann`, `nuttall`, `hann`, `hamming`, `cosine`. Weighted `sum`/`mean` only. |
-| `min_periods` | `int` or `None` | Minimum observations in the frame before a value is emitted. Rolling default `None` → `window` (pandas parity); expanding default `1`; EWM default `0`. Must satisfy `0 <= min_periods`; row windows also require `<= window` (time windows have no upper bound). |
+| `win_type` | `str` or `None` | Rolling only — apply scipy window weights. Supported: `boxcar`, `triang`, `bartlett`, `parzen`, `bohman`, `blackman`, `blackmanharris`, `barthann`, `nuttall`, `hann`, `hamming`, `cosine`. Weighted `sum`/`mean` only. See [`scipy.signal.windows`](https://docs.scipy.org/doc/scipy/reference/signal.windows.html). |
+| `min_periods` | `int` or `None` | Minimum observations in the frame before a value is emitted. Rolling default `None` → `window` for row windows and `1` for time windows; expanding default `1`; EWM default `0`. Must satisfy `0 <= min_periods`; row windows also require `<= window` (time windows have no upper bound). |
+| `step` | — | Not exposed by memFrame; passing it raises `TypeError`. |
+| `method` | — | Not exposed by memFrame; passing it raises `TypeError`. |
 
 `order_by` accepts a single column or a list:
 
@@ -206,18 +211,6 @@ AVG("sales") OVER (ORDER BY "date", "_mf_idx"
 - **Time windows use the `order_by` column as the clock.** With a duration
   window (`"3D"`), the frame is `(t − window, t]` over the values of the
   `order_by` timestamp, so `order_by` is required to be datetime-typed.
-
-The pandas equivalent mirrors this exactly: compute on the frame ordered by
-`order_by` (or the frame as-is when it is omitted), then restore the original
-row order:
-
-```python
-ordered = df.sort_values("date", kind="mergesort")   # skip when order_by is None
-expected = (
-    ordered["sales"].rolling(7).mean()
-    .reindex(df.index)                               # back to the original row order
-)
-```
 
 For large frames, pass `preview_rows=N` to `MemFrame`/`mf.DataFrame`: the
 source still receives every generated value, only the returned preview is
@@ -297,8 +290,9 @@ ctx.on("sales").rolling(5, win_type="hann").mean(order_by="date")
 
 - Supported weights: `boxcar`, `triang`, `bartlett`, `parzen`, `bohman`,
   `blackman`, `blackmanharris`, `barthann`, `nuttall`, `hann`, `hamming`,
-  `cosine` — the same arrays `scipy.signal.get_window(..., fftbins=False)`
-  returns.
+  `cosine` — the same arrays
+  [`scipy.signal.windows`](https://docs.scipy.org/doc/scipy/reference/signal.windows.html)
+  returns with `fftbins=False`.
 - `gaussian`, `exponential`, `tukey`, `kaiser`, `taylor`, `lanczos` need extra
   window parameters and raise `NotImplementedError`.
 - Weighted `std`/`var` raise: pandas computes them with rotating weights, which
@@ -330,8 +324,7 @@ rather than raising; EWM on a non-numeric column is rejected the same way.
 ## Rolling
 
 A rolling window of size `w = window` covers the rows from `w - 1` preceding
-the current row through the current row. `min_periods` defaults to `window`
-(pandas parity), so the first `w - 1` rows are `NULL`. Pass
+the current row through the current row. `min_periods` defaults to `window`, so the first `w - 1` rows are `NULL`. Pass
 `min_periods=1` to aggregate whatever is available instead:
 
 ```python

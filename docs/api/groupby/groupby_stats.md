@@ -177,10 +177,10 @@ result = ctx.groupby("region").mean("sales")
 ## Map Feature Back (`map_feature`)
 
 With `map_feature=True`, the new `<column>_<stat>` columns are LEFT JOINed
-back onto the original table — every original row gains its group's value
-(pandas: `df.merge(grouped)`). Only the feature columns are added; group
-keys are already on the original table. The temporary group table is dropped
-and the result is returned row-aligned with the source.
+back onto the original table — every original row gains its group's value.
+Only the feature columns are added; group keys are already on the original
+table. The temporary group table is dropped and the result is returned
+row-aligned with the source.
 
 The cache stores a source `ref`, not the intermediate group table. Without
 `map_feature`, the aggregate is returned as an `actual` payload and no table
