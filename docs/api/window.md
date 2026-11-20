@@ -170,20 +170,61 @@ result = dataset.rolling(
 )
 ```
 
-With no `order_by`, rows are processed in the immutable upload order
-(`_mf_idx`) — no temporary ordering column is built. When `order_by` is
-provided, only the projected value/order columns are sorted inside the window
-expression, and `_mf_idx` is appended as a deterministic tie-breaker. The
-generated column(s) are then merged back into the source by `_mf_idx`.
+Every generated column is computed in SQL and merged back into the source by
+`_mf_idx`; the paragraphs below describe the ordering the window itself uses.
+
+### How the window runs internally
+
+The same shape is used for rolling, expanding, and EWM:
+
+```sql
+-- no order_by
+AVG("sales") OVER (ORDER BY "_mf_idx"
+                   ROWS BETWEEN 6 PRECEDING AND CURRENT ROW)
+
+-- order_by="date"
+AVG("sales") OVER (ORDER BY "date", "_mf_idx"
+                   ROWS BETWEEN 6 PRECEDING AND CURRENT ROW)
+```
+
+- **No `order_by` is not "unordered".** The engine always has an order key:
+  `_mf_idx`, the immutable index assigned at upload. It survives later sorts,
+  filters, and merges, so a no-order window is stable across repeated runs and
+  matches pandas' "row order of the frame as it was uploaded".
+- **`order_by` is ordered *inside the OVER clause* only.** It decides which
+  rows fall into each frame; it never rewrites the table. `_mf_idx` is
+  appended to the key list so equal `order_by` values have a deterministic
+  order (upload order wins ties). `center` shifts the frame over that ordered
+  sequence, and `closed` picks which of its edges are included.
+- **The output keeps the upload order.** Each generated value is joined back
+  to the source row by `_mf_idx`, so a table ordered by `date` still comes
+  back in upload order — `order_by` changes *which rows are aggregated*, not
+  *how the result is laid out*. Sort the result yourself if you want it
+  presented by `date`.
+- **Time windows use the `order_by` column as the clock.** With a duration
+  window (`"3D"`), the frame is `(t − window, t]` over the values of the
+  `order_by` timestamp, so `order_by` is required to be datetime-typed.
+
+The pandas equivalent mirrors this exactly: compute on the frame ordered by
+`order_by` (or the frame as-is when it is omitted), then restore the original
+row order:
+
+```python
+ordered = df.sort_values("date", kind="mergesort")   # skip when order_by is None
+expected = (
+    ordered["sales"].rolling(7).mean()
+    .reindex(df.index)                               # back to the original row order
+)
+```
 
 For large frames, pass `preview_rows=N` to `MemFrame`/`mf.DataFrame`: the
 source still receives every generated value, only the returned preview is
 capped.
 
 > **Ordered vs. unordered:** every example below is shown twice — once with
-> `order_by` and once without. With no `order_by` the engine always uses the
-> immutable `_mf_idx` upload order, so the two forms agree on a freshly
-> uploaded frame and a no-order window is unaffected by a later sort or merge.
+> `order_by` and once without. Both forms are fully deterministic; they differ
+> only in which column defines the frame sequence (`order_by` vs. upload
+> order).
 
 ## Aggregation Parameters
 

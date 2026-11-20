@@ -73,6 +73,11 @@ The lower-level files are implementation details:
 
 `group_cols` accepts a single column name or a list of names.
 
+!!! note
+    On a context, `ctx.arolling(...)` resolves to the **ungrouped** window
+    method (it takes no `group_cols`). Grouped async calls go through the
+    builder: `await ctx.groupby("region").rolling(3, order_by="month").amean("sales")`.
+
 ### Builder
 
 `groupby(*columns)` returns the unified `GroupBy`; `.rolling(window,
@@ -149,6 +154,48 @@ With no `order_by`, each group is ordered by the immutable upload index
 (`_mf_idx`) and the window runs in that natural order. With an explicit
 `order_by`, rows are grouped first, then ordered inside each group by
 `order_by..., _mf_idx`; the additional `_mf_idx` key makes ties deterministic.
+
+### How grouped windows run internally
+
+```sql
+-- no order_by
+AVG("sales") OVER (PARTITION BY "region"
+                   ORDER BY "_mf_idx"
+                   ROWS BETWEEN 2 PRECEDING AND CURRENT ROW)
+
+-- order_by="month"
+AVG("sales") OVER (PARTITION BY "region"
+                   ORDER BY "month", "_mf_idx"
+                   ROWS BETWEEN 2 PRECEDING AND CURRENT ROW)
+```
+
+- **Partition first, order second.** `group_cols` splits the table into
+  independent groups; only then does the window walk each group's rows in
+  `order_by` order. A group's values never depend on rows from another group,
+  and ordering inside one group never interleaves another group's rows.
+- **No `order_by` is not "unordered".** The order key is always `_mf_idx`,
+  the immutable index assigned at upload. It survives sorts and merges, so a
+  no-order grouped window is deterministic and equivalent to pandas'
+  `groupby(...).rolling(...)` on the frame in its upload row order.
+- **`order_by` never reorders the output.** Each generated value is joined
+  back to its source row by `_mf_idx`, so the result is returned in upload
+  order even when the window itself walked the rows by `month`. `order_by`
+  only decides which rows fall into each frame (and, with `center`/`closed`,
+  where the frame edges sit). Sort the result yourself for display.
+- **Ties** (`first`/`last`/`rank`, identical timestamps) are broken by
+  `_mf_idx`, i.e. by upload order.
+
+The pandas mirror is "sort within each group, then restore the row order" —
+sorting the whole frame by the group keys is unnecessary, and it leaves the
+pandas result group-major instead of upload order:
+
+```python
+expected = (
+    df.sort_values("month", kind="mergesort")          # skip when order_by is None
+      .groupby("region")["sales"].rolling(3).mean()
+      .droplevel(0).reindex(df.index)                    # back to the original row order
+)
+```
 
 Result columns are named
 `<column>_rolling_<stat>_w<window>_by_<groups>` (rolling) or

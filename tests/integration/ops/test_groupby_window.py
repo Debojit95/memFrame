@@ -492,69 +492,70 @@ class TestGroupByWindowOperations:
                 current_records.append(result)
 
     # ----------------------------------------------------------------
-    # Helpers: pandas mirrors (order-aligned on group + id)
+    # Helpers: pandas mirrors (aligned back to the original row order)
     # ----------------------------------------------------------------
     @staticmethod
-    def _pandas_rolling(frame: pd.DataFrame, keys, col: str, window: int, func: str):
+    def _ordered(frame: pd.DataFrame, order_by):
+        """Sort only by ``order_by``; without it the engine uses upload row order."""
+        if not order_by:
+            return frame
+        return frame.sort_values(order_by, kind="mergesort")
+
+    @staticmethod
+    def _aligned(result, index):
+        """Drop the group levels pandas adds and restore the original row order."""
+        return result.droplevel(list(range(result.index.nlevels - 1))).reindex(index)
+
+    @classmethod
+    def _pandas_rolling(cls, frame, keys, col: str, window: int, func: str,
+                        order_by=None):
         # Mirrors the engine default: min_periods == window.
-        ordered = frame.sort_values([*keys, "id"]).copy()
-        rolled = ordered.groupby(list(keys))[col].rolling(window)
-        return pd.Series(getattr(rolled, func)().values, index=ordered.index)
+        rolled = (
+            cls._ordered(frame, order_by)
+            .groupby(list(keys), sort=False)[col]
+            .rolling(window)
+        )
+        return cls._aligned(getattr(rolled, func)(), frame.index)
 
     # --- Direct rolling ---
     def test_direct_rolling_mean(self, uploaded_ctx, sample_df, backend_config):
         import asyncio
 
-        from memframe.wrappers.analytix.groupby_window import GroupByWindowStatsWrapper
-
         result = asyncio.run(
-            GroupByWindowStatsWrapper(uploaded_ctx).arolling(
-                column="value", window=2, func="mean",
-                group_cols="group", order_by="id",
-            )
+            uploaded_ctx.groupby("group").rolling(2, order_by="id").amean("value")
         )
         res_df = get_result_df(result)
         out_col = get_generated_col(result, "value_rolling_mean_w2_by_group")
 
-        # align on (group, id): both frames carry the order key
-        check = res_df.sort_values(["group", "id"]).reset_index(drop=True)
-        exp_ordered = sample_df.sort_values(["group", "id"]).reset_index(drop=True)
-        exp_vals = self._pandas_rolling(exp_ordered, ["group"], "value", 2, "mean")
-        assert_allclose_numeric(check[out_col], exp_vals)
-        pandas_df = exp_ordered.copy()
-        pandas_df[out_col] = np.asarray(exp_vals).reshape(-1)
+        exp_vals = self._pandas_rolling(sample_df, ["group"], "value", 2, "mean", "id")
+        assert_allclose_numeric(res_df[out_col], exp_vals)
+        pandas_df = sample_df.copy()
+        pandas_df[out_col] = exp_vals.to_numpy()
         self._record_result(
             "direct_rolling_mean",
-            'await GroupByWindowStatsWrapper(ctx).arolling(column="value", window=2, func="mean", group_cols="group", order_by="id")',
+            'await ctx.groupby("group").rolling(2, order_by="id").amean("value")',
             sample_df, res_df, pandas_df, backend_config["connection_type"],
-            pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].rolling(2).mean()',
+            pandas_call='df.sort_values("id", kind="mergesort").groupby("group")["value"].rolling(2).mean().droplevel(0).reindex(df.index)',
         )
 
     def test_direct_rolling_sum(self, uploaded_ctx, sample_df, backend_config):
         import asyncio
 
-        from memframe.wrappers.analytix.groupby_window import GroupByWindowStatsWrapper
-
         result = asyncio.run(
-            GroupByWindowStatsWrapper(uploaded_ctx).arolling(
-                column="value", window=3, func="sum",
-                group_cols="group", order_by="id",
-            )
+            uploaded_ctx.groupby("group").rolling(3, order_by="id").asum("value")
         )
         res_df = get_result_df(result)
         out_col = get_generated_col(result, "value_rolling_sum_w3_by_group")
 
-        check = res_df.sort_values(["group", "id"]).reset_index(drop=True)
-        exp_ordered = sample_df.sort_values(["group", "id"]).reset_index(drop=True)
-        exp_vals = self._pandas_rolling(exp_ordered, ["group"], "value", 3, "sum")
-        assert_allclose_numeric(check[out_col], exp_vals)
-        pandas_df = exp_ordered.copy()
-        pandas_df[out_col] = np.asarray(exp_vals).reshape(-1)
+        exp_vals = self._pandas_rolling(sample_df, ["group"], "value", 3, "sum", "id")
+        assert_allclose_numeric(res_df[out_col], exp_vals)
+        pandas_df = sample_df.copy()
+        pandas_df[out_col] = exp_vals.to_numpy()
         self._record_result(
             "direct_rolling_sum",
-            'await GroupByWindowStatsWrapper(ctx).arolling(column="value", window=3, func="sum", group_cols="group", order_by="id")',
+            'await ctx.groupby("group").rolling(3, order_by="id").asum("value")',
             sample_df, res_df, pandas_df, backend_config["connection_type"],
-            pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].rolling(3).sum()',
+            pandas_call='df.sort_values("id", kind="mergesort").groupby("group")["value"].rolling(3).sum().droplevel(0).reindex(df.index)',
         )
 
     # --- GroupBy builder: rolling ---
@@ -563,17 +564,15 @@ class TestGroupByWindowOperations:
         res_df = get_result_df(result)
         out_col = get_generated_col(result, "value_rolling_mean_w2_by_group")
 
-        check = res_df.sort_values(["group", "id"]).reset_index(drop=True)
-        exp_ordered = sample_df.sort_values(["group", "id"]).reset_index(drop=True)
-        exp_vals = self._pandas_rolling(exp_ordered, ["group"], "value", 2, "mean")
-        assert_allclose_numeric(check[out_col], exp_vals)
-        pandas_df = exp_ordered.copy()
-        pandas_df[out_col] = np.asarray(exp_vals).reshape(-1)
+        exp_vals = self._pandas_rolling(sample_df, ["group"], "value", 2, "mean", "id")
+        assert_allclose_numeric(res_df[out_col], exp_vals)
+        pandas_df = sample_df.copy()
+        pandas_df[out_col] = exp_vals.to_numpy()
         self._record_result(
             "groupby_rolling_mean",
-            'dataset.groupby("group").rolling(2).mean("value")',
+            'dataset.groupby("group").rolling(2, order_by="id").mean("value")',
             sample_df, res_df, pandas_df, backend_config["connection_type"],
-            pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].rolling(2).mean()',
+            pandas_call='df.sort_values("id", kind="mergesort").groupby("group")["value"].rolling(2).mean().droplevel(0).reindex(df.index)',
         )
 
     @pytest.mark.parametrize("closed", ["right", "left", "both", "neither"])
@@ -860,17 +859,15 @@ class TestGroupByWindowOperations:
         res_df = get_result_df(result)
         out_col = get_generated_col(result, "value_rolling_sum_w3_by_group")
 
-        check = res_df.sort_values(["group", "id"]).reset_index(drop=True)
-        exp_ordered = sample_df.sort_values(["group", "id"]).reset_index(drop=True)
-        exp_vals = self._pandas_rolling(exp_ordered, ["group"], "value", 3, "sum")
-        assert_allclose_numeric(check[out_col], exp_vals)
-        pandas_df = exp_ordered.copy()
-        pandas_df[out_col] = np.asarray(exp_vals).reshape(-1)
+        exp_vals = self._pandas_rolling(sample_df, ["group"], "value", 3, "sum", "id")
+        assert_allclose_numeric(res_df[out_col], exp_vals)
+        pandas_df = sample_df.copy()
+        pandas_df[out_col] = exp_vals.to_numpy()
         self._record_result(
             "groupby_rolling_sum",
-            'dataset.groupby("group").rolling(3).sum("value")',
+            'dataset.groupby("group").rolling(3, order_by="id").sum("value")',
             sample_df, res_df, pandas_df, backend_config["connection_type"],
-            pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].rolling(3).sum()',
+            pandas_call='df.sort_values("id", kind="mergesort").groupby("group")["value"].rolling(3).sum().droplevel(0).reindex(df.index)',
         )
 
     def test_groupby_rolling_max(self, uploaded_ctx, sample_df, backend_config):
@@ -878,33 +875,38 @@ class TestGroupByWindowOperations:
         res_df = get_result_df(result)
         out_col = get_generated_col(result, "value_rolling_max_w2_by_group")
 
-        check = res_df.sort_values(["group", "id"]).reset_index(drop=True)
-        exp_ordered = sample_df.sort_values(["group", "id"]).reset_index(drop=True)
-        exp_vals = self._pandas_rolling(exp_ordered, ["group"], "value", 2, "max")
-        assert_allclose_numeric(check[out_col], exp_vals)
-        pandas_df = exp_ordered.copy()
-        pandas_df[out_col] = np.asarray(exp_vals).reshape(-1)
+        exp_vals = self._pandas_rolling(sample_df, ["group"], "value", 2, "max", "id")
+        assert_allclose_numeric(res_df[out_col], exp_vals)
+        pandas_df = sample_df.copy()
+        pandas_df[out_col] = exp_vals.to_numpy()
         self._record_result(
             "groupby_rolling_max",
-            'dataset.groupby("group").rolling(2).max("value")',
+            'dataset.groupby("group").rolling(2, order_by="id").max("value")',
             sample_df, res_df, pandas_df, backend_config["connection_type"],
-            pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].rolling(2).max()',
+            pandas_call='df.sort_values("id", kind="mergesort").groupby("group")["value"].rolling(2).max().droplevel(0).reindex(df.index)',
         )
 
-    def test_groupby_rolling_no_order(self, uploaded_ctx, sample_df, backend_config):
-        result = uploaded_ctx.groupby("group").rolling(2).mean("value")
+    def test_groupby_rolling_no_order(
+        self, connected_memframe, sample_df, backend_config
+    ):
+        # physical order must differ from id order, or this test proves nothing
+        shuffled = sample_df.sample(frac=1, random_state=0).reset_index(drop=True)
+        ctx = connected_memframe.upload_df(shuffled, filename="gb_window_no_order")
+        result = ctx.groupby("group").rolling(2).mean("value")
         res_df = get_result_df(result)
         out_col = get_generated_col(result, "value_rolling_mean_w2_by_group")
 
         assert out_col in list(res_df.columns)
-        assert len(res_df) == len(sample_df)
-        pandas_df = sample_df.sort_values(["group", "id"]).reset_index(drop=True)
-        pandas_df[out_col] = self._pandas_rolling(sample_df, ["group"], "value", 2, "mean").values
+        assert len(res_df) == len(shuffled)
+        exp_vals = self._pandas_rolling(shuffled, ["group"], "value", 2, "mean")
+        assert_allclose_numeric(res_df[out_col], exp_vals)
+        pandas_df = shuffled.copy()
+        pandas_df[out_col] = exp_vals.to_numpy()
         self._record_result(
             "groupby_rolling_no_order",
-            'dataset.groupby("group").rolling(2).mean("value")',
-            sample_df, res_df, pandas_df, backend_config["connection_type"],
-            pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].rolling(2).mean()',
+            'dataset.groupby("group").rolling(2).mean("value")  # no order_by: upload row order',
+            shuffled, res_df, pandas_df, backend_config["connection_type"],
+            pandas_call='df.groupby("group")["value"].rolling(2).mean().droplevel(0).reindex(df.index)  # no sort: upload row order',
         )
 
     # --- Expanding ---
@@ -913,19 +915,19 @@ class TestGroupByWindowOperations:
         res_df = get_result_df(result)
         out_col = get_generated_col(result, "value_expanding_mean_by_group")
 
-        check = res_df.sort_values(["group", "id"]).reset_index(drop=True)
-        exp_ordered = sample_df.sort_values(["group", "id"]).reset_index(drop=True)
-        exp_vals = (
-            exp_ordered.groupby("group")["value"].expanding().mean().reset_index(level=0, drop=True)
+        exp_vals = self._aligned(
+            self._ordered(sample_df, "id")
+            .groupby("group")["value"].expanding().mean(),
+            sample_df.index,
         )
-        assert_allclose_numeric(check[out_col], exp_vals)
-        pandas_df = exp_ordered.copy()
-        pandas_df[out_col] = np.asarray(exp_vals).reshape(-1)
+        assert_allclose_numeric(res_df[out_col], exp_vals)
+        pandas_df = sample_df.copy()
+        pandas_df[out_col] = exp_vals.to_numpy()
         self._record_result(
             "groupby_expanding_mean",
-            'dataset.groupby("group").expanding(min_periods=1).mean("value")',
+            'dataset.groupby("group").expanding(min_periods=1, order_by="id").mean("value")',
             sample_df, res_df, pandas_df, backend_config["connection_type"],
-            pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].expanding().mean()',
+            pandas_call='df.sort_values("id", kind="mergesort").groupby("group")["value"].expanding().mean().droplevel(0).reindex(df.index)',
         )
 
     def test_groupby_expanding_sum(self, uploaded_ctx, sample_df, backend_config):
@@ -933,19 +935,19 @@ class TestGroupByWindowOperations:
         res_df = get_result_df(result)
         out_col = get_generated_col(result, "value_expanding_sum_by_group")
 
-        check = res_df.sort_values(["group", "id"]).reset_index(drop=True)
-        exp_ordered = sample_df.sort_values(["group", "id"]).reset_index(drop=True)
-        exp_vals = (
-            exp_ordered.groupby("group")["value"].expanding().sum().reset_index(level=0, drop=True)
+        exp_vals = self._aligned(
+            self._ordered(sample_df, "id")
+            .groupby("group")["value"].expanding().sum(),
+            sample_df.index,
         )
-        assert_allclose_numeric(check[out_col], exp_vals)
-        pandas_df = exp_ordered.copy()
-        pandas_df[out_col] = np.asarray(exp_vals).reshape(-1)
+        assert_allclose_numeric(res_df[out_col], exp_vals)
+        pandas_df = sample_df.copy()
+        pandas_df[out_col] = exp_vals.to_numpy()
         self._record_result(
             "groupby_expanding_sum",
-            'dataset.groupby("group").expanding(min_periods=1).sum("value")',
+            'dataset.groupby("group").expanding(min_periods=1, order_by="id").sum("value")',
             sample_df, res_df, pandas_df, backend_config["connection_type"],
-            pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].expanding().sum()',
+            pandas_call='df.sort_values("id", kind="mergesort").groupby("group")["value"].expanding().sum().droplevel(0).reindex(df.index)',
         )
 
     # --- EWM ---
@@ -969,7 +971,7 @@ class TestGroupByWindowOperations:
             "groupby_ewm",
             'dataset.groupby("group").ewm(span=3, order_by="id").mean("value")',
             sample_df, first_df, second_df, backend_config["connection_type"],
-            pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].ewm(span=3).mean()',
+            pandas_call='df.sort_values("id", kind="mergesort").groupby("group")["value"].ewm(span=3).mean().droplevel(0).reindex(df.index)',
         )
 
     def test_groupby_ewm_adjust_false_matches_pandas(
@@ -1041,24 +1043,18 @@ class TestGroupByWindowOperations:
         result = uploaded_ctx.groupby("group").rolling(2, order_by="id").agg("value", ["mean", "sum"])
         res_df = get_result_df(result)
 
-        check = res_df.sort_values(["group", "id"]).reset_index(drop=True)
-        exp_ordered = sample_df.sort_values(["group", "id"]).reset_index(drop=True)
-        assert_allclose_numeric(
-            check["value_rolling_mean_w2_by_group"],
-            self._pandas_rolling(exp_ordered, ["group"], "value", 2, "mean"),
-        )
-        assert_allclose_numeric(
-            check["value_rolling_sum_w2_by_group"],
-            self._pandas_rolling(exp_ordered, ["group"], "value", 2, "sum"),
-        )
-        pandas_df = exp_ordered.copy()
-        pandas_df["value_rolling_mean_w2_by_group"] = self._pandas_rolling(exp_ordered, ["group"], "value", 2, "mean").values
-        pandas_df["value_rolling_sum_w2_by_group"] = self._pandas_rolling(exp_ordered, ["group"], "value", 2, "sum").values
+        exp_mean = self._pandas_rolling(sample_df, ["group"], "value", 2, "mean", "id")
+        exp_sum = self._pandas_rolling(sample_df, ["group"], "value", 2, "sum", "id")
+        assert_allclose_numeric(res_df["value_rolling_mean_w2_by_group"], exp_mean)
+        assert_allclose_numeric(res_df["value_rolling_sum_w2_by_group"], exp_sum)
+        pandas_df = sample_df.copy()
+        pandas_df["value_rolling_mean_w2_by_group"] = exp_mean.to_numpy()
+        pandas_df["value_rolling_sum_w2_by_group"] = exp_sum.to_numpy()
         self._record_result(
             "groupby_rolling_agg",
-            'dataset.groupby("group").rolling(2).agg("value",["mean","sum"])',
+            'dataset.groupby("group").rolling(2, order_by="id").agg("value",["mean","sum"])',
             sample_df, res_df, pandas_df, backend_config["connection_type"],
-            pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].rolling(2).agg(["mean", "sum"])',
+            pandas_call='df.sort_values("id", kind="mergesort").groupby("group")["value"].rolling(2).agg(["mean", "sum"]).droplevel(0).reindex(df.index)',
         )
 
     # --- Multicolumn group-by ---
@@ -1067,17 +1063,17 @@ class TestGroupByWindowOperations:
         res_df = get_result_df(result)
         out_col = get_generated_col(result, "value_rolling_sum_w2_by_group_sub")
 
-        check = res_df.sort_values(["group", "sub", "id"]).reset_index(drop=True)
-        exp_ordered = sample_df.sort_values(["group", "sub", "id"]).reset_index(drop=True)
-        exp_vals = self._pandas_rolling(exp_ordered, ["group", "sub"], "value", 2, "sum")
-        assert_allclose_numeric(check[out_col], exp_vals)
-        pandas_df = exp_ordered.copy()
-        pandas_df[out_col] = np.asarray(exp_vals).reshape(-1)
+        exp_vals = self._pandas_rolling(
+            sample_df, ["group", "sub"], "value", 2, "sum", "id"
+        )
+        assert_allclose_numeric(res_df[out_col], exp_vals)
+        pandas_df = sample_df.copy()
+        pandas_df[out_col] = exp_vals.to_numpy()
         self._record_result(
             "groupby_multicolumn_rolling",
-            'dataset.groupby("group", "sub").rolling(2).sum("value")',
+            'dataset.groupby("group", "sub").rolling(2, order_by="id").sum("value")',
             sample_df, res_df, pandas_df, backend_config["connection_type"],
-            pandas_call='df.sort_values(["group", "sub", "id"]).groupby(["group", "sub"])["value"].rolling(2).sum()',
+            pandas_call='df.sort_values("id", kind="mergesort").groupby(["group", "sub"])["value"].rolling(2).sum().droplevel([0, 1]).reindex(df.index)',
         )
 
     def test_groupby_multicolumn_expanding(self, uploaded_ctx, sample_df, backend_config):
@@ -1085,46 +1081,41 @@ class TestGroupByWindowOperations:
         res_df = get_result_df(result)
         out_col = get_generated_col(result, "value_expanding_mean_by_group_sub")
 
-        check = res_df.sort_values(["group", "sub", "id"]).reset_index(drop=True)
-        exp_ordered = sample_df.sort_values(["group", "sub", "id"]).reset_index(drop=True)
-        exp_vals = (
-            exp_ordered.groupby(["group", "sub"])["value"].expanding().mean().reset_index(level=[0, 1], drop=True)
+        exp_vals = self._aligned(
+            self._ordered(sample_df, "id")
+            .groupby(["group", "sub"])["value"].expanding().mean(),
+            sample_df.index,
         )
-        assert_allclose_numeric(check[out_col], exp_vals)
-        pandas_df = exp_ordered.copy()
-        pandas_df[out_col] = np.asarray(exp_vals).reshape(-1)
+        assert_allclose_numeric(res_df[out_col], exp_vals)
+        pandas_df = sample_df.copy()
+        pandas_df[out_col] = exp_vals.to_numpy()
         self._record_result(
             "groupby_multicolumn_expanding",
-            'dataset.groupby("group", "sub").expanding().mean("value")',
+            'dataset.groupby("group", "sub").expanding(order_by="id").mean("value")',
             sample_df, res_df, pandas_df, backend_config["connection_type"],
-            pandas_call='df.sort_values(["group", "sub", "id"]).groupby(["group", "sub"])["value"].expanding().mean()',
+            pandas_call='df.sort_values("id", kind="mergesort").groupby(["group", "sub"])["value"].expanding().mean().droplevel([0, 1]).reindex(df.index)',
         )
 
     def test_direct_multicolumn_rolling(self, uploaded_ctx, sample_df, backend_config):
         import asyncio
 
-        from memframe.wrappers.analytix.groupby_window import GroupByWindowStatsWrapper
-
         result = asyncio.run(
-            GroupByWindowStatsWrapper(uploaded_ctx).arolling(
-                column="value", window=2, func="max",
-                group_cols=["group", "sub"], order_by="id",
-            )
+            uploaded_ctx.groupby("group", "sub").rolling(2, order_by="id").amax("value")
         )
         res_df = get_result_df(result)
         out_col = get_generated_col(result, "value_rolling_max_w2_by_group_sub")
 
-        check = res_df.sort_values(["group", "sub", "id"]).reset_index(drop=True)
-        exp_ordered = sample_df.sort_values(["group", "sub", "id"]).reset_index(drop=True)
-        exp_vals = self._pandas_rolling(exp_ordered, ["group", "sub"], "value", 2, "max")
-        assert_allclose_numeric(check[out_col], exp_vals)
-        pandas_df = exp_ordered.copy()
-        pandas_df[out_col] = np.asarray(exp_vals).reshape(-1)
+        exp_vals = self._pandas_rolling(
+            sample_df, ["group", "sub"], "value", 2, "max", "id"
+        )
+        assert_allclose_numeric(res_df[out_col], exp_vals)
+        pandas_df = sample_df.copy()
+        pandas_df[out_col] = exp_vals.to_numpy()
         self._record_result(
             "direct_multicolumn_rolling",
-            'await GroupByWindowStatsWrapper(ctx).arolling(column="value", window=2, func="max", group_cols=["group", "sub"], order_by="id")',
+            'await ctx.groupby("group", "sub").rolling(2, order_by="id").amax("value")',
             sample_df, res_df, pandas_df, backend_config["connection_type"],
-            pandas_call='df.sort_values(["group", "sub", "id"]).groupby(["group", "sub"])["value"].rolling(2).max()',
+            pandas_call='df.sort_values("id", kind="mergesort").groupby(["group", "sub"])["value"].rolling(2).max().droplevel([0, 1]).reindex(df.index)',
         )
 
     # --- map_feature=True: single and multi-column group-by ---
@@ -1138,15 +1129,16 @@ class TestGroupByWindowOperations:
         assert "value_rolling_mean_w2_by_group" in list(mapped.columns)
         assert "group" in list(mapped.columns)  # keys not duplicated
 
-        check = mapped.sort_values(["group", "id"]).reset_index(drop=True)
-        exp_ordered = sample_df.sort_values(["group", "id"]).reset_index(drop=True)
-        exp_vals = self._pandas_rolling(exp_ordered, ["group"], "value", 2, "mean")
-        assert_allclose_numeric(check["value_rolling_mean_w2_by_group"], exp_vals)
+        exp_vals = self._pandas_rolling(sample_df, ["group"], "value", 2, "mean", "id")
+        assert_allclose_numeric(mapped["value_rolling_mean_w2_by_group"], exp_vals)
+        pandas_df = sample_df.copy()
+        pandas_df["value_rolling_mean_w2_by_group"] = exp_vals.to_numpy()
         self._record_result(
             "map_feature_single_groupby",
-            'groupby("group").rolling(2).agg("value", ["mean"], map_feature=True)',
-            sample_df, mapped, exp_ordered, backend_config["connection_type"],
-            pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].rolling(2).mean()  # mapped back',
+            'dataset.groupby("group").rolling(2, order_by="id")'
+            '.agg("value", ["mean"], map_feature=True)',
+            sample_df, mapped, pandas_df, backend_config["connection_type"],
+            pandas_call='df.sort_values("id", kind="mergesort").groupby("group")["value"].rolling(2).mean().droplevel(0).reindex(df.index)  # mapped back',
         )
 
     def test_map_feature_multi_groupby(self, uploaded_ctx, sample_df, backend_config):
@@ -1158,15 +1150,18 @@ class TestGroupByWindowOperations:
         mapped = get_result_df(uploaded_ctx.head(n=len(sample_df)))
         assert "value_rolling_sum_w2_by_group_sub" in list(mapped.columns)
 
-        check = mapped.sort_values(["group", "sub", "id"]).reset_index(drop=True)
-        exp_ordered = sample_df.sort_values(["group", "sub", "id"]).reset_index(drop=True)
-        exp_vals = self._pandas_rolling(exp_ordered, ["group", "sub"], "value", 2, "sum")
-        assert_allclose_numeric(check["value_rolling_sum_w2_by_group_sub"], exp_vals)
+        exp_vals = self._pandas_rolling(
+            sample_df, ["group", "sub"], "value", 2, "sum", "id"
+        )
+        assert_allclose_numeric(mapped["value_rolling_sum_w2_by_group_sub"], exp_vals)
+        pandas_df = sample_df.copy()
+        pandas_df["value_rolling_sum_w2_by_group_sub"] = exp_vals.to_numpy()
         self._record_result(
             "map_feature_multi_groupby",
-            'groupby("group", "sub").rolling(2).agg("value", ["sum"], map_feature=True)',
-            sample_df, mapped, exp_ordered, backend_config["connection_type"],
-            pandas_call='df.sort_values(["group", "sub", "id"]).groupby(["group", "sub"])["value"].rolling(2).sum()  # mapped back',
+            'dataset.groupby("group", "sub").rolling(2, order_by="id")'
+            '.agg("value", ["sum"], map_feature=True)',
+            sample_df, mapped, pandas_df, backend_config["connection_type"],
+            pandas_call='df.sort_values("id", kind="mergesort").groupby(["group", "sub"])["value"].rolling(2).sum().droplevel([0, 1]).reindex(df.index)  # mapped back',
         )
 
     def test_map_feature_expanding(self, uploaded_ctx, sample_df, backend_config):
@@ -1176,17 +1171,20 @@ class TestGroupByWindowOperations:
         assert result["mapped_columns"] == ["value_expanding_sum_by_group"]
 
         mapped = get_result_df(uploaded_ctx.head(n=len(sample_df)))
-        check = mapped.sort_values(["group", "id"]).reset_index(drop=True)
-        exp_ordered = sample_df.sort_values(["group", "id"]).reset_index(drop=True)
-        exp_vals = (
-            exp_ordered.groupby("group")["value"].expanding().sum().reset_index(level=0, drop=True)
+        exp_vals = self._aligned(
+            self._ordered(sample_df, "id")
+            .groupby("group")["value"].expanding().sum(),
+            sample_df.index,
         )
-        assert_allclose_numeric(check["value_expanding_sum_by_group"], exp_vals)
+        assert_allclose_numeric(mapped["value_expanding_sum_by_group"], exp_vals)
+        pandas_df = sample_df.copy()
+        pandas_df["value_expanding_sum_by_group"] = exp_vals.to_numpy()
         self._record_result(
             "map_feature_expanding",
-            'groupby("group").expanding().agg("value", ["sum"], map_feature=True)',
-            sample_df, mapped, exp_ordered, backend_config["connection_type"],
-            pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].expanding().sum()  # mapped back',
+            'dataset.groupby("group").expanding(order_by="id")'
+            '.agg("value", ["sum"], map_feature=True)',
+            sample_df, mapped, pandas_df, backend_config["connection_type"],
+            pandas_call='df.sort_values("id", kind="mergesort").groupby("group")["value"].expanding().sum().droplevel(0).reindex(df.index)  # mapped back',
         )
 
     def test_default_writes_generated_column_to_source(
@@ -1216,9 +1214,10 @@ class TestGroupByWindowOperations:
         )
         self._record_result(
             "default_writes_generated_column_to_source",
-            'groupby("group").rolling(2).agg("value", ["mean"])',
+            'dataset.groupby("group").rolling(2, order_by="id")'
+            '.agg("value", ["mean"])',
             sample_df, after, before, backend_config["connection_type"],
-            pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].rolling(2).mean()',
+            pandas_call='df.sort_values("id", kind="mergesort").groupby("group")["value"].rolling(2).mean().droplevel(0).reindex(df.index)',
         )
 
     def test_map_feature_true_then_false(
@@ -1237,16 +1236,16 @@ class TestGroupByWindowOperations:
         mapped = get_result_df(uploaded_ctx.head(n=len(sample_df)))
         assert "value_rolling_mean_w2_by_group" in list(mapped.columns)
 
-        check = mapped.sort_values(["group", "id"]).reset_index(drop=True)
-        exp_ordered = sample_df.sort_values(["group", "id"]).reset_index(drop=True)
-        exp_vals = self._pandas_rolling(exp_ordered, ["group"], "value", 2, "mean")
-        assert_allclose_numeric(check["value_rolling_mean_w2_by_group"], exp_vals)
+        exp_vals = self._pandas_rolling(sample_df, ["group"], "value", 2, "mean", "id")
+        assert_allclose_numeric(mapped["value_rolling_mean_w2_by_group"], exp_vals)
+        pandas_df = sample_df.copy()
+        pandas_df["value_rolling_mean_w2_by_group"] = exp_vals.to_numpy()
         self._record_result(
             "map_feature_true_then_false",
             'dataset.groupby("group").rolling(2, order_by="id")'
             '.agg("value", ["mean"])  # map_feature=True then False',
-            sample_df, mapped, exp_ordered, backend_config["connection_type"],
-            pandas_call='df.sort_values(["group", "id"]).groupby("group")["value"].rolling(2).mean()  # rerun drops and re-adds',
+            sample_df, mapped, pandas_df, backend_config["connection_type"],
+            pandas_call='df.sort_values("id", kind="mergesort").groupby("group")["value"].rolling(2).mean().droplevel(0).reindex(df.index)  # rerun drops and re-adds',
         )
 
     # --- Mutation safety ---
@@ -1265,7 +1264,7 @@ class TestGroupByWindowOperations:
         )
         self._record_result(
             "source_gains_generated_column",
-            'dataset.groupby("group").rolling(2).mean("value")',
+            'dataset.groupby("group").rolling(2, order_by="id").mean("value")',
             sample_df, after_op, original_uploaded, backend_config["connection_type"],
-            pandas_call='df.groupby("group")["value"].rolling(2).mean()',
+            pandas_call='df.sort_values("id", kind="mergesort").groupby("group")["value"].rolling(2).mean().droplevel(0).reindex(df.index)',
         )

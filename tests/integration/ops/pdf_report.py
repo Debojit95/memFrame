@@ -20,8 +20,6 @@ def _expression(text: str) -> str:
         return "dataset" + text
     if text.startswith("on("):
         return "dataset." + text
-    if text.startswith(("arolling(", "aexpanding(", "aewm(", "aagg(")):
-        return "await GroupByWindowStatsWrapper(ctx)." + text
     return "dataset." + text
 
 
