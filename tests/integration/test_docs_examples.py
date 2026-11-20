@@ -134,3 +134,61 @@ def test_reshape_merge_examples(docs_ctx):
         filename="right",
     )
     left.merge(right, on="id")
+
+def test_specialized_local_frames(docs_ctx):
+    mf = docs_ctx.memframe
+
+    raw = mf.DataFrame(
+        pd.DataFrame({"amount_raw": ["1200", "2500"]}),
+        filename="raw",
+        dtypes={"amount_raw": "VARCHAR"},
+    )
+    raw.to_numeric("amount_raw")
+
+    trig = mf.DataFrame(
+        pd.DataFrame({
+            "angle": [0.0, 0.5],
+            "ratio": [-1.0, 0.0],
+            "x": [1.0, 2.0],
+            "y": [1.0, 1.5],
+        }),
+        filename="trig",
+    )
+    trig.asin("ratio")
+    trig.atan2("y", "x", "angle")
+
+    epoch = mf.DataFrame(
+        pd.DataFrame({"epoch_col": [1704067200, 1704153600]}),
+        filename="epoch",
+    )
+    epoch.dt.from_timestamp("epoch_col", tz="UTC")
+
+    dates = mf.DataFrame(
+        pd.DataFrame({"date_str": ["2024-01-01", "2024-01-02"]}),
+        filename="dates",
+        dtypes={"date_str": "VARCHAR"},
+    )
+    dates.dt.strptime("date_str", "%Y-%m-%d")
+
+    tags = mf.DataFrame(
+        pd.DataFrame({"id": [1, 2], "tags": ["[a, b]", "[b, c]"]}),
+        filename="tags",
+    )
+    tags.explode("tags")
+
+def test_index_local_frame(docs_ctx):
+    mf = docs_ctx.memframe
+    customers = mf.DataFrame(
+        pd.DataFrame({
+            "customer_id": [101, 102, 103],
+            "name": ["Alice", "Bob", "Cara"],
+            "email": ["alice@example.com", "bob@example.com", "cara@example.com"],
+            "status": ["active", "inactive", "active"],
+            "tenant_id": [1, 1, 2],
+            "created_at": pd.to_datetime(["2024-01-01", "2024-02-01", "2024-03-01"]),
+        }),
+        filename="customers",
+    )
+    customers.create_index(columns=["created_at"], name="idx_created")
+    customers.list_indexes()
+    customers.drop_index("idx_created")
