@@ -129,26 +129,25 @@ uv run python tests/run_tests.py --scope integration --backend duckdb --upload-t
 # everything + tox across py310–py313 (the release gate)
 bash scripts/run-commit-checks.sh   # requires .env.test with DB credentials
 
-# ops tests individual
-uv run python -m pytest tests/integration/ops/test_xxx.py \
+# one integration file (direct execution; same --db-* options as run_tests.py)
+uv run python tests/integration/ops/test_window.py --db-backend duckdb --save-to-file
+
+uv run python tests/integration/ops/test_window.py \
   --db-backend postgres \
-  --db-params '{"backend":"postgres","host":"localhost","port":xxxx,"user":"postgres","password":"xxx","database":"xxx"}'
+  --db-params '{"backend":"postgres","host":"localhost","port":5432,"user":"postgres","password":"xxx","database":"memframe_test"}'
 
+uv run python tests/integration/ops/test_upload.py \
+  --upload-type csv --filepath tests/datasets/sample.csv --db-backend clickhouse \
+  --db-params '{"backend":"clickhouse","host":"localhost","port":8123,"user":"default","password":"xxx"}'
 
-uv run python -m pytest tests/integration/ops/test_upload.py --upload-type csv --filepath tests/datasets/sample.csv --db-backend clickhouse --db-params '{"backend":"clickhouse", "host": "localhost", "port": 8123,  "user":"default", "password": "your_clickhouse_password"}'
-
-
-  
-uv run python -m pytest tests/integration/ops/test_xxx.py \
-  --db-backend duckdb \
-  --db-params '{"db_path":"xxx.duckdb"}'
-
-
--v --save-to-file[optional] 
-
+# a single test by node id
+uv run pytest tests/integration/ops/test_window.py::TestWindowOperations::test_rolling_mean_direct --db-backend duckdb
 ```
 
-Postgres and ClickHouse integration runs need a local `.env.test` with `POSTGRES_*` / `CLICKHOUSE_*` connection variables. A template lives at `scripts/run-commit-checks.sh`.
+See [docs/testing.md](docs/testing.md#running-individual-tests) for the full
+per-backend and per-test-type matrix (upload, ops, integration).
+
+Postgres and ClickHouse integration runs need a local `.env.test` with `POSTGRES_*` / `CLICKHOUSE_*` connection variables. A template lives at `.env.test.example`.
 
 ## Linting
 

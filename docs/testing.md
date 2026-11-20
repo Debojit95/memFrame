@@ -1,7 +1,7 @@
 # Testing
 
-memFrame uses `pytest`. All tests live under `tests/` and run through a single
-entry point: `tests/run_tests.py`.
+memFrame uses `pytest`. The full suite runs through `tests/run_tests.py`;
+individual integration modules can also be executed directly or via `pytest`.
 
 ## Test layout
 
@@ -58,6 +58,65 @@ uv run python tests/run_tests.py --backend all --dry-run
 # Verbose output plus PDF reports for the integration tests
 uv run python tests/run_tests.py --backend duckdb -v --save-to-file
 ```
+
+### Running individual tests
+
+Integration modules bootstrap pytest, so the same `--db-backend`,
+`--db-params`, `--upload-type`, and `--save-to-file` options work when you run
+a file directly from the repository root:
+
+```bash
+# DuckDB (no server required)
+uv run python tests/integration/ops/test_window.py --db-backend duckdb
+
+# PostgreSQL
+uv run python tests/integration/ops/test_window.py \
+  --db-backend postgres \
+  --db-params '{"backend":"postgres","host":"localhost","port":5432,"user":"postgres","password":"secret","database":"memframe_test"}'
+
+# ClickHouse
+uv run python tests/integration/ops/test_window.py \
+  --db-backend clickhouse \
+  --db-params '{"backend":"clickhouse","host":"localhost","port":8123,"user":"default","password":"secret"}'
+
+# Save expected-vs-actual PDFs under tests/integration/ops/result/
+uv run python tests/integration/ops/test_window.py --db-backend duckdb --save-to-file
+```
+
+Run a single test with a pytest node id:
+
+```bash
+uv run pytest \
+  tests/integration/ops/test_window.py::TestWindowOperations::test_rolling_mean_direct \
+  --db-backend duckdb
+```
+
+Upload tests take an upload type and, for `csv`/`parquet`, a source file:
+
+```bash
+uv run python tests/integration/ops/test_upload.py \
+  --upload-type csv --filepath tests/datasets/sample.csv --db-backend duckdb
+
+uv run python tests/integration/ops/test_upload.py \
+  --upload-type parquet --filepath tests/datasets/sample.parquet --db-backend postgres \
+  --db-params '{"backend":"postgres","host":"localhost","port":5432,"user":"postgres","password":"secret","database":"memframe_test"}'
+
+uv run python tests/integration/ops/test_upload.py \
+  --upload-type df --db-backend clickhouse \
+  --db-params '{"backend":"clickhouse","host":"localhost","port":8123,"user":"default","password":"secret"}'
+```
+
+Cross-cutting integration modules work the same way:
+
+```bash
+uv run python tests/integration/test_lifecycle.py --db-backend duckdb
+uv run python tests/integration/test_concurrency.py --db-backend postgres \
+  --db-params '{"backend":"postgres","host":"localhost","port":5432,"user":"postgres","password":"secret","database":"memframe_test"}'
+```
+
+`--db-params` is optional for DuckDB (a temp file is used). Direct runs do
+**not** load `.env.test`; pass `--db-params` explicitly or export
+`DUCKDB_DB_PARAMS`, `POSTGRES_DB_PARAMS`, or `CLICKHOUSE_DB_PARAMS`.
 
 ### Why "db-by-db"?
 

@@ -57,7 +57,22 @@ uv run python tests/run_tests.py --scope integration --backend duckdb --upload-t
 bash scripts/run-commit-checks.sh   # requires .env.test with DB credentials
 ```
 
-Postgres and ClickHouse integration runs need a local `.env.test` with `POSTGRES_*` / `CLICKHOUSE_*` connection variables. A template lives at `scripts/run-commit-checks.sh`.
+Individual integration files can be run directly with the same options:
+
+```bash
+uv run python tests/integration/ops/test_window.py --db-backend duckdb --save-to-file
+
+uv run python tests/integration/ops/test_upload.py \
+  --upload-type parquet --filepath tests/datasets/sample.parquet --db-backend postgres \
+  --db-params '{"backend":"postgres","host":"localhost","port":5432,"user":"postgres","password":"xxx","database":"memframe_test"}'
+
+uv run pytest tests/integration/ops/test_window.py::TestWindowOperations::test_rolling_mean_direct --db-backend duckdb
+```
+
+See [Testing](testing.md#running-individual-tests) for the per-backend and
+per-test-type matrix.
+
+Postgres and ClickHouse integration runs need a local `.env.test` with `POSTGRES_*` / `CLICKHOUSE_*` connection variables. A template lives at `.env.test.example`.
 
 ## Linting
 
