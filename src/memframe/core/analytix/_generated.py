@@ -53,10 +53,10 @@ async def swap_table_into_source(
     if be == Backend.CLICKHOUSE:
         await db.execute(f"EXCHANGE TABLES {src_q} AND {wide_q}")
         await db.execute(f"DROP TABLE {wide_q}")
-    elif be == Backend.POSTGRES:
-        # PostgreSQL views depend on the source table, so it cannot be
-        # dropped. Update the generated columns in place; the relation (and
-        # therefore the public view) stays valid.
+    else:
+        # DuckDB and PostgreSQL: update the generated columns in place.
+        # Replacing the whole source table doubles the peak memory at large
+        # row counts, which is fatal for 50M-row datasets.
         cols = _dedupe(generated)
         if cols:
             try:
@@ -86,13 +86,6 @@ async def swap_table_into_source(
                 f"FROM {wide_q} AS w "
                 f"WHERE s.{idx_q} = w.{idx_q}"
             )
-        await db.execute(f"DROP TABLE {wide_q}")
-    else:
-        # DuckDB: CREATE OR REPLACE keeps the source name without a
-        # drop/rename dance and works for the single-file adapter.
-        await db.execute(
-            f"CREATE OR REPLACE TABLE {src_q} AS SELECT * FROM {wide_q}"
-        )
         await db.execute(f"DROP TABLE {wide_q}")
 
 

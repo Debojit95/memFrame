@@ -35,8 +35,9 @@ class _FakeBackend:
     # ponytail: WindowOps._backend_fetch_val falls back to backend.fetchval
     # (not the adapter), so the fake backend delegates to the persona —
     # recorded SQL stays deterministic (MAX(opidx) -> 0).
-    def __init__(self, persona):
+    def __init__(self, persona, backend_name=None):
         self._persona = persona
+        self.backend = backend_name
         self.cache_registry_table = "cache_registry"
 
     @staticmethod
@@ -72,7 +73,11 @@ class _Recording:
     async def get_column_types(self, table, schema=None):
         # ponytail: realistic source columns so the ClickHouse projection
         # helper emits real SQL instead of the degenerate SELECT * path.
-        return {"g": "TEXT", "o": "INTEGER", "x": "DOUBLE"}
+        class _Types(dict):
+            def get(self, key, default=None):
+                return super().get(key, "DOUBLE PRECISION")
+
+        return _Types({"g": "TEXT", "o": "INTEGER", "x": "DOUBLE"})
 
     async def get_table_info(self, table, schema=None):
         return {}
@@ -191,7 +196,7 @@ def _capture():
         for backend_name, (ops_cls, persona_cls) in BACKENDS.items():
             persona = persona_cls()
             ops = ops_cls(persona)
-            asyncio.run(scenario(ops, _FakeBackend(persona)))
+            asyncio.run(scenario(ops, _FakeBackend(persona, backend_name)))
             snapshot[name][backend_name] = persona.calls
     return snapshot
 

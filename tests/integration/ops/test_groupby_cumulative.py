@@ -942,3 +942,45 @@ class TestGroupByCumulativeOperations:
             pandas_df=original_uploaded,
             backend=backend_config["connection_type"],
         )
+
+    def test_cumsum_is_a_narrow_ref_writeback(
+        self, uploaded_ctx, sample_df, backend_config
+    ):
+        if backend_config["backend"] != "duckdb":
+            pytest.skip("DuckDB-specific SQL shape assertion")
+
+        from memframe.db_manager.adapters.duckdb import DuckDBAdapter
+
+        original_execute = DuckDBAdapter.execute
+        captured = []
+
+        async def capture(self, sql, *args, **kwargs):
+            text = str(sql)
+            upper = text.upper()
+            if (
+                "CREATE TABLE" in upper
+                or "CREATE OR REPLACE TABLE" in upper
+                or "ALTER TABLE" in upper
+                or upper.lstrip().startswith("UPDATE")
+            ):
+                captured.append(text)
+            return await original_execute(self, sql, *args, **kwargs)
+
+        DuckDBAdapter.execute = capture
+        try:
+            result = uploaded_ctx.groupby("group").cumsum(
+                "value", order_col="order_col", target_col="cumsum_val",
+            )
+        finally:
+            DuckDBAdapter.execute = original_execute
+
+        assert result["is_error"] is False
+        assert result.get("cache_kind") == "ref"
+        assert result.get("ref_table")
+        assert result.get("source_updated") is True
+
+        joined = " ".join(captured)
+        assert "ALTER TABLE" in joined
+        assert "UPDATE" in joined
+        assert "CREATE OR REPLACE TABLE" not in joined
+        assert "__op_" not in joined  # no wide intermediate table

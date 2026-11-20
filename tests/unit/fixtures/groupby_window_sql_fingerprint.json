@@ -42,7 +42,7 @@
    ],
    [
     "exec",
-    "CREATEORREPLACETABLE`s`.`t`ASSELECT*FROM`s`.`t__op_1__wide`",
+    "EXCHANGETABLES`s`.`t`AND`s`.`t__op_1__wide`",
     []
    ],
    [
@@ -233,7 +233,7 @@
    ],
    [
     "exec",
-    "CREATEORREPLACETABLE`s`.`t`ASSELECT*FROM`s`.`t__op_1__wide`",
+    "EXCHANGETABLES`s`.`t`AND`s`.`t__op_1__wide`",
     []
    ],
    [
@@ -434,7 +434,7 @@
    ],
    [
     "exec",
-    "CREATEORREPLACETABLE`s`.`t`ASSELECT*FROM`s`.`t__op_1__wide`",
+    "EXCHANGETABLES`s`.`t`AND`s`.`t__op_1__wide`",
     []
    ],
    [
@@ -603,7 +603,7 @@
    ],
    [
     "exec",
-    "CREATEORREPLACETABLE`s`.`t`ASSELECT*FROM`s`.`t__op_1__wide`",
+    "EXCHANGETABLES`s`.`t`AND`s`.`t__op_1__wide`",
     []
    ],
    [
@@ -683,7 +683,7 @@
    ],
    [
     "exec",
-    "CREATEORREPLACETABLE`s`.`t`ASSELECT*FROM`s`.`t__op_1__wide`",
+    "EXCHANGETABLES`s`.`t`AND`s`.`t__op_1__wide`",
     []
    ],
    [
@@ -763,7 +763,7 @@
    ],
    [
     "exec",
-    "CREATEORREPLACETABLE`s`.`t`ASSELECT*FROM`s`.`t__op_1__wide`",
+    "EXCHANGETABLES`s`.`t`AND`s`.`t__op_1__wide`",
     []
    ],
    [
@@ -843,7 +843,7 @@
    ],
    [
     "exec",
-    "CREATEORREPLACETABLE`s`.`t`ASSELECT*FROM`s`.`t__op_1__wide`",
+    "EXCHANGETABLES`s`.`t`AND`s`.`t__op_1__wide`",
     []
    ],
    [
@@ -933,7 +933,7 @@
    ],
    [
     "exec",
-    "CREATEORREPLACETABLE`s`.`t`ASSELECT*FROM`s`.`t__op_1__wide`",
+    "EXCHANGETABLES`s`.`t`AND`s`.`t__op_1__wide`",
     []
    ],
    [
@@ -1013,7 +1013,7 @@
    ],
    [
     "exec",
-    "CREATEORREPLACETABLE`s`.`t`ASSELECT*FROM`s`.`t__op_1__wide`",
+    "EXCHANGETABLES`s`.`t`AND`s`.`t__op_1__wide`",
     []
    ],
    [
@@ -1093,7 +1093,7 @@
    ],
    [
     "exec",
-    "CREATEORREPLACETABLE`s`.`t`ASSELECT*FROM`s`.`t__op_1__wide`",
+    "EXCHANGETABLES`s`.`t`AND`s`.`t__op_1__wide`",
     []
    ],
    [
@@ -1173,7 +1173,7 @@
    ],
    [
     "exec",
-    "CREATEORREPLACETABLE`s`.`t`ASSELECT*FROM`s`.`t__op_1__wide`",
+    "EXCHANGETABLES`s`.`t`AND`s`.`t__op_1__wide`",
     []
    ],
    [
@@ -1253,7 +1253,7 @@
    ],
    [
     "exec",
-    "CREATEORREPLACETABLE`s`.`t`ASSELECT*FROM`s`.`t__op_1__wide`",
+    "EXCHANGETABLES`s`.`t`AND`s`.`t__op_1__wide`",
     []
    ],
    [
@@ -1333,7 +1333,7 @@
    ],
    [
     "exec",
-    "CREATEORREPLACETABLE`s`.`t`ASSELECT*FROM`s`.`t__op_1__wide`",
+    "EXCHANGETABLES`s`.`t`AND`s`.`t__op_1__wide`",
     []
    ],
    [
@@ -1413,7 +1413,7 @@
    ],
    [
     "exec",
-    "CREATEORREPLACETABLE`s`.`t`ASSELECT*FROM`s`.`t__op_1__wide`",
+    "EXCHANGETABLES`s`.`t`AND`s`.`t__op_1__wide`",
     []
    ],
    [
@@ -1498,7 +1498,7 @@
    ],
    [
     "exec",
-    "CREATEORREPLACETABLE`s`.`t`ASSELECT*FROM`s`.`t__op_1__wide`",
+    "EXCHANGETABLES`s`.`t`AND`s`.`t__op_1__wide`",
     []
    ],
    [
@@ -1578,7 +1578,7 @@
    ],
    [
     "exec",
-    "CREATEORREPLACETABLE`s`.`t`ASSELECT*FROM`s`.`t__op_1__wide`",
+    "EXCHANGETABLES`s`.`t`AND`s`.`t__op_1__wide`",
     []
    ],
    [

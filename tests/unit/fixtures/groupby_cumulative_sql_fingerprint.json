@@ -21,39 +21,35 @@
   ],
   "duckdb": [
    [
-    "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
-    [
-     "d1"
-    ]
+    "exec",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMNIFNOTEXISTS\"cum_num_count_by_g_order_by_o\"BIGINT",
+    []
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_1\"ASSELECT*,COUNT(\"num\")OVER(PARTITIONBY\"g\"ORDERBY\"o\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"cum_num_count_by_g_order_by_o\"FROM\"s\".\"t\"",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_count_by_g_order_by_o\"=s.\"cum_num_count_by_g_order_by_o\"FROM(SELECT\"_mf_idx\",COUNT(\"num\")OVER(PARTITIONBY\"g\"ORDERBY\"o\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"cum_num_count_by_g_order_by_o\"FROM\"s\".\"t\")ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"g\",\"o\",\"cum_num_count_by_g_order_by_o\"FROM\"s\".\"t__op_1\"",
+    "SELECT\"num\",\"g\",\"o\",\"cum_num_count_by_g_order_by_o\"FROM\"s\".\"t\"ORDERBY\"_mf_idx\"",
     []
    ]
   ],
   "postgres": [
    [
-    "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
-    [
-     "d1"
-    ]
+    "exec",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMNIFNOTEXISTS\"cum_num_count_by_g_order_by_o\"BIGINT",
+    []
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_1\"ASSELECT*,COUNT(\"num\")OVER(PARTITIONBY\"g\"ORDERBY\"o\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"cum_num_count_by_g_order_by_o\"FROM\"s\".\"t\"",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_count_by_g_order_by_o\"=s.\"cum_num_count_by_g_order_by_o\"FROM(SELECT\"_mf_idx\",COUNT(\"num\")OVER(PARTITIONBY\"g\"ORDERBY\"o\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"cum_num_count_by_g_order_by_o\"FROM\"s\".\"t\")ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"g\",\"o\",\"cum_num_count_by_g_order_by_o\"FROM\"s\".\"t__op_1\"",
+    "SELECT\"num\",\"g\",\"o\",\"cum_num_count_by_g_order_by_o\"FROM\"s\".\"t\"ORDERBY\"_mf_idx\"",
     []
    ]
   ]
@@ -80,39 +76,35 @@
   ],
   "duckdb": [
    [
-    "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
-    [
-     "d1"
-    ]
+    "exec",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMNIFNOTEXISTS\"cum_num_max_by_g_order_by_o\"DOUBLEPRECISION",
+    []
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_1\"ASSELECT*,MAX(\"num\")OVER(PARTITIONBY\"g\"ORDERBY\"o\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"cum_num_max_by_g_order_by_o\"FROM\"s\".\"t\"",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_max_by_g_order_by_o\"=s.\"cum_num_max_by_g_order_by_o\"FROM(SELECT\"_mf_idx\",MAX(\"num\")OVER(PARTITIONBY\"g\"ORDERBY\"o\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"cum_num_max_by_g_order_by_o\"FROM\"s\".\"t\")ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"g\",\"o\",\"cum_num_max_by_g_order_by_o\"FROM\"s\".\"t__op_1\"",
+    "SELECT\"num\",\"g\",\"o\",\"cum_num_max_by_g_order_by_o\"FROM\"s\".\"t\"ORDERBY\"_mf_idx\"",
     []
    ]
   ],
   "postgres": [
    [
-    "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
-    [
-     "d1"
-    ]
+    "exec",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMNIFNOTEXISTS\"cum_num_max_by_g_order_by_o\"DOUBLEPRECISION",
+    []
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_1\"ASSELECT*,MAX(\"num\")OVER(PARTITIONBY\"g\"ORDERBY\"o\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"cum_num_max_by_g_order_by_o\"FROM\"s\".\"t\"",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_max_by_g_order_by_o\"=s.\"cum_num_max_by_g_order_by_o\"FROM(SELECT\"_mf_idx\",MAX(\"num\")OVER(PARTITIONBY\"g\"ORDERBY\"o\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"cum_num_max_by_g_order_by_o\"FROM\"s\".\"t\")ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"g\",\"o\",\"cum_num_max_by_g_order_by_o\"FROM\"s\".\"t__op_1\"",
+    "SELECT\"num\",\"g\",\"o\",\"cum_num_max_by_g_order_by_o\"FROM\"s\".\"t\"ORDERBY\"_mf_idx\"",
     []
    ]
   ]
@@ -139,39 +131,35 @@
   ],
   "duckdb": [
    [
-    "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
-    [
-     "d1"
-    ]
+    "exec",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMNIFNOTEXISTS\"cum_num_mean_by_g_order_by_o\"DOUBLEPRECISION",
+    []
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_1\"ASSELECT*,AVG(\"num\")OVER(PARTITIONBY\"g\"ORDERBY\"o\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"cum_num_mean_by_g_order_by_o\"FROM\"s\".\"t\"",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_mean_by_g_order_by_o\"=s.\"cum_num_mean_by_g_order_by_o\"FROM(SELECT\"_mf_idx\",AVG(\"num\")OVER(PARTITIONBY\"g\"ORDERBY\"o\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"cum_num_mean_by_g_order_by_o\"FROM\"s\".\"t\")ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"g\",\"o\",\"cum_num_mean_by_g_order_by_o\"FROM\"s\".\"t__op_1\"",
+    "SELECT\"num\",\"g\",\"o\",\"cum_num_mean_by_g_order_by_o\"FROM\"s\".\"t\"ORDERBY\"_mf_idx\"",
     []
    ]
   ],
   "postgres": [
    [
-    "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
-    [
-     "d1"
-    ]
+    "exec",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMNIFNOTEXISTS\"cum_num_mean_by_g_order_by_o\"DOUBLEPRECISION",
+    []
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_1\"ASSELECT*,AVG(\"num\")OVER(PARTITIONBY\"g\"ORDERBY\"o\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"cum_num_mean_by_g_order_by_o\"FROM\"s\".\"t\"",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_mean_by_g_order_by_o\"=s.\"cum_num_mean_by_g_order_by_o\"FROM(SELECT\"_mf_idx\",AVG(\"num\")OVER(PARTITIONBY\"g\"ORDERBY\"o\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"cum_num_mean_by_g_order_by_o\"FROM\"s\".\"t\")ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"g\",\"o\",\"cum_num_mean_by_g_order_by_o\"FROM\"s\".\"t__op_1\"",
+    "SELECT\"num\",\"g\",\"o\",\"cum_num_mean_by_g_order_by_o\"FROM\"s\".\"t\"ORDERBY\"_mf_idx\"",
     []
    ]
   ]
@@ -198,39 +186,35 @@
   ],
   "duckdb": [
    [
-    "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
-    [
-     "d1"
-    ]
+    "exec",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMNIFNOTEXISTS\"cum_num_min_by_g_order_by_o\"DOUBLEPRECISION",
+    []
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_1\"ASSELECT*,MIN(\"num\")OVER(PARTITIONBY\"g\"ORDERBY\"o\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"cum_num_min_by_g_order_by_o\"FROM\"s\".\"t\"",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_min_by_g_order_by_o\"=s.\"cum_num_min_by_g_order_by_o\"FROM(SELECT\"_mf_idx\",MIN(\"num\")OVER(PARTITIONBY\"g\"ORDERBY\"o\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"cum_num_min_by_g_order_by_o\"FROM\"s\".\"t\")ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"g\",\"o\",\"cum_num_min_by_g_order_by_o\"FROM\"s\".\"t__op_1\"",
+    "SELECT\"num\",\"g\",\"o\",\"cum_num_min_by_g_order_by_o\"FROM\"s\".\"t\"ORDERBY\"_mf_idx\"",
     []
    ]
   ],
   "postgres": [
    [
-    "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
-    [
-     "d1"
-    ]
+    "exec",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMNIFNOTEXISTS\"cum_num_min_by_g_order_by_o\"DOUBLEPRECISION",
+    []
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_1\"ASSELECT*,MIN(\"num\")OVER(PARTITIONBY\"g\"ORDERBY\"o\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"cum_num_min_by_g_order_by_o\"FROM\"s\".\"t\"",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_min_by_g_order_by_o\"=s.\"cum_num_min_by_g_order_by_o\"FROM(SELECT\"_mf_idx\",MIN(\"num\")OVER(PARTITIONBY\"g\"ORDERBY\"o\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"cum_num_min_by_g_order_by_o\"FROM\"s\".\"t\")ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"g\",\"o\",\"cum_num_min_by_g_order_by_o\"FROM\"s\".\"t__op_1\"",
+    "SELECT\"num\",\"g\",\"o\",\"cum_num_min_by_g_order_by_o\"FROM\"s\".\"t\"ORDERBY\"_mf_idx\"",
     []
    ]
   ]
@@ -257,39 +241,35 @@
   ],
   "duckdb": [
    [
-    "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
-    [
-     "d1"
-    ]
+    "exec",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMNIFNOTEXISTS\"cum_num_prod_by_g_order_by_o\"DOUBLEPRECISION",
+    []
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_1\"ASSELECT*,EXP(SUM(LN(NULLIF(\"num\",0)))OVER(PARTITIONBY\"g\"ORDERBY\"o\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW))AS\"cum_num_prod_by_g_order_by_o\"FROM\"s\".\"t\"",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_prod_by_g_order_by_o\"=s.\"cum_num_prod_by_g_order_by_o\"FROM(SELECT\"_mf_idx\",EXP(SUM(LN(NULLIF(\"num\",0)))OVER(PARTITIONBY\"g\"ORDERBY\"o\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW))AS\"cum_num_prod_by_g_order_by_o\"FROM\"s\".\"t\")ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"g\",\"o\",\"cum_num_prod_by_g_order_by_o\"FROM\"s\".\"t__op_1\"",
+    "SELECT\"num\",\"g\",\"o\",\"cum_num_prod_by_g_order_by_o\"FROM\"s\".\"t\"ORDERBY\"_mf_idx\"",
     []
    ]
   ],
   "postgres": [
    [
-    "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
-    [
-     "d1"
-    ]
+    "exec",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMNIFNOTEXISTS\"cum_num_prod_by_g_order_by_o\"DOUBLEPRECISION",
+    []
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_1\"ASSELECT*,EXP(SUM(LN(NULLIF(\"num\",0)))OVER(PARTITIONBY\"g\"ORDERBY\"o\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW))AS\"cum_num_prod_by_g_order_by_o\"FROM\"s\".\"t\"",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_prod_by_g_order_by_o\"=s.\"cum_num_prod_by_g_order_by_o\"FROM(SELECT\"_mf_idx\",EXP(SUM(LN(NULLIF(\"num\",0)))OVER(PARTITIONBY\"g\"ORDERBY\"o\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW))AS\"cum_num_prod_by_g_order_by_o\"FROM\"s\".\"t\")ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"g\",\"o\",\"cum_num_prod_by_g_order_by_o\"FROM\"s\".\"t__op_1\"",
+    "SELECT\"num\",\"g\",\"o\",\"cum_num_prod_by_g_order_by_o\"FROM\"s\".\"t\"ORDERBY\"_mf_idx\"",
     []
    ]
   ]
@@ -316,39 +296,35 @@
   ],
   "duckdb": [
    [
-    "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
-    [
-     "d1"
-    ]
+    "exec",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMNIFNOTEXISTS\"cum_num_std_by_g_order_by_o\"DOUBLEPRECISION",
+    []
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_1\"ASSELECT*,STDDEV_POP(\"num\")OVER(PARTITIONBY\"g\"ORDERBY\"o\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"cum_num_std_by_g_order_by_o\"FROM\"s\".\"t\"",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_std_by_g_order_by_o\"=s.\"cum_num_std_by_g_order_by_o\"FROM(SELECT\"_mf_idx\",STDDEV_POP(\"num\")OVER(PARTITIONBY\"g\"ORDERBY\"o\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"cum_num_std_by_g_order_by_o\"FROM\"s\".\"t\")ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"g\",\"o\",\"cum_num_std_by_g_order_by_o\"FROM\"s\".\"t__op_1\"",
+    "SELECT\"num\",\"g\",\"o\",\"cum_num_std_by_g_order_by_o\"FROM\"s\".\"t\"ORDERBY\"_mf_idx\"",
     []
    ]
   ],
   "postgres": [
    [
-    "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
-    [
-     "d1"
-    ]
+    "exec",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMNIFNOTEXISTS\"cum_num_std_by_g_order_by_o\"DOUBLEPRECISION",
+    []
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_1\"ASSELECT*,STDDEV_POP(\"num\")OVER(PARTITIONBY\"g\"ORDERBY\"o\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"cum_num_std_by_g_order_by_o\"FROM\"s\".\"t\"",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_std_by_g_order_by_o\"=s.\"cum_num_std_by_g_order_by_o\"FROM(SELECT\"_mf_idx\",STDDEV_POP(\"num\")OVER(PARTITIONBY\"g\"ORDERBY\"o\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"cum_num_std_by_g_order_by_o\"FROM\"s\".\"t\")ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"g\",\"o\",\"cum_num_std_by_g_order_by_o\"FROM\"s\".\"t__op_1\"",
+    "SELECT\"num\",\"g\",\"o\",\"cum_num_std_by_g_order_by_o\"FROM\"s\".\"t\"ORDERBY\"_mf_idx\"",
     []
    ]
   ]
@@ -375,39 +351,35 @@
   ],
   "duckdb": [
    [
-    "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
-    [
-     "d1"
-    ]
+    "exec",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMNIFNOTEXISTS\"cum_num_sum_by_g_order_by_o\"DOUBLEPRECISION",
+    []
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_1\"ASSELECT*,SUM(\"num\")OVER(PARTITIONBY\"g\"ORDERBY\"o\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"cum_num_sum_by_g_order_by_o\"FROM\"s\".\"t\"",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_sum_by_g_order_by_o\"=s.\"cum_num_sum_by_g_order_by_o\"FROM(SELECT\"_mf_idx\",SUM(\"num\")OVER(PARTITIONBY\"g\"ORDERBY\"o\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"cum_num_sum_by_g_order_by_o\"FROM\"s\".\"t\")ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"g\",\"o\",\"cum_num_sum_by_g_order_by_o\"FROM\"s\".\"t__op_1\"",
+    "SELECT\"num\",\"g\",\"o\",\"cum_num_sum_by_g_order_by_o\"FROM\"s\".\"t\"ORDERBY\"_mf_idx\"",
     []
    ]
   ],
   "postgres": [
    [
-    "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
-    [
-     "d1"
-    ]
+    "exec",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMNIFNOTEXISTS\"cum_num_sum_by_g_order_by_o\"DOUBLEPRECISION",
+    []
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_1\"ASSELECT*,SUM(\"num\")OVER(PARTITIONBY\"g\"ORDERBY\"o\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"cum_num_sum_by_g_order_by_o\"FROM\"s\".\"t\"",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_sum_by_g_order_by_o\"=s.\"cum_num_sum_by_g_order_by_o\"FROM(SELECT\"_mf_idx\",SUM(\"num\")OVER(PARTITIONBY\"g\"ORDERBY\"o\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"cum_num_sum_by_g_order_by_o\"FROM\"s\".\"t\")ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"g\",\"o\",\"cum_num_sum_by_g_order_by_o\"FROM\"s\".\"t__op_1\"",
+    "SELECT\"num\",\"g\",\"o\",\"cum_num_sum_by_g_order_by_o\"FROM\"s\".\"t\"ORDERBY\"_mf_idx\"",
     []
    ]
   ]
@@ -434,39 +406,35 @@
   ],
   "duckdb": [
    [
-    "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
-    [
-     "d1"
-    ]
+    "exec",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMNIFNOTEXISTS\"cum_num_var_by_g_order_by_o\"DOUBLEPRECISION",
+    []
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_1\"ASSELECT*,VAR_POP(\"num\")OVER(PARTITIONBY\"g\"ORDERBY\"o\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"cum_num_var_by_g_order_by_o\"FROM\"s\".\"t\"",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_var_by_g_order_by_o\"=s.\"cum_num_var_by_g_order_by_o\"FROM(SELECT\"_mf_idx\",VAR_POP(\"num\")OVER(PARTITIONBY\"g\"ORDERBY\"o\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"cum_num_var_by_g_order_by_o\"FROM\"s\".\"t\")ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"g\",\"o\",\"cum_num_var_by_g_order_by_o\"FROM\"s\".\"t__op_1\"",
+    "SELECT\"num\",\"g\",\"o\",\"cum_num_var_by_g_order_by_o\"FROM\"s\".\"t\"ORDERBY\"_mf_idx\"",
     []
    ]
   ],
   "postgres": [
    [
-    "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
-    [
-     "d1"
-    ]
+    "exec",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMNIFNOTEXISTS\"cum_num_var_by_g_order_by_o\"DOUBLEPRECISION",
+    []
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_1\"ASSELECT*,VAR_POP(\"num\")OVER(PARTITIONBY\"g\"ORDERBY\"o\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"cum_num_var_by_g_order_by_o\"FROM\"s\".\"t\"",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_var_by_g_order_by_o\"=s.\"cum_num_var_by_g_order_by_o\"FROM(SELECT\"_mf_idx\",VAR_POP(\"num\")OVER(PARTITIONBY\"g\"ORDERBY\"o\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"cum_num_var_by_g_order_by_o\"FROM\"s\".\"t\")ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"g\",\"o\",\"cum_num_var_by_g_order_by_o\"FROM\"s\".\"t__op_1\"",
+    "SELECT\"num\",\"g\",\"o\",\"cum_num_var_by_g_order_by_o\"FROM\"s\".\"t\"ORDERBY\"_mf_idx\"",
     []
    ]
   ]
@@ -533,104 +501,35 @@
   ],
   "duckdb": [
    [
-    "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
-    [
-     "d1"
-    ]
-   ],
-   [
     "exec",
-    "CREATETABLE\"s\".\"t__op_1\"ASSELECT*,SUM(\"num\")OVER(PARTITIONBY\"g\"ORDERBY\"o\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"cum_num_sum_by_g_order_by_o\"FROM\"s\".\"t\"",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMNIFNOTEXISTS\"cum_num_sum_by_g_order_by_o\"DOUBLEPRECISION",
     []
    ],
    [
     "exec",
-    "CREATEORREPLACETABLE\"s\".\"t\"ASSELECTo.*,g.\"cum_num_sum_by_g_order_by_o\"AS\"cum_num_sum_by_g_order_by_o\"FROM\"s\".\"t\"oLEFTJOIN\"s\".\"t__op_1\"gONo.\"g\"=g.\"g\"ANDo.\"o\"=g.\"o\"ANDo.\"num\"=g.\"num\"",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_sum_by_g_order_by_o\"=s.\"cum_num_sum_by_g_order_by_o\"FROM(SELECT\"_mf_idx\",SUM(\"num\")OVER(PARTITIONBY\"g\"ORDERBY\"o\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"cum_num_sum_by_g_order_by_o\"FROM\"s\".\"t\")ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
     []
-   ],
-   [
-    "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
-    [
-     "d1"
-    ]
-   ],
-   [
-    "exec",
-    "INSERTINTOcache_registry(data_id,opidx,operation_type,class_name,method_name,args,kwargs,generated_table_name,is_deep_cache,schema)VALUES($1,$2,'groupby_cum_map','GroupbyCumulativeOps','map_feature',$3,$4,$5,$6,$7)",
-    [
-     "d1",
-     "1",
-     "",
-     "{\"column\": \"num\", \"group_cols\": [\"g\"], \"new_columns\": [\"cum_num_sum_by_g_order_by_o\"], \"operation\": \"sum\", \"order_cols\": [\"o\"], \"target_col\": \"cum_num_sum_by_g_order_by_o\"}",
-     "t",
-     "False",
-     "s"
-    ]
    ],
    [
     "fetch",
-    "SELECT\"num\",\"g\",\"o\",\"cum_num_sum_by_g_order_by_o\"FROM\"s\".\"t__op_1\"",
+    "SELECT\"num\",\"g\",\"o\",\"cum_num_sum_by_g_order_by_o\"FROM\"s\".\"t\"ORDERBY\"_mf_idx\"",
     []
    ]
   ],
   "postgres": [
    [
-    "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
-    [
-     "d1"
-    ]
-   ],
-   [
     "exec",
-    "CREATETABLE\"s\".\"t__op_1\"ASSELECT*,SUM(\"num\")OVER(PARTITIONBY\"g\"ORDERBY\"o\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"cum_num_sum_by_g_order_by_o\"FROM\"s\".\"t\"",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMNIFNOTEXISTS\"cum_num_sum_by_g_order_by_o\"DOUBLEPRECISION",
     []
    ],
    [
     "exec",
-    "DROPTABLEIFEXISTS\"s\".\"t__map_tmp\"",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_sum_by_g_order_by_o\"=s.\"cum_num_sum_by_g_order_by_o\"FROM(SELECT\"_mf_idx\",SUM(\"num\")OVER(PARTITIONBY\"g\"ORDERBY\"o\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"cum_num_sum_by_g_order_by_o\"FROM\"s\".\"t\")ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
     []
-   ],
-   [
-    "exec",
-    "CREATETABLE\"s\".\"t__map_tmp\"ASSELECTo.*,g.\"cum_num_sum_by_g_order_by_o\"AS\"cum_num_sum_by_g_order_by_o\"FROM\"s\".\"t\"oLEFTJOIN\"s\".\"t__op_1\"gONo.\"g\"=g.\"g\"ANDo.\"o\"=g.\"o\"ANDo.\"num\"=g.\"num\"",
-    []
-   ],
-   [
-    "exec",
-    "CREATEORREPLACETABLE\"s\".\"t\"ASSELECT*FROM\"s\".\"t__map_tmp\"",
-    []
-   ],
-   [
-    "exec",
-    "DROPTABLE\"s\".\"t__map_tmp\"",
-    []
-   ],
-   [
-    "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
-    [
-     "d1"
-    ]
-   ],
-   [
-    "exec",
-    "INSERTINTOcache_registry(data_id,opidx,operation_type,class_name,method_name,args,kwargs,generated_table_name,is_deep_cache,schema)VALUES($1,$2,'groupby_cum_map','GroupbyCumulativeOps','map_feature',$3,$4,$5,$6,$7)",
-    [
-     "d1",
-     "1",
-     "",
-     "{\"column\": \"num\", \"group_cols\": [\"g\"], \"new_columns\": [\"cum_num_sum_by_g_order_by_o\"], \"operation\": \"sum\", \"order_cols\": [\"o\"], \"target_col\": \"cum_num_sum_by_g_order_by_o\"}",
-     "t",
-     "False",
-     "s"
-    ]
    ],
    [
     "fetch",
-    "SELECT\"num\",\"g\",\"o\",\"cum_num_sum_by_g_order_by_o\"FROM\"s\".\"t__op_1\"",
+    "SELECT\"num\",\"g\",\"o\",\"cum_num_sum_by_g_order_by_o\"FROM\"s\".\"t\"ORDERBY\"_mf_idx\"",
     []
    ]
   ]
@@ -657,39 +556,35 @@
   ],
   "duckdb": [
    [
-    "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
-    [
-     "d1"
-    ]
+    "exec",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMNIFNOTEXISTS\"run\"DOUBLEPRECISION",
+    []
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_1\"ASSELECT*,AVG(\"num\")OVER(PARTITIONBY\"g1\",\"g2\"ORDERBY\"o\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"run\"FROM\"s\".\"t\"",
+    "UPDATE\"s\".\"t\"AStSET\"run\"=s.\"run\"FROM(SELECT\"_mf_idx\",AVG(\"num\")OVER(PARTITIONBY\"g1\",\"g2\"ORDERBY\"o\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"run\"FROM\"s\".\"t\")ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"g1\",\"g2\",\"o\",\"run\"FROM\"s\".\"t__op_1\"",
+    "SELECT\"num\",\"g1\",\"g2\",\"o\",\"run\"FROM\"s\".\"t\"ORDERBY\"_mf_idx\"",
     []
    ]
   ],
   "postgres": [
    [
-    "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
-    [
-     "d1"
-    ]
+    "exec",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMNIFNOTEXISTS\"run\"DOUBLEPRECISION",
+    []
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_1\"ASSELECT*,AVG(\"num\")OVER(PARTITIONBY\"g1\",\"g2\"ORDERBY\"o\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"run\"FROM\"s\".\"t\"",
+    "UPDATE\"s\".\"t\"AStSET\"run\"=s.\"run\"FROM(SELECT\"_mf_idx\",AVG(\"num\")OVER(PARTITIONBY\"g1\",\"g2\"ORDERBY\"o\"ROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"run\"FROM\"s\".\"t\")ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"g1\",\"g2\",\"o\",\"run\"FROM\"s\".\"t__op_1\"",
+    "SELECT\"num\",\"g1\",\"g2\",\"o\",\"run\"FROM\"s\".\"t\"ORDERBY\"_mf_idx\"",
     []
    ]
   ]
@@ -716,39 +611,35 @@
   ],
   "duckdb": [
    [
-    "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
-    [
-     "d1"
-    ]
+    "exec",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMNIFNOTEXISTS\"cum_num_sum_by_g\"DOUBLEPRECISION",
+    []
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_1\"ASSELECT*,SUM(\"num\")OVER(PARTITIONBY\"g\"ORDERBY_mf_idxROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"cum_num_sum_by_g\"FROM\"s\".\"t\"",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_sum_by_g\"=s.\"cum_num_sum_by_g\"FROM(SELECT\"_mf_idx\",SUM(\"num\")OVER(PARTITIONBY\"g\"ORDERBY_mf_idxROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"cum_num_sum_by_g\"FROM\"s\".\"t\")ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"g\",\"cum_num_sum_by_g\"FROM\"s\".\"t__op_1\"",
+    "SELECT\"num\",\"g\",\"cum_num_sum_by_g\"FROM\"s\".\"t\"ORDERBY\"_mf_idx\"",
     []
    ]
   ],
   "postgres": [
    [
-    "fetchval",
-    "SELECTCOALESCE(MAX(opidx),0)FROMcache_registryWHEREdata_id=$1",
-    [
-     "d1"
-    ]
+    "exec",
+    "ALTERTABLE\"s\".\"t\"ADDCOLUMNIFNOTEXISTS\"cum_num_sum_by_g\"DOUBLEPRECISION",
+    []
    ],
    [
     "exec",
-    "CREATETABLE\"s\".\"t__op_1\"ASSELECT*,SUM(\"num\")OVER(PARTITIONBY\"g\"ORDERBY_mf_idxROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"cum_num_sum_by_g\"FROM\"s\".\"t\"",
+    "UPDATE\"s\".\"t\"AStSET\"cum_num_sum_by_g\"=s.\"cum_num_sum_by_g\"FROM(SELECT\"_mf_idx\",SUM(\"num\")OVER(PARTITIONBY\"g\"ORDERBY_mf_idxROWSBETWEENUNBOUNDEDPRECEDINGANDCURRENTROW)AS\"cum_num_sum_by_g\"FROM\"s\".\"t\")ASsWHEREt.\"_mf_idx\"=s.\"_mf_idx\"",
     []
    ],
    [
     "fetch",
-    "SELECT\"num\",\"g\",\"cum_num_sum_by_g\"FROM\"s\".\"t__op_1\"",
+    "SELECT\"num\",\"g\",\"cum_num_sum_by_g\"FROM\"s\".\"t\"ORDERBY\"_mf_idx\"",
     []
    ]
   ]

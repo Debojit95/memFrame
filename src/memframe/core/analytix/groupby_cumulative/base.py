@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 
 from memframe.core.analytix._fetch import fetch_df as _fetch_df_rows
 from memframe.core.indexing import assert_user_column
-from memframe.core.analytix._generated import markers_table
+from memframe.core.analytix._generated import assert_owned_columns, markers_table
 from memframe.db_manager.adapters.base import DatabaseAdapter
 from memframe.utils.helper import SQLIdentifierSanitizer
 
@@ -69,6 +69,40 @@ class GroupbyCumulativeOps:
         safe_table = SQLIdentifierSanitizer.sanitize(table)
         safe_schema = SQLIdentifierSanitizer.sanitize(schema)
         return f"{self.db.quote_identifier(safe_schema)}.{self.db.quote_identifier(safe_table)}"
+
+    async def _add_col(self, table: str, schema: str, col_name: str, col_type: str):
+        q = self._qualified_table(table, schema)
+        safe = SQLIdentifierSanitizer.sanitize(col_name)
+        await self._exec(f'ALTER TABLE {q} ADD COLUMN IF NOT EXISTS "{safe}" {col_type}')
+
+    async def _merge_features(
+        self, table: str, schema: str, select_sql: str,
+        columns: List[str], column_types: List[str],
+        backend=None, data_id=None,
+    ) -> None:
+        """Add generated columns to the source and backfill them by _mf_idx."""
+        try:
+            existing = set(await self.db.get_column_types(table, schema) or {})
+        except Exception:
+            existing = set()
+        added = [c for c in columns if c not in existing]
+        qualified = self._qualified_table(table, schema)
+        q = self.db.quote_identifier
+        assignments = ", ".join(f"{q(c)} = s.{q(c)}" for c in columns)
+        rid = q("_mf_idx")
+        try:
+            for col, col_type in zip(columns, column_types):
+                await self._add_col(table, schema, col, col_type)
+            await self._exec(
+                f"UPDATE {qualified} AS t SET {assignments} "
+                f"FROM ({select_sql}) AS s WHERE t.{rid} = s.{rid}"
+            )
+        except Exception:
+            for col in added:
+                await self._exec(
+                    f"ALTER TABLE {qualified} DROP COLUMN IF EXISTS {q(col)}"
+                )
+            raise
 
     # ---------- Cache table helpers ----------
     async def _backend_fetch_val(self, backend, sql: str, *args):
@@ -374,40 +408,27 @@ class GroupbyCumulativeOps:
             assert_user_column(tgt)
             tgt_safe = SQLIdentifierSanitizer.sanitize(tgt)
 
-            map_sig = self._map_sig(
-                safe_groups, safe_col, operation_name, safe_orders,
-                tgt_safe, [tgt_safe],
+            collision = await assert_owned_columns(
+                self, table, schema, [tgt_safe], "groupby_cum_map",
+                backend, data_id,
             )
-            if map_feature:
-                collision = await self._check_map_collision(
-                    table, schema, backend, data_id, map_sig, [tgt_safe],
+            if collision:
+                return self._error_response(
+                    f"Cumulative {operation_name} error: {collision}",
+                    group_cols=safe_groups,
                 )
-                if collision:
-                    return self._error_response(
-                        f"Cumulative {operation_name} error: {collision}",
-                        group_cols=safe_groups,
-                    )
 
-            output_table = await self._resolve_output_table_name(
-                table, schema, backend=backend, data_id=data_id, new_table=new_table
-            )
-            output_qualified = self._qualified_table(output_table, schema)
             source_qualified = self._qualified_table(table, schema)
-            src_star = await self._source_star(table, schema, [tgt_safe])
-
-            create_sql = f"""
-            CREATE TABLE {output_qualified} AS
-            SELECT {src_star},
-                {full_window} AS {self.db.quote_identifier(tgt_safe)}
-            FROM {source_qualified}
-            """
-            await self._exec(create_sql)
-
-            if map_feature:
-                await self._apply_map(
-                    table, schema, output_table, [tgt_safe],
-                    backend, data_id, map_sig,
-                )
+            idx_q = self.db.quote_identifier("_mf_idx")
+            feature_sql = (
+                f"SELECT {idx_q}, {full_window} AS "
+                f"{self.db.quote_identifier(tgt_safe)} "
+                f"FROM {source_qualified}"
+            )
+            await self._merge_features(
+                table, schema, feature_sql, [tgt_safe], [target_type],
+                backend=backend, data_id=data_id,
+            )
 
             cols_to_fetch = [safe_col] + safe_groups
             if order_cols:
@@ -416,7 +437,7 @@ class GroupbyCumulativeOps:
             cols_to_fetch = list(dict.fromkeys(cols_to_fetch))
             sql = (
                 f"SELECT {', '.join(self.db.quote_identifier(c) for c in cols_to_fetch)} "
-                f"FROM {output_qualified}"
+                f"FROM {source_qualified} ORDER BY {idx_q}"
             )
             limit = getattr(self.db, "preview_rows", None)
             if limit:
@@ -434,12 +455,16 @@ class GroupbyCumulativeOps:
             return self._success_response(
                 message,
                 result=sample,
-                new_table=output_table,
+                new_table=table,
                 new_columns=[tgt_safe],
                 group_cols=safe_groups,
                 operation=operation_name,
-                mapped_table=table if map_feature else None,
-                mapped_columns=[tgt_safe] if map_feature else [],
+                mapped_table=table,
+                mapped_columns=[tgt_safe],
+                source_updated=True,
+                cache_kind="ref",
+                ref_schema=schema,
+                ref_table=table,
             )
 
         except Exception as e:

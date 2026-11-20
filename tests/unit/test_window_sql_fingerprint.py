@@ -64,7 +64,11 @@ class _Recording:
         self._record("insert_rows", table_name, list(columns))
 
     async def get_column_types(self, table, schema=None):
-        return {}
+        class _Types(dict):
+            def get(self, key, default=None):
+                return super().get(key, "DOUBLE PRECISION")
+
+        return _Types({"id": "BIGINT", "_mf_idx": "BIGINT"})
 
     async def get_table_info(self, table, schema=None):
         return {}
@@ -88,8 +92,9 @@ class _ClickHousePersona(_Recording, ClickHouseAdapter):
 class _FakeBackend:
     """Minimal stand-in for DatabaseBackend (registry lookup + placeholders)."""
 
-    def __init__(self, rec):
+    def __init__(self, rec, backend_name=None):
         self._rec = rec
+        self.backend = backend_name
 
     @property
     def cache_registry_table(self):
@@ -233,7 +238,7 @@ def _capture():
             for backend_name, (ops_cls, persona_cls) in BACKENDS.items():
                 rec = persona_cls()
                 ops = ops_cls(rec)
-                asyncio.run(scenario(ops, _FakeBackend(rec)))
+                asyncio.run(scenario(ops, _FakeBackend(rec, backend_name)))
                 snapshot[name][backend_name] = rec.calls
         return snapshot
     finally:
@@ -274,7 +279,7 @@ def test_generic_rolling_is_narrow_single_pass():
     asyncio.run(
         ops._rolling_agg(
             "t", "s", "num", order_by="g", window=3, agg=["SUM", "AVG"],
-            backend=_FakeBackend(rec), data_id=DATA_ID,
+            backend=_FakeBackend(rec, "duckdb"), data_id=DATA_ID,
         )
     )
     execs = ["".join(sql.split()) for kind, sql, _ in rec.calls if kind == "exec"]
@@ -291,7 +296,7 @@ def test_ewm_is_blockwise_sql():
     asyncio.run(
         ops.ewm(
             "t", "s", "num", order_by="g", span=2, agg=["mean", "std"],
-            backend=_FakeBackend(rec), data_id=DATA_ID,
+            backend=_FakeBackend(rec, "duckdb"), data_id=DATA_ID,
         )
     )
     execs = ["".join(sql.split()) for kind, sql, _ in rec.calls if kind == "exec"]

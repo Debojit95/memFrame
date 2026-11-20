@@ -52,3 +52,29 @@ def test_postgres_swap_updates_source_in_place():
     ) in joined
     assert 's."_mf_idx" = w."_mf_idx"' in joined
     assert 'DROP TABLE "memframe_upload"."abc__base__wide"' in joined
+
+
+class _FakeDuckDBBackend:
+    backend = Backend.DUCKDB
+
+
+def test_duckdb_swap_updates_source_in_place():
+    db = _FakeDb()
+    asyncio.run(swap_table_into_source(
+        db,
+        _FakeDuckDBBackend(),
+        "memframe_upload",
+        "abc__base",
+        "abc__base__wide",
+        generated=["w_mean"],
+    ))
+    joined = " ".join(db.sql)
+
+    assert "CREATE OR REPLACE TABLE" not in joined
+    assert 'ADD COLUMN IF NOT EXISTS "w_mean" double precision' in joined
+    assert (
+        'UPDATE "memframe_upload"."abc__base" AS s '
+        'SET "w_mean" = w."w_mean"'
+    ) in joined
+    assert 's."_mf_idx" = w."_mf_idx"' in joined
+    assert 'DROP TABLE "memframe_upload"."abc__base__wide"' in joined
