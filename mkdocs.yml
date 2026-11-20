@@ -69,6 +69,7 @@ nav:
           - Upload Manager: api/upload-manager.md
           - Sync Existing Tables: api/syncdb.md
           - Dataset Operations: api/database.md
+      - Example Data: api/example-data.md
       - memFrame:
           - Overview: api/memframe.md
           - Inspect: api/inspect.md
