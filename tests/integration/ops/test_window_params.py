@@ -7,6 +7,7 @@ if __name__ == "__main__":
     direct(__file__)
 
 
+import datetime
 import itertools
 
 import numpy as np
@@ -321,6 +322,7 @@ def test_win_type_rejections(connected_memframe, backend_config):
         ({"func": "std", "win_type": "hann"}, "win_type"),
         ({"func": "var", "win_type": "hann"}, "win_type"),
         ({"func": "mean", "win_type": "gaussian"}, "win_type"),
+        ({"func": "mean", "win_type": "kaiser"}, "win_type"),
         ({"func": "mean", "win_type": "hann", "center": True}, "win_type"),
         ({"func": "mean", "win_type": "hann", "closed": "left"}, "win_type"),
         ({"func": "mean", "win_type": "hann", "window": "3D"}, "time-based"),
@@ -617,3 +619,109 @@ def test_column_names_and_dtypes(connected_memframe, backend_config):
     )
     got = h.result_of(response)
     assert pd.api.types.is_datetime64_any_dtype(got[h.column_of(response)])
+
+def test_window_timedelta_equivalence(connected_memframe, backend_config):
+    frame = h.numeric_df()
+    results = {}
+    for label, window in (
+        ("str", "3D"),
+        ("pd", pd.Timedelta("3D")),
+        ("dt", datetime.timedelta(days=3)),
+    ):
+        wrapper = _wrapper(connected_memframe, frame, "td")
+        response = wrapper.rolling(
+            column="x", window=window, func="mean", order_by="t"
+        )
+        got = h.result_of(response, by="t")
+        results[label] = got[h.column_of(response)]
+    h.assert_values(results["pd"], results["str"])
+    h.assert_values(results["dt"], results["str"])
+
+
+def test_fixed_offset_alias_matrix(connected_memframe, backend_config):
+    frame = h.numeric_df()
+    for window in (
+        "1s", "30s", "1min", "30min", "1h", "36h",
+        "1D", "3D", "1h30min", "1.5h",
+    ):
+        wrapper = _wrapper(connected_memframe, frame, "oa")
+        response = wrapper.rolling(
+            column="x", window=window, func="mean", order_by="t"
+        )
+        got = h.result_of(response, by="t")
+        expected = h.pandas_time_oracle(frame, "x", window, "mean")
+        h.assert_values(got[h.column_of(response)], expected)
+
+
+def test_non_fixed_offsets_rejected(connected_memframe, backend_config):
+    frame = h.numeric_df()
+    for window in ("B", "ME", "M", "Q", "Y", "W"):
+        wrapper = _wrapper(connected_memframe, frame, "oaerr")
+        response = wrapper.rolling(
+            column="x", window=window, func="mean", order_by="t"
+        )
+        assert response["is_error"] is True
+        assert "invalid window" in h.error_text(response)
+
+
+def test_min_periods_defaults_and_validation(connected_memframe, backend_config):
+    frame = h.numeric_df()
+    wrapper = _wrapper(connected_memframe, frame, "mpd")
+
+    row = wrapper.rolling(column="x", window=3, func="mean", order_by="o")
+    row_got = h.result_of(row)
+    row_expected = h.pandas_row(frame, 3, "mean", min_periods=3)
+    h.assert_values(row_got[h.column_of(row)], row_expected)
+
+    timed = wrapper.rolling(column="x", window="3D", func="mean", order_by="t")
+    timed_got = h.result_of(timed, by="t")
+    timed_expected = h.pandas_time_oracle(
+        frame, "x", "3D", "mean", min_periods=1
+    )
+    h.assert_values(timed_got[h.column_of(timed)], timed_expected)
+
+    for bad in (-1, 2.5, True):
+        response = wrapper.rolling(
+            column="x", window=3, func="mean", order_by="o",
+            min_periods=bad,
+        )
+        assert "min_periods" in h.error_text(response)
+
+
+def test_step_and_method_unsupported(connected_memframe, backend_config):
+    wrapper = _wrapper(connected_memframe, h.numeric_df(), "sm")
+    with pytest.raises(TypeError):
+        wrapper.rolling(
+            column="x", window=3, func="mean", order_by="o", step=2
+        )
+    with pytest.raises(TypeError):
+        wrapper.rolling(
+            column="x", window=3, func="mean", order_by="o", method="table"
+        )
+
+
+def test_baseindexer_unsupported(connected_memframe, backend_config):
+    from pandas.api.indexers import FixedForwardWindowIndexer
+
+    wrapper = _wrapper(connected_memframe, h.numeric_df(), "bi")
+    response = wrapper.rolling(
+        column="x", window=FixedForwardWindowIndexer(window_size=3),
+        func="mean", order_by="o",
+    )
+    assert response["is_error"] is True
+    assert "window must be" in h.error_text(response)
+
+
+def test_order_by_ties_follow_upload_order(connected_memframe, backend_config):
+    frame = pd.DataFrame({
+        "x": [10.0, 20.0, 30.0],
+        "o": [1, 1, 2],
+        "t": pd.to_datetime(["2024-01-01", "2024-01-01", "2024-01-02"]),
+    })
+    wrapper = _wrapper(connected_memframe, frame, "tie")
+    response = wrapper.rolling(
+        column="x", window=2, func="mean", order_by="o", min_periods=1
+    )
+    got = h.result_of(response, by="o")
+    expected = h.pandas_row(frame, 2, "mean", min_periods=1, by="o")
+    h.assert_values(got[h.column_of(response)], expected)

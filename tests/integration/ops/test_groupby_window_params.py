@@ -8,6 +8,7 @@ if __name__ == "__main__":
 
 
 import asyncio
+import datetime
 import itertools
 
 import numpy as np
@@ -408,3 +409,99 @@ def test_grouped_multikey_and_no_order(connected_memframe, backend_config):
         expected["__e"].to_numpy(),
     )
 
+WIN_TYPES = (
+    "boxcar", "triang", "bartlett", "parzen", "bohman", "blackman",
+    "blackmanharris", "barthann", "nuttall", "hann", "hamming", "cosine",
+)
+
+
+def test_grouped_window_timedelta_and_offsets(connected_memframe, backend_config):
+    frame = h.grouped_df()
+    for window, oracle_window in (
+        (pd.Timedelta("2D"), "2D"),
+        (datetime.timedelta(days=2), "2D"),
+        ("36h", "36h"),
+    ):
+        wrapper = _wrapper(connected_memframe, frame, "gtd")
+        response = _roll(
+            wrapper, column="x", window=window, func="mean",
+            group_cols="g", order_by="t",
+        )
+        got = (
+            response["result"]
+            .sort_values(["g", "t"], kind="mergesort")
+            .reset_index(drop=True)
+        )
+        expected = h.pandas_grouped_time(
+            frame, "x", oracle_window, "mean"
+        )
+        h.assert_values(got[h.column_of(response)], expected)
+
+
+def test_grouped_non_fixed_offsets_rejected(connected_memframe, backend_config):
+    frame = h.grouped_df()
+    for window in ("B", "ME", "M", "Q", "Y", "W"):
+        wrapper = _wrapper(connected_memframe, frame, "goaerr")
+        response = _roll(
+            wrapper, column="x", window=window, func="mean",
+            group_cols="g", order_by="t",
+        )
+        assert response["is_error"] is True
+        assert "invalid window" in h.error_text(response)
+
+
+def test_grouped_win_type_sweep(connected_memframe, backend_config):
+    frame = h.grouped_df()
+    for win_type in WIN_TYPES:
+        wrapper = _wrapper(connected_memframe, frame, "gwt")
+        for func in ("sum", "mean"):
+            response = _roll(
+                wrapper, column="x", window=4, func=func,
+                group_cols="g", order_by="o", min_periods=1,
+                win_type=win_type,
+            )
+            got = (
+                response["result"]
+                .sort_values(["g", "o"], kind="mergesort")
+                .reset_index(drop=True)
+            )
+            expected = h.pandas_grouped_roll(
+                frame, "x", func, window=4, min_periods=1,
+                win_type=win_type,
+            )
+            h.assert_values(got[h.column_of(response)], expected, atol=1e-9)
+
+
+def test_grouped_win_type_rejections(connected_memframe, backend_config):
+    frame = h.grouped_df()
+    for win_type in ("gaussian", "kaiser"):
+        wrapper = _wrapper(connected_memframe, frame, "gwterr")
+        response = _roll(
+            wrapper, column="x", window=4, func="mean",
+            group_cols="g", order_by="o", win_type=win_type,
+        )
+        assert "win_type" in h.error_text(response)
+
+
+def test_grouped_min_periods_time_default(connected_memframe, backend_config):
+    frame = h.grouped_df()
+    wrapper = _wrapper(connected_memframe, frame, "gmpd")
+    response = _roll(
+        wrapper, column="x", window="3D", func="mean",
+        group_cols="g", order_by="t",
+    )
+    got = (
+        response["result"]
+        .sort_values(["g", "t"], kind="mergesort")
+        .reset_index(drop=True)
+    )
+    expected = h.pandas_grouped_time(frame, "x", "3D", "mean")
+    h.assert_values(got[h.column_of(response)], expected)
+
+
+def test_grouped_step_and_method_unsupported(connected_memframe, backend_config):
+    wrapper = _wrapper(connected_memframe, h.grouped_df(), "gsm")
+    with pytest.raises(TypeError):
+        wrapper.rolling(3, order_by="o", step=2)
+    with pytest.raises(TypeError):
+        wrapper.rolling(3, order_by="o", method="table")
