@@ -7,6 +7,13 @@ to [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Fixed
+- **Group-by cumulative cold path**: `ctx.groupby(...).cum*()` now adds the
+  generated column and backfills it in place by `_mf_idx` instead of
+  materializing a full wide result table and replacing the source. DuckDB
+  source write-back uses the same `ALTER TABLE` + `UPDATE ... FROM` path as
+  PostgreSQL. This removes two full-table copies and makes the cache entry a
+  source ref, substantially reducing cold time and peak RAM on large
+  datasets (including 50M-row Colab/DuckDB runs).
 - **ClickHouse `rank`**: strict `<`/`>` comparisons against the outer row are
   written as `<=`/`>=` minus `=`, so rank methods, ties, `ascending`, and
   `pct` return the same values as the other backends (CH mis-plans the

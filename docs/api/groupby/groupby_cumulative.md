@@ -185,26 +185,28 @@ result = ctx.groupby("region").cumvar("score", order_col="date")
 ## Source Write-Back
 
 Every cumulative call writes its running-value column back to the source
-table by replacing the source with the row-aligned result, then creates the
-narrow `involved + generated` result table that `@record_call` stores.
+table in place (DuckDB/PostgreSQL) or by atomically exchanging the computed
+result (ClickHouse). The deep cache stores a source ref, not a copy.
 
 ```python
 result = ctx.groupby("region").cumsum("sales")
 # source now has: region, sales, cum_sales_sum_by_region
-# result["new_table"] has: sales, region, cum_sales_sum_by_region
+# result["new_table"] is the source (ref target)
 ```
 
 Rules:
 
+- DuckDB/PostgreSQL add the generated column and backfill it with one
+  `UPDATE ... FROM` over a narrow `(_mf_idx, <window>)` query. No wide result
+  table and no source replacement are created.
+- ClickHouse computes the running column in a single CTAS and swaps the
+  result into the source with `EXCHANGE TABLES`.
 - A repeated identical call reuses the same generated column; the source
-  keeps exactly one copy. This also holds with `deep_cache=False`, which
-  recomputes but drops only the narrow table.
+  keeps exactly one copy. `deep_cache=False` recomputes but writes no ref row.
 - The `map_feature` parameter is retained for compatibility but ignored:
   write-back is always on.
 - If the column name already exists from anything else, the call fails and
   the source is left unchanged — drop or rename it first.
-- Backend swaps keep the original table name: DuckDB `CREATE OR REPLACE`,
-  PostgreSQL create-swap-rename, ClickHouse atomic `EXCHANGE TABLES`.
 
 ## Return Values and Errors
 
@@ -230,16 +232,16 @@ column, a missing `backend`/`data_id`, or an unsupported backend.
 ## Generated Tables
 
 Every group-by cumulative operation writes its result column to the source
-upload table, then creates a separate narrow result table holding only the
-involved and generated columns. The deep cache stores that narrow table:
+upload table; the deep cache stores a source ref.
 
-- **PostgreSQL / DuckDB:** `CREATE TABLE … AS SELECT *,
-  <window> AS <target> FROM …` with `PARTITION BY` + physical-row
-  fallback ordering.
-- **ClickHouse:** the same single-pass shape with `ENGINE = MergeTree()
-  ORDER BY tuple()`; without `order_col` the source is wrapped in a
-  `ROW_NUMBER()` subquery whose helper column is excluded from the
-  output.
+- **PostgreSQL / DuckDB:** `ALTER TABLE … ADD COLUMN` plus one
+  `UPDATE … FROM (SELECT _mf_idx, <window> AS <target> FROM source)` keyed by
+  `_mf_idx`, with `PARTITION BY` + physical-row fallback ordering. The source
+  is never cloned or swapped.
+- **ClickHouse:** a single-pass CTAS with `ENGINE = MergeTree()
+  ORDER BY tuple()` computes the column, then `EXCHANGE TABLES` swaps it into
+  the source; without `order_col` the source is wrapped in a `ROW_NUMBER()`
+  subquery whose helper column is excluded from the output.
 
 Operations apply `@record_call`, so repeat calls are recorded in the
 cache registry.
@@ -262,6 +264,36 @@ Group-by cumulative methods surface `is_error` envelopes (or raise
 - Missing or renamed `column` / `order_col` / group column.
 - `cumprod` on a column containing negatives fails the whole operation.
 - Missing `backend` / `data_id` at the ops layer, or an unsupported backend.
+
+## Large datasets
+
+For 10M+ rows:
+
+- Use a file-backed DuckDB (`db_path="memframe.duckdb"`), not `:memory:`.
+- Pass `temp_directory` and `memory_limit` so DuckDB can spill instead of
+  exhausting Colab RAM:
+
+```python
+mf = MemFrame(
+    connection_type="local",
+    connection_params={
+        "db_path": "memframe.duckdb",
+        "temp_directory": "/content/duckdb_tmp",
+        "memory_limit": "8GB",
+    },
+    preview_rows=1000,
+)
+```
+
+- `preview_rows` caps the returned DataFrame. The generated column still
+  covers every source row; the source (and cache ref) holds the full result.
+- Group-by cumulative and grouped-window operations update the source in
+  place and cache a source ref, so no wide result copy is materialized.
+- Benchmark the cold path with:
+
+```bash
+uv run python scripts/bench_groupby_memory.py --op cumsum --rows 5000000 --preview-rows 10
+```
 
 ## API Reference
 

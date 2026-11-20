@@ -137,3 +137,34 @@ result = ctx.groupby("region").rolling(
 - Time windows use the same datetime `order_by` rule per group.
 - The generated column is joined back by `_mf_idx`, so the result stays in
   upload order. Sort the result yourself for display.
+
+## Large datasets
+
+For 10M+ rows:
+
+- Use a file-backed DuckDB (`db_path="memframe.duckdb"`), not `:memory:`.
+- Pass `temp_directory` and `memory_limit` so DuckDB can spill instead of
+  exhausting Colab RAM:
+
+```python
+mf = MemFrame(
+    connection_type="local",
+    connection_params={
+        "db_path": "memframe.duckdb",
+        "temp_directory": "/content/duckdb_tmp",
+        "memory_limit": "8GB",
+    },
+    preview_rows=1000,
+)
+```
+
+- `preview_rows` caps the returned DataFrame. The generated column still
+  covers every source row; the source (and cache ref) holds the full result.
+- Ungrouped window, group-by cumulative, and grouped-window operations update the source in
+  place and cache a source ref, so no wide result copy is materialized.
+- Benchmark the cold path with:
+
+```bash
+uv run python scripts/bench_groupby_memory.py --op cumsum --rows 5000000 --preview-rows 10
+```
+
