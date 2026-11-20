@@ -1,5 +1,10 @@
 # Merge
 
+> **Example data:** merge examples define their own `left`/`right` frames in
+> the Usage Overview; the rest of the API docs use the shared
+> [Example Data](example-data.md) `ctx`.
+
+
 Source: `src/memframe/wrappers/analytix/merging.py`
 
 `MergeWrapper` (Merge — formerly Merging) is the public merging interface exposed through a `ContextManager`.
@@ -58,7 +63,36 @@ merged = left(right, on="id")           # __call__ shorthand
 
 ## Usage Overview
 
+Merge examples use two small local frames (not the shared `ctx`).
+
+`left`:
+
+| `id` | `region` | `sales` |
+| --- | --- | --- |
+| `1` | `North` | `10.0` |
+| `2` | `South` | `20.0` |
+| `3` | `North` | `30.0` |
+
+`right`:
+
+| `id` | `customer_id` | `category` | `score` |
+| --- | --- | --- | --- |
+| `1` | `101` | `A` | `88.5` |
+| `2` | `102` | `B` | `92.0` |
+| `4` | `104` | `C` | `75.0` |
+
 ```python
+left_frame = pd.DataFrame({
+    "id": [1, 2, 3],
+    "region": ["North", "South", "North"],
+    "sales": [10.0, 20.0, 30.0],
+})
+right_frame = pd.DataFrame({
+    "id": [1, 2, 4],
+    "customer_id": [101, 102, 104],
+    "category": ["A", "B", "C"],
+    "score": [88.5, 92.0, 75.0],
+})
 left = mf.DataFrame(left_frame, filename="left")
 right = mf.DataFrame(right_frame, filename="right")
 
@@ -79,7 +113,7 @@ only_right = left.merge(right, how="right_anti", on="id")
 joined = left.join(right, on="id")
 joined = left.join(right, on="id", lsuffix="_l", rsuffix="_r")
 
-# Concat two or more datasets (the active dataset is always first)
+# Concat two or more datasets (the active ctx is always first)
 stacked = left.concat([right], axis=0, join="outer")
 side_by_side = left.concat([right], axis=1, join="outer")
 ```
@@ -174,7 +208,7 @@ response unwrapping in `src/memframe/core/analytix/_response.py` leaves them as
 raw dictionaries instead of raising `OperationError`. Concretely:
 
 ```python
-# Success: a live dataset context on the merged table
+# Success: a live ctx context on the merged table
 merged = left.merge(right, on="id")
 merged.head()
 chained = merged.merge(other, left_on="id_x", right_on="id")

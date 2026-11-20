@@ -1,5 +1,7 @@
 # Sorting
 
+> **Example data:** copy the setup cell from [Example Data](example-data.md) into Colab once, then run the examples below. Examples use that `ctx`; local frames are shown inline.
+
 Source: `src/memframe/wrappers/analytix/sorting.py`
 
 `SortingWrapper` is the public sorting interface exposed through a
@@ -18,15 +20,15 @@ Users normally call sorting directly on a dataset context returned by an upload
 operation:
 
 ```python
-dataset = mf.DataFrame(frame)
-result = dataset.sort_values(by="score")
+# ctx is defined in the Example Data setup
+result = ctx.sort_values(by="score")
 ```
 
 The same method is available asynchronously:
 
 ```python
-dataset = await mf.aDataFrame(frame)
-result = await dataset.asort_values(by="score", ascending=False)
+# ctx is defined in the Example Data setup
+result = await ctx.asort_values(by="score", ascending=False)
 ```
 
 The lower-level files are implementation details:
@@ -53,20 +55,20 @@ to a new sorted dataset. Invalid operations raise `OperationError`.
 ## Usage Overview
 
 ```python
-dataset = mf.DataFrame(frame)
+# ctx is defined in the Example Data setup
 
-sample = dataset.sort_values(by="score")
-sample = dataset.sort_values(by=["region", "score"], ascending=[True, False])
-nulls_first = dataset.sort_values(by="score", na_position="first")
-subset = dataset.sort_values(by="score", columns=["name", "score"])
-sorted_dataset = dataset.sort_values(by="score", return_ctx=True)
+sample = ctx.sort_values(by="score")
+sample = ctx.sort_values(by=["region", "score"], ascending=[True, False])
+nulls_first = ctx.sort_values(by="score", na_position="first")
+subset = ctx.sort_values(by="score", columns=["region", "score"])
+sorted_dataset = ctx.sort_values(by="score", return_ctx=True)
 ```
 
 ```python
-dataset = await mf.aDataFrame(frame)
+# ctx is defined in the Example Data setup
 
-sample = await dataset.asort_values(by="score", ascending=False)
-iterator = await dataset.asort_values(by="score", chunk_size=1000)
+sample = await ctx.asort_values(by="score", ascending=False)
+iterator = await ctx.asort_values(by="score", chunk_size=1000)
 async for chunk in iterator:
     process(chunk)
 ```
@@ -113,17 +115,17 @@ When `chunk_size` is set, the result contains `iterator` (an `async_generator` o
 `DataFrame` chunks) and `chunk_size`, with `result=None`. Iterate it:
 
 ```python
-result = dataset.sort_values(by="score", chunk_size=1000)
+result = ctx.sort_values(by="score", chunk_size=1000)
 # result["iterator"] is async iterable; result["result"] is None
 async for chunk in result["iterator"]:
     sink(chunk)
 ```
 
-Or via the public `ContextManager` path (`await dataset.asort_values(...)`
+Or via the public `ContextManager` path (`await ctx.asort_values(...)`
 unwraps `result` vs `iterator` automatically `src/memframe/core/analytix/_response.py:49`):
 
 ```python
-iterator = await dataset.asort_values(by="score", chunk_size=1000)
+iterator = await ctx.asort_values(by="score", chunk_size=1000)
 async for chunk in iterator:
     print(chunk.head())
 ```

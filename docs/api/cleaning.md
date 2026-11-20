@@ -1,5 +1,7 @@
 # Clean
 
+> **Example data:** copy the setup cell from [Example Data](example-data.md) into Colab once, then run the examples below. Examples use that `ctx`; local frames are shown inline.
+
 Source: `src/memframe/wrappers/analytix/cleaning.py`
 
 `CleaningWrapper` (Clean — formerly Cleaning) is the public cleaning interface exposed through a
@@ -11,11 +13,11 @@ Users normally call cleaning methods directly on a dataset context returned by
 an upload operation:
 
 ```python
-dataset = mf.DataFrame(frame)
-result = dataset.fillna(column="salary", method="mean")
+# ctx is defined in the Example Data setup
+result = ctx.fillna(column="score", method="mean")
 ```
 
-The same methods are also available from `dataset.clean`.
+The same methods are also available from `ctx.clean`.
 
 The lower-level files are implementation details:
 
@@ -55,17 +57,17 @@ dictionary, mask, or `None`. Invalid operations raise `OperationError`.
 ## Usage Overview
 
 ```python
-dataset = mf.upload_csv("data/employees.csv")
+# ctx is defined in the Example Data setup
 
-cleaned_sample = dataset.fillna(column="salary", method="mean")
+cleaned_sample = ctx.fillna(column="score", method="mean")
 ```
 
 ```python
-dataset = await mf.aupload_csv("data/employees.csv")
+# ctx is defined in the Example Data setup
 
-cleaned_sample = await dataset.afilter_valid(
-    column="department",
-    valid_values=["Sales", "Engineering", "Finance"],
+cleaned_sample = await ctx.afilter_valid(
+    column="region",
+    valid_values=["North", "South"],
 )
 ```
 
@@ -83,17 +85,17 @@ operation to the matching core implementation. Pass `dtype` to override
 detection.
 
 ```python
-result = dataset.fillna(
-    column="salary",
+result = ctx.fillna(
+    column="score",
     method="mean",
 )
 ```
 
 ```python
-result = await dataset.afillna(
-    column="department",
+result = await ctx.afillna(
+    column="notes",
     method="constant",
-    value="Unknown",
+    value="unknown",
     dtype="categorical",
 )
 ```
@@ -130,12 +132,12 @@ trailing, `backward` fills leading, `both` fills both; leading NaNs stay NaN
 under the default `forward`).
 
 ```python
-result = dataset.interpolate(column="temp")
+result = ctx.interpolate(column="score")
 ```
 
 ```python
-result = await dataset.ainterpolate(
-    column="temp",
+result = await ctx.ainterpolate(
+    column="score",
     limit=1,
     limit_direction="both",
     limit_area="inside",
@@ -159,7 +161,7 @@ pandas upcasts the same way). Non-numeric columns fail; pass
 `dtype="numeric"` only to override a misdetected numeric column.
 
 ```python
-result = dataset.interpolate(column="temp", order_by="ts")
+result = ctx.interpolate(column="score", order_by="date")
 ```
 
 `order_by` accepts one column or a list. Duplicate order keys make ties
@@ -175,12 +177,12 @@ writes `NULL`); `regex=True` matches patterns on text columns instead of exact
 equality.
 
 ```python
-result = dataset.replace(column="status", to_replace={"a": "b", "y": "z"})
+result = ctx.replace(column="region", to_replace={"North": "N", "South": "S"})
 ```
 
 ```python
-result = await dataset.areplace(to_replace=r"^ba.$", value="new", regex=True)
-result = await dataset.areplace(to_replace={"A": {0: 100, 4: 400}})
+result = await ctx.areplace(to_replace=r"^ba.$", value="new", regex=True)
+result = await ctx.areplace(to_replace={"A": {0: 100, 4: 400}})
 ```
 
 Parameters:
@@ -205,12 +207,12 @@ columns, mirroring pandas; naming a non-text column explicitly fails.
 `dropna` drops rows or columns based on missing values.
 
 ```python
-rows = dataset.dropna(axis=0, how="any")
-columns = dataset.dropna(axis=1, thresh=0.1)
+rows = ctx.dropna(axis=0, how="any")
+columns = ctx.dropna(axis=1, thresh=0.1)
 ```
 
 ```python
-rows = await dataset.adropna(axis=0, how="all")
+rows = await ctx.adropna(axis=0, how="all")
 ```
 
 Parameters:
@@ -228,13 +230,13 @@ When `thresh` is provided, `how` is ignored.
 `isna` and `notna` return boolean masks as generated tables.
 
 ```python
-null_mask = dataset.isna()
-valid_mask = dataset.notna()
+null_mask = ctx.isna()
+valid_mask = ctx.notna()
 ```
 
 ```python
-null_mask = await dataset.aisna()
-valid_mask = await dataset.anotna()
+null_mask = await ctx.aisna()
+valid_mask = await ctx.anotna()
 ```
 
 ## Numeric Cleaning
@@ -246,11 +248,11 @@ upper bounds become `NULL`. This is range enforcement, not pandas-style
 clamping to the boundary value.
 
 ```python
-result = dataset.clip(column="salary", lower=0, upper=250000)
+result = ctx.clip(column="salary", lower=0, upper=250000)
 ```
 
 ```python
-result = await dataset.aclip(column="score", lower=0, upper=100)
+result = await ctx.aclip(column="score", lower=0, upper=100)
 ```
 
 Parameters:
@@ -267,11 +269,11 @@ Parameters:
 greater than `z_thresh` become `NULL`.
 
 ```python
-result = dataset.drop_outliers(column="salary", z_thresh=3.0)
+result = ctx.drop_outliers(column="salary", z_thresh=3.0)
 ```
 
 ```python
-result = await dataset.adrop_outliers(column="amount", z_thresh=2.5)
+result = await ctx.adrop_outliers(column="sales", z_thresh=2.5)
 ```
 
 ### `to_numeric`
@@ -281,12 +283,24 @@ stripping non-numeric characters from its values. The target column type
 (integer, float, or decimal) is auto-detected from a sample of the cleaned
 values. Invalid or empty numeric tokens become `NULL`.
 
+This example uses a small text column:
+
+| `amount_raw` |
+| --- |
+| `"1200"` |
+| `"2500"` |
+| `"3000"` |
+
 ```python
-result = dataset.to_numeric(column="price_text")
+raw = pd.DataFrame({"amount_raw": ["1200", "2500", "3000"]})
+raw_ctx = mf.DataFrame(
+    raw, filename="raw", dtypes={"amount_raw": "VARCHAR"},
+)
+result = raw_ctx.to_numeric(column="amount_raw")
 ```
 
 ```python
-result = await dataset.ato_numeric(column="amount_raw")
+result = await raw_ctx.ato_numeric(column="amount_raw")
 ```
 
 ## Categorical Cleaning
@@ -297,16 +311,16 @@ result = await dataset.ato_numeric(column="amount_raw")
 dictionary. Unmapped values keep their original value.
 
 ```python
-result = dataset.map_values(
-    column="status",
-    mapping={"Y": "yes", "N": "no"},
+result = ctx.map_values(
+    column="region",
+    mapping={"North": "N", "South": "S"},
 )
 ```
 
 ```python
-result = await dataset.amap_values(
-    column="segment",
-    mapping={"SMB": "small_business"},
+result = await ctx.amap_values(
+    column="category",
+    mapping={"A": "Alpha", "B": "Beta"},
 )
 ```
 
@@ -316,16 +330,16 @@ result = await dataset.amap_values(
 non-null values to `NULL`.
 
 ```python
-result = dataset.filter_valid(
-    column="department",
-    valid_values=["Sales", "Engineering", "Finance"],
+result = ctx.filter_valid(
+    column="region",
+    valid_values=["North", "South"],
 )
 ```
 
 ```python
-result = await dataset.afilter_valid(
-    column="state",
-    valid_values=["CA", "NY", "TX"],
+result = await ctx.afilter_valid(
+    column="region",
+    valid_values=["North"],
 )
 ```
 
@@ -337,15 +351,15 @@ result = await dataset.afilter_valid(
 with `other_label`.
 
 ```python
-result = dataset.compress_rare(
-    column="city",
-    min_count=10,
+result = ctx.compress_rare(
+    column="region",
+    min_count=3,
     other_label="other",
 )
 ```
 
 ```python
-result = await dataset.acompress_rare(
+result = await ctx.acompress_rare(
     column="category",
     min_count=5,
     other_label="rare",
@@ -360,11 +374,11 @@ result = await dataset.acompress_rare(
 the cleaned value to `NULL`.
 
 ```python
-result = dataset.fix_dates(column="signup_date")
+result = ctx.fix_dates(column="date")
 ```
 
 ```python
-result = await dataset.afix_dates(column="event_date")
+result = await ctx.afix_dates(column="event_time")
 ```
 
 ### `clip_dates`
@@ -373,15 +387,15 @@ result = await dataset.afix_dates(column="event_date")
 range become `NULL`.
 
 ```python
-result = dataset.clip_dates(
-    column="signup_date",
+result = ctx.clip_dates(
+    column="date",
     min_dt="2020-01-01",
     max_dt="2025-12-31",
 )
 ```
 
 ```python
-result = await dataset.aclip_dates(column="event_date", min_dt="2023-01-01")
+result = await ctx.aclip_dates(column="event_time", min_dt="2023-01-01")
 ```
 
 Parameters:
@@ -402,12 +416,12 @@ If both bounds are omitted, the core operation defaults to `1900-01-01` through
 `drop` removes rows or columns and materializes the result as a generated table.
 
 ```python
-rows_removed = dataset.drop(axis=0, index=[0, 3, 5])
-cols_removed = dataset.drop(axis=1, columns=["notes", "raw_value"])
+rows_removed = ctx.drop(axis=0, index=[0, 3, 5])
+cols_removed = ctx.drop(axis=1, columns=["notes", "score"])
 ```
 
 ```python
-result = await dataset.adrop(axis=1, columns=["temporary_column"])
+result = await ctx.adrop(axis=1, columns=["notes"])
 ```
 
 Parameters:
@@ -423,12 +437,12 @@ Parameters:
 `drop_duplicates` removes duplicate rows using SQL window functions.
 
 ```python
-result = dataset.drop_duplicates(subset=["email"], keep="first")
+result = ctx.drop_duplicates(subset=["email"], keep="first")
 ```
 
 ```python
-result = await dataset.adrop_duplicates(
-    subset=["customer_id", "event_time"],
+result = await ctx.adrop_duplicates(
+    subset=["id", "event_time"],
     keep=False,
 )
 ```
@@ -448,11 +462,11 @@ a `duplicated` boolean column. `NULL`s group together (pandas' `NaN == NaN`
 rule) on all backends, and first/last follow physical row order.
 
 ```python
-result = dataset.duplicated(subset=["email"], keep=False)
+result = ctx.duplicated(subset=["email"], keep=False)
 ```
 
 ```python
-result = await dataset.aduplicated(keep="last")
+result = await ctx.aduplicated(keep="last")
 ```
 
 Parameters:

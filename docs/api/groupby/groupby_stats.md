@@ -1,5 +1,7 @@
 # GroupBy Stats
 
+> **Example data:** copy the setup cell from [Example Data](../example-data.md) into Colab once, then run the examples below. Examples use that `ctx`; local frames are shown inline.
+
 Source: `src/memframe/wrappers/analytix/groupby_stats.py`
 
 `GroupByStatsWrapper` is the public group-by aggregation interface exposed
@@ -13,25 +15,25 @@ mutated in place.
 Users normally call group-by methods directly on a dataset context returned
 by an upload operation. There are two equivalent entry points:
 
-- a direct call — `dataset.agg(group_cols, agg_dict)` — with the grouping
+- a direct call — `ctx.agg(group_cols, agg_dict)` — with the grouping
   columns passed as an argument;
-- a pandas-style fluent builder — `dataset.groupby("region").sum("sales")`.
+- a pandas-style fluent builder — `ctx.groupby("region").sum("sales")`.
 
 ```python
-dataset = mf.DataFrame(frame)
+# ctx is defined in the Example Data setup
 
-result = dataset.agg(group_cols=["region"], agg_dict={"sales": ["sum", "mean"]})
-result = dataset.groupby("region").sum("sales")
+result = ctx.agg(group_cols=["region"], agg_dict={"sales": ["sum", "mean"]})
+result = ctx.groupby("region").sum("sales")
 ```
 
 ```python
-dataset = await mf.aDataFrame(frame)
+# ctx is defined in the Example Data setup
 
-result = await dataset.aagg(group_cols="region", agg_dict={"sales": ["sum"]})
-result = await dataset.groupby("region").aagg({"sales": ["mean"]})
+result = await ctx.aagg(group_cols="region", agg_dict={"sales": ["sum"]})
+result = await ctx.groupby("region").aagg({"sales": ["mean"]})
 ```
 
-`groupby` is top-level (`dataset.groupby`, not `dataset.dt.*`) — `dt` is
+`groupby` is top-level (`ctx.groupby`, not `ctx.dt.*`) — `dt` is
 reserved for `DateTimeWrapper`.
 
 The lower-level files are implementation details:
@@ -83,29 +85,29 @@ Each terminal method has a synchronous and asynchronous form:
 ## Usage Overview
 
 ```python
-dataset = mf.DataFrame(frame)
+# ctx is defined in the Example Data setup
 
-sample = dataset.agg(group_cols="region", agg_dict={"sales": ["sum", "mean"]})
-sample = dataset.groupby("region").agg({"sales": ["sum"], "qty": ["max"]})
-sample = dataset.groupby("region").mean("sales")
-sample = dataset.groupby("region").sum("sales", map_feature=True)
+sample = ctx.agg(group_cols="region", agg_dict={"sales": ["sum", "mean"]})
+sample = ctx.groupby("region").agg({"sales": ["sum"], "age": ["max"]})
+sample = ctx.groupby("region").mean("sales")
+sample = ctx.groupby("region").sum("sales", map_feature=True)
 ```
 
 ```python
-dataset = await mf.aDataFrame(frame)
+# ctx is defined in the Example Data setup
 
-sample = await dataset.aagg(group_cols=["region"], agg_dict={"sales": ["sum"]})
-sample = await dataset.groupby("region").amean("sales")
+sample = await ctx.aagg(group_cols=["region"], agg_dict={"sales": ["sum"]})
+sample = await ctx.groupby("region").amean("sales")
 ```
 
 Multi-column grouping works in both entry points:
 
 ```python
-result = dataset.agg(
+result = ctx.agg(
     group_cols=["region", "month"],
     agg_dict={"sales": ["sum"]},
 )
-result = dataset.groupby("region", "month").sum("sales")
+result = ctx.groupby("region", "date").sum("sales")
 ```
 
 With `map_feature=True`, the feature is written back to the source and the
@@ -135,7 +137,7 @@ Result columns are named `<column>_<stat>` (e.g. `sales_sum`):
   `COUNT(DISTINCT col)`; `range` → `MAX(col) - MIN(col)`.
 
 ```python
-result = dataset.groupby("region").agg({"sales": ["sum", "mean", "nunique"]})
+result = ctx.groupby("region").agg({"sales": ["sum", "mean", "nunique"]})
 ```
 
 ### Spread: `std`, `var`, `sem`
@@ -145,9 +147,9 @@ PostgreSQL and DuckDB, `stddevPop(col)` / `varPop(col)` on ClickHouse.
 `sem` is `stddev_pop / SQRT(COUNT(col))`.
 
 ```python
-result = dataset.groupby("region").std("score")
-result = dataset.groupby("region").var("score")
-result = dataset.groupby("region").sem("score")
+result = ctx.groupby("region").std("score")
+result = ctx.groupby("region").var("score")
+result = ctx.groupby("region").sem("score")
 ```
 
 ### `product`
@@ -157,7 +159,7 @@ Group-wise product via `EXP(SUM(LN(NULLIF(col, 0))))` (ClickHouse:
 group.
 
 ```python
-result = dataset.groupby("region").product("growth_factor")
+result = ctx.groupby("region").product("sales")
 ```
 
 ### `median`, `mode`
@@ -169,7 +171,7 @@ GROUP` on PostgreSQL, `MODE(col)` on DuckDB, and `topK(1)(col)[1]`
 (approximate) on ClickHouse.
 
 ```python
-result = dataset.groupby("region").mean("sales")
+result = ctx.groupby("region").mean("sales")
 ```
 
 ## Map Feature Back (`map_feature`)
@@ -185,17 +187,17 @@ The cache stores a source `ref`, not the intermediate group table. Without
 is retained.
 
 ```python
-result = dataset.groupby("region").agg({"sales": ["sum"]}, map_feature=True)
+result = ctx.groupby("region").agg({"sales": ["sum"]}, map_feature=True)
 # original table now has: region, sales, sales_sum
 
-result = dataset.groupby("region").sum("sales", map_feature=True)
+result = ctx.groupby("region").sum("sales", map_feature=True)
 # same row-aligned mapping for a single-statistic builder call
 ```
 
 ```python
-result = await dataset.aagg(
+result = await ctx.aagg(
     group_cols=["region", "month"],
-    agg_dict={"sales": ["sum"], "qty": ["max"]},
+    agg_dict={"sales": ["sum"], "age": ["max"]},
     map_feature=True,
 )
 ```
@@ -216,14 +218,14 @@ Grouped event rate per time unit. Returns one row per group with `cnt`
 (or a single row) yield `0.0` instead of dividing by zero.
 
 ```python
-result = dataset.groupby("region").event_rate("ts", unit="day")
-result = dataset.aevent_rate(
-    group_cols=["region"], datetime_col="ts", unit="hour"
+result = ctx.groupby("region").event_rate("event_time", unit="day")
+result = ctx.aevent_rate(
+    group_cols=["region"], datetime_col="event_time", unit="hour"
 )
 ```
 
 !!! note
-    A flat `dataset.event_rate(...)` resolves to the ungrouped
+    A flat `ctx.event_rate(...)` resolves to the ungrouped
     `StatsWrapper.event_rate(column, unit)` (it is registered first). The
     grouped form above is only reachable through the `groupby(...)`
     builder or `GroupByStatsWrapper` directly.

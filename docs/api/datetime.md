@@ -1,5 +1,7 @@
 # Datetime
 
+> **Example data:** copy the setup cell from [Example Data](example-data.md) into Colab once, then run the examples below. Examples use that `ctx`; local frames are shown inline.
+
 Source: `src/memframe/wrappers/analytix/datetime.py`
 
 `DateTimeWrapper` is the public datetime interface exposed through
@@ -10,24 +12,24 @@ and parsing, timedelta arithmetic, durations, date filtering, resampling,
 frequency conversion, calendar-aware offsets, replacement, and normalization.
 
 `resample` lives here (moved from inspection): time-bucketed aggregation
-belongs to the datetime domain. Use `dataset.dt.resample(...)` — the old
-flat `dataset.resample(...)` no longer exists (see
+belongs to the datetime domain. Use `ctx.dt.resample(...)` — the old
+flat `ctx.resample(...)` no longer exists (see
 [Inspect](inspect.md#table-utilities) for the migration note).
 
 Users normally call datetime methods via the `dt` accessor on a dataset context
 returned by an upload operation:
 
 ```python
-dataset = mf.DataFrame(frame)
-result = dataset.dt.year("event_time")
+# ctx is defined in the Example Data setup
+result = ctx.dt.year("event_time")
 ```
 
 ```python
-dataset = await mf.aDataFrame(frame)
-result = await dataset.dt.ayear("event_time")
+# ctx is defined in the Example Data setup
+result = await ctx.dt.ayear("event_time")
 ```
 
-`datetime` is `dt`-only (`dataset.dt.*`) — not `dataset.year` — to avoid
+`datetime` is `dt`-only (`ctx.dt.*`) — not `ctx.year` — to avoid
 collision with `ArithmeticWrapper` (`floor/ceil/round/add/sub`). Non-datetime
 operations remain at the top level.
 
@@ -101,25 +103,25 @@ raise `OperationError`.
 ## Usage Overview
 
 ```python
-dataset = mf.DataFrame(frame)
+# ctx is defined in the Example Data setup
 
-sample = dataset.dt.year("event_time")
-sample = dataset.dt.floor("event_time", "day")
-sample = dataset.dt.is_weekend("event_time")
-sample = dataset.dt.day_name("event_time")
-sample = dataset.dt.resample("event_time", "ME", agg={"sales": "sum"})
-sample = dataset.dt.between("event_time", "2026-01-01", "2026-01-31")
+sample = ctx.dt.year("event_time")
+sample = ctx.dt.floor("event_time", "day")
+sample = ctx.dt.is_weekend("event_time")
+sample = ctx.dt.day_name("event_time")
+sample = ctx.dt.resample("event_time", "ME", agg={"sales": "sum"})
+sample = ctx.dt.between("event_time", "2026-01-01", "2026-01-31")
 ```
 
 ```python
-dataset = await mf.aDataFrame(frame)
+# ctx is defined in the Example Data setup
 
-sample = await dataset.dt.ayear("event_time")
-sample = await dataset.dt.afloor("event_time", "month")
-sample = await dataset.dt.ais_weekend("event_time")
-sample = await dataset.dt.aday_name("event_time")
-sample = await dataset.dt.aresample("event_time", "ME", agg={"sales": "sum"})
-sample = await dataset.dt.abetween("event_time", "2026-01-01", "2026-01-31")
+sample = await ctx.dt.ayear("event_time")
+sample = await ctx.dt.afloor("event_time", "month")
+sample = await ctx.dt.ais_weekend("event_time")
+sample = await ctx.dt.aday_name("event_time")
+sample = await ctx.dt.aresample("event_time", "ME", agg={"sales": "sum"})
+sample = await ctx.dt.abetween("event_time", "2026-01-01", "2026-01-31")
 ```
 
 ## Extract
@@ -142,12 +144,12 @@ Generic extractor. `field` must be one of the supported keys:
 | `quarter` | — | Quarter `1..4` |
 
 ```python
-result = dataset.dt.extract("event_time", "year")
-result = dataset.dt.extract("event_time", "dow")
+result = ctx.dt.extract("event_time", "year")
+result = ctx.dt.extract("event_time", "dow")
 ```
 
 ```python
-result = await dataset.dt.aextract("event_time", "quarter")
+result = await ctx.dt.aextract("event_time", "quarter")
 ```
 
 Parameters:
@@ -164,15 +166,15 @@ Unsupported fields return `is_error True` (`"Unsupported datetime field"`).
 Shortcuts for `extract`:
 
 ```python
-result = dataset.dt.year("event_time")
-result = dataset.dt.month("signup_date")
-result = dataset.dt.dayofweek("created_at")
-result = dataset.dt.quarter("closed_at")
+result = ctx.dt.year("event_time")
+result = ctx.dt.month("date")
+result = ctx.dt.dayofweek("event_time")
+result = ctx.dt.quarter("date")
 ```
 
 ```python
-result = await dataset.dt.ayear("event_time")
-result = await dataset.dt.amonth("signup_date")
+result = await ctx.dt.ayear("event_time")
+result = await ctx.dt.amonth("date")
 ```
 
 Parameters:
@@ -191,15 +193,15 @@ Round datetimes to a calendar unit. Supported `unit` values are `year`,
 `quarter`, `month`, `week`, `day`, `hour`, `minute`, `second`.
 
 ```python
-result = dataset.dt.floor("event_time", "day")
-result = dataset.dt.ceil("event_time", "month")
-result = dataset.dt.round("event_time", "hour")
+result = ctx.dt.floor("event_time", "day")
+result = ctx.dt.ceil("event_time", "month")
+result = ctx.dt.round("event_time", "hour")
 ```
 
 ```python
-result = await dataset.dt.afloor("event_time", "week")
-result = await dataset.dt.aceil("event_time", "year")
-result = await dataset.dt.around("event_time", "day")
+result = await ctx.dt.afloor("event_time", "week")
+result = await ctx.dt.aceil("event_time", "year")
+result = await ctx.dt.around("event_time", "day")
 ```
 
 Parameters:
@@ -220,12 +222,12 @@ Localize naive datetimes to a timezone. `tz=None` removes timezone (casts to
 timestamp).
 
 ```python
-result = dataset.dt.tz_localize("event_time", "UTC")
-result = dataset.dt.tz_localize("event_time", None)
+result = ctx.dt.tz_localize("event_time", "UTC")
+result = ctx.dt.tz_localize("event_time", None)
 ```
 
 ```python
-result = await dataset.dt.atz_localize("event_time", "America/New_York")
+result = await ctx.dt.atz_localize("event_time", "America/New_York")
 ```
 
 Parameters:
@@ -244,12 +246,12 @@ Parameters:
 Convert timezone-aware datetimes. `tz=None` converts to UTC and strips.
 
 ```python
-result = dataset.dt.tz_convert("event_time", "UTC")
-result = dataset.dt.tz_convert("event_time", "Asia/Kolkata")
+result = ctx.dt.tz_convert("event_time", "UTC")
+result = ctx.dt.tz_convert("event_time", "Asia/Kolkata")
 ```
 
 ```python
-result = await dataset.dt.atz_convert("event_time", "UTC")
+result = await ctx.dt.atz_convert("event_time", "UTC")
 ```
 
 Parameters:
@@ -267,17 +269,17 @@ a sample DataFrame.
 ### `is_month_start`, `is_month_end`, `is_year_start`, `is_year_end`
 
 ```python
-result = dataset.dt.is_month_start("event_time")
-result = dataset.dt.is_month_end("event_time")
-result = dataset.dt.is_year_start("event_time")
-result = dataset.dt.is_year_end("event_time")
+result = ctx.dt.is_month_start("event_time")
+result = ctx.dt.is_month_end("event_time")
+result = ctx.dt.is_year_start("event_time")
+result = ctx.dt.is_year_end("event_time")
 ```
 
 ### `is_quarter_start`, `is_quarter_end`
 
 ```python
-result = dataset.dt.is_quarter_start("event_time")
-result = dataset.dt.is_quarter_end("event_time")
+result = ctx.dt.is_quarter_start("event_time")
+result = ctx.dt.is_quarter_end("event_time")
 ```
 
 ### `is_weekend`, `is_weekday`, `is_business_day`
@@ -285,16 +287,16 @@ result = dataset.dt.is_quarter_end("event_time")
 `is_business_day` is currently `is_weekday` (`DOW 1..5`).
 
 ```python
-result = dataset.dt.is_weekend("event_time")
-result = dataset.dt.is_weekday("event_time")
-result = dataset.dt.is_business_day("event_time")
+result = ctx.dt.is_weekend("event_time")
+result = ctx.dt.is_weekday("event_time")
+result = ctx.dt.is_business_day("event_time")
 ```
 
 ### `days_in_month`, `week_of_month`
 
 ```python
-result = dataset.dt.days_in_month("event_time")
-result = dataset.dt.week_of_month("event_time")
+result = ctx.dt.days_in_month("event_time")
+result = ctx.dt.week_of_month("event_time")
 ```
 
 Parameters:
@@ -310,11 +312,11 @@ Parameters:
 Convert datetime to Unix timestamp (`DOUBLE PRECISION`).
 
 ```python
-result = dataset.dt.timestamp("event_time")
+result = ctx.dt.timestamp("event_time")
 ```
 
 ```python
-result = await dataset.dt.atimestamp("event_time")
+result = await ctx.dt.atimestamp("event_time")
 ```
 
 Uses `EXTRACT(EPOCH ...)` on PostgreSQL, `epoch()` on DuckDB,
@@ -324,13 +326,19 @@ Uses `EXTRACT(EPOCH ...)` on PostgreSQL, `epoch()` on DuckDB,
 
 Convert Unix timestamp (column or scalar) to datetime.
 
+The main example table has no epoch column, so this example uses a small
+local frame:
+
 ```python
-result = dataset.dt.from_timestamp(column="epoch_col", tz="UTC")
-result = dataset.dt.from_timestamp(value=1704067200, tz="UTC")
+epoch = pd.DataFrame({"epoch_col": [1704067200, 1704153600, 1704240000]})
+epoch_ctx = mf.DataFrame(epoch, filename="epoch")
+
+result = epoch_ctx.dt.from_timestamp(column="epoch_col", tz="UTC")
+result = epoch_ctx.dt.from_timestamp(value=1704067200, tz="UTC")
 ```
 
 ```python
-result = await dataset.dt.afrom_timestamp(column="epoch_col")
+result = await epoch_ctx.dt.afrom_timestamp(column="epoch_col")
 ```
 
 Parameters:
@@ -351,11 +359,11 @@ plus `toTimezone` on ClickHouse.
 Format datetime to string (`TEXT`).
 
 ```python
-result = dataset.dt.strftime("event_time", "%Y-%m-%d")
+result = ctx.dt.strftime("event_time", "%Y-%m-%d")
 ```
 
 ```python
-result = await dataset.dt.astrftime("event_time", "%Y-%m-%d")
+result = await ctx.dt.astrftime("event_time", "%Y-%m-%d")
 ```
 
 PostgreSQL converts via `_convert_strftime_format` (`%Y→YYYY`), DuckDB uses
@@ -366,12 +374,29 @@ PostgreSQL converts via `_convert_strftime_format` (`%Y→YYYY`), DuckDB uses
 
 Parse string column to datetime (`TIMESTAMP`) using a format.
 
+The main table already has typed timestamps, so parsing examples use a small
+local frame:
+
+| `date_str` | `epoch` |
+| --- | --- |
+| `"2024-01-01"` | `1704067200` |
+| `"2024-01-02"` | `1704153600` |
+| `"2024-01-03"` | `1704240000` |
+
 ```python
-result = dataset.dt.strptime("date_str", "%Y-%m-%d")
+dates = pd.DataFrame({
+    "date_str": ["2024-01-01", "2024-01-02", "2024-01-03"],
+    "epoch": [1704067200, 1704153600, 1704240000],
+})
+date_ctx = mf.DataFrame(
+    dates, filename="dates", dtypes={"date_str": "VARCHAR"},
+)
+
+result = date_ctx.dt.strptime("date_str", "%Y-%m-%d")
 ```
 
 ```python
-result = await dataset.dt.astrptime("date_str", "%Y-%m-%d")
+result = await date_ctx.dt.astrptime("date_str", "%Y-%m-%d")
 ```
 
 PostgreSQL `TO_TIMESTAMP(col, sql_fmt)`, DuckDB `strptime()`, ClickHouse
@@ -391,13 +416,13 @@ Parameters:
 Add or subtract an interval string.
 
 ```python
-result = dataset.dt.add("event_time", "1 day")
-result = dataset.dt.sub("event_time", "1 hour")
+result = ctx.dt.add("event_time", "1 day")
+result = ctx.dt.sub("event_time", "1 hour")
 ```
 
 ```python
-result = await dataset.dt.aadd("event_time", "7 day")
-result = await dataset.dt.asub("event_time", "30 minute")
+result = await ctx.dt.aadd("event_time", "7 day")
+result = await ctx.dt.asub("event_time", "30 minute")
 ```
 
 Parameters:
@@ -418,11 +443,11 @@ Replace one or more datetime components in place (`year`, `month`, `day`,
 `hour`, `minute`, `second`).
 
 ```python
-result = dataset.dt.replace("event_time", year=2000, month=1)
+result = ctx.dt.replace("event_time", year=2000, month=1)
 ```
 
 ```python
-result = await dataset.dt.areplace("event_time", hour=0, minute=0)
+result = await ctx.dt.areplace("event_time", hour=0, minute=0)
 ```
 
 Parameters:
@@ -440,11 +465,11 @@ with `EXTRACT` / `toYear` fallbacks.
 Normalize to midnight (`00:00:00`) of the same day.
 
 ```python
-result = dataset.dt.normalize("event_time")
+result = ctx.dt.normalize("event_time")
 ```
 
 ```python
-result = await dataset.dt.anormalize("event_time")
+result = await ctx.dt.anormalize("event_time")
 ```
 
 `DATE_TRUNC('day')` on DuckDB/Postgres, `toStartOfDay()` on ClickHouse.
@@ -457,13 +482,13 @@ Weekday and month names as text (`dt_<column>_day_name`,
 `dt_<column>_month_name`):
 
 ```python
-result = dataset.dt.day_name("event_time")    # Monday, Tuesday, ...
-result = dataset.dt.month_name("event_time")  # January, February, ...
+result = ctx.dt.day_name("event_time")    # Monday, Tuesday, ...
+result = ctx.dt.month_name("event_time")  # January, February, ...
 ```
 
 ```python
-result = await dataset.dt.aday_name("event_time")
-result = await dataset.dt.amonth_name("event_time")
+result = await ctx.dt.aday_name("event_time")
+result = await ctx.dt.amonth_name("event_time")
 ```
 
 Parameters:
@@ -484,13 +509,13 @@ Two-column duration: `col2 - col1` expressed in `unit`, as a
 `DOUBLE PRECISION` column (`dt_<col1>_<col2>_diff_<unit>`, or `target_col`):
 
 ```python
-result = dataset.dt.diff("start_date", "end_date")                    # days
-result = dataset.dt.diff("start_date", "end_date", unit="hour")
-result = dataset.dt.diff("start_date", "end_date", unit="month", target_col="months")
+result = ctx.dt.diff("date", "event_time")                    # days
+result = ctx.dt.diff("date", "event_time", unit="hour")
+result = ctx.dt.diff("date", "event_time", unit="hour", target_col="hours")
 ```
 
 ```python
-result = await dataset.dt.adiff("start_date", "end_date", unit="minute")
+result = await ctx.dt.adiff("date", "event_time", unit="minute")
 ```
 
 Parameters:
@@ -516,15 +541,15 @@ measures *consecutive-row* deltas within one column.
 Canonical column-to-datetime conversion (`dt_<column>_todatetime`):
 
 ```python
-result = dataset.dt.to_datetime("date_str")                              # ISO strings
-result = dataset.dt.to_datetime("date_str", format="%Y-%m-%d")           # explicit format
-result = dataset.dt.to_datetime("date_str", errors="coerce")             # bad values → NULL
-result = dataset.dt.to_datetime("epoch", unit="s")                       # Unix timestamps
-result = dataset.dt.to_datetime("event_time", tz="UTC")                  # attach timezone
+result = date_ctx.dt.to_datetime("date_str")                              # ISO strings
+result = date_ctx.dt.to_datetime("date_str", format="%Y-%m-%d")           # explicit format
+result = date_ctx.dt.to_datetime("date_str", errors="coerce")             # bad values → NULL
+result = date_ctx.dt.to_datetime("epoch", unit="s")                       # Unix timestamps
+result = ctx.dt.to_datetime("event_time", tz="UTC")                  # attach timezone
 ```
 
 ```python
-result = await dataset.dt.ato_datetime("date_str", errors="coerce")
+result = await date_ctx.dt.ato_datetime("date_str", errors="coerce")
 ```
 
 Parameters:
@@ -548,15 +573,15 @@ Row filters materialize a clone table with matching rows (no new column).
 `between` is inclusive; `before`/`after` are exclusive:
 
 ```python
-january = dataset.dt.between("event_time", "2026-01-01", "2026-01-31")
-early = dataset.dt.before("event_time", "2026-01-01")
-late = dataset.dt.after("event_time", "2026-06-01")
-y2026 = dataset.dt.select_year("event_time", 2026)
-q1 = dataset.dt.select_month("event_time", [1, 2, 3])
+january = ctx.dt.between("event_time", "2026-01-01", "2026-01-31")
+early = ctx.dt.before("event_time", "2026-01-01")
+late = ctx.dt.after("event_time", "2026-06-01")
+y2026 = ctx.dt.select_year("event_time", 2026)
+q1 = ctx.dt.select_month("event_time", [1, 2, 3])
 ```
 
 ```python
-january = await dataset.dt.abetween("event_time", "2026-01-01", "2026-01-31")
+january = await ctx.dt.abetween("event_time", "2026-01-01", "2026-01-31")
 ```
 
 Parameters:
@@ -576,18 +601,18 @@ without touching the database. For arbitrary predicates, use
 
 `resample` buckets a datetime column and aggregates — the time-based group-by
 at the heart of time-series analytics. Moved here from inspection; the old
-flat `dataset.resample(time_column=..., rule=...)` is now
-`dataset.dt.resample(column=..., freq=...)`.
+flat `ctx.resample(time_column=..., rule=...)` is now
+`ctx.dt.resample(column=..., freq=...)`.
 
 ```python
-daily = dataset.dt.resample("event_time", "D")
-monthly_sales = dataset.dt.resample("event_time", "ME", agg="sum", value_columns="sales")
-multi = dataset.dt.resample("event_time", "ME", agg=["sum", "mean"], value_columns="sales")
-by_region = dataset.dt.resample("event_time", "ME", agg={"sales": "sum"}, group_by=["region"])
+daily = ctx.dt.resample("event_time", "D")
+monthly_sales = ctx.dt.resample("event_time", "ME", agg="sum", value_columns="sales")
+multi = ctx.dt.resample("event_time", "ME", agg=["sum", "mean"], value_columns="sales")
+by_region = ctx.dt.resample("event_time", "ME", agg={"sales": "sum"}, group_by=["region"])
 ```
 
 ```python
-daily = await dataset.dt.aresample("event_time", "W", agg="mean", value_columns="temp")
+daily = await ctx.dt.aresample("event_time", "W", agg="mean", value_columns="sales")
 ```
 
 Frequency aliases (single-bucket units only; `"2h"`/`"15min"` fail loudly):
@@ -630,12 +655,12 @@ Reindex to a regular frequency, materializing gap rows with `NULL` (or filled)
 values — the companion that makes irregular series plottable/joinable:
 
 ```python
-regular = dataset.dt.asfreq("event_time", "D")
-filled = dataset.dt.asfreq("event_time", "D", method="ffill")
+regular = ctx.dt.asfreq("event_time", "D")
+filled = ctx.dt.asfreq("event_time", "D", method="ffill")
 ```
 
 ```python
-regular = await dataset.dt.aasfreq("event_time", "h", method="bfill")
+regular = await ctx.dt.aasfreq("event_time", "h", method="bfill")
 ```
 
 Parameters:
@@ -659,13 +684,13 @@ as an actual payload.
 Calendar-aware addition — months stay months (unlike `add("30 day")`):
 
 ```python
-next_month = dataset.dt.add_offset("event_time", months=1)
-combo = dataset.dt.add_offset("event_time", years=1, quarters=1, weeks=1, days=2)
-biz = dataset.dt.add_offset("event_time", days=5, business_day=True)
+next_month = ctx.dt.add_offset("event_time", months=1)
+combo = ctx.dt.add_offset("event_time", years=1, quarters=1, weeks=1, days=2)
+biz = ctx.dt.add_offset("event_time", days=5, business_day=True)
 ```
 
 ```python
-next_month = await dataset.dt.aadd_offset("event_time", months=1)
+next_month = await ctx.dt.aadd_offset("event_time", months=1)
 ```
 
 Parameters:

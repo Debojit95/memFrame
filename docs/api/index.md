@@ -1,14 +1,30 @@
 # Database Indexes
 
+> **Example data:** index examples use `customers_ctx` defined below; the
+> rest of the API docs use the shared [Example Data](example-data.md) `ctx`.
+
+
 memFrame manages **real database indexes**. There is no pandas-style logical
 index and no index metadata in `memframe_csv_registry`: the backend catalog is
 the source of truth. Indexes are created, listed, and dropped with ordinary
 DDL on the active dataset's table.
 
+Index examples use a small `customers` dataset:
+
 ```python
-ctx.create_index(columns=["month"], name="idx_month")
-ctx.list_indexes()
-ctx.drop_index("idx_month")
+customers = pd.DataFrame({
+    "customer_id": [101, 102, 103],
+    "name": ["Alice", "Bob", "Cara"],
+    "email": ["alice@example.com", "bob@example.com", "cara@example.com"],
+    "status": ["active", "inactive", "active"],
+    "tenant_id": [1, 1, 2],
+    "created_at": pd.to_datetime(["2024-01-01", "2024-02-01", "2024-03-01"]),
+})
+customers_ctx = mf.DataFrame(customers, filename="customers")
+
+customers_ctx.create_index(columns=["created_at"], name="idx_created")
+customers_ctx.list_indexes()
+customers_ctx.drop_index("idx_created")
 ```
 
 Every method has an asynchronous twin: `acreate_index`, `adrop_index`,
@@ -42,10 +58,10 @@ DuckDB has two index types:
 indexes, covering `INCLUDE`, or index methods.
 
 ```python
-ctx.create_index(columns=["customer_id"], name="idx_customer")
-ctx.create_index(columns=["email"], name="idx_email", unique=True)
-ctx.create_index(columns=["tenant_id", "created_at"], name="idx_tenant_time")
-ctx.create_index(columns=["email"])          # generated name: <table>_email_idx
+customers_ctx.create_index(columns=["customer_id"], name="idx_customer")
+customers_ctx.create_index(columns=["email"], name="idx_email", unique=True)
+customers_ctx.create_index(columns=["tenant_id", "created_at"], name="idx_tenant_time")
+customers_ctx.create_index(columns=["email"])          # generated name: <table>_email_idx
 ```
 
 - `UNIQUE` is enforced by DuckDB for existing and future rows.
@@ -60,18 +76,18 @@ PostgreSQL supports real secondary indexes: B-tree, hash, GIN, GiST, BRIN,
 composite keys, uniqueness, partial predicates, and covering columns.
 
 ```python
-ctx.create_index(columns=["tenant_id", "created_at"], name="idx_tenant_time")
-ctx.create_index(columns=["email"], name="idx_email", unique=True)
-ctx.create_index(
+customers_ctx.create_index(columns=["tenant_id", "created_at"], name="idx_tenant_time")
+customers_ctx.create_index(columns=["email"], name="idx_email", unique=True)
+customers_ctx.create_index(
     columns=["customer_id"], name="idx_active_customer",
     where="status = 'active'",          # partial index
     include=["name"],                   # covering index
 )
-ctx.create_index(
+customers_ctx.create_index(
     columns=["created_at"], name="idx_created_brin",
     method="brin",
 )
-ctx.create_index(
+customers_ctx.create_index(
     columns=["customer_id"], name="idx_customer_concurrent",
     concurrently=True,                   # avoids blocking writes
 )
@@ -104,9 +120,9 @@ table creation**. A new `ORDER BY` requires rebuilding the table.
 On ClickHouse, `create_index` creates a **projection index** by default:
 
 ```python
-ctx.create_index(columns=["user_id"], name="proj_user")
-ctx.create_index(columns=["tenant_id", "event_date"], name="proj_tenant_time")
-ctx.create_index(expression="lower(name)", name="proj_name_lower")
+customers_ctx.create_index(columns=["customer_id"], name="proj_user")
+customers_ctx.create_index(columns=["tenant_id", "created_at"], name="proj_tenant_time")
+customers_ctx.create_index(expression="lower(name)", name="proj_name_lower")
 ```
 
 The generated DDL is:
@@ -142,15 +158,15 @@ SETTINGS mutations_sync = 1;
 Pass an explicit `index_type` to create a data-skipping index instead:
 
 ```python
-ctx.create_index(
-    columns=["user_id"], name="idx_user",
+customers_ctx.create_index(
+    columns=["customer_id"], name="idx_user",
     index_type="bloom_filter", granularity=4,
 )
-ctx.create_index(
+customers_ctx.create_index(
     columns=["amount"], name="idx_amount",
     index_type="minmax",
 )
-ctx.create_index(
+customers_ctx.create_index(
     expression="lower(name)", name="idx_name_token",
     index_type="tokenbf_v1(10240, 3, 0)",
 )
@@ -204,15 +220,15 @@ projection that duplicates full rows.
 
 ```python
 # inspect first (default: no writes)
-plan = ctx.set_order_by(
-    columns=["tenant_id", "event_date"],
+plan = customers_ctx.set_order_by(
+    columns=["tenant_id", "created_at"],
     primary_key=["tenant_id"],   # must be a prefix of columns
 )
 print(plan["ddl"], plan["rows"], plan["bytes_on_disk"])
 
 # run in a maintenance window
-result = ctx.set_order_by(
-    columns=["tenant_id", "event_date"],
+result = customers_ctx.set_order_by(
+    columns=["tenant_id", "created_at"],
     primary_key=["tenant_id"],
     dry_run=False,
     keep_backup=True,
@@ -241,7 +257,7 @@ The old metadata-only logical index is gone:
 
 - no `index_cols` column in `memframe_csv_registry`;
 - no `set_index`/`reset_index`/`get_index`/`reindex`/`reindex_like`;
-- no `ctx.index` property.
+- no `customers_ctx.index` property.
 
 Use pandas on a fetched frame for row-label alignment, or the index API above
 for database indexing.

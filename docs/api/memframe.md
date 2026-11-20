@@ -1,5 +1,7 @@
 # memFrame
 
+> **Example data:** copy the setup cell from [Example Data](example-data.md) into Colab once, then run the examples below. Examples use that `ctx`; local frames are shown inline.
+
 The `memFrame` API is the pandas-style surface you call on a dataset context
 returned by an upload (or by `register_tables` / `set_active`). Every method
 compiles to backend-native SQL and runs in-engine across DuckDB, PostgreSQL,
@@ -9,26 +11,26 @@ columns to the active source table, while standalone results are stored as
 actual payloads (see [Caching](caching.md)).
 
 Every operation has a synchronous and an asynchronous twin: drop the `a`
-prefix for sync (`head`) and use `await dataset.ahead(...)` for async. Methods
+prefix for sync (`head`) and use `await ctx.ahead(...)` for async. Methods
 are dispatched lazily through the `ContextManager`, so you call them directly
 on the dataset context:
 
 ```python
-dataset = mf.DataFrame(frame)
+# ctx is defined in the Example Data setup
 
-preview = dataset.head()
-filled = dataset.fillna("score", method="mean")
-totals = dataset.groupby("region").sum("revenue")
-rolling = dataset.rolling(column="sales", window=7, func="mean", order_by="date")
+preview = ctx.head()
+filled = ctx.fillna("score", method="mean")
+totals = ctx.groupby("region").sum("sales")
+rolling = ctx.rolling(column="sales", window=3, func="mean", order_by="date")
 ```
 
 ```python
-dataset = await mf.aDataFrame(frame)
+# ctx is defined in the Example Data setup
 
-preview = await dataset.ahead()
-filled = await dataset.afillna("score", method="mean")
-totals = await dataset.agroupby("region").sum("revenue")
-rolling = await dataset.arolling(column="sales", window=7, func="mean", order_by="date")
+preview = await ctx.ahead()
+filled = await ctx.afillna("score", method="mean")
+totals = await ctx.agroupby("region").sum("sales")
+rolling = await ctx.arolling(column="sales", window=3, func="mean", order_by="date")
 ```
 
 ## Creating Datasets
@@ -39,7 +41,7 @@ operation surface:
 
 ```python
 mf.DataFrame(
-    data=None,       # dict, rows, pd.Series, pd.DataFrame, or dataset context
+    data=None,       # dict, rows, pd.Series, pd.DataFrame, or ctx context
     index=None,      # pandas alignment; the index is not persisted
     columns=None,    # selection/order, pandas semantics
     dtype=None,      # single dtype, pandas semantics
@@ -55,20 +57,14 @@ snapshotted into a new upload dataset, leaving the source untouched. Async
 code uses `await mf.aDataFrame(...)` with the same arguments.
 
 ```python
-dataset = mf.DataFrame({"name": ["Alice", "Bob"], "score": [95.5, 82.0]})
-print(dataset.head(n=2))
-#     name  score
-# 0  Alice   95.5
-# 1    Bob   82.0
+people = mf.DataFrame(
+    {"name": ["Alice", "Bob"], "score": [95.5, 82.0]},
+    filename="people",
+)
+people.head()
 ```
 
-```python
-dataset = mf.DataFrame([[1, "x"], [2, "y"]], columns=["id", "tag"])
-dataset = mf.DataFrame(pd.Series([1, 2, 3], name="s"))
-dataset = mf.DataFrame(frame, dtype="float64", copy=True)
-dataset = mf.DataFrame(dataset)                      # snapshot to a new dataset
-dataset = mf.DataFrame({"id": [1]}, filename="built.csv", dtypes={"id": "BIGINT"})
-```
+`mf.DataFrame(ctx)` snapshots the current example table into a new dataset.
 
 !!! note
     `MemFrame` is the connection class; `mf.DataFrame` is the pandas-style

@@ -1,5 +1,7 @@
 # Inspect
 
+> **Example data:** copy the setup cell from [Example Data](example-data.md) into Colab once, then run the examples below. Examples use that `ctx`; local frames are shown inline.
+
 Source: `src/memframe/wrappers/analytix/inspection.py`
 
 `TableOpsWrapper` is the public inspection and table-utility interface exposed
@@ -12,11 +14,11 @@ Users normally call inspect methods directly on a dataset context returned by
 an upload operation:
 
 ```python
-dataset = mf.DataFrame(frame)
-result = dataset.head(n=5)
+# ctx is defined in the Example Data setup
+result = ctx.head(n=5)
 ```
 
-The same methods are also available from `dataset.inspect`.
+The same methods are also available from `ctx.inspect`.
 
 The lower-level files are implementation details:
 
@@ -62,19 +64,19 @@ Invalid operations raise `OperationError`.
 ## Usage Overview
 
 ```python
-dataset = mf.upload_csv("data/sales.csv")
+# ctx is defined in the Example Data setup
 
-frame = dataset.head(n=5, columns=["customer_id", "amount"])
+frame = ctx.head(n=5, columns=["id", "sales"])
 ```
 
 ```python
-dataset = await mf.aupload_csv("data/sales.csv")
+# ctx is defined in the Example Data setup
 
-frame = await dataset.adescribe(columns=["amount"])
+frame = await ctx.adescribe(columns=["sales"])
 ```
 
 Inspect methods are exposed directly through context forwarding. You can use
-`dataset.head(...)` or the explicit `dataset.inspect.head(...)` form.
+`ctx.head(...)` or the explicit `ctx.inspect.head(...)` form.
 
 ## Row Preview
 
@@ -83,13 +85,13 @@ Inspect methods are exposed directly through context forwarding. You can use
 `head` returns the first `n` rows from the active table.
 
 ```python
-result = dataset.head(n=10)
+result = ctx.head(n=10)
 ```
 
 ```python
-result = await dataset.ahead(
+result = await ctx.ahead(
     n=5,
-    columns=["customer_id", "amount"],
+    columns=["id", "sales"],
 )
 ```
 
@@ -108,11 +110,11 @@ internal to the response envelope.
 `tail` returns the last `n` rows by counting total rows and applying an offset.
 
 ```python
-result = dataset.tail(n=5)
+result = ctx.tail(n=5)
 ```
 
 ```python
-result = await dataset.atail(n=5, columns=["name", "score"])
+result = await ctx.atail(n=5, columns=["region", "score"])
 ```
 
 Parameters:
@@ -127,13 +129,13 @@ Parameters:
 `sample` returns random rows using backend `RANDOM()` ordering.
 
 ```python
-result = dataset.sample(n=10, random_state=42)
+result = ctx.sample(n=10, random_state=42)
 ```
 
 ```python
-result = await dataset.asample(
+result = await ctx.asample(
     n=10,
-    columns=["name", "score"],
+    columns=["region", "score"],
 )
 ```
 
@@ -150,11 +152,11 @@ Parameters:
 `full_table` returns all rows as a DataFrame unless `chunk_size` is provided.
 
 ```python
-result = dataset.full_table(columns=["id", "name"])
+result = ctx.full_table(columns=["id", "region"])
 ```
 
 ```python
-result = await dataset.afull_table(chunk_size=1000)
+result = await ctx.afull_table(chunk_size=1000)
 async for chunk in result:
     ...
 ```
@@ -176,11 +178,11 @@ Invalid or non-positive `chunk_size` raises `OperationError`.
 counts, null percentage, and distinct count.
 
 ```python
-result = dataset.info()
+result = ctx.info()
 ```
 
 ```python
-result = await dataset.ainfo()
+result = await ctx.ainfo()
 ```
 
 Parameters: none.
@@ -197,11 +199,11 @@ Return behavior:
 `50%`, `75%`, and `max`.
 
 ```python
-result = dataset.describe()
+result = ctx.describe()
 ```
 
 ```python
-result = await dataset.adescribe(columns=["amount", "score"])
+result = await ctx.adescribe(columns=["sales", "score"])
 ```
 
 Parameters:
@@ -220,11 +222,11 @@ numeric column. If no numeric columns are available, the method raises
 missing percentages.
 
 ```python
-result = dataset.null_analysis(columns=["score", "note"])
+result = ctx.null_analysis(columns=["score", "notes"])
 ```
 
 ```python
-result = await dataset.anull_analysis()
+result = await ctx.anull_analysis()
 ```
 
 Parameters:
@@ -245,14 +247,14 @@ contains `contains_null` and `percent_missing` columns.
 `missing`, and `missing_pct` values.
 
 ```python
-result = dataset.data_quality_missing_values(
-    columns=["salary", "department"],
+result = ctx.data_quality_missing_values(
+    columns=["salary", "region"],
 )
 ```
 
 ```python
-result = await dataset.adata_quality_missing_values(
-    columns=["salary", "department"],
+result = await ctx.adata_quality_missing_values(
+    columns=["salary", "region"],
 )
 ```
 
@@ -262,11 +264,11 @@ result = await dataset.adata_quality_missing_values(
 requested column.
 
 ```python
-result = dataset.data_quality_completeness_score(columns=["salary"])
+result = ctx.data_quality_completeness_score(columns=["salary"])
 ```
 
 ```python
-result = await dataset.adata_quality_completeness_score(columns=["salary"])
+result = await ctx.adata_quality_completeness_score(columns=["salary"])
 ```
 
 ### `comprehensive_numeric_summary`
@@ -275,11 +277,11 @@ result = await dataset.adata_quality_completeness_score(columns=["salary"])
 20 requested columns.
 
 ```python
-result = dataset.comprehensive_numeric_summary(columns=["salary", "bonus"])
+result = ctx.comprehensive_numeric_summary(columns=["salary", "bonus"])
 ```
 
 ```python
-result = await dataset.acomprehensive_numeric_summary(columns=["salary", "bonus"])
+result = await ctx.acomprehensive_numeric_summary(columns=["salary", "bonus"])
 ```
 
 ### `statistical_profile_report`
@@ -288,11 +290,11 @@ result = await dataset.acomprehensive_numeric_summary(columns=["salary", "bonus"
 output into one response.
 
 ```python
-result = dataset.statistical_profile_report(columns=["salary", "bonus"])
+result = ctx.statistical_profile_report(columns=["salary", "bonus"])
 ```
 
 ```python
-result = await dataset.astatistical_profile_report(columns=["salary", "bonus"])
+result = await ctx.astatistical_profile_report(columns=["salary", "bonus"])
 ```
 
 ## Table Utilities
@@ -302,14 +304,14 @@ result = await dataset.astatistical_profile_report(columns=["salary", "bonus"])
 `astype` casts selected columns and returns only the casted columns.
 
 ```python
-result = dataset.astype(
-    dtype_map={"amount": "float64", "customer_id": "str"},
+result = ctx.astype(
+    dtype_map={"sales": "float64", "id": "str"},
 )
 ```
 
 ```python
-result = await dataset.aastype(
-    columns=["amount"],
+result = await ctx.aastype(
+    columns=["sales"],
     dtypes=["float64"],
 )
 ```
@@ -338,15 +340,15 @@ Supported dtype aliases:
 length must match the row count.
 
 ```python
-result = dataset.insert(
-    column="segment",
+result = ctx.insert(
+    column="region",
     value=["retail", "enterprise", "retail"],
 )
 ```
 
 ```python
-result = await dataset.ainsert(
-    column="segment",
+result = await ctx.ainsert(
+    column="region",
     value=["retail", "enterprise", "retail"],
 )
 ```
@@ -363,11 +365,11 @@ Parameters:
 `rename` renames columns in place and returns a current table preview.
 
 ```python
-result = dataset.rename(columns={"old_name": "new_name"})
+result = ctx.rename(columns={"region": "territory"})
 ```
 
 ```python
-result = await dataset.arename(columns={"old_name": "new_name"})
+result = await ctx.arename(columns={"region": "territory"})
 ```
 
 Parameters:
@@ -381,16 +383,16 @@ Parameters:
 `update` updates rows from another backend table using a key column.
 
 ```python
-result = dataset.update(
-    on="customer_id",
+result = ctx.update(
+    on="id",
     other_table="customer_updates",
     other_schema="upload",
 )
 ```
 
 ```python
-result = await dataset.aupdate(
-    on="customer_id",
+result = await ctx.aupdate(
+    on="id",
     other_table="customer_updates",
     overwrite=True,
     errors="ignore",
@@ -409,16 +411,16 @@ Parameters:
 
 ### `resample` (moved)
 
-`resample` moved to the datetime domain: `dataset.dt.resample(column, freq, ...)`
+`resample` moved to the datetime domain: `ctx.dt.resample(column, freq, ...)`
 with multi-aggregation and `group_by` support. The old flat call maps as
 `time_column → column`, `rule → freq`:
 
 ```python
-result = dataset.dt.resample("event_time", "D", agg="sum", value_columns="amount")
+result = ctx.dt.resample("event_time", "D", agg="sum", value_columns="sales")
 ```
 
 ```python
-result = await dataset.dt.aresample("event_time", "ME", agg={"amount": "sum"})
+result = await ctx.dt.aresample("event_time", "ME", agg={"sales": "sum"})
 ```
 
 See [Datetime → Resampling](datetime.md#resampling) for the full reference.
@@ -436,14 +438,14 @@ parentheses — the sync `columns()` / `dtypes()` / `shape()` forms are removed)
 | `values()` | `avalues()` | `{"values": [[...], ...]}` |
 
 ```python
-print(dataset.shape)
+print(ctx.shape)
 # (4, 3)
-print(dataset.columns)
+print(ctx.columns)
 ```
 
 ```python
-shape = await dataset.ashape()
-dtypes = await dataset.adtypes()
+shape = await ctx.ashape()
+dtypes = await ctx.adtypes()
 ```
 
 Parameters: none for these property methods. (`values()` stays a method call.)
@@ -454,15 +456,15 @@ Parameters: none for these property methods. (`values()` stays a method call.)
 wrapper exposes synchronous and asynchronous forms:
 
 ```python
-items = dataset.items()
-rows = dataset.iterrows()
-tuples = dataset.itertuples(index=False)
+items = ctx.items()
+rows = ctx.iterrows()
+tuples = ctx.itertuples(index=False)
 ```
 
 ```python
-items = await dataset.aitems()
-rows = await dataset.aiterrows()
-tuples = await dataset.aitertuples(index=False)
+items = await ctx.aitems()
+rows = await ctx.aiterrows()
+tuples = await ctx.aitertuples(index=False)
 ```
 
 Parameters:

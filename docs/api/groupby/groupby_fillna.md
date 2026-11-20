@@ -1,16 +1,18 @@
 # GroupBy Fillna
 
+> **Example data:** copy the setup cell from [Example Data](../example-data.md) into Colab once, then run the examples below. Examples use that `ctx`; local frames are shown inline.
+
 Source: `src/memframe/wrappers/analytix/groupby_fillna.py`
 
 `groupby_fillna` fills missing values using statistics or fill behavior
 within groups.
 
 ```python
-result = dataset.groupby("department").fillna("salary", method="mean")
+result = ctx.groupby("region").fillna("score", method="mean")
 ```
 
 ```python
-result = await dataset.groupby("department").afillna("salary", method="mean")
+result = await ctx.groupby("region").afillna("score", method="mean")
 ```
 
 The filled `<column>_<method>_filled` column is written into the source

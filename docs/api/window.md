@@ -1,5 +1,7 @@
 # Window
 
+> **Example data:** copy the setup cell from [Example Data](example-data.md) into Colab once, then run the examples below. Examples use that `ctx`; local frames are shown inline.
+
 Source: `src/memframe/wrappers/analytix/window.py`
 
 `WindowWrapper` is the public rolling / expanding / exponentially-weighted
@@ -11,28 +13,28 @@ table and records a source ref that the deep cache stores.
 Users normally call window methods directly on a dataset context returned by an
 upload operation. There are two equivalent entry points:
 
-- a direct call — `dataset.rolling(...)`, `dataset.expanding(...)`,
-  `dataset.ewm(...)` — with `order_by` passed as an argument;
-- a pandas-style fluent builder — `dataset.on("sales").rolling(7).mean(...)`.
+- a direct call — `ctx.rolling(...)`, `ctx.expanding(...)`,
+  `ctx.ewm(...)` — with `order_by` passed as an argument;
+- a pandas-style fluent builder — `ctx.on("sales").rolling(7).mean(...)`.
 
 ```python
-dataset = mf.DataFrame(frame)
+# ctx is defined in the Example Data setup
 
-rolling = dataset.rolling(column="sales", window=7, func="mean", order_by="date")
-expanding = dataset.expanding(column="sales", func="sum", order_by="date")
-smoothed = dataset.ewm(column="sales", span=3, func="mean", order_by="date")
-fluent = dataset.on("sales").rolling(7).mean(order_by="date")
+rolling = ctx.rolling(column="sales", window=7, func="mean", order_by="date")
+expanding = ctx.expanding(column="sales", func="sum", order_by="date")
+smoothed = ctx.ewm(column="sales", span=3, func="mean", order_by="date")
+fluent = ctx.on("sales").rolling(7).mean(order_by="date")
 ```
 
 ```python
-dataset = await mf.aDataFrame(frame)
+# ctx is defined in the Example Data setup
 
-rolling = await dataset.arolling(column="sales", window=7, func="mean", order_by="date")
-expanding = await dataset.aexpanding(column="sales", func="sum", order_by="date")
-smoothed = await dataset.aewm(column="sales", span=3, func="mean", order_by="date")
+rolling = await ctx.arolling(column="sales", window=7, func="mean", order_by="date")
+expanding = await ctx.aexpanding(column="sales", func="sum", order_by="date")
+smoothed = await ctx.aewm(column="sales", span=3, func="mean", order_by="date")
 ```
 
-`window` is top-level (`dataset.rolling`, not `dataset.dt.*`) — `dt` is reserved
+`window` is top-level (`ctx.rolling`, not `ctx.dt.*`) — `dt` is reserved
 for `DateTimeWrapper`.
 
 The lower-level files are implementation details:
@@ -59,7 +61,7 @@ Each rolling method has a synchronous and asynchronous form. Direct rolling
 takes `(column, window, func, order_by=None, q=0.5, min_periods=None,
 center=False, closed=None, win_type=None, func_kwargs=None)`; the named
 shorthands fix `func`. Builders take the same frame options at construction:
-`dataset.on("sales").rolling(7, min_periods=1, win_type="hann").mean()`.
+`ctx.on("sales").rolling(7, min_periods=1, win_type="hann").mean()`.
 
 | Synchronous (via builder or `rolling`) | Purpose |
 | --- | --- |
@@ -121,29 +123,29 @@ Exponentially-weighted operations are numeric-only and support four functions.
 ## Usage Overview
 
 ```python
-dataset = mf.DataFrame(frame)
+# ctx is defined in the Example Data setup
 
-sample = dataset.rolling(column="sales", window=7, func="mean", order_by="date")
-sample = dataset.rolling(column="sales", window=7, func=["sum", "mean"], order_by="date")
-sample = dataset.expanding(column="sales", func="sum", order_by="date", min_periods=3)
-sample = dataset.ewm(column="sales", span=3, func="mean", order_by="date")
-sample = dataset.on("sales").rolling(7).mean(order_by="date")
+sample = ctx.rolling(column="sales", window=7, func="mean", order_by="date")
+sample = ctx.rolling(column="sales", window=7, func=["sum", "mean"], order_by="date")
+sample = ctx.expanding(column="sales", func="sum", order_by="date", min_periods=3)
+sample = ctx.ewm(column="sales", span=3, func="mean", order_by="date")
+sample = ctx.on("sales").rolling(7).mean(order_by="date")
 ```
 
 ```python
-dataset = await mf.aDataFrame(frame)
+# ctx is defined in the Example Data setup
 
-sample = await dataset.arolling(column="sales", window=7, func="mean", order_by="date")
-sample = await dataset.aexpanding(column="sales", func="sum", order_by="date", min_periods=3)
-sample = await dataset.aewm(column="sales", span=3, func="mean", order_by="date")
+sample = await ctx.arolling(column="sales", window=7, func="mean", order_by="date")
+sample = await ctx.aexpanding(column="sales", func="sum", order_by="date", min_periods=3)
+sample = await ctx.aewm(column="sales", span=3, func="mean", order_by="date")
 ```
 
 `order_by` is optional — omit it to use the natural `_mf_idx` upload order:
 
 ```python
-sample = dataset.rolling(column="sales", window=7, func="mean")
-sample = dataset.expanding(column="sales", func="sum", min_periods=3)
-sample = dataset.ewm(column="sales", span=3, func="mean")
+sample = ctx.rolling(column="sales", window=7, func="mean")
+sample = ctx.expanding(column="sales", func="sum", min_periods=3)
+sample = ctx.ewm(column="sales", span=3, func="mean")
 ```
 
 ## Common Parameters
@@ -164,8 +166,8 @@ sample = dataset.ewm(column="sales", span=3, func="mean")
 `order_by` accepts a single column or a list:
 
 ```python
-result = dataset.rolling(column="sales", window=7, func="mean", order_by="date")
-result = dataset.rolling(
+result = ctx.rolling(column="sales", window=7, func="mean", order_by="date")
+result = ctx.rolling(
     column="sales", window=7, func="mean", order_by=["region", "date"]
 )
 ```
@@ -232,9 +234,9 @@ Method-level pandas parameters are available on the builders, and through
 `func_kwargs` for the generic `func=` path:
 
 ```python
-dataset.on("sales").rolling(7, min_periods=1).std(ddof=0)
-dataset.on("sales").rolling(7).rank(method="dense", ascending=False, pct=True)
-dataset.rolling(
+ctx.on("sales").rolling(7, min_periods=1).std(ddof=0)
+ctx.on("sales").rolling(7).rank(method="dense", ascending=False, pct=True)
+ctx.rolling(
     column="sales", window=7, func=["std", "quantile"],
     func_kwargs={"std": {"ddof": 0}, "quantile": {"q": 0.9}},
 )
@@ -255,10 +257,10 @@ Pass a duration instead of a row count to window by time. A datetime
 `order_by` column is required, and `min_periods` defaults to `1`:
 
 ```python
-dataset.rolling(column="sales", window="3D", func="mean", order_by="date")
-dataset.rolling(column="sales", window=pd.Timedelta("36h"), func="sum",
+ctx.rolling(column="sales", window="3D", func="mean", order_by="date")
+ctx.rolling(column="sales", window=pd.Timedelta("36h"), func="sum",
                 order_by="date")
-dataset.on("sales").rolling(datetime.timedelta(days=3)).mean(order_by="date")
+ctx.on("sales").rolling(datetime.timedelta(days=3)).mean(order_by="date")
 ```
 
 - The frame defaults to `(t - window, t]` — a strict left edge, like pandas.
@@ -288,9 +290,9 @@ dataset.on("sales").rolling(datetime.timedelta(days=3)).mean(order_by="date")
 `mean` (`boxcar` is the unweighted frame; pass `None` for that):
 
 ```python
-dataset.rolling(column="sales", window=5, func="mean", order_by="day",
+ctx.rolling(column="sales", window=5, func="mean", order_by="date",
                 win_type="triang")
-dataset.on("sales").rolling(5, win_type="hann").mean(order_by="day")
+ctx.on("sales").rolling(5, win_type="hann").mean(order_by="date")
 ```
 
 - Supported weights: `boxcar`, `triang`, `bartlett`, `parzen`, `bohman`,
@@ -333,9 +335,9 @@ the current row through the current row. `min_periods` defaults to `window`
 `min_periods=1` to aggregate whatever is available instead:
 
 ```python
-rows = dataset.rolling(column="sales", window=3, func="mean", order_by="day")
-partial = dataset.rolling(
-    column="sales", window=3, func="mean", order_by="day", min_periods=1,
+rows = ctx.rolling(column="sales", window=3, func="mean", order_by="date")
+partial = ctx.rolling(
+    column="sales", window=3, func="mean", order_by="date", min_periods=1,
 )
 ```
 
@@ -354,8 +356,8 @@ uses (`w = window`):
 | `neither` | `w-1 PRECEDING … 1 PRECEDING` | shift forward `(w-1)//2` |
 
 ```python
-dataset.rolling(column="sales", window=3, func="mean", order_by="day", center=True)
-dataset.rolling(column="sales", window=3, func="sum", order_by="day", closed="both")
+ctx.rolling(column="sales", window=3, func="mean", order_by="date", center=True)
+ctx.rolling(column="sales", window=3, func="sum", order_by="date", closed="both")
 ```
 
 `closed="neither"` needs `window >= 2` — with `window=1` the frame would hold no
@@ -364,7 +366,8 @@ the frame; pandas ranks the frame's last row, which only differs under
 `center=True`.
 
 All examples in this section use a numeric frame
-`sales = [10, 20, 30, 40, 50]`, `day = [1, 2, 3, 4, 5]`, `window = 3`.
+`sales = [10, 20, 30, 40, 50]`, `date` starting at `2024-01-01` (the
+`example` dataset), `window = 3`.
 
 ### `sum`
 
@@ -373,10 +376,10 @@ Total of the values in the window (nulls ignored). Result column
 
 ```python
 # ordered by a column
-result = dataset.rolling(column="sales", window=3, func="sum", order_by="day")
+result = ctx.rolling(column="sales", window=3, func="sum", order_by="date")
 
 # no order_by — natural `_mf_idx` order
-result = dataset.rolling(column="sales", window=3, func="sum")
+result = ctx.rolling(column="sales", window=3, func="sum")
 ```
 
 Both forms → `[NULL, NULL, 60, 90, 120]`.
@@ -386,8 +389,8 @@ Both forms → `[NULL, NULL, 60, 90, 120]`.
 Average of the values in the window. Result column `sales_rolling_mean_w3`.
 
 ```python
-result = dataset.rolling(column="sales", window=3, func="mean", order_by="day")
-result = dataset.rolling(column="sales", window=3, func="mean")
+result = ctx.rolling(column="sales", window=3, func="mean", order_by="date")
+result = ctx.rolling(column="sales", window=3, func="mean")
 ```
 
 Both forms → `[NULL, NULL, 20, 30, 40]`.
@@ -397,8 +400,8 @@ Both forms → `[NULL, NULL, 20, 30, 40]`.
 Smallest value in the window. Result column `sales_rolling_min_w3`.
 
 ```python
-result = dataset.rolling(column="sales", window=3, func="min", order_by="day")
-result = dataset.rolling(column="sales", window=3, func="min")
+result = ctx.rolling(column="sales", window=3, func="min", order_by="date")
+result = ctx.rolling(column="sales", window=3, func="min")
 ```
 
 Both forms → `[NULL, NULL, 10, 20, 30]`.
@@ -408,8 +411,8 @@ Both forms → `[NULL, NULL, 10, 20, 30]`.
 Largest value in the window. Result column `sales_rolling_max_w3`.
 
 ```python
-result = dataset.rolling(column="sales", window=3, func="max", order_by="day")
-result = dataset.rolling(column="sales", window=3, func="max")
+result = ctx.rolling(column="sales", window=3, func="max", order_by="date")
+result = ctx.rolling(column="sales", window=3, func="max")
 ```
 
 Both forms → `[NULL, NULL, 30, 40, 50]`.
@@ -420,8 +423,8 @@ Number of non-null values in the window. Result column
 `sales_rolling_count_w3`.
 
 ```python
-result = dataset.rolling(column="sales", window=3, func="count", order_by="day")
-result = dataset.rolling(column="sales", window=3, func="count")
+result = ctx.rolling(column="sales", window=3, func="count", order_by="date")
+result = ctx.rolling(column="sales", window=3, func="count")
 ```
 
 Both forms → `[NULL, NULL, 3, 3, 3]`.
@@ -433,8 +436,8 @@ population figure, or any other integer for the unbiased form. Result column
 `sales_rolling_std_w3`.
 
 ```python
-result = dataset.rolling(column="sales", window=3, func="std", order_by="day")
-result = dataset.rolling(column="sales", window=3, func="std")
+result = ctx.rolling(column="sales", window=3, func="std", order_by="date")
+result = ctx.rolling(column="sales", window=3, func="std")
 ```
 
 Both forms → `[NULL, NULL, 10, 10, 10]`.
@@ -445,8 +448,8 @@ Both forms → `[NULL, NULL, 10, 10, 10]`.
 `NULL`. `ddof` is configurable per call. Result column `sales_rolling_var_w3`.
 
 ```python
-result = dataset.rolling(column="sales", window=3, func="var", order_by="day")
-result = dataset.rolling(column="sales", window=3, func="var")
+result = ctx.rolling(column="sales", window=3, func="var", order_by="date")
+result = ctx.rolling(column="sales", window=3, func="var")
 ```
 
 Both forms → `[NULL, NULL, 100, 100, 100]`.
@@ -473,16 +476,16 @@ on an integer every mode returns the same element, and a single observation
 returns that value. Set the mode through the builder or `func_kwargs`:
 
 ```python
-dataset.on("sales").rolling(7).quantile(q=0.9, interpolation="higher")
-dataset.rolling(
-    column="sales", window=7, func="quantile", q=0.9, order_by="day",
+ctx.on("sales").rolling(7).quantile(q=0.9, interpolation="higher")
+ctx.rolling(
+    column="sales", window=7, func="quantile", q=0.9, order_by="date",
     func_kwargs={"quantile": {"interpolation": "nearest"}},
 )
 ```
 
 ```python
-result = dataset.rolling(column="sales", window=3, func="quantile", q=0.5, order_by="day")
-result = dataset.rolling(column="sales", window=3, func="quantile", q=0.5)
+result = ctx.rolling(column="sales", window=3, func="quantile", q=0.5, order_by="date")
+result = ctx.rolling(column="sales", window=3, func="quantile", q=0.5)
 ```
 
 Both forms → `[NULL, NULL, 20, 30, 40]`.
@@ -493,8 +496,8 @@ Median of the window (quantile `0.5`, linear interpolation). Result column
 `sales_rolling_median_w3`.
 
 ```python
-result = dataset.rolling(column="sales", window=3, func="median", order_by="day")
-result = dataset.rolling(column="sales", window=3, func="median")
+result = ctx.rolling(column="sales", window=3, func="median", order_by="date")
+result = ctx.rolling(column="sales", window=3, func="median")
 ```
 
 Both forms → `[NULL, NULL, 20, 30, 40]`.
@@ -506,8 +509,8 @@ divided by `sqrt(count - ddof)` (`ddof=1` by default). Result column
 `sales_rolling_sem_w3`.
 
 ```python
-result = dataset.rolling(column="sales", window=3, func="sem", order_by="day")
-result = dataset.rolling(column="sales", window=3, func="sem")
+result = ctx.rolling(column="sales", window=3, func="sem", order_by="date")
+result = ctx.rolling(column="sales", window=3, func="sem")
 ```
 
 Both forms → `[NULL, NULL, 7.071, 7.071, 7.071]`.
@@ -520,8 +523,8 @@ Rank of the current row inside the window. `method` is `average` (default),
 Result column `sales_rolling_rank_w3`.
 
 ```python
-result = dataset.rolling(column="sales", window=3, func="rank", order_by="day")
-result = dataset.rolling(column="sales", window=3, func="rank")
+result = ctx.rolling(column="sales", window=3, func="rank", order_by="date")
+result = ctx.rolling(column="sales", window=3, func="rank")
 ```
 
 Both forms → `[NULL, NULL, 3, 3, 3]`.
@@ -532,8 +535,8 @@ Number of distinct values in the window. Result column
 `sales_rolling_nunique_w3`.
 
 ```python
-result = dataset.rolling(column="sales", window=3, func="nunique", order_by="day")
-result = dataset.rolling(column="sales", window=3, func="nunique")
+result = ctx.rolling(column="sales", window=3, func="nunique", order_by="date")
+result = ctx.rolling(column="sales", window=3, func="nunique")
 ```
 
 Both forms → `[NULL, NULL, 3, 3, 3]`.
@@ -547,8 +550,8 @@ where every value is identical returns `0` for `skew` and `-3` for `kurt`.
 Result columns `sales_rolling_skew_w3` / `sales_rolling_kurt_w3`.
 
 ```python
-result = dataset.rolling(column="sales", window=3, func="skew", order_by="day")
-result = dataset.on("sales").rolling(3).kurt(order_by="day")
+result = ctx.rolling(column="sales", window=3, func="skew", order_by="date")
+result = ctx.on("sales").rolling(3).kurt(order_by="date")
 ```
 
 They are stateless closed forms, so they also work with `center`, `closed`,
@@ -560,8 +563,8 @@ First value in the window (the value `w - 1` rows back, or the first row of the
 table). Result column `sales_rolling_first_w3`.
 
 ```python
-result = dataset.rolling(column="sales", window=3, func="first", order_by="day")
-result = dataset.rolling(column="sales", window=3, func="first")
+result = ctx.rolling(column="sales", window=3, func="first", order_by="date")
+result = ctx.rolling(column="sales", window=3, func="first")
 ```
 
 Both forms → `[NULL, NULL, 10, 20, 30]`.
@@ -572,8 +575,8 @@ Last value in the window — always the current row. Result column
 `sales_rolling_last_w3`.
 
 ```python
-result = dataset.rolling(column="sales", window=3, func="last", order_by="day")
-result = dataset.rolling(column="sales", window=3, func="last")
+result = ctx.rolling(column="sales", window=3, func="last", order_by="date")
+result = ctx.rolling(column="sales", window=3, func="last")
 ```
 
 Both forms → `[NULL, NULL, 30, 40, 50]`.
@@ -584,10 +587,10 @@ Passing a list computes every function in one pass and writes all generated
 columns to the source:
 
 ```python
-result = dataset.rolling(
-    column="sales", window=3, func=["sum", "mean"], order_by="day"
+result = ctx.rolling(
+    column="sales", window=3, func=["sum", "mean"], order_by="date"
 )
-result = dataset.rolling(column="sales", window=3, func=["sum", "mean"])
+result = ctx.rolling(column="sales", window=3, func=["sum", "mean"])
 ```
 
 The response reports `new_columns`, `successful_funcs`, `skipped_funcs`,
@@ -603,15 +606,15 @@ epoch seconds, aggregate, then convert back. On a date frame
 `date = [Jan 1, Jan 2, Jan 3, Jan 4, Jan 5]`, `window = 3`:
 
 ```python
-result = dataset.rolling(column="date", window=3, func="median", order_by="day")
-result = dataset.rolling(column="date", window=3, func="median")
+result = ctx.rolling(column="date", window=3, func="median", order_by="date")
+result = ctx.rolling(column="date", window=3, func="median")
 ```
 
 Both forms → `[NULL, NULL, Jan 2, Jan 3, Jan 4]`.
 
 ```python
-result = dataset.rolling(column="date", window=3, func="min", order_by="day")
-result = dataset.rolling(column="date", window=3, func="min")
+result = ctx.rolling(column="date", window=3, func="min", order_by="date")
+result = ctx.rolling(column="date", window=3, func="min")
 ```
 
 Both forms → `[NULL, NULL, Jan 1, Jan 2, Jan 3]`.
@@ -639,8 +642,8 @@ no `window`; `min_periods` (default `1`) gates the early rows. All examples use
 Running total. Result column `sales_expanding_sum`.
 
 ```python
-result = dataset.expanding(column="sales", func="sum", order_by="day")
-result = dataset.expanding(column="sales", func="sum")
+result = ctx.expanding(column="sales", func="sum", order_by="date")
+result = ctx.expanding(column="sales", func="sum")
 ```
 
 Both forms → `[10, 30, 60, 100, 150]`.
@@ -650,8 +653,8 @@ Both forms → `[10, 30, 60, 100, 150]`.
 Running average. Result column `sales_expanding_mean`.
 
 ```python
-result = dataset.expanding(column="sales", func="mean", order_by="day")
-result = dataset.expanding(column="sales", func="mean")
+result = ctx.expanding(column="sales", func="mean", order_by="date")
+result = ctx.expanding(column="sales", func="mean")
 ```
 
 Both forms → `[10, 15, 20, 25, 30]`.
@@ -659,10 +662,10 @@ Both forms → `[10, 15, 20, 25, 30]`.
 `min_periods` suppresses output until enough non-null values have been seen:
 
 ```python
-result = dataset.expanding(
-    column="sales", func="mean", order_by="day", min_periods=3
+result = ctx.expanding(
+    column="sales", func="mean", order_by="date", min_periods=3
 )
-result = dataset.expanding(column="sales", func="mean", min_periods=3)
+result = ctx.expanding(column="sales", func="mean", min_periods=3)
 ```
 
 Both forms → `[NULL, NULL, 20, 25, 30]`.
@@ -672,8 +675,8 @@ Both forms → `[NULL, NULL, 20, 25, 30]`.
 Running minimum. Result column `sales_expanding_min`.
 
 ```python
-result = dataset.expanding(column="sales", func="min", order_by="day")
-result = dataset.expanding(column="sales", func="min")
+result = ctx.expanding(column="sales", func="min", order_by="date")
+result = ctx.expanding(column="sales", func="min")
 ```
 
 Both forms → `[10, 10, 10, 10, 10]`.
@@ -683,8 +686,8 @@ Both forms → `[10, 10, 10, 10, 10]`.
 Running maximum. Result column `sales_expanding_max`.
 
 ```python
-result = dataset.expanding(column="sales", func="max", order_by="day")
-result = dataset.expanding(column="sales", func="max")
+result = ctx.expanding(column="sales", func="max", order_by="date")
+result = ctx.expanding(column="sales", func="max")
 ```
 
 Both forms → `[10, 20, 30, 40, 50]`.
@@ -694,8 +697,8 @@ Both forms → `[10, 20, 30, 40, 50]`.
 Running non-null count. Result column `sales_expanding_count`.
 
 ```python
-result = dataset.expanding(column="sales", func="count", order_by="day")
-result = dataset.expanding(column="sales", func="count")
+result = ctx.expanding(column="sales", func="count", order_by="date")
+result = ctx.expanding(column="sales", func="count")
 ```
 
 Both forms → `[1, 2, 3, 4, 5]`.
@@ -706,8 +709,8 @@ Running **sample** standard deviation. The first row is `NULL`. Result column
 `sales_expanding_std`.
 
 ```python
-result = dataset.expanding(column="sales", func="std", order_by="day")
-result = dataset.expanding(column="sales", func="std")
+result = ctx.expanding(column="sales", func="std", order_by="date")
+result = ctx.expanding(column="sales", func="std")
 ```
 
 Both forms → `[NULL, 7.071, 10, 12.91, 15.811]`.
@@ -718,8 +721,8 @@ Running **sample** variance. The first row is `NULL`. Result column
 `sales_expanding_var`.
 
 ```python
-result = dataset.expanding(column="sales", func="var", order_by="day")
-result = dataset.expanding(column="sales", func="var")
+result = ctx.expanding(column="sales", func="var", order_by="date")
+result = ctx.expanding(column="sales", func="var")
 ```
 
 Both forms → `[NULL, 50, 100, 166.667, 250]`.
@@ -732,8 +735,8 @@ Running interpolated quantile `q` (default `0.5`). Result column
 Parameters: `column`, `q` (default `0.5`), `min_periods`, `order_by`.
 
 ```python
-result = dataset.expanding(column="sales", func="quantile", q=0.5, order_by="day")
-result = dataset.expanding(column="sales", func="quantile", q=0.5)
+result = ctx.expanding(column="sales", func="quantile", q=0.5, order_by="date")
+result = ctx.expanding(column="sales", func="quantile", q=0.5)
 ```
 
 Both forms → `[10, 15, 20, 25, 30]`; with `min_periods=3` →
@@ -744,8 +747,8 @@ Both forms → `[10, 15, 20, 25, 30]`; with `min_periods=3` →
 Running median. Result column `sales_expanding_median`.
 
 ```python
-result = dataset.expanding(column="sales", func="median", order_by="day")
-result = dataset.expanding(column="sales", func="median")
+result = ctx.expanding(column="sales", func="median", order_by="date")
+result = ctx.expanding(column="sales", func="median")
 ```
 
 Both forms → `[10, 15, 20, 25, 30]`.
@@ -756,8 +759,8 @@ Running standard error of the mean, matching pandas: sample standard deviation
 over `sqrt(count - ddof)`. Result column `sales_expanding_sem`.
 
 ```python
-result = dataset.expanding(column="sales", func="sem", order_by="day")
-result = dataset.expanding(column="sales", func="sem")
+result = ctx.expanding(column="sales", func="sem", order_by="date")
+result = ctx.expanding(column="sales", func="sem")
 ```
 
 Both forms → `[NULL, 7.071, 7.071, 7.454, 7.905]`.
@@ -768,8 +771,8 @@ Running rank of the current row. `method`, `ascending`, and `pct` work as in
 the rolling case. Result column `sales_expanding_rank`.
 
 ```python
-result = dataset.expanding(column="sales", func="rank", order_by="day")
-result = dataset.expanding(column="sales", func="rank")
+result = ctx.expanding(column="sales", func="rank", order_by="date")
+result = ctx.expanding(column="sales", func="rank")
 ```
 
 Both forms → `[1, 2, 3, 4, 5]`.
@@ -779,8 +782,8 @@ Both forms → `[1, 2, 3, 4, 5]`.
 Running distinct count. Result column `sales_expanding_nunique`.
 
 ```python
-result = dataset.expanding(column="sales", func="nunique", order_by="day")
-result = dataset.expanding(column="sales", func="nunique")
+result = ctx.expanding(column="sales", func="nunique", order_by="date")
+result = ctx.expanding(column="sales", func="nunique")
 ```
 
 Both forms → `[1, 2, 3, 4, 5]`.
@@ -792,8 +795,8 @@ enough observations exist (3 for `skew`, 4 for `kurt`); identical values give
 `0` / `-3`. Result columns `sales_expanding_skew` / `sales_expanding_kurt`.
 
 ```python
-result = dataset.expanding(column="sales", func="skew", order_by="day")
-result = dataset.on("sales").expanding().kurt(order_by="day")
+result = ctx.expanding(column="sales", func="skew", order_by="date")
+result = ctx.on("sales").expanding().kurt(order_by="date")
 ```
 
 ### `first`
@@ -802,8 +805,8 @@ First value seen so far (the first row of the table). Result column
 `sales_expanding_first`.
 
 ```python
-result = dataset.expanding(column="sales", func="first", order_by="day")
-result = dataset.expanding(column="sales", func="first")
+result = ctx.expanding(column="sales", func="first", order_by="date")
+result = ctx.expanding(column="sales", func="first")
 ```
 
 Both forms → `[10, 10, 10, 10, 10]`.
@@ -814,8 +817,8 @@ Last value seen so far — the current row. Result column
 `sales_expanding_last`.
 
 ```python
-result = dataset.expanding(column="sales", func="last", order_by="day")
-result = dataset.expanding(column="sales", func="last")
+result = ctx.expanding(column="sales", func="last", order_by="date")
+result = ctx.expanding(column="sales", func="last")
 ```
 
 Both forms → `[10, 20, 30, 40, 50]`.
@@ -826,8 +829,8 @@ Both forms → `[10, 20, 30, 40, 50]`.
 `date = [Jan 1, Jan 2, Jan 3, Jan 4, Jan 5]`:
 
 ```python
-result = dataset.expanding(column="date", func="mean", order_by="day", min_periods=2)
-result = dataset.expanding(column="date", func="mean", min_periods=2)
+result = ctx.expanding(column="date", func="mean", order_by="date", min_periods=2)
+result = ctx.expanding(column="date", func="mean", min_periods=2)
 ```
 
 Both forms → `[NULL, Jan 1 12:00, Jan 2, Jan 2 12:00, Jan 3]`.
@@ -867,16 +870,16 @@ Examples use `sales = [10, 20, 30, 40, 50]`.
 Exponentially-weighted mean.
 
 ```python
-result = dataset.ewm(column="sales", span=3, func="mean", order_by="day")
-result = dataset.ewm(column="sales", span=3, func="mean")
+result = ctx.ewm(column="sales", span=3, func="mean", order_by="date")
+result = ctx.ewm(column="sales", span=3, func="mean")
 ```
 
 Both forms → `[10, 16.667, 24.286, 32.667, 41.613]`.
 
 ```python
 # halflife + recursive form
-result = dataset.ewm(column="sales", halflife=2, func="mean", order_by="day", adjust=False)
-result = dataset.ewm(column="sales", halflife=2, func="mean", adjust=False)
+result = ctx.ewm(column="sales", halflife=2, func="mean", order_by="date", adjust=False)
+result = ctx.ewm(column="sales", halflife=2, func="mean", adjust=False)
 ```
 
 Both forms → `[10, 12.929, 17.929, 24.393, 31.893]`.
@@ -886,8 +889,8 @@ Both forms → `[10, 12.929, 17.929, 24.393, 31.893]`.
 Exponentially-weighted sum. Result column `sales_ewm_sum`.
 
 ```python
-result = dataset.ewm(column="sales", span=3, func="sum", order_by="day")
-result = dataset.ewm(column="sales", span=3, func="sum")
+result = ctx.ewm(column="sales", span=3, func="sum", order_by="date")
+result = ctx.ewm(column="sales", span=3, func="sum")
 ```
 
 Both forms → `[10, 25, 42.5, 61.25, 80.625]`.
@@ -897,8 +900,8 @@ Both forms → `[10, 25, 42.5, 61.25, 80.625]`.
 Exponentially-weighted standard deviation. Result column `sales_ewm_std`.
 
 ```python
-result = dataset.ewm(column="sales", span=3, func="std", order_by="day")
-result = dataset.ewm(column="sales", span=3, func="std")
+result = ctx.ewm(column="sales", span=3, func="std", order_by="date")
+result = ctx.ewm(column="sales", span=3, func="std")
 ```
 
 Both forms → `[NULL, 7.071, 9.636, 11.772, 13.452]`.
@@ -908,8 +911,8 @@ Both forms → `[NULL, 7.071, 9.636, 11.772, 13.452]`.
 Exponentially-weighted variance. Result column `sales_ewm_var`.
 
 ```python
-result = dataset.ewm(column="sales", span=3, func="var", order_by="day")
-result = dataset.ewm(column="sales", span=3, func="var")
+result = ctx.ewm(column="sales", span=3, func="var", order_by="date")
+result = ctx.ewm(column="sales", span=3, func="var")
 ```
 
 Both forms → `[NULL, 50, 92.857, 138.571, 180.968]`.
@@ -919,11 +922,11 @@ Both forms → `[NULL, 50, 92.857, 138.571, 180.968]`.
 `func` may be a list, and the weighting options apply to every function:
 
 ```python
-result = dataset.ewm(
-    column="sales", halflife=5, func=["mean", "std"], order_by="day",
+result = ctx.ewm(
+    column="sales", halflife=5, func=["mean", "std"], order_by="date",
     adjust=True, ignore_na=False, min_periods=0,
 )
-result = dataset.ewm(
+result = ctx.ewm(
     column="sales", halflife=5, func=["mean", "std"],
     adjust=True, ignore_na=False, min_periods=0,
 )
@@ -939,43 +942,43 @@ result = dataset.ewm(
 
 ## Fluent Builder
 
-`dataset.on(column)` returns a builder mirroring the pandas chained style. Every
+`ctx.on(column)` returns a builder mirroring the pandas chained style. Every
 terminal method accepts the same `order_by` (optional) as its direct form.
 
 ```python
 # with order_by
-dataset.on("sales").rolling(7).sum(order_by="date")
-dataset.on("sales").rolling(7).mean(order_by="date")
-dataset.on("sales").rolling(7).std(order_by="date")
-dataset.on("sales").rolling(7).quantile(q=0.5, order_by="date")
-dataset.on("sales").expanding(min_periods=3).mean(order_by="date")
-dataset.on("sales").ewm(span=3).mean(order_by="date")
+ctx.on("sales").rolling(7).sum(order_by="date")
+ctx.on("sales").rolling(7).mean(order_by="date")
+ctx.on("sales").rolling(7).std(order_by="date")
+ctx.on("sales").rolling(7).quantile(q=0.5, order_by="date")
+ctx.on("sales").expanding(min_periods=3).mean(order_by="date")
+ctx.on("sales").ewm(span=3).mean(order_by="date")
 
 # without order_by — natural `_mf_idx` order
-dataset.on("sales").rolling(7).sum()
-dataset.on("sales").rolling(7).mean()
-dataset.on("sales").rolling(7).std()
-dataset.on("sales").rolling(7).quantile(q=0.5)
-dataset.on("sales").expanding(min_periods=3).mean()
-dataset.on("sales").ewm(span=3).mean()
+ctx.on("sales").rolling(7).sum()
+ctx.on("sales").rolling(7).mean()
+ctx.on("sales").rolling(7).std()
+ctx.on("sales").rolling(7).quantile(q=0.5)
+ctx.on("sales").expanding(min_periods=3).mean()
+ctx.on("sales").ewm(span=3).mean()
 ```
 
 `rolling` / `expanding` / `ewm` also work directly on the wrapper and return a
 builder when `func` is omitted:
 
 ```python
-dataset.rolling(column="sales", window=7).mean(order_by="date")
-dataset.rolling(column="sales", window=7).mean()
-dataset.expanding(column="sales").sum(order_by="date")
-dataset.expanding(column="sales").sum()
+ctx.rolling(column="sales", window=7).mean(order_by="date")
+ctx.rolling(column="sales", window=7).mean()
+ctx.expanding(column="sales").sum(order_by="date")
+ctx.expanding(column="sales").sum()
 ```
 
 Each builder exposes the named shorthands above plus a generic
 `apply(func, order_by=None)` / `await aapply(...)` escape hatch:
 
 ```python
-dataset.on("sales").rolling(7).apply("mean", order_by="date")
-dataset.on("sales").rolling(7).apply("mean")
+ctx.on("sales").rolling(7).apply("mean", order_by="date")
+ctx.on("sales").rolling(7).apply("mean")
 ```
 
 ## Return Values and Errors

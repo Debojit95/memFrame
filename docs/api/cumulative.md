@@ -1,5 +1,7 @@
 # Cumulative
 
+> **Example data:** copy the setup cell from [Example Data](example-data.md) into Colab once, then run the examples below. Examples use that `ctx`; local frames are shown inline.
+
 Source: `src/memframe/wrappers/analytix/cumulative.py`
 
 `CumulativeWrapper` is the public cumulative interface exposed through a
@@ -12,16 +14,16 @@ Users normally call cumulative methods directly on a dataset context returned
 by an upload operation:
 
 ```python
-dataset = mf.DataFrame(frame)
-result = dataset.cumsum("revenue", order_col="month")
+# ctx is defined in the Example Data setup
+result = ctx.cumsum("sales", order_col="date")
 ```
 
 ```python
-dataset = await mf.aDataFrame(frame)
-result = await dataset.acumsum("revenue", order_col="month")
+# ctx is defined in the Example Data setup
+result = await ctx.acumsum("sales", order_col="date")
 ```
 
-`cumulative` is top-level (`dataset.cumsum`, not `dataset.dt.*`) — `dt` is
+`cumulative` is top-level (`ctx.cumsum`, not `ctx.dt.*`) — `dt` is
 reserved for `DateTimeWrapper`.
 
 The lower-level files are implementation details:
@@ -57,26 +59,26 @@ raise `OperationError`.
 ## Usage Overview
 
 ```python
-dataset = mf.DataFrame(frame)
+# ctx is defined in the Example Data setup
 
-sample = dataset.cumsum("revenue", order_col="month")
-sample = dataset.cummean("score", target_col="running_avg")
-sample = dataset.cumcount("user_id")
+sample = ctx.cumsum("sales", order_col="date")
+sample = ctx.cummean("score", target_col="running_avg")
+sample = ctx.cumcount("id")
 ```
 
 ```python
-dataset = await mf.aDataFrame(frame)
+# ctx is defined in the Example Data setup
 
-sample = await dataset.acumsum("revenue", order_col="month")
-sample = await dataset.acummean("score", target_col="running_avg")
+sample = await ctx.acumsum("sales", order_col="date")
+sample = await ctx.acummean("score", target_col="running_avg")
 ```
 
 `order_col` is optional — omit it to use physical row order:
 
 ```python
-sample = dataset.cumsum("revenue")
-sample = dataset.cummean("score")
-sample = dataset.cumcount("user_id")
+sample = ctx.cumsum("sales")
+sample = ctx.cummean("score")
+sample = ctx.cumcount("id")
 ```
 
 ## Common Parameters
@@ -85,13 +87,13 @@ sample = dataset.cumcount("user_id")
 | --- | --- | --- |
 | `column` | `str` | Numeric column to accumulate. |
 | `order_col` | `str`, `list[str]`, or `None` | Row ordering for the window. `None` (default) uses physical row order. A list orders by multiple columns. |
-| `target_col` | `str` or `None` | Name for the result column. Auto-generated as `cum_<column>_<op>` if omitted (e.g. `cum_revenue_sum`). |
+| `target_col` | `str` or `None` | Name for the result column. Auto-generated as `cum_<column>_<op>` if omitted (e.g. `cum_sales_sum`). |
 
 `order_col` accepts a single column or a list:
 
 ```python
-result = dataset.cumsum("revenue", order_col="month")
-result = dataset.cumsum("revenue", order_col=["region", "month"])
+result = ctx.cumsum("sales", order_col="date")
+result = ctx.cumsum("sales", order_col=["region", "date"])
 ```
 
 With no `order_col`, rows accumulate in physical storage order (PostgreSQL
@@ -107,11 +109,11 @@ Running sum via `SUM(col) OVER (ORDER BY … ROWS BETWEEN UNBOUNDED PRECEDING
 AND CURRENT ROW)`.
 
 ```python
-result = dataset.cumsum("revenue", order_col="month")
+result = ctx.cumsum("sales", order_col="date")
 ```
 
 ```python
-result = await dataset.acumsum("revenue", order_col="month", target_col="ytd")
+result = await ctx.acumsum("sales", order_col="date", target_col="ytd")
 ```
 
 Example `x=[1.0, 2.0, 3.0]` → `cum_x_sum=[1.0, 3.0, 6.0]`.
@@ -123,11 +125,11 @@ skipped rather than zeroing the tail (`x=[2.0, 0.0, 4.0]` →
 `cum_x_prod≈[2.0, 2.0, 8.0]`, floating-point dust applies).
 
 ```python
-result = dataset.cumprod("growth_factor", order_col="month")
+result = ctx.cumprod("sales", order_col="date")
 ```
 
 ```python
-result = await dataset.acumprod("growth_factor", order_col="month")
+result = await ctx.acumprod("sales", order_col="date")
 ```
 
 Negative inputs abort the whole operation with `is_error True` (engines
@@ -141,13 +143,13 @@ negative number"*). Restrict `cumprod` to non-negative columns.
 Running extrema via `MAX(col)` / `MIN(col)` over the same window frame.
 
 ```python
-result = dataset.cummax("price", order_col="day")
-result = dataset.cummin("price", order_col="day")
+result = ctx.cummax("sales", order_col="date")
+result = ctx.cummin("sales", order_col="date")
 ```
 
 ```python
-result = await dataset.acummax("price", order_col="day")
-result = await dataset.acummin("price", order_col="day")
+result = await ctx.acummax("sales", order_col="date")
+result = await ctx.acummin("sales", order_col="date")
 ```
 
 ### `cummean`
@@ -155,11 +157,11 @@ result = await dataset.acummin("price", order_col="day")
 Running mean via `AVG(col)`.
 
 ```python
-result = dataset.cummean("score", target_col="running_avg")
+result = ctx.cummean("score", target_col="running_avg")
 ```
 
 ```python
-result = await dataset.acummean("score", target_col="running_avg")
+result = await ctx.acummean("score", target_col="running_avg")
 ```
 
 `NULL` values are ignored by the aggregation but still occupy a row, so a
@@ -175,11 +177,11 @@ do not advance the count (`x=[2.0, 0.0, -3.0, NULL, 4.0]` →
 `cum_x_count=[1, 2, 3, 3, 4]`).
 
 ```python
-result = dataset.cumcount("user_id", order_col="signup_date")
+result = ctx.cumcount("id", order_col="event_time")
 ```
 
 ```python
-result = await dataset.acumcount("user_id", order_col="signup_date")
+result = await ctx.acumcount("id", order_col="event_time")
 ```
 
 The result column is `BIGINT` on PostgreSQL/DuckDB and `UInt64` on
@@ -192,13 +194,13 @@ Running **population** (not sample) statistics: `STDDEV_POP(col)` /
 on ClickHouse.
 
 ```python
-result = dataset.cumstd("score", order_col="month")
-result = dataset.cumvar("score", order_col="month")
+result = ctx.cumstd("score", order_col="date")
+result = ctx.cumvar("score", order_col="date")
 ```
 
 ```python
-result = await dataset.acumstd("score", order_col="month")
-result = await dataset.acumvar("score", order_col="month")
+result = await ctx.acumstd("score", order_col="date")
+result = await ctx.acumvar("score", order_col="date")
 ```
 
 A single-row frame yields `0.0` (population denominator `n`, not `n-1`).

@@ -1,5 +1,7 @@
 # GroupBy Window
 
+> **Example data:** copy the setup cell from [Example Data](../example-data.md) into Colab once, then run the examples below. Examples use that `ctx`; local frames are shown inline.
+
 Source: `src/memframe/wrappers/analytix/groupby_window.py`
 
 `GroupByWindowStatsWrapper` is the public partitioned-window interface
@@ -15,30 +17,30 @@ Users normally call grouped window methods through the unified `groupby`
 builder on a dataset context returned by an upload operation. There are
 two equivalent entry points:
 
-- a direct call — `dataset.groupby("region").arolling(...)` — with the
+- a direct call — `ctx.groupby("region").arolling(...)` — with the
   column, window, function, and group columns passed as arguments
   (async; sync via `rolling(...)` on the stats wrapper);
-- a pandas-style fluent builder — `dataset.groupby("region").rolling(3,
-  order_by="month").mean("sales")`.
+- a pandas-style fluent builder — `ctx.groupby("region").rolling(3,
+  order_by="date").mean("sales")`.
 
 ```python
-dataset = mf.DataFrame(frame)
+# ctx is defined in the Example Data setup
 
-result = dataset.groupby("region").rolling(3, order_by="month").mean("sales")
-result = dataset.groupby("region").expanding(order_by="month").sum("sales")
+result = ctx.groupby("region").rolling(3, order_by="date").mean("sales")
+result = ctx.groupby("region").expanding(order_by="date").sum("sales")
 ```
 
 ```python
-dataset = await mf.aDataFrame(frame)
+# ctx is defined in the Example Data setup
 
-result = await dataset.groupby("region").arolling(
+result = await ctx.groupby("region").arolling(
     column="sales", window=3, func="mean",
-    group_cols="region", order_by="month",
+    group_cols="region", order_by="date",
 )
 ```
 
 !!! note
-    A flat `dataset.rolling(...)` resolves to the ungrouped
+    A flat `ctx.rolling(...)` resolves to the ungrouped
     `WindowWrapper.rolling(column, window, func, ...)` (it is registered
     first and takes no group columns). The grouped form above is only
     reachable through the `groupby(...)` builder or
@@ -76,7 +78,7 @@ The lower-level files are implementation details:
 !!! note
     On a context, `ctx.arolling(...)` resolves to the **ungrouped** window
     method (it takes no `group_cols`). Grouped async calls go through the
-    builder: `await ctx.groupby("region").rolling(3, order_by="month").amean("sales")`.
+    builder: `await ctx.groupby("region").rolling(3, order_by="date").amean("sales")`.
 
 ### Builder
 
@@ -106,30 +108,30 @@ form (`mean` / `amean`, …):
 ## Usage Overview
 
 ```python
-dataset = mf.DataFrame(frame)
+# ctx is defined in the Example Data setup
 
-sample = dataset.groupby("region").rolling(3, order_by="month").mean("sales")
-sample = dataset.groupby("region").expanding(order_by="month").sum("sales")
-sample = dataset.groupby("region").rolling(3, order_by="month").agg("sales", ["sum", "mean"])
+sample = ctx.groupby("region").rolling(3, order_by="date").mean("sales")
+sample = ctx.groupby("region").expanding(order_by="date").sum("sales")
+sample = ctx.groupby("region").rolling(3, order_by="date").agg("sales", ["sum", "mean"])
 ```
 
 ```python
-dataset = await mf.aDataFrame(frame)
+# ctx is defined in the Example Data setup
 
-sample = await dataset.groupby("region").arolling(
+sample = await ctx.groupby("region").arolling(
     column="sales", window=3, func="mean",
-    group_cols="region", order_by="month",
+    group_cols="region", order_by="date",
 )
-sample = await dataset.groupby("region").aexpanding(
-    column="sales", func="sum", group_cols="region", order_by="month",
+sample = await ctx.groupby("region").aexpanding(
+    column="sales", func="sum", group_cols="region", order_by="date",
 )
 ```
 
 `order_by` is optional — omit it to use the natural `_mf_idx` order inside each group:
 
 ```python
-sample = dataset.groupby("region").rolling(3).mean("sales")
-sample = dataset.groupby("region").expanding().sum("sales")
+sample = ctx.groupby("region").rolling(3).mean("sales")
+sample = ctx.groupby("region").expanding().sum("sales")
 ```
 
 ## Common Parameters
@@ -163,7 +165,7 @@ AVG("sales") OVER (PARTITION BY "region"
                    ORDER BY "_mf_idx"
                    ROWS BETWEEN 2 PRECEDING AND CURRENT ROW)
 
--- order_by="month"
+-- order_by="date"
 AVG("sales") OVER (PARTITION BY "region"
                    ORDER BY "month", "_mf_idx"
                    ROWS BETWEEN 2 PRECEDING AND CURRENT ROW)
@@ -210,23 +212,23 @@ Pass several group columns to partition by their combination — the
 window restarts at every distinct key tuple:
 
 ```python
-result = dataset.groupby("region", "month").rolling(3, order_by="day").sum("sales")
+result = ctx.groupby("region", "date").rolling(3, order_by="date").sum("sales")
 # column: sales_rolling_sum_w3_by_region_month
 ```
 
 ```python
-result = await dataset.groupby("region", "month").aexpanding(
+result = await ctx.groupby("region", "date").aexpanding(
     column="sales", func="mean",
-    group_cols=["region", "month"], order_by="day",
+    group_cols=["region", "month"], order_by="date",
 )
 ```
 
 Direct calls accept the same shapes — a single name or a list:
 
 ```python
-result = dataset.arolling(
+result = ctx.arolling(
     column="sales", window=3, func=["sum", "mean"],
-    group_cols=["region", "month"], order_by="day",
+    group_cols=["region", "month"], order_by="date",
 )
 ```
 
@@ -235,7 +237,7 @@ chains every requested function into **one** cache table, each
 reading the previous call's output:
 
 ```python
-result = dataset.groupby("region").rolling(3, order_by="month").agg(
+result = ctx.groupby("region").rolling(3, order_by="date").agg(
     "sales", ["sum", "mean", "std"]
 )
 # columns: sales_rolling_sum_w3_by_region,
@@ -257,9 +259,9 @@ rows of each group are `NULL`. Pass `min_periods=1` to aggregate the partial
 window instead:
 
 ```python
-result = dataset.groupby("region").rolling(3, order_by="month").mean("sales")
-result = dataset.groupby("region").rolling(3, order_by="month", min_periods=1).mean("sales")
-result = dataset.groupby("region").rolling(7, order_by="month").quantile("sales", q=0.9)
+result = ctx.groupby("region").rolling(3, order_by="date").mean("sales")
+result = ctx.groupby("region").rolling(3, order_by="date", min_periods=1).mean("sales")
+result = ctx.groupby("region").rolling(7, order_by="date").quantile("sales", q=0.9)
 ```
 
 `center=True` shifts the frame forward `(window - 1) // 2` rows and `closed`
@@ -271,9 +273,9 @@ apply per group. `closed="neither"` needs `window >= 2`.
 `pct`:
 
 ```python
-dataset.groupby("region").rolling(7, order_by="month").std("sales", ddof=0)
-dataset.groupby("region").rolling(7, order_by="month").rank("sales", method="dense")
-dataset.groupby("region").rolling(7, order_by="month").quantile(
+ctx.groupby("region").rolling(7, order_by="date").std("sales", ddof=0)
+ctx.groupby("region").rolling(7, order_by="date").rank("sales", method="dense")
+ctx.groupby("region").rolling(7, order_by="date").quantile(
     "sales", q=0.9, interpolation="higher",
 )
 ```
@@ -281,7 +283,7 @@ dataset.groupby("region").rolling(7, order_by="month").quantile(
 `win_type` applies scipy window weights per group for weighted `sum`/`mean`:
 
 ```python
-dataset.groupby("region").rolling(7, order_by="month", win_type="triang").mean("sales")
+ctx.groupby("region").rolling(7, order_by="date", win_type="triang").mean("sales")
 ```
 
 Passing a duration (`window="3D"` / `timedelta`) windows by time per group
@@ -291,10 +293,10 @@ every aggregation (including the specials, `skew`/`kurt`, and
 `first`/`last`) work per group too:
 
 ```python
-dataset.groupby("region").rolling("3D", order_by="date").mean("sales")
-dataset.groupby("region").rolling("3D", order_by="date").quantile("sales", q=0.9)
-dataset.groupby("region").rolling("2D", order_by="date", closed="both").sum("sales")
-dataset.groupby("region").rolling("2D", order_by="date", center=True).sum("sales")
+ctx.groupby("region").rolling("3D", order_by="date").mean("sales")
+ctx.groupby("region").rolling("3D", order_by="date").quantile("sales", q=0.9)
+ctx.groupby("region").rolling("2D", order_by="date", closed="both").sum("sales")
+ctx.groupby("region").rolling("2D", order_by="date", center=True).sum("sales")
 ```
 
 `win_type` remains unsupported for time windows.
@@ -310,8 +312,8 @@ Expanding mirrors rolling with an unbounded frame (first row of each
 group through the current row) plus `min_periods`:
 
 ```python
-result = dataset.groupby("region").expanding(order_by="month").sum("sales")
-result = dataset.groupby("region").expanding(order_by="month", min_periods=3).mean("sales")
+result = ctx.groupby("region").expanding(order_by="date").sum("sales")
+result = ctx.groupby("region").expanding(order_by="date", min_periods=3).mean("sales")
 ```
 
 ## EWM
@@ -320,9 +322,9 @@ Grouped EWM runs the same blockwise SQL engine as the ungrouped `ewm`,
 partitioned by the group columns:
 
 ```python
-result = dataset.groupby("region").ewm(span=3, order_by="month").mean("sales")
-result = dataset.groupby("region").ewm(
-    span=3, order_by="month", adjust=False,
+result = ctx.groupby("region").ewm(span=3, order_by="date").mean("sales")
+result = ctx.groupby("region").ewm(
+    span=3, order_by="date", adjust=False,
 ).agg("sales", ["mean", "var"])
 ```
 
@@ -376,7 +378,7 @@ swaps it in with `EXCHANGE TABLES`. The response carries a preview DataFrame
 and `@record_call` stores a ref to the source.
 
 ```python
-result = dataset.groupby("region").rolling(3, order_by="month").agg(
+result = ctx.groupby("region").rolling(3, order_by="date").agg(
     "sales", ["mean"]
 )
 # source now has: region, month, sales, sales_rolling_mean_w3_by_region

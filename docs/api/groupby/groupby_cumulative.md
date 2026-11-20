@@ -1,5 +1,7 @@
 # GroupBy Cumulative
 
+> **Example data:** copy the setup cell from [Example Data](../example-data.md) into Colab once, then run the examples below. Examples use that `ctx`; local frames are shown inline.
+
 Source: `src/memframe/wrappers/analytix/groupby_cumulative.py`
 
 `GroupByCumulativeWrapper` is the public group-wise running-computation
@@ -13,20 +15,20 @@ Users normally call group-by cumulative methods through the unified
 `groupby` builder on a dataset context returned by an upload operation:
 
 ```python
-dataset = mf.DataFrame(frame)
+# ctx is defined in the Example Data setup
 
-result = dataset.groupby("region").cumsum("revenue", order_col="month")
-result = dataset.groupby("region").cummean("score")
+result = ctx.groupby("region").cumsum("sales", order_col="date")
+result = ctx.groupby("region").cummean("score")
 ```
 
 ```python
-dataset = await mf.aDataFrame(frame)
+# ctx is defined in the Example Data setup
 
-result = await dataset.groupby("region").acumsum("revenue", order_col="month")
+result = await ctx.groupby("region").acumsum("sales", order_col="date")
 ```
 
 !!! note
-    A flat `dataset.cumsum(...)` resolves to the ungrouped
+    A flat `ctx.cumsum(...)` resolves to the ungrouped
     `CumulativeWrapper.cumsum(column, order_col, target_col)` (it is
     registered first and takes no group columns). The grouped form above
     is only reachable through the `groupby(...)` builder or
@@ -69,25 +71,25 @@ Values below). Invalid operations surface `is_error` envelopes (or raise
 ## Usage Overview
 
 ```python
-dataset = mf.DataFrame(frame)
+# ctx is defined in the Example Data setup
 
-sample = dataset.groupby("region").cumsum("revenue", order_col="month")
-sample = dataset.groupby("region").cummean("score", target_col="running_avg")
-sample = dataset.groupby("region", "month").cumcount("user_id")
+sample = ctx.groupby("region").cumsum("sales", order_col="date")
+sample = ctx.groupby("region").cummean("score", target_col="running_avg")
+sample = ctx.groupby("region", "date").cumcount("id")
 ```
 
 ```python
-dataset = await mf.aDataFrame(frame)
+# ctx is defined in the Example Data setup
 
-sample = await dataset.groupby("region").acumsum("revenue", order_col="month")
-sample = await dataset.groupby("region").acummean("score")
+sample = await ctx.groupby("region").acumsum("sales", order_col="date")
+sample = await ctx.groupby("region").acummean("score")
 ```
 
 `order_col` is optional — omit it to use physical row order:
 
 ```python
-sample = dataset.groupby("region").cumsum("revenue")
-sample = dataset.groupby("region").cummean("score")
+sample = ctx.groupby("region").cumsum("sales")
+sample = ctx.groupby("region").cummean("score")
 ```
 
 ## Common Parameters
@@ -96,10 +98,10 @@ sample = dataset.groupby("region").cummean("score")
 | --- | --- | --- |
 | `column` | `str` | Numeric column to accumulate. |
 | `order_col` | `str`, `list[str]`, or `None` | Row ordering inside each group. `None` (default) uses physical row order. A list orders by multiple columns. |
-| `target_col` | `str` or `None` | Name for the result column. Auto-generated as `cum_<column>_<op>_by_<groups>` with `_order_by_<orders>` appended when `order_col` is given (e.g. `cum_revenue_sum_by_region_order_by_month`). |
+| `target_col` | `str` or `None` | Name for the result column. Auto-generated as `cum_<column>_<op>_by_<groups>` with `_order_by_<orders>` appended when `order_col` is given (e.g. `cum_sales_sum_by_region_order_by_date`). |
 | `map_feature` | `bool` | Deprecated/ignored. The running-value column is always written back to the source; the envelope carries `mapped_table` / `mapped_columns`. `new_table` is the source table (the ref target). |
 
-`group_cols` are fixed at builder creation (`groupby("region", "month")`)
+`group_cols` are fixed at builder creation (`groupby("region", "date")`)
 and accept one or more columns.
 
 With no `order_col`, rows accumulate in physical storage order
@@ -117,11 +119,11 @@ Running sum within each group via `SUM(col) OVER (PARTITION BY …
 ORDER BY … ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)`.
 
 ```python
-result = dataset.groupby("region").cumsum("revenue", order_col="month")
+result = ctx.groupby("region").cumsum("sales", order_col="date")
 ```
 
 ```python
-result = await dataset.groupby("region").acumsum("revenue", order_col="month")
+result = await ctx.groupby("region").acumsum("sales", order_col="date")
 ```
 
 ### `cumprod`
@@ -130,7 +132,7 @@ Running product within each group via `EXP(SUM(LN(NULLIF(col, 0)))
 OVER ({window_spec}))`. Zeros are skipped rather than zeroing the tail.
 
 ```python
-result = dataset.groupby("region").cumprod("growth_factor", order_col="month")
+result = ctx.groupby("region").cumprod("sales", order_col="date")
 ```
 
 Negative inputs abort the whole operation with `is_error True` (engines
@@ -144,8 +146,8 @@ Running extrema within each group via `MAX(col)` / `MIN(col)` over the
 same partitioned window frame.
 
 ```python
-result = dataset.groupby("region").cummax("price", order_col="day")
-result = dataset.groupby("region").cummin("price", order_col="day")
+result = ctx.groupby("region").cummax("sales", order_col="date")
+result = ctx.groupby("region").cummin("sales", order_col="date")
 ```
 
 ### `cummean`
@@ -153,7 +155,7 @@ result = dataset.groupby("region").cummin("price", order_col="day")
 Running mean within each group via `AVG(col)`.
 
 ```python
-result = dataset.groupby("region").cummean("score", target_col="running_avg")
+result = ctx.groupby("region").cummean("score", target_col="running_avg")
 ```
 
 ## Running Count, Stddev, and Variance
@@ -163,7 +165,7 @@ result = dataset.groupby("region").cummean("score", target_col="running_avg")
 Running non-null count within each group via `COUNT(col)`.
 
 ```python
-result = dataset.groupby("region").cumcount("user_id", order_col="signup_date")
+result = ctx.groupby("region").cumcount("id", order_col="date")
 ```
 
 The result column is `BIGINT` on PostgreSQL/DuckDB and `Int64` on
@@ -176,8 +178,8 @@ Running **population** (not sample) statistics within each group:
 `stddevPop(col)` / `varPop(col)` on ClickHouse.
 
 ```python
-result = dataset.groupby("region").cumstd("score", order_col="month")
-result = dataset.groupby("region").cumvar("score", order_col="month")
+result = ctx.groupby("region").cumstd("score", order_col="date")
+result = ctx.groupby("region").cumvar("score", order_col="date")
 ```
 
 ## Source Write-Back
@@ -187,9 +189,9 @@ table by replacing the source with the row-aligned result, then creates the
 narrow `involved + generated` result table that `@record_call` stores.
 
 ```python
-result = dataset.groupby("region").cumsum("revenue")
-# source now has: region, revenue, cum_revenue_sum_by_region
-# result["new_table"] has: revenue, region, cum_revenue_sum_by_region
+result = ctx.groupby("region").cumsum("sales")
+# source now has: region, sales, cum_sales_sum_by_region
+# result["new_table"] has: sales, region, cum_sales_sum_by_region
 ```
 
 Rules:
@@ -212,10 +214,10 @@ operation envelope:
 ```python
 {
     "is_error": False,
-    "message": "Cumulative sum of 'revenue' grouped by [region] ...",
+    "message": "Cumulative sum of 'sales' grouped by [region] ...",
     "result": <pandas.DataFrame>,
     "new_table": "ab12CD",          # source table (ref target)
-    "new_columns": ["cum_revenue_sum_by_region"],
+    "new_columns": ["cum_sales_sum_by_region"],
     "group_cols": ["region"],
     "operation": "sum",
 }

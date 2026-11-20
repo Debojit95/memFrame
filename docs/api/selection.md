@@ -1,5 +1,7 @@
 # Selection
 
+> **Example data:** copy the setup cell from [Example Data](example-data.md) into Colab once, then run the examples below. Examples use that `ctx`; local frames are shown inline.
+
 Source: `src/wrappers/analytix/selection.py`
 
 `SelectionWrapper` is the public selection interface exposed through a
@@ -11,11 +13,11 @@ Users normally call selection methods directly on a dataset context returned by
 an upload operation:
 
 ```python
-dataset = mf.DataFrame(frame)
-result = dataset.iloc(row_indexer="0:5", col_indexer="0:3")
+# ctx is defined in the Example Data setup
+result = ctx.iloc(row_indexer="0:5", col_indexer="0:3")
 ```
 
-The same methods are also available from `dataset.select`.
+The same methods are also available from `ctx.select`.
 
 The lower-level files are implementation details:
 
@@ -44,19 +46,19 @@ directly. Invalid operations raise `OperationError`.
 ## Usage Overview
 
 ```python
-dataset = mf.upload_csv("data/sales.csv")
+# ctx is defined in the Example Data setup
 
-frame = dataset.get(["customer_id", "amount"])
+frame = ctx.get(["id", "sales"])
 ```
 
 ```python
-dataset = await mf.aupload_csv("data/sales.csv")
+# ctx is defined in the Example Data setup
 
-frame = await dataset.ailoc(row_indexer="0:10", columns=["amount"])
+frame = await ctx.ailoc(row_indexer="0:10", columns=["sales"])
 ```
 
 Selection methods are exposed directly through context forwarding. You can use
-`dataset.iloc(...)` or the explicit `dataset.select.iloc(...)` form.
+`ctx.iloc(...)` or the explicit `ctx.select.iloc(...)` form.
 
 ## Scalar Access
 
@@ -67,18 +69,18 @@ named column. If `index_column` is omitted, selection uses `id` when present,
 otherwise the first table column.
 
 ```python
-result = dataset.at(
-    row_label=103,
-    column_label="name",
+result = ctx.at(
+    row_label=3,
+    column_label="region",
     index_column="id",
 )
 print(result)
 ```
 
 ```python
-result = await dataset.aat(
-    row_label=103,
-    column_label="name",
+result = await ctx.aat(
+    row_label=3,
+    column_label="region",
     index_column="id",
 )
 ```
@@ -104,7 +106,7 @@ Return behavior:
 row numbering.
 
 ```python
-result = dataset.iat(
+result = ctx.iat(
     row_position=2,
     column_label="score",
     order_by="id",
@@ -112,7 +114,7 @@ result = dataset.iat(
 ```
 
 ```python
-result = await dataset.aiat(
+result = await ctx.aiat(
     row_position=2,
     column_label="score",
     order_by=["id"],
@@ -136,17 +138,17 @@ reference value in `where`. A scalar `where` returns one row as a pandas
 Series; a list returns a DataFrame.
 
 ```python
-result = dataset.asof(
-    where="2023-03-15",
-    on="join_date",
+result = ctx.asof(
+    where="2024-01-02",
+    on="date",
     subset=["score"],
 )
 ```
 
 ```python
-result = await dataset.aasof(
-    where=["2023-03-15", "2023-04-10"],
-    on="join_date",
+result = await ctx.aasof(
+    where=["2024-01-02", "2024-02-01"],
+    on="date",
 )
 ```
 
@@ -170,12 +172,12 @@ eligible for matching.
 `default`.
 
 ```python
-result = dataset.get(keys=["name", "score"])
+result = ctx.get(keys=["region", "score"])
 ```
 
 ```python
-result = await dataset.aget(
-    keys=["name", "missing_column"],
+result = await ctx.aget(
+    keys=["region", "missing_column"],
     default="MISSING",
 )
 ```
@@ -198,33 +200,33 @@ requested keys filled with `default`.
 SQL `WHERE` clause. It can return either a DataFrame or a scalar.
 
 ```python
-result = dataset.iloc(
+result = ctx.iloc(
     row_indexer=[0, 3],
     col_indexer=[1, 2],
 )
 ```
 
 ```python
-result = await dataset.ailoc(
+result = await ctx.ailoc(
     row_indexer="1:4",
     col_indexer="0:2",
 )
 ```
 
 ```python
-result = dataset.iloc(row_indexer=("1:4", "0:2"))
+result = ctx.iloc(row_indexer=("1:4", "0:2"))
 ```
 
 ```python
 # Raw SQL WHERE (read-only against the active table)
-result = dataset.iloc(row_indexer="age > 24 AND city = 'NYC'")
+result = ctx.iloc(row_indexer="age > 24 AND region = 'North'")
 ```
 
 ```python
 # Label-list selection against an index column
-result = dataset.iloc(
-    row_indexer=["a", "c", "d"],
-    index_column="name",
+result = ctx.iloc(
+    row_indexer=["North"],
+    index_column="region",
 )
 ```
 
@@ -248,8 +250,8 @@ Supported selector forms:
 | Slice string | `"1:4"` | Parsed as `slice(1, 4)`. |
 | Boolean mask | `[True, False, True]` | Select rows/columns where mask is true. Length must match the axis. |
 | Tuple style | `("0:3", "1:4")` | Provides row and column indexers together. |
-| Named columns | `columns=["name"]` | Converts names to column positions. |
-| Label list | `row_indexer=["a", "c"], index_column="name"` | Selects rows whose `index_column` value is in the list. |
+| Named columns | `columns=["region"]` | Converts names to column positions. |
+| Label list | `row_indexer=["North"], index_column="region"` | Selects rows whose `index_column` value is in the list. |
 | Raw SQL `WHERE` | `row_indexer="age > 24"` | Evaluated as a SQL `WHERE` against the active table (read-only). |
 
 When both row and column indexers resolve to a single cell, the response
@@ -260,12 +262,12 @@ contains the scalar under `result`.
 `select_dtypes` keeps columns whose backend type maps to requested categories.
 
 ```python
-numeric = dataset.select_dtypes(include="numeric")
-without_text = dataset.select_dtypes(exclude="categorical")
+numeric = ctx.select_dtypes(include="numeric")
+without_text = ctx.select_dtypes(exclude="categorical")
 ```
 
 ```python
-dates = await dataset.aselect_dtypes(
+dates = await ctx.aselect_dtypes(
     include=["date", "timestamp"],
 )
 ```

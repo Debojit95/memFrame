@@ -1,5 +1,7 @@
 # Transform
 
+> **Example data:** copy the setup cell from [Example Data](example-data.md) into Colab once, then run the examples below. Examples use that `ctx`; local frames are shown inline.
+
 Source: `src/memframe/wrappers/analytix/transform.py`
 
 `TransformWrapper` is the public feature-engineering interface exposed
@@ -15,22 +17,22 @@ Users normally call transform directly on a dataset context returned by an
 upload operation:
 
 ```python
-dataset = mf.DataFrame(frame)
-scaled = dataset.scale(column="age")
-robust = dataset.robust_scale(column="salary", quantile_range=(25, 75))
-encoded = dataset.onehot(column="city", max_categories=10)
-cyclical = dataset.cyclical_encode(column="event_time", features=["month", "dow"])
+# ctx is defined in the Example Data setup
+scaled = ctx.scale(column="age")
+robust = ctx.robust_scale(column="salary", quantile_range=(25, 75))
+encoded = ctx.onehot(column="region", max_categories=10)
+cyclical = ctx.cyclical_encode(column="event_time", features=["month", "dow"])
 ```
 
 ```python
-dataset = await mf.aDataFrame(frame)
-scaled = await dataset.ascale(column="age")
-robust = await dataset.arobust_scale(column="salary")
-logd = await dataset.alog_transform(column="price", base="e", epsilon=1)
-encoded = await dataset.aonehot(column="city", max_categories=10)
+# ctx is defined in the Example Data setup
+scaled = await ctx.ascale(column="age")
+robust = await ctx.arobust_scale(column="salary")
+logd = await ctx.alog_transform(column="sales", base="e", epsilon=1)
+encoded = await ctx.aonehot(column="region", max_categories=10)
 ```
 
-`transform` is top-level (`dataset.scale`, not `dataset.dt.*`) — `dt` is reserved for `DateTimeWrapper` (`floor/ceil/round` would otherwise collide with `ArithmeticWrapper`).
+`transform` is top-level (`ctx.scale`, not `ctx.dt.*`) — `dt` is reserved for `DateTimeWrapper` (`floor/ceil/round` would otherwise collide with `ArithmeticWrapper`).
 
 The lower-level files are implementation details:
 
@@ -80,35 +82,35 @@ Choosing a transform (like `datetime`’s `## Usage Overview`):
 
 ```python
 # Numeric: pick a scaler by data shape
-scaled = dataset.scale(column="age")                 # bell-shaped, mean 0, std 1
-robust = dataset.robust_scale(column="salary")       # heavy outliers → median/IQR, not mean/std
-maxabs = dataset.maxabs_scale(column="sparse_feat")  # sparse, already centered → [-1,1]
-normed = dataset.normalize(column="value")           # single-col sign; multi-col L2 deferred
-logd = dataset.log_transform(column="price", epsilon=1)  # right-skewed → log1p
+scaled = ctx.scale(column="age")                 # bell-shaped, mean 0, std 1
+robust = ctx.robust_scale(column="salary")       # heavy outliers → median/IQR, not mean/std
+maxabs = ctx.maxabs_scale(column="age")  # bounded positive values → [-1,1]
+normed = ctx.normalize(column="sales")           # single-col sign; multi-col L2 deferred
+logd = ctx.log_transform(column="sales", epsilon=1)  # right-skewed → log1p
 
 # Binning vs quantile
-binned = dataset.bin(column="age", bins=5, strategy="uniform")  # equal-width
-qcut = dataset.qcut(column="score", bins=4)                      # equal-frequency
-qt = dataset.quantile_transform(column="score", output="uniform") # rank → [0,1]
-pt = dataset.power_transform(column="score", method="yeo-johnson") # gaussianize
+binned = ctx.bin(column="age", bins=5, strategy="uniform")  # equal-width
+qcut = ctx.qcut(column="score", bins=4)                      # equal-frequency
+qt = ctx.quantile_transform(column="score", output="uniform") # rank → [0,1]
+pt = ctx.power_transform(column="score", method="yeo-johnson") # gaussianize
 
 # Categorical: cardinality matters
-dummies = dataset.onehot(column="city", max_categories=10)  # low-cardinality → k binary cols
-labelled = dataset.label_encode(column="city")               # high-cardinality, frequency-ranked
-ordinal = dataset.ordinal_encode(column="size")              # ordered categories (S<M<L) → alphabetical
-freq = dataset.frequency_encode(column="city")               # count/n
-target = dataset.target_encode(column="city", target_column="price")  # high-cardinality + target
-binary = dataset.binarize(column="city", value="London")     # one-vs-all
+dummies = ctx.onehot(column="region", max_categories=10)  # low-cardinality → k binary cols
+labelled = ctx.label_encode(column="region")               # high-cardinality, frequency-ranked
+ordinal = ctx.ordinal_encode(column="category")              # ordered categories (A<B<C) → alphabetical
+freq = ctx.frequency_encode(column="region")               # count/n
+target = ctx.target_encode(column="region", target_column="sales")  # high-cardinality + target
+binary = ctx.binarize(column="region", value="North")     # one-vs-all
 
 # Datetime cyclical
-cyclical = dataset.cyclical_encode(column="event_time", features=["month", "dow", "hour"])
+cyclical = ctx.cyclical_encode(column="event_time", features=["month", "dow", "hour"])
 ```
 
 ```python
 # Async equivalents
-scaled = await dataset.ascale(column="age")
-robust = await dataset.arobust_scale(column="salary", quantile_range=(10, 90))
-logd = await dataset.alog_transform(column="price", base="10", epsilon=0)
+scaled = await ctx.ascale(column="age")
+robust = await ctx.arobust_scale(column="salary", quantile_range=(10, 90))
+logd = await ctx.alog_transform(column="sales", base="10", epsilon=0)
 ```
 
 Most transform methods materialize a new cache table (`<table>__op_<n>`) internally. The public return is the sample DataFrame; `new_table`, `involved_cols`, `generated_cols` remain internal to cache/AI.
@@ -120,16 +122,16 @@ Most transform methods materialize a new cache table (`<table>__op_<n>`) interna
 current column.
 
 ```python
-result = dataset.map(
+result = ctx.map(
     func="x * 100",
-    columns=["conversion_rate"],
+    columns=["sales"],
 )
 ```
 
 ```python
-result = await dataset.amap(
+result = await ctx.amap(
     func="UPPER(x)",
-    columns=["segment"],
+    columns=["region"],
     na_action="ignore",
 )
 ```
@@ -156,13 +158,13 @@ All numeric scalers create a `DOUBLE PRECISION` column `transformed_<col>_<suffi
 Z-score standard scaling, like `sklearn.preprocessing.StandardScaler`: `z = (x - mean) / std` (`STDDEV_POP`, `AVG`).
 
 ```python
-result = dataset.scale(column="age")
-result = dataset.scale(column="salary")
+result = ctx.scale(column="age")
+result = ctx.scale(column="salary")
 ```
 
 ```python
-result = await dataset.ascale(column="age")
-result = await dataset.ascale(column="salary")
+result = await ctx.ascale(column="age")
+result = await ctx.ascale(column="salary")
 ```
 
 Parameters:
@@ -182,12 +184,12 @@ Errors: unsupported backend → `NotImplementedError` wrapped as `is_error True`
 Min-max to `[0,1]`, like `sklearn.preprocessing.MinMaxScaler`: `(x - min)/(max - min)`.
 
 ```python
-result = dataset.minmax(column="age")
-result = dataset.minmax(column="score")
+result = ctx.minmax(column="age")
+result = ctx.minmax(column="score")
 ```
 
 ```python
-result = await dataset.aminmax(column="score")
+result = await ctx.aminmax(column="score")
 ```
 
 Parameters:
@@ -205,12 +207,12 @@ Backend: PG needs `CAST(col AS DOUBLE PRECISION)` and `CAST((max-min) AS DOUBLE 
 Robust scaling `(x - median)/IQR`, like `sklearn.preprocessing.RobServer` with `quantile_range=(25,75)` (IQR). Robust to outliers.
 
 ```python
-result = dataset.robust_scale(column="salary", quantile_range=(25, 75))
-result = dataset.robust_scale(column="price", quantile_range=(10, 90))
+result = ctx.robust_scale(column="salary", quantile_range=(25, 75))
+result = ctx.robust_scale(column="sales", quantile_range=(10, 90))
 ```
 
 ```python
-result = await dataset.arobust_scale(column="salary", quantile_range=(25, 75))
+result = await ctx.arobust_scale(column="salary", quantile_range=(25, 75))
 ```
 
 Parameters:
@@ -229,12 +231,12 @@ Backend: PG `PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY col)` + `PERCENTILE_CON
 MaxAbs `x / max(|x|)` → `[-1,1]`, like `sklearn.preprocessing.MaxAbsScaler` (sparse-safe).
 
 ```python
-result = dataset.maxabs_scale(column="value")
-result = dataset.maxabs_scale(column="sparse_feat")
+result = ctx.maxabs_scale(column="sales")
+result = ctx.maxabs_scale(column="age")
 ```
 
 ```python
-result = await dataset.amaxabs_scale(column="value")
+result = await ctx.amaxabs_scale(column="sales")
 ```
 
 Parameters:
@@ -252,12 +254,12 @@ Backend: `MAX(ABS(CAST(col AS DOUBLE PRECISION)))` + `NULLIF`.
 Single-column sign `x / |x|` (`-1`, `0`, `1`), placeholder for `sklearn.preprocessing.Normalizer` row-wise `x/||x||`. Multi-column `L1`/`L2` across a feature matrix is deferred.
 
 ```python
-result = dataset.normalize(column="value", norm="l2")
-result = dataset.normalize(column="value", norm="l1")
+result = ctx.normalize(column="sales", norm="l2")
+result = ctx.normalize(column="sales", norm="l1")
 ```
 
 ```python
-result = await dataset.anormalize(column="value", norm="l2")
+result = await ctx.anormalize(column="sales", norm="l2")
 ```
 
 Parameters:
@@ -276,12 +278,12 @@ Generated `transformed_<column>_normalized` (`-1`/`0`/`1`, `NULL` preserved). Fu
 Binning (`pd.cut` / `sklearn.preprocessing.KBinsDiscretizer` `strategy="uniform"`/`"quantile"`):
 
 ```python
-result = dataset.bin(column="age", bins=5, strategy="uniform")
-result = dataset.bin(column="score", bins=4, strategy="quantile")
+result = ctx.bin(column="age", bins=5, strategy="uniform")
+result = ctx.bin(column="score", bins=4, strategy="quantile")
 ```
 
 ```python
-result = await dataset.abin(column="age", bins=3, strategy="quantile")
+result = await ctx.abin(column="age", bins=3, strategy="quantile")
 ```
 
 Parameters:
@@ -303,15 +305,15 @@ Errors: unknown `strategy` → `is_error True` `"Unknown binning strategy: ..."`
 Aliases:
 
 ```python
-result = dataset.cut(column="age", bins=3)          # → bin uniform
-result = dataset.qcut(column="age", bins=4)         # → bin quantile
-result = dataset.get_dummies(column="city")         # → onehot
+result = ctx.cut(column="age", bins=3)          # → bin uniform
+result = ctx.qcut(column="age", bins=4)         # → bin quantile
+result = ctx.get_dummies(column="region")         # → onehot
 ```
 
 ```python
-result = await dataset.acut(column="age", bins=3)
-result = await dataset.aqcut(column="age", bins=4)
-result = await dataset.aget_dummies(column="city", max_categories=5)
+result = await ctx.acut(column="age", bins=3)
+result = await ctx.aqcut(column="age", bins=4)
+result = await ctx.aget_dummies(column="region", max_categories=5)
 ```
 
 Parameters same as `bin`/`onehot`. `qcut` is `bin(..., strategy="quantile")`.
@@ -323,12 +325,12 @@ Parameters same as `bin`/`onehot`. `qcut` is `bin(..., strategy="quantile")`.
 Polynomial expansion `pow2`…`pow{degree}`, like `sklearn.preprocessing.PolynomialFeatures(degree, include_bias=False)` single-feature case:
 
 ```python
-result = dataset.poly(column="age", degree=3)  # → transformed_age_pow2, pow3
-result = dataset.poly(column="x", degree=2)
+result = ctx.poly(column="age", degree=3)  # → transformed_age_pow2, pow3
+result = ctx.poly(column="x", degree=2)
 ```
 
 ```python
-result = await dataset.apoly(column="age", degree=2)
+result = await ctx.apoly(column="age", degree=2)
 ```
 
 Parameters:
@@ -345,12 +347,12 @@ Generated `transformed_<column>_pow{d}` for `d=2..degree` (`DOUBLE PRECISION`, `
 Product interaction `col1 * col2`:
 
 ```python
-result = dataset.interact(column1="age", column2="income")
-result = dataset.interact(column1="price", column2="quantity")
+result = ctx.interact(column1="age", column2="salary")
+result = ctx.interact(column1="sales", column2="age")
 ```
 
 ```python
-result = await dataset.ainteract(column1="age", column2="income")
+result = await ctx.ainteract(column1="age", column2="salary")
 ```
 
 Parameters:
@@ -367,13 +369,13 @@ Generated `transformed_<col1>_<col2>_interaction` (`DOUBLE PRECISION`, `NULL` if
 Log with `epsilon` guard, like `sklearn.preprocessing.FunctionTransformer(np.log1p)` / `PowerTransformer` log branch:
 
 ```python
-result = dataset.log_transform(column="price", base="e", epsilon=1)   # ln(x+1)
-result = dataset.log_transform(column="price", base="10", epsilon=0)  # log10(x)
-result = dataset.log_transform(column="count", base="e", epsilon=0.5)
+result = ctx.log_transform(column="sales", base="e", epsilon=1)   # ln(x+1)
+result = ctx.log_transform(column="sales", base="10", epsilon=0)  # log10(x)
+result = ctx.log_transform(column="count", base="e", epsilon=0.5)
 ```
 
 ```python
-result = await dataset.alog_transform(column="price", base="e", epsilon=0)
+result = await ctx.alog_transform(column="sales", base="e", epsilon=0)
 ```
 
 Parameters:
@@ -395,12 +397,12 @@ Backend: PG/DuckDB `LN(CAST(col AS DOUBLE)+eps)` vs `LOG(...)`, CH `log(col+eps)
 Rank to uniform `[0,1]`, like `sklearn.preprocessing.QuantileTransformer(output_distribution="uniform")` (Gaussian `normal` via `erfinv` deferred, currently same rank):
 
 ```python
-result = dataset.quantile_transform(column="price", output="uniform")
-result = dataset.quantile_transform(column="score", output="normal")  # currently uniform
+result = ctx.quantile_transform(column="sales", output="uniform")
+result = ctx.quantile_transform(column="score", output="normal")  # currently uniform
 ```
 
 ```python
-result = await dataset.aquantile_transform(column="price", output="uniform")
+result = await ctx.aquantile_transform(column="sales", output="uniform")
 ```
 
 Parameters:
@@ -417,12 +419,12 @@ Formula `(rank - 1)/(n - 1)` (`ROW_NUMBER() OVER (ORDER BY col)-1`, CH `rank() O
 Power `sign*pow(|x|,0.5)` (`yeo-johnson` λ=0.5) / Box-Cox `(pow(x,0.5)-1)/0.5` for `x>0` else `NULL`, simplified `sklearn.preprocessing.PowerTransformer` (MLE for `λ` deferred):
 
 ```python
-result = dataset.power_transform(column="price", method="yeo-johnson")
-result = dataset.power_transform(column="price", method="box-cox")  # requires x>0
+result = ctx.power_transform(column="sales", method="yeo-johnson")
+result = ctx.power_transform(column="sales", method="box-cox")  # requires x>0
 ```
 
 ```python
-result = await dataset.apower_transform(column="price", method="yeo-johnson")
+result = await ctx.apower_transform(column="sales", method="yeo-johnson")
 ```
 
 Parameters:
@@ -441,14 +443,14 @@ Generated `transformed_<column>_power`.
 One-hot `0/1` per top category, like `pd.get_dummies` / `sklearn.preprocessing.OneHotEncoder(handle_unknown="ignore", max_categories=10)`:
 
 ```python
-result = dataset.onehot(column="city", max_categories=10)
-result = dataset.get_dummies(column="city", max_categories=5)
-result = dataset.onehot(column="product", max_categories=3)  # top-3 only
+result = ctx.onehot(column="region", max_categories=10)
+result = ctx.get_dummies(column="region", max_categories=5)
+result = ctx.onehot(column="category", max_categories=3)  # top-3 only
 ```
 
 ```python
-result = await dataset.aonehot(column="city", max_categories=10)
-result = await dataset.aget_dummies(column="city")
+result = await ctx.aonehot(column="region", max_categories=10)
+result = await ctx.aget_dummies(column="region")
 ```
 
 Parameters:
@@ -465,12 +467,12 @@ Generated `transformed_<column>_<sanitized_value>` (`INTEGER` `0/1`, `sanitized`
 Frequency-ranked `0..n-1`, like `sklearn.preprocessing.LabelEncoder` ordered by `COUNT(*) DESC` (not alphabetical):
 
 ```python
-result = dataset.label_encode(column="city")
-result = dataset.label_encode(column="product")
+result = ctx.label_encode(column="region")
+result = ctx.label_encode(column="category")
 ```
 
 ```python
-result = await dataset.alabel_encode(column="city")
+result = await ctx.alabel_encode(column="region")
 ```
 
 Parameters:
@@ -486,12 +488,12 @@ Generated `transformed_<column>_label` (`INTEGER`, `ROW_NUMBER() OVER (ORDER BY 
 Alphabetical `0..n-1`, like `sklearn.preprocessing.OrdinalEncoder`:
 
 ```python
-result = dataset.ordinal_encode(column="size")  # S<M<L → 0,1,2 if sorted
-result = dataset.ordinal_encode(column="city")
+result = ctx.ordinal_encode(column="category")  # S<M<L → 0,1,2 if sorted
+result = ctx.ordinal_encode(column="region")
 ```
 
 ```python
-result = await dataset.aordinal_encode(column="city")
+result = await ctx.aordinal_encode(column="region")
 ```
 
 Parameters:
@@ -507,11 +509,11 @@ Generated `transformed_<column>_ordinal` (`ROW_NUMBER() OVER (ORDER BY col)-1`).
 `COUNT(*)/n` per category, like `category_encoders.CountEncoder(normalize=True)`:
 
 ```python
-result = dataset.frequency_encode(column="city")
+result = ctx.frequency_encode(column="region")
 ```
 
 ```python
-result = await dataset.afrequency_encode(column="city")
+result = await ctx.afrequency_encode(column="region")
 ```
 
 Parameters:
@@ -527,8 +529,8 @@ Generated `transformed_<column>_freq` (`DOUBLE PRECISION`, `CAST(COUNT(*) AS Flo
 Smoothed target mean `(cat_mean*cnt + global_mean*10)/(cnt+10)`, like `sklearn.preprocessing.TargetEncoder` / `category_encoders.TargetEncoder(smoothing=10)`:
 
 ```python
-result = dataset.target_encode(column="city", target_column="price")
-result = dataset.target_encode(column="product", target_column="sales")
+result = ctx.target_encode(column="region", target_column="sales")
+result = ctx.target_encode(column="category", target_column="sales")
 ```
 
 Parameters:
@@ -545,14 +547,14 @@ Generated `transformed_<column>_target` (`DOUBLE PRECISION`, `NULL` if `col IS N
 `0/1` via `value` or `condition`, like `sklearn.preprocessing.Binarizer(threshold)`:
 
 ```python
-result = dataset.binarize(column="city", value="London")   # city='London' →1
-result = dataset.binarize(column="age", condition="> 30")  # age>30 →1
-result = dataset.binarize(column="flag")                   # NOT NULL →1
+result = ctx.binarize(column="region", value="North")   # region='North' →1
+result = ctx.binarize(column="age", condition="> 30")  # age>30 →1
+result = ctx.binarize(column="score")                   # NOT NULL →1
 ```
 
 ```python
-result = await dataset.abinarize(column="city", value="London")
-result = await dataset.abinarize(column="age", condition="> 30")
+result = await ctx.abinarize(column="region", value="North")
+result = await ctx.abinarize(column="age", condition="> 30")
 ```
 
 Parameters:
@@ -572,13 +574,13 @@ Generated `transformed_<column>_is_<sanitized_value>` / `transformed_<column>_<s
 Sin/cos for `month`/`dow`/`hour`, for tree/linear models that need circular continuity:
 
 ```python
-result = dataset.cyclical_encode(column="event_time", features=["month", "dow"])
-result = dataset.cyclical_encode(column="event_time", features=["hour"])
-result = dataset.cyclical_encode(column="event_time", features=["month", "dow", "hour"])
+result = ctx.cyclical_encode(column="event_time", features=["month", "dow"])
+result = ctx.cyclical_encode(column="event_time", features=["hour"])
+result = ctx.cyclical_encode(column="event_time", features=["month", "dow", "hour"])
 ```
 
 ```python
-result = await dataset.acyclical_encode(column="event_time", features=["month", "dow"])
+result = await ctx.acyclical_encode(column="event_time", features=["month", "dow"])
 ```
 
 Parameters:

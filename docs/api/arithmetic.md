@@ -1,5 +1,7 @@
 # Arithmetic
 
+> **Example data:** copy the setup cell from [Example Data](example-data.md) into Colab once, then run the examples below. Examples use that `ctx`; local frames are shown inline.
+
 Source: `src/memframe/wrappers/analytix/arithmetic.py`
 
 `ArithmeticWrapper` is the public arithmetic interface exposed through a
@@ -12,11 +14,11 @@ Users normally call arithmetic methods directly on a dataset context returned by
 an upload operation:
 
 ```python
-dataset = mf.DataFrame(frame)
-result = dataset.add("salary", "bonus", "total_income")
+# ctx is defined in the Example Data setup
+result = ctx.add("salary", "bonus", "total_income")
 ```
 
-The same methods are also available from `dataset.arithmetic`.
+The same methods are also available from `ctx.arithmetic`.
 
 The lower-level files are implementation details:
 
@@ -66,15 +68,15 @@ raise `OperationError`.
 ## Usage Overview
 
 ```python
-dataset = mf.DataFrame(frame)
+# ctx is defined in the Example Data setup
 
-sample = dataset.add("salary", "bonus", "total_income")
+sample = ctx.add("salary", "bonus", "total_income")
 ```
 
 ```python
-dataset = await mf.aDataFrame(frame)
+# ctx is defined in the Example Data setup
 
-normalized_sample = await dataset.anormalize_range("salary", "normalized_salary")
+normalized_sample = await ctx.anormalize_range("salary", "normalized_salary")
 ```
 
 ## Binary Operations
@@ -84,14 +86,14 @@ normalized_sample = await dataset.anormalize_range("salary", "normalized_salary"
 These methods combine two columns or a column with a scalar.
 
 ```python
-result = dataset.add("salary", "bonus", "total_income")
-result = dataset.mul("salary", 2, "double_salary")
-result = dataset.div("revenue", "units", "revenue_per_unit")
+result = ctx.add("salary", "bonus", "total_income")
+result = ctx.mul("salary", 2, "double_salary")
+result = ctx.div("salary", "age", "salary_per_age")
 ```
 
 ```python
-result = await dataset.asubtract("revenue", "cost", "profit")
-result = await dataset.amul("price", "quantity", "line_total")
+result = await ctx.asubtract("sales", "bonus", "net_sales")
+result = await ctx.amul("sales", "age", "sales_x_age")
 ```
 
 Parameters:
@@ -111,11 +113,11 @@ Modulo between two operands. Uses `MOD()` on PostgreSQL and DuckDB, `modulo()`
 on ClickHouse.
 
 ```python
-result = dataset.mod("amount", 100, "remainder")
+result = ctx.mod("salary", 1000, "salary_mod")
 ```
 
 ```python
-result = await dataset.amod("hours", "8", "overtime_mod")
+result = await ctx.amod("age", "8", "age_mod")
 ```
 
 ### `pow`
@@ -124,11 +126,11 @@ Raises the first operand to the power of the second. Uses `POWER()` on
 PostgreSQL and DuckDB, `pow()` on ClickHouse.
 
 ```python
-result = dataset.pow("radius", 2, "area_factor")
+result = ctx.pow("age", 2, "age_squared")
 ```
 
 ```python
-result = await dataset.apow("distance", "3", "cubic_distance")
+result = await ctx.apow("sales", "3", "sales_cubed")
 ```
 
 ## Unary Operations
@@ -136,12 +138,12 @@ result = await dataset.apow("distance", "3", "cubic_distance")
 ### `abs`, `negate`
 
 ```python
-result = dataset.abs("negative_vals", "positive_vals")
-result = dataset.negate("temperature", "inverted_temp")
+result = ctx.abs("score", "abs_score")
+result = ctx.negate("score", "neg_score")
 ```
 
 ```python
-result = await dataset.aabs("change", "abs_change")
+result = await ctx.aabs("score", "abs_score")
 ```
 
 ### `round`, `ceil`, `floor`, `truncate`
@@ -151,14 +153,14 @@ return the nearest integer. `truncate` truncates toward zero to the given
 number of digits.
 
 ```python
-result = dataset.round("price", 2, "rounded_price")
-result = dataset.ceil("score", "ceil_score")
-result = dataset.floor("score", "floor_score")
-result = dataset.truncate("float_vals", 2, "truncated")
+result = ctx.round("score", 1, "rounded_score")
+result = ctx.ceil("score", "ceil_score")
+result = ctx.floor("score", "floor_score")
+result = ctx.truncate("score", 0, "truncated_score")
 ```
 
 ```python
-result = await dataset.around("value", 0, "rounded_int")
+result = await ctx.around("sales", 0, "rounded_sales")
 ```
 
 Parameters:
@@ -177,15 +179,15 @@ On PostgreSQL, `ROUND(double, integer)` does not exist — the column is cast to
 ### `exp`, `log`, `log10`, `sqrt`
 
 ```python
-result = dataset.exp("rate", "exp_rate")
-result = dataset.log("salary", "log_salary")
-result = dataset.log10("salary", "log10_salary")
-result = dataset.sqrt("variance", "std_dev")
+result = ctx.exp("age", "exp_age")
+result = ctx.log("salary", "log_salary")
+result = ctx.log10("salary", "log10_salary")
+result = ctx.sqrt("age", "sqrt_age")
 ```
 
 ```python
-result = await dataset.aexp("growth", "exp_growth")
-result = await dataset.alog10("value", "log10_val")
+result = await ctx.aexp("age", "exp_age")
+result = await ctx.alog10("salary", "log10_salary")
 ```
 
 Natural logarithm uses `LN()` on PostgreSQL and DuckDB, `log()` on ClickHouse.
@@ -199,10 +201,29 @@ Negative or zero inputs produce `NULL`.
 
 Standard trigonometric functions operating on radian values.
 
+The main example table has no `[-1, 1]` column, so these examples use a small
+local frame:
+
+| `angle` | `ratio` | `x` | `y` |
+| --- | --- | --- | --- |
+| `0.0` | `-1.0` | `1.0` | `1.0` |
+| `0.5` | `-0.5` | `2.0` | `1.5` |
+| `1.0` | `0.0` | `3.0` | `2.0` |
+| `1.5` | `0.5` | `4.0` | `2.5` |
+| `2.0` | `1.0` | `5.0` | `3.0` |
+
 ```python
-result = dataset.sin("angle", "sin_angle")
-result = dataset.cos("angle", "cos_angle")
-result = dataset.tan("angle", "tan_angle")
+trig = pd.DataFrame({
+    "angle": [0.0, 0.5, 1.0, 1.5, 2.0],
+    "ratio": [-1.0, -0.5, 0.0, 0.5, 1.0],
+    "x": [1.0, 2.0, 3.0, 4.0, 5.0],
+    "y": [1.0, 1.5, 2.0, 2.5, 3.0],
+})
+trig_ctx = mf.DataFrame(trig, filename="trig")
+
+result = trig_ctx.sin("angle", "sin_angle")
+result = trig_ctx.cos("angle", "cos_angle")
+result = trig_ctx.tan("angle", "tan_angle")
 ```
 
 ### `asin`, `acos`, `atan`
@@ -210,9 +231,9 @@ result = dataset.tan("angle", "tan_angle")
 Inverse trigonometric functions.
 
 ```python
-result = dataset.asin("ratio", "angle_rad")
-result = dataset.acos("ratio", "angle_rad")
-result = dataset.atan("ratio", "angle_rad")
+result = trig_ctx.asin("ratio", "angle_rad")
+result = trig_ctx.acos("ratio", "angle_rad")
+result = trig_ctx.atan("ratio", "angle_rad")
 ```
 
 ### `atan2`
@@ -220,11 +241,11 @@ result = dataset.atan("ratio", "angle_rad")
 Two-argument arctangent of `col1 / col2`.
 
 ```python
-result = dataset.atan2("y_coord", "x_coord", "angle")
+result = trig_ctx.atan2("y", "x", "angle")
 ```
 
 ```python
-result = await dataset.aatan2("numerator", "denominator", "theta")
+result = await trig_ctx.aatan2("y", "x", "theta")
 ```
 
 ## Complex Operations
@@ -234,11 +255,11 @@ result = await dataset.aatan2("numerator", "denominator", "theta")
 Computes `(col1 * weight1 + col2 * weight2) / (weight1 + weight2)`.
 
 ```python
-result = dataset.weighted_sum("math", "science", 0.7, 0.3, "final_score")
+result = ctx.weighted_sum("salary", "bonus", 0.7, 0.3, "weighted")
 ```
 
 ```python
-result = await dataset.aweighted_sum("exam1", "exam2", 0.5, 0.5, "average")
+result = await ctx.aweighted_sum("salary", "bonus", 0.5, 0.5, "weighted_avg")
 ```
 
 ### `percentage_change`
@@ -246,11 +267,11 @@ result = await dataset.aweighted_sum("exam1", "exam2", 0.5, 0.5, "average")
 Computes `((new - old) / |old|) * 100`.
 
 ```python
-result = dataset.percentage_change("old_price", "new_price", "pct_change")
+result = ctx.percentage_change("salary", "bonus", "pct_change")
 ```
 
 ```python
-result = await dataset.apercentage_change("last_year", "this_year", "yoy_growth")
+result = await ctx.apercentage_change("salary", "bonus", "pct_change")
 ```
 
 ### `normalize_range`
@@ -258,11 +279,11 @@ result = await dataset.apercentage_change("last_year", "this_year", "yoy_growth"
 Applies min-max normalization: `(value - min) / (max - min)`.
 
 ```python
-result = dataset.normalize_range("salary", "normalized_salary")
+result = ctx.normalize_range("salary", "normalized_salary")
 ```
 
 ```python
-result = await dataset.anormalize_range("distance", "scaled_distance")
+result = await ctx.anormalize_range("age", "scaled_age")
 ```
 
 ## Return Values and Errors

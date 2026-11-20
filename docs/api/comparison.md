@@ -1,5 +1,7 @@
 # Comparison
 
+> **Example data:** copy the setup cell from [Example Data](example-data.md) into Colab once, then run the examples below. Examples use that `ctx`; local frames are shown inline.
+
 Source: `src/memframe/wrappers/analytix/comparison.py`
 
 `ComparisonWrapper` is the public comparison interface exposed through a
@@ -11,8 +13,8 @@ Users normally call comparison methods directly on a dataset context returned by
 an upload operation:
 
 ```python
-dataset = mf.DataFrame(frame)
-result = dataset.compare("salary >= bonus")
+# ctx is defined in the Example Data setup
+result = ctx.compare("salary >= bonus")
 ```
 
 The lower-level files are implementation details:
@@ -43,15 +45,15 @@ Pass a single string expression — a predicate of the form `<column> <operator>
 <column>`:
 
 ```python
-dataset = mf.DataFrame(frame)
+# ctx is defined in the Example Data setup
 
-sample = dataset.compare("salary >= bonus")
+sample = ctx.compare("salary >= bonus")
 ```
 
 ```python
-dataset = await mf.aDataFrame(frame)
+# ctx is defined in the Example Data setup
 
-sample = await dataset.acompare("status == expected_status")
+sample = await ctx.acompare("region == category")
 ```
 
 The expression is parsed by `src/memframe/utils/str_compare_parser.py`.
@@ -62,15 +64,15 @@ Column names containing spaces can be quoted (`"\"total income\" >= bonus"`).
 Pass the two columns and the operator as three separate arguments:
 
 ```python
-dataset = mf.DataFrame(frame)
+# ctx is defined in the Example Data setup
 
-sample = dataset.compare("salary", "bonus", ">=")
+sample = ctx.compare("salary", "bonus", ">=")
 ```
 
 ```python
-dataset = await mf.aDataFrame(frame)
+# ctx is defined in the Example Data setup
 
-sample = await dataset.acompare("hired_at", "review_at", "<")
+sample = await ctx.acompare("date", "event_time", "<")
 ```
 
 Both forms route identically; pick the expression form for compact,
@@ -82,13 +84,13 @@ operator are computed programmatically.
 The orchestrator samples both columns and routes to the matching core path:
 
 - **Numeric** (`INTEGER`, `FLOAT`, …) — direct SQL comparison, e.g.
-  `dataset.compare("salary > bonus")`.
+  `ctx.compare("salary > bonus")`.
 - **Categorical** (`VARCHAR`, `TEXT`, …) — direct SQL comparison, e.g.
-  `dataset.compare("status == expected_status")`.
+  `ctx.compare("region == category")`.
 - **Datetime** (`TIMESTAMP`, `DATE`, …) — both sides are cast to a native
   timestamp type first (`TIMESTAMPTZ` on DuckDB/PostgreSQL,
   `Nullable(DateTime64(6))` on ClickHouse), so text-stored timestamps compare
-  correctly, e.g. `dataset.compare("hired_at < review_at")`.
+  correctly, e.g. `ctx.compare("date < event_time")`.
 
 ## Result Column
 
@@ -107,7 +109,7 @@ The result column is named `cmp_<col1>_<op>_<col2>`, where `<op>` is
 The returned DataFrame contains the two compared columns plus the result column:
 
 ```python
-sample = dataset.compare("A >= B")
+sample = ctx.compare("A >= B")
 print(sample)
 #    A  B  cmp_A_ge_B
 # 0  1  2       False
@@ -122,7 +124,7 @@ Comparison methods return the canonical error envelope (`is_error=True` with
 - Unparseable expressions (`compare("not a comparison")`).
 - Invalid operators (`compare("A", "B", "===")` — must be one of `==`, `!=`,
   `>`, `<`, `>=`, `<=`).
-- Datatype mismatches (`compare("salary", "status", "==")` — both columns must
+- Datatype mismatches (`compare("salary", "region", "==")` — both columns must
   share a type family).
 - Unsupported backends raise `NotImplementedError`.
 

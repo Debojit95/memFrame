@@ -1,5 +1,7 @@
 # Stats
 
+> **Example data:** copy the setup cell from [Example Data](example-data.md) into Colab once, then run the examples below. Examples use that `ctx`; local frames are shown inline.
+
 Source: `src/wrappers/analytix/stats.py`
 
 `StatsWrapper` is the public statistics interface exposed through a
@@ -11,11 +13,11 @@ Users normally call stats methods directly on a dataset context returned by an
 upload operation:
 
 ```python
-dataset = mf.DataFrame(frame)
-result = dataset.mean(column="salary")
+# ctx is defined in the Example Data setup
+result = ctx.mean(column="salary")
 ```
 
-The same methods are also available from `dataset.stats`.
+The same methods are also available from `ctx.stats`.
 
 The lower-level files are implementation details:
 
@@ -73,19 +75,19 @@ internal result tables.
 ## Usage Overview
 
 ```python
-dataset = mf.upload_csv("data/employees.csv")
+# ctx is defined in the Example Data setup
 
-print(dataset.mean(column="salary"))
+print(ctx.mean(column="salary"))
 ```
 
 ```python
-dataset = await mf.aupload_csv("data/events.csv")
+# ctx is defined in the Example Data setup
 
-matrix = await dataset.acorr(columns=["amount", "discount", "tax"])
+matrix = await ctx.acorr(columns=["sales", "score", "score"])
 ```
 
 Stats methods are exposed directly through context forwarding. You can use
-`dataset.mean(...)` or the explicit `dataset.stats.mean(...)` form.
+`ctx.mean(...)` or the explicit `ctx.stats.mean(...)` form.
 
 ## Return Values and Errors
 
@@ -117,7 +119,7 @@ on date or timestamp columns.
 
 ## Whole-Table Statistics
 
-Passing no column (`dataset.mean()`) computes the stat on every compatible
+Passing no column (`ctx.mean()`) computes the stat on every compatible
 column and returns a `{column: value}` dictionary. Compatibility follows the
 routing table above — only families with a dedicated implementation are
 included, the rest are skipped (pandas `numeric_only` spirit):
@@ -131,9 +133,9 @@ included, the rest are skipped (pandas `numeric_only` spirit):
 | `proportions` | Categorical only |
 
 ```python
-dataset = mf.upload_csv("data/employees.csv")
+# ctx is defined in the Example Data setup
 
-means = dataset.mean()  # {"salary": ..., "age": ..., ...} — text skipped
+means = ctx.mean()  # {"salary": ..., "age": ..., ...} — text skipped
 ```
 
 Detection runs once per call (a single 5000-row sample for all columns), then
@@ -163,11 +165,11 @@ instead of returning an empty dict. Datetime-only methods (`time_delta_stats`,
 `count` returns the number of non-null values in a column.
 
 ```python
-result = dataset.count(column="salary")
+result = ctx.count(column="salary")
 ```
 
 ```python
-result = await dataset.acount(column="department")
+result = await ctx.acount(column="region")
 ```
 
 Parameters:
@@ -183,13 +185,13 @@ columns are routed to datetime implementations, returning the earliest or
 latest datetime.
 
 ```python
-lowest = dataset.min(column="salary")
-highest = dataset.max(column="salary")
+lowest = ctx.min(column="salary")
+highest = ctx.max(column="salary")
 ```
 
 ```python
-first_login = await dataset.amin(column="last_login")
-last_login = await dataset.amax(column="last_login")
+first_login = await ctx.amin(column="event_time")
+last_login = await ctx.amax(column="event_time")
 ```
 
 Parameters:
@@ -205,13 +207,13 @@ converted to epoch seconds, averaged or medianed, then converted back to a date
 or timestamp.
 
 ```python
-avg_salary = dataset.mean(column="salary")
-median_salary = dataset.median(column="salary")
+avg_salary = ctx.mean(column="salary")
+median_salary = ctx.median(column="salary")
 ```
 
 ```python
-avg_login = await dataset.amean(column="last_login")
-median_login = await dataset.amedian(column="last_login")
+avg_login = await ctx.amean(column="event_time")
+median_login = await ctx.amedian(column="event_time")
 ```
 
 Parameters:
@@ -227,12 +229,12 @@ contains a scalar value. When `top_n` is greater than `1`, `result` contains a
 list of values in descending frequency order.
 
 ```python
-top_department = dataset.mode(column="department")
-top_scores = dataset.mode(column="score", top_n=3)
+top_department = ctx.mode(column="region")
+top_scores = ctx.mode(column="score", top_n=3)
 ```
 
 ```python
-result = await dataset.amode(column="department", top_n=5)
+result = await ctx.amode(column="region", top_n=5)
 ```
 
 Parameters:
@@ -248,13 +250,13 @@ Parameters:
 number of distinct non-null values.
 
 ```python
-values = dataset.unique(column="department")
-count = dataset.nunique(column="department")
+values = ctx.unique(column="region")
+count = ctx.nunique(column="region")
 ```
 
 ```python
-values = await dataset.aunique(column="department")
-count = await dataset.anunique(column="department")
+values = await ctx.aunique(column="region")
+count = await ctx.anunique(column="region")
 ```
 
 Parameters:
@@ -270,16 +272,16 @@ their counts. Omit `column` to count every column at once — the result maps
 each column name to its own value-counts dictionary (each capped at `top_n`).
 
 ```python
-result = dataset.value_counts(column="department", top_n=10)
+result = ctx.value_counts(column="region", top_n=10)
 ```
 
 ```python
-result = await dataset.avalue_counts(column="department", top_n=5)
+result = await ctx.avalue_counts(column="region", top_n=5)
 ```
 
 ```python
-all_counts = dataset.value_counts()
-# {"department": {"HR": 12, "IT": 9}, "salary": {...}, ...}
+all_counts = ctx.value_counts()
+# {"region": {"North": 3, "South": 2}, "salary": {...}, ...}
 ```
 
 Parameters:
@@ -295,13 +297,13 @@ Numeric statistics are intended for numeric columns. They return scalar values,
 dictionaries, or lists depending on the operation.
 
 ```python
-total = dataset.sum(column="salary")
-std = dataset.std(column="salary")
-outliers = dataset.outliers_iqr(column="salary")
+total = ctx.sum(column="salary")
+std = ctx.std(column="salary")
+outliers = ctx.outliers_iqr(column="salary")
 ```
 
 ```python
-quantiles = await dataset.aquantile(column="salary", q=[0.1, 0.5, 0.9])
+quantiles = await ctx.aquantile(column="salary", q=[0.1, 0.5, 0.9])
 ```
 
 ### Numeric Method Details
@@ -342,12 +344,12 @@ Parameters:
 columns are filtered out by the orchestrator.
 
 ```python
-result = dataset.corr(columns=["salary", "bonus", "tax"])
+result = ctx.corr(columns=["salary", "bonus", "score"])
 matrix = result
 ```
 
 ```python
-result = await dataset.acorr()
+result = await ctx.acorr()
 ```
 
 Parameters:
@@ -369,11 +371,11 @@ Return behavior:
 `cov` computes a pairwise sample covariance matrix for numeric columns.
 
 ```python
-result = dataset.cov(columns=["salary", "bonus", "tax"])
+result = ctx.cov(columns=["salary", "bonus", "score"])
 ```
 
 ```python
-result = await dataset.acov()
+result = await ctx.acov()
 ```
 
 Parameters:
@@ -395,11 +397,11 @@ Categorical stats operate on non-null category values.
 `count / non_null_total`.
 
 ```python
-result = dataset.proportions(column="department")
+result = ctx.proportions(column="region")
 ```
 
 ```python
-result = await dataset.aproportions(column="department")
+result = await ctx.aproportions(column="region")
 ```
 
 Parameters:
@@ -425,11 +427,11 @@ row). If the target column already exists (for example after clearing the
 cache), the diff is not recalculated.
 
 ```python
-result = dataset.datetime_diff(column="last_login")
+result = ctx.datetime_diff(column="event_time")
 ```
 
 ```python
-result = await dataset.adatetime_diff(column="last_login")
+result = await ctx.adatetime_diff(column="event_time")
 ```
 
 Parameters:
@@ -448,11 +450,11 @@ The method returns a DataFrame (the result table) containing the new diff column
 differences.
 
 ```python
-result = dataset.time_delta_stats(column="last_login")
+result = ctx.time_delta_stats(column="event_time")
 ```
 
 ```python
-result = await dataset.atime_delta_stats(column="last_login")
+result = await ctx.atime_delta_stats(column="event_time")
 ```
 
 Parameters:
@@ -470,11 +472,11 @@ The method returns a dictionary with keys such as `cnt`, `min_d`, `max_d`,
 between the minimum and maximum timestamp.
 
 ```python
-result = dataset.event_rate(column="created_at", unit="day")
+result = ctx.event_rate(column="event_time", unit="day")
 ```
 
 ```python
-result = await dataset.aevent_rate(column="created_at", unit="hour")
+result = await ctx.aevent_rate(column="event_time", unit="hour")
 ```
 
 Parameters:
@@ -489,11 +491,11 @@ Parameters:
 `time_unit_counts` groups events by a date part and returns counts per part.
 
 ```python
-result = dataset.time_unit_counts(column="created_at", unit="month")
+result = ctx.time_unit_counts(column="event_time", unit="month")
 ```
 
 ```python
-result = await dataset.atime_unit_counts(column="created_at", unit="dow")
+result = await ctx.atime_unit_counts(column="event_time", unit="dow")
 ```
 
 Parameters:
@@ -509,11 +511,11 @@ Parameters:
 counts.
 
 ```python
-result = dataset.weekday_weekend_counts(column="created_at")
+result = ctx.weekday_weekend_counts(column="event_time")
 ```
 
 ```python
-result = await dataset.aweekday_weekend_counts(column="created_at")
+result = await ctx.aweekday_weekend_counts(column="event_time")
 ```
 
 Parameters:
@@ -529,11 +531,11 @@ it classifies January 1 as `New Year`, December 25 as `Christmas`, and all
 other dates as `non-holiday`.
 
 ```python
-result = dataset.holiday_counts(column="created_at")
+result = ctx.holiday_counts(column="event_time")
 ```
 
 ```python
-result = await dataset.aholiday_counts(column="created_at")
+result = await ctx.aholiday_counts(column="event_time")
 ```
 
 Parameters:
@@ -547,13 +549,13 @@ Parameters:
 Use async methods inside async code:
 
 ```python
-result = await dataset.amean(column="salary")
+result = await ctx.amean(column="salary")
 ```
 
 Use sync methods from normal synchronous code:
 
 ```python
-result = dataset.mean(column="salary")
+result = ctx.mean(column="salary")
 ```
 
 Do not call sync methods from inside a running event loop. In async functions,

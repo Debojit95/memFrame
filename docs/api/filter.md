@@ -1,5 +1,7 @@
 # Filter
 
+> **Example data:** copy the setup cell from [Example Data](example-data.md) into Colab once, then run the examples below. Examples use that `ctx`; local frames are shown inline.
+
 Source: `src/memframe/wrappers/analytix/filter.py`
 
 `FilteringWrapper` is the public filtering interface exposed through a
@@ -10,8 +12,8 @@ a view over the source joined to that selection — no full copy of the source
 is created. The source is only mutated when `create_flag=True`.
 
 ```python
-dataset = mf.DataFrame(frame)
-result = dataset.filter("salary >= 50000 && status == 'active'")
+# ctx is defined in the Example Data setup
+result = ctx.filter("salary >= 55000 && region == 'North'")
 ```
 
 The lower-level files are implementation details:
@@ -45,20 +47,17 @@ dates as `YYYY-MM-DD` (or `YYYY-MM-DD HH:MM:SS`); extract datetime fields with
 `dayofweek`/`dow`, `dayofyear`/`doy`, `week`/`weekofyear`, `quarter`):
 
 ```python
-result = dataset.filter("salary >= 50000 && status == 'active'")
+result = ctx.filter("salary >= 55000 && region == 'North'")
 ```
 
 ```python
-hired_2024 = dataset.filter("hired_at.dt.year == 2024")
-#    salary  status   hired_at
-# 0   60000  active 2024-03-01
-# 1   80000    left 2024-06-01
+hired_2024 = ctx.filter("date.dt.year == 2024")
 ```
 
 Relative time is expressed against the database clock:
 
 ```python
-recent = dataset.filter("hired_at >= '2024-03-01' && hired_at <= '2024-06-01'")
+recent = ctx.filter("date >= '2024-01-02' && date <= '2024-01-03'")
 ```
 
 ## Cross-Dtype Filtering
@@ -67,11 +66,9 @@ Unlike `compare()`, filtering imposes no same-type restriction — numeric,
 categorical, and datetime conditions mix freely in one expression:
 
 ```python
-result = dataset.filter(
-    "salary >= 50000 && status == 'active' && hired_at >= '2024-01-01'"
+result = ctx.filter(
+    "salary >= 55000 && region == 'North' && date >= '2024-01-01'"
 )
-#    salary  status   hired_at
-# 0   60000  active 2024-03-01
 ```
 
 ## Column Subsets
@@ -79,7 +76,7 @@ result = dataset.filter(
 Pass `columns` to project the result instead of returning `*`:
 
 ```python
-lean = dataset.filter("salary >= 50000", columns=["name", "salary"])
+lean = ctx.filter("salary >= 50000", columns=["region", "salary"])
 ```
 
 ## Chunked Streaming
@@ -88,7 +85,7 @@ Pass `chunk_size` to stream the result as an async iterator of DataFrames
 instead of materializing one sample:
 
 ```python
-response = dataset.filter("salary >= 50000", chunk_size=1000)
+response = ctx.filter("salary >= 50000", chunk_size=1000)
 async for chunk in response["iterator"]:
     process(chunk)
 ```
@@ -104,9 +101,9 @@ table**: matching rows read `True`, everything else `False` (null-predicate
 rows read `False`, not `NULL`). The filtered result itself is unchanged.
 
 ```python
-dataset.filter("salary >= 50000", create_flag=True)
-print(dataset.head(n=10))
-#    salary  status  filter_flag
+ctx.filter("salary >= 50000", create_flag=True)
+print(ctx.head(n=10))
+#    salary  region  filter_flag
 # 0   40000  active        False
 # 1   60000  active         True
 # 2   80000    left         True
@@ -122,12 +119,12 @@ Rules:
   next to the stale one rather than overwriting it.
 - The source table is mutated: later ops on the dataset see the flag column.
   The raw response dict carries the name under `flag_column`; the public
-  `dataset.filter(...)` unwraps to a bare DataFrame, so read it via
+  `ctx.filter(...)` unwraps to a bare DataFrame, so read it via
   `FilteringWrapper` when you need the name programmatically.
 
 ## Errors
 
-- Unparseable strings raise `ParseError` (e.g. `dataset.filter("salary ??? 5")`
+- Unparseable strings raise `ParseError` (e.g. `ctx.filter("salary ??? 5")`
   raises `ParseError: Expected comparison operator, got '???'`).
 - Backend and validation failures surface as the canonical error dict
   (`is_error=True` with `error_message`).

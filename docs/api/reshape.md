@@ -1,5 +1,7 @@
 # Reshape
 
+> **Example data:** copy the setup cell from [Example Data](example-data.md) into Colab once, then run the examples below. Examples use that `ctx`; local frames are shown inline.
+
 Source: `src/memframe/wrappers/analytix/reshape.py`
 
 `ReshapingWrapper` is the public reshape interface exposed through a
@@ -11,15 +13,15 @@ Users normally call reshape directly on a dataset context returned by an upload
 operation:
 
 ```python
-dataset = mf.DataFrame(frame)
-result = dataset.melt(id_vars=["id"], value_vars=["score"])
+# ctx is defined in the Example Data setup
+result = ctx.melt(id_vars=["id"], value_vars=["score"])
 ```
 
 The same methods are available asynchronously:
 
 ```python
-dataset = await mf.aDataFrame(frame)
-result = await dataset.amelt(id_vars=["id"], value_vars=["score"])
+# ctx is defined in the Example Data setup
+result = await ctx.amelt(id_vars=["id"], value_vars=["score"])
 ```
 
 The lower-level files are implementation details:
@@ -52,25 +54,32 @@ iterator). Invalid operations raise `OperationError`.
 ## Usage Overview
 
 ```python
-dataset = mf.DataFrame(frame)
+# ctx is defined in the Example Data setup
 
-exploded = dataset.explode(column="tags")
-long = dataset.melt(id_vars=["id"], value_vars=["score"])
-wide = dataset.pivot(index="id", columns="region", values="score")
-agg = dataset.pivot_table(index="region", values="score", aggfunc="mean")
-freq = dataset.crosstab(index="region", columns="segment")
-transposed = dataset.transpose()
-ranked = dataset.rank(columns="score")
-grouped = dataset.groupby_rank(groupby="region", columns="score")
+long = ctx.melt(id_vars=["id"], value_vars=["score"])
+wide = ctx.pivot(index="id", columns="region", values="score")
+agg = ctx.pivot_table(index="region", values="score", aggfunc="mean")
+freq = ctx.crosstab(index="region", columns="category")
+transposed = ctx.transpose()
+ranked = ctx.rank(columns="score")
+grouped = ctx.groupby_rank(groupby="region", columns="score")
 ```
 
 ```python
-dataset = await mf.aDataFrame(frame)
+# ctx is defined in the Example Data setup
 
-long = await dataset.amelt(id_vars=["id"], value_vars=["score"])
-iterator = await dataset.amelt(id_vars=["id"], value_vars=["score"], chunk_size=1000)
+long = await ctx.amelt(id_vars=["id"], value_vars=["score"])
+iterator = await ctx.amelt(id_vars=["id"], value_vars=["score"], chunk_size=1000)
 async for chunk in iterator:
     process(chunk)
+```
+
+`explode` needs list-like values, so it uses a small local frame:
+
+```python
+tags = pd.DataFrame({"id": [1, 2], "tags": ["[a, b]", "[b, c]"]})
+tags_ctx = mf.DataFrame(tags, filename="tags")
+exploded = tags_ctx.explode(column="tags")
 ```
 
 Every non-chunked reshape creates a **new dataset** in `memframe_upload`,
@@ -161,7 +170,7 @@ When `chunk_size` is set, the result contains `iterator` (an `async_generator` o
 `DataFrame` chunks) and `new_table`, with `result=None`. Iterate it:
 
 ```python
-iterator = await dataset.amelt(id_vars=["id"], value_vars=["score"], chunk_size=1000)
+iterator = await ctx.amelt(id_vars=["id"], value_vars=["score"], chunk_size=1000)
 async for chunk in iterator:
     print(chunk.head())
 ```
