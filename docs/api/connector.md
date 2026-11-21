@@ -185,6 +185,15 @@ Parameters:
 | `secure` | No | `False` | Whether to use HTTPS for the backend connection. |
 | `timeout` | No | `10.0` | Request timeout in seconds. |
 
+## Constructor options
+
+These are passed to `MemFrame(...)` directly, outside `connection_params`:
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `preview_rows` | `int` or `None` | `None` | Cap the rows materialised into `result` for row-returning operations; the source (and cache ref) still holds every row. See [Result previews](#result-previews). |
+| `deep_cache` | `bool` or `None` | `None` | Force the deep-cache streaming path for cached results. |
+
 ## Connection Lifecycle
 
 Connect and close explicitly:

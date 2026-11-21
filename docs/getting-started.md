@@ -111,6 +111,11 @@ Local mode uses DuckDB. If `db_path` is omitted, memFrame uses
 `db_path=":memory:"`; note that an in-memory database lives and dies with the
 connection, so nothing is persisted to disk.
 
+Pass `preview_rows=N` to `MemFrame(...)` to cap the rows materialised into
+`result` for row-returning operations (sort, filter, window, …); the source
+table still holds every row. Default `None` returns the full frame. See the
+[Connector](api/connector.md#result-previews) guide.
+
 ### PostgreSQL
 
 ```python

@@ -136,7 +136,7 @@ sample = ctx.groupby("region").expanding().sum("sales")
 
 ## Common Parameters
 
-See [Rolling Reference](../rolling-reference.md) for the full window-form,
+See [Rolling Reference](../window.md#rolling-reference) for the full window-form,
 offset-alias, `center`/`closed`, and grouped-rolling matrix.
 
 | Parameter | Type | Description |

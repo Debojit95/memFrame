@@ -78,7 +78,6 @@ nav:
           - Comparison: api/comparison.md
           - Cumulative: api/cumulative.md
           - Window: api/window.md
-          - Rolling Reference: api/rolling-reference.md
           - GroupBy:
               - Stats: api/groupby/groupby_stats.md
               - Cumulative: api/groupby/groupby_cumulative.md
