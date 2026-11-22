@@ -236,3 +236,33 @@ def test_preview_rows_limits_datetime_diff():
         assert "ts__diff_seconds" in full.columns
     finally:
         asyncio.run(mf.aclose())
+
+
+def test_preview_rows_limits_is_weekend():
+    mf = MemFrame(
+        connection_type="local",
+        connection_params={"db_path": ":memory:"},
+        deep_cache=True,
+        preview_rows=5,
+    )
+    asyncio.run(mf.aconnect())
+    try:
+        ctx = asyncio.run(mf.aupload_df(
+            pd.DataFrame({
+                "ts": pd.date_range("2024-01-01", periods=100, freq="D"),
+            }),
+            filename="is_weekend_preview",
+        ))
+
+        first = ctx.dt.is_weekend("ts")
+        second = ctx.dt.is_weekend("ts")
+        assert len(first) == 5
+        assert len(second) == 5
+        assert "dt_ts_is_weekend" in first.columns
+        pd.testing.assert_frame_equal(first, second)
+
+        full = ctx.head(n=100)
+        assert len(full) == 100
+        assert "dt_ts_is_weekend" in full.columns
+    finally:
+        asyncio.run(mf.aclose())
