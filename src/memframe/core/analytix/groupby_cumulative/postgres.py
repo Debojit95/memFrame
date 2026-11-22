@@ -32,9 +32,14 @@ class PostgresGroupbyCumulativeOps(GroupbyCumulativeOps):
             raise ValueError(f"map_feature: could not list columns of {schema}.{table}")
         orig_q = self._qualified_table(table, schema)
         group_q = self._qualified_table(group_table, schema)
-        cond = " AND ".join(
-            f'o.{self.db.quote_identifier(c)} = g.{self.db.quote_identifier(c)}'
-            for c in orig_cols
+        idx = self.db.quote_identifier("_mf_idx")
+        cond = (
+            f"o.{idx} = g.{idx}"
+            if "_mf_idx" in orig_cols
+            else " AND ".join(
+                f"o.{self.db.quote_identifier(c)} = g.{self.db.quote_identifier(c)}"
+                for c in orig_cols
+            )
         )
         feats = ", ".join(
             f'g.{self.db.quote_identifier(c)} AS {self.db.quote_identifier(c)}'

@@ -17,7 +17,7 @@ logger = logging.getLogger("memFrame")
 
 
 class MemFrame(ContextManager, OpsMixin):
-    def __init__(self, connection_type: str = "local", connection_params: Optional[Dict[str, Any]] = None, deep_cache: Optional[bool] = None, preview_rows: Optional[int] = None):
+    def __init__(self, connection_type: str = "local", connection_params: Optional[Dict[str, Any]] = None, deep_cache: Optional[bool] = None, preview_rows: Optional[int] = 10_000):
         super().__init__(self)
         if preview_rows is not None:
             preview_rows = int(preview_rows)

@@ -24,6 +24,7 @@ class MemFrame(ContextManager):
         connection_type: str = "local",
         connection_params: Optional[Dict[str, Any]] = None,
         deep_cache: Optional[bool] = None,
+        preview_rows: Optional[int] = 10_000,
     ) -> None: ...
 
     async def aconnect(self) -> None: ...
