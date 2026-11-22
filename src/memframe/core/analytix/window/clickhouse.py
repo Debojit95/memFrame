@@ -11,10 +11,15 @@ class ClickHouseWindowOps(ClickHouseEWMHooks, WindowOps):
     are overridden here, alongside the dialect hooks.
     """
 
+    NATIVE_TIME_UNIT = 1
+
     # --------------------------------------------------
     # Dialect hooks
     # --------------------------------------------------
     def _datetime_epoch_expr(self, column_expr: str) -> str:
+        return f"toUnixTimestamp({column_expr})"
+
+    def _epoch_us_expr(self, column_expr: str) -> str:
         return f"toUnixTimestamp({column_expr})"
 
     def _median_epoch_sql(self, epoch_expr: str) -> str:

@@ -21,6 +21,9 @@ class WindowOps:
     """
     # Test/tuning hook: set to force a block size (e.g. 4 in unit tests).
     EWM_BLOCK_SIZE: Optional[int] = None
+    # Native time RANGE units per second. ClickHouse limits frame offsets to a
+    # 32-bit integer, so it uses seconds while DuckDB/PostgreSQL use micros.
+    NATIVE_TIME_UNIT = 1_000_000
 
     def __init__(self, db_adapter: DatabaseAdapter):
         self.db = db_adapter
@@ -203,6 +206,230 @@ class WindowOps:
     def _epoch_expr(self, column_expr: str) -> str:
         return f"date_part('epoch', {column_expr})"
 
+    def _epoch_us_expr(self, column_expr: str) -> str:
+        """Return a sortable microsecond clock for native time frames."""
+        return f"CAST(({self._epoch_expr(column_expr)}) * 1000000 AS BIGINT)"
+
+    def _native_time_frames(self, spec):
+        """Return (prior_range, current_prefix, centered_frame).
+
+        Non-centred pandas time windows cap duplicate timestamps at the
+        current row. A single RANGE frame includes all peers, so use a
+        prior-timestamp RANGE plus a current-timestamp ROWS prefix. Bounds
+        are microseconds; strict edges subtract one unit.
+        """
+        width = max(
+            1, int(round(float(spec["secs"]) * self.NATIVE_TIME_UNIT))
+        )
+        closed = spec["closed"]
+        if spec.get("center"):
+            half = max(0, int(round(width / 2)))
+            lo = half if closed in ("left", "both") else max(0, half - 1)
+            hi = half if closed in ("right", "both") else max(0, half - 1)
+            return None, None, (
+                f"RANGE BETWEEN {lo} PRECEDING AND {hi} FOLLOWING"
+            )
+        lo = width if closed in ("left", "both") else max(0, width - 1)
+        prefix = (
+            "CURRENT ROW" if closed in ("right", "both") else "1 PRECEDING"
+        )
+        prior = f"RANGE BETWEEN {lo} PRECEDING AND 1 PRECEDING"
+        current = f"ROWS BETWEEN UNBOUNDED PRECEDING AND {prefix}"
+        return prior, current, None
+
+    async def _rolling_time_agg_native(
+        self, table, schema, column, order_by, window, raw_aggs,
+        min_periods, ddof, backend, data_id, new_table, group_cols=None,
+        closed=None, center=False,
+    ):
+        """Native time-window path for decomposable aggregates."""
+        spec = self._window_spec(window, center, closed)
+        safe_col = SQLIdentifierSanitizer.sanitize(column)
+        safe_groups = [
+            SQLIdentifierSanitizer.sanitize(c) for c in (group_cols or [])
+        ]
+        orders = self._order_keys(order_by)
+        q = self.db.quote_identifier
+        order_col = q(orders[0])
+        qualified = self._qualified_table(table, schema)
+        group_cols_sql = ", ".join(q(c) for c in safe_groups)
+        select_groups = f"{group_cols_sql}, " if safe_groups else ""
+        part_group = f"PARTITION BY {group_cols_sql} " if safe_groups else ""
+        prefix_part = (
+            f"PARTITION BY {group_cols_sql + ', ' if safe_groups else ''}"
+            "__ord_us "
+        )
+        prior_frame, prefix_frame, centered_frame = self._native_time_frames(
+            spec
+        )
+        suffix = f"_by_{'_'.join(safe_groups)}" if safe_groups else ""
+        tag = spec["tag"]
+        aliases = {
+            "sum": "sum", "mean": "mean", "avg": "mean", "min": "min",
+            "max": "max", "count": "count", "std": "std",
+            "stddev": "std", "stddev_samp": "std", "stddevsamp": "std",
+            "stddev_pop": "std", "stddevpop": "std",
+            "var": "var", "variance": "var", "var_samp": "var",
+            "varsamp": "var", "var_pop": "var", "varpop": "var",
+        }
+        keys = [
+            aliases.get(str(a).strip().lower(), str(a).strip().lower())
+            for a in raw_aggs
+        ]
+        needed = set(keys)
+        needs_sum = bool(needed & {"sum", "mean", "avg", "std", "var"})
+        needs_sumsq = bool(needed & {"std", "var"})
+        needs_minmax = bool(needed & {"min", "max"})
+        needs_rows = "count" in needed
+        include_prefix = bool(
+            not centered_frame and spec["closed"] in ("right", "both")
+        )
+
+        def over(expr, partition, order, frame):
+            return f"{expr} OVER ({partition}ORDER BY {order} {frame})"
+
+        p_frame = centered_frame if centered_frame else prior_frame
+        p_part = part_group
+        base_select = (
+            f"SELECT {q('_mf_idx')}, {select_groups}{q(safe_col)} AS v, "
+            f"{self._epoch_us_expr(order_col)} AS __ord_us "
+            f"FROM {qualified}"
+        )
+        measures = ["COUNT(v) AS __p_cnt"]
+        if needs_rows:
+            measures.append("COUNT(1) AS __p_rows")
+        if needs_sum:
+            measures.append("SUM(v) AS __p_sum")
+        if needs_sumsq:
+            measures.append("SUM(v * v) AS __p_sq")
+        if needs_minmax:
+            measures.extend(["MIN(v) AS __p_min", "MAX(v) AS __p_max"])
+        if include_prefix:
+            measures.extend(
+                [
+                    f"{over('COUNT(v)', prefix_part, q('_mf_idx'), prefix_frame)} AS __c_cnt",
+                    f"{over('COUNT(1)', prefix_part, q('_mf_idx'), prefix_frame)} AS __c_rows",
+                ]
+            )
+            if needs_sum:
+                measures.append(
+                    f"COALESCE({over('SUM(v)', prefix_part, q('_mf_idx'), prefix_frame)}, 0) AS __c_sum"
+                )
+            if needs_sumsq:
+                measures.append(
+                    f"COALESCE({over('SUM(v * v)', prefix_part, q('_mf_idx'), prefix_frame)}, 0) AS __c_sq"
+                )
+            if needs_minmax:
+                measures.extend(
+                    [
+                        f"{over('MIN(v)', prefix_part, q('_mf_idx'), prefix_frame)} AS __c_min",
+                        f"{over('MAX(v)', prefix_part, q('_mf_idx'), prefix_frame)} AS __c_max",
+                    ]
+                )
+
+        w_select = [q("_mf_idx")]
+        for measure in measures:
+            if " OVER " in measure:
+                w_select.append(measure)
+            else:
+                val, alias = measure.split(" AS ", 1)
+                w_select.append(
+                    f"{over(val, p_part, '__ord_us', p_frame)} AS {alias}"
+                )
+        w_cte = (
+            f"__w AS (SELECT {', '.join(w_select)} "
+            f"FROM ({base_select}) __src)"
+        )
+
+        exprs = []
+        names = []
+        col_types = []
+        float_type = self._ewm_float_type()
+        for raw, key in zip(raw_aggs, keys):
+            alias_key = "mean" if key in ("mean", "avg") else key
+            col_name = f"{safe_col}_rolling_{alias_key}_w{tag}{suffix}"
+            names.append(col_name)
+            cnt = "__p_cnt" + (
+                " + COALESCE(__c_cnt, 0)" if include_prefix else ""
+            )
+            rows = "__p_rows" + (
+                " + COALESCE(__c_rows, 0)" if include_prefix else ""
+            )
+            if key == "count":
+                value, gate = cnt, rows
+            elif key == "sum":
+                value = (
+                    "COALESCE(__p_sum, 0)"
+                    + (" + __c_sum" if include_prefix else "")
+                )
+                gate = cnt
+            elif key in ("mean", "avg"):
+                value = (
+                    f"((COALESCE(__p_sum, 0)"
+                    f"{' + __c_sum' if include_prefix else ''}) "
+                    f"/ NULLIF({cnt}, 0))"
+                )
+                gate = cnt
+            elif key in ("min", "max"):
+                pcol = "__p_min" if key == "min" else "__p_max"
+                if include_prefix:
+                    ccol = "__c_min" if key == "min" else "__c_max"
+                    fn = "LEAST" if key == "min" else "GREATEST"
+                    value = (
+                        f"CASE WHEN {pcol} IS NULL THEN {ccol} "
+                        f"WHEN {ccol} IS NULL THEN {pcol} "
+                        f"ELSE {fn}({pcol}, {ccol}) END"
+                    )
+                else:
+                    value = pcol
+                gate = cnt
+            else:  # std / var
+                s1 = "COALESCE(__p_sum, 0)" + (
+                    " + __c_sum" if include_prefix else ""
+                )
+                s2 = "COALESCE(__p_sq, 0)" + (
+                    " + __c_sq" if include_prefix else ""
+                )
+                value = (
+                    f"(({s2}) - ({s1}) * ({s1}) / NULLIF({cnt}, 0)) "
+                    f"/ NULLIF({cnt} - {ddof}, 0)"
+                )
+                if key == "std":
+                    value = f"SQRT({value})"
+                gate = cnt
+            gated = (
+                value
+                if key == "sum" and min_periods == 0
+                else self._min_periods_gate(value, gate, min_periods)
+            )
+            exprs.append(f"{gated} AS {q(col_name)}")
+            col_types.append(
+                self._ewm_int_type() if key == "count" else float_type
+            )
+
+        feature_sql = (
+            f"WITH {w_cte} SELECT {q('_mf_idx')}, {', '.join(exprs)} "
+            f"FROM __w"
+        )
+        await self._merge_features(
+            table, schema, feature_sql, names, col_types,
+            backend=backend, data_id=data_id,
+        )
+        preview_cols = [column, *names]
+        if order_by:
+            preview_cols += [c for c in orders if c != "_mf_idx"]
+        preview_cols += safe_groups
+        preview_cols = list(dict.fromkeys(preview_cols))
+        res = await self._preview_data(table, schema, preview_cols)
+        response = self._success_response(
+            f"Rolling {', '.join(keys)} on '{column}' (window={window})",
+            res, new_table=table, new_columns=names, window=window,
+            min_periods=min_periods, source_updated=True,
+        )
+        if len(names) == 1:
+            response["new_column"] = names[0]
+        return response
+
     async def _rolling_time_agg(
         self, table, schema, column, order_by, window, raw_aggs,
         min_periods, ddof, backend, data_id, new_table, group_cols=None,
@@ -254,6 +481,12 @@ class WindowOps:
         if not keys:
             return self._error_response(
                 "At least one aggregation function is required"
+            )
+        if all(k in ("sum", "mean", "min", "max", "count", "std", "var") for k in keys):
+            return await self._rolling_time_agg_native(
+                table, schema, column, order_by, window, raw_aggs,
+                min_periods, ddof, backend, data_id, new_table,
+                group_cols=safe_groups, closed=closed, center=center,
             )
 
         group_cols_sql = ", ".join(q(c) for c in safe_groups)
@@ -1722,6 +1955,80 @@ class WindowOps:
             """
         return self._min_periods_gate(f"({outer})", count_sql, min_periods)
 
+    def _moment_window_sql(
+        self, table, schema, column, order_by, stat, min_periods,
+        safe_groups, out_col, window=None, center=False, closed=None,
+        expanding=False,
+    ) -> str:
+        """Native window-moment SQL for row rolling/expanding frames."""
+        q = self.db.quote_identifier
+        safe_col = SQLIdentifierSanitizer.sanitize(column)
+        order_keys = self._order_keys(order_by)
+        order_sql = ", ".join(q(c) for c in order_keys)
+        frame = (
+            "ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW"
+            if expanding else self._rolling_frame(window, center, closed)
+        )
+        part = self._ewm_partition(safe_groups)
+        source_cols = list(dict.fromkeys(
+            ["_mf_idx", safe_col, *safe_groups, *order_keys]
+        ))
+        source_select = ", ".join(q(c) for c in source_cols)
+        stat = stat.lower()
+        a4 = (
+            f", AVG(v * v * v * v) OVER "
+            f"({part}ORDER BY {order_sql} {frame}) AS a4"
+            if stat == "kurt" else ""
+        )
+        if stat == "kurt":
+            moment = (
+                "SELECT *, a2 - a * a AS b, "
+                "a3 - a * a * a - 3 * a * (a2 - a * a) AS c, "
+                "a4 - a * a * a * a - 6 * (a2 - a * a) * a * a "
+                "- 4 * (a3 - a * a * a - 3 * a * (a2 - a * a)) * a AS d "
+                "FROM __w"
+            )
+            formula = (
+                "CASE WHEN n < 4 THEN NULL "
+                "WHEN mx = mn THEN -3 "
+                "WHEN b <= 1e-14 THEN NULL "
+                "ELSE ((n * n - 1) * d / (b * b) - 3 * (n - 1) * (n - 1)) "
+                "/ ((n - 2) * (n - 3)) END"
+            )
+        else:
+            moment = (
+                "SELECT *, a2 - a * a AS b, "
+                "a3 - a * a * a - 3 * a * (a2 - a * a) AS c "
+                "FROM __w"
+            )
+            formula = (
+                "CASE WHEN n < 3 THEN NULL "
+                "WHEN mx = mn THEN 0 "
+                "WHEN b <= 1e-14 THEN NULL "
+                "ELSE SQRT(n * (n - 1)) * c / ((n - 2) * b * SQRT(b)) END"
+            )
+        gate = (
+            f"CASE WHEN n >= {int(min_periods)} THEN ({formula}) ELSE NULL END"
+            if int(min_periods) >= 1 else formula
+        )
+        return f"""
+            WITH __w AS (
+                SELECT {q("_mf_idx")},
+                       COUNT(v) OVER ({part}ORDER BY {order_sql} {frame}) AS n,
+                       MIN(v) OVER ({part}ORDER BY {order_sql} {frame}) AS mn,
+                       MAX(v) OVER ({part}ORDER BY {order_sql} {frame}) AS mx,
+                       AVG(v) OVER ({part}ORDER BY {order_sql} {frame}) AS a,
+                       AVG(v * v) OVER ({part}ORDER BY {order_sql} {frame}) AS a2,
+                       AVG(v * v * v) OVER ({part}ORDER BY {order_sql} {frame}) AS a3{a4}
+                FROM (
+                    SELECT {source_select}, {q(safe_col)} AS v
+                    FROM {self._qualified_table(table, schema)}
+                ) __src
+            ), __m AS ({moment})
+            SELECT {q("_mf_idx")}, {gate} AS {q(out_col)}
+            FROM __m
+        """
+
     async def _rolling_moment(
         self, table, schema, column, order_by, window, stat, backend=None,
         data_id=None, new_table=None, min_periods=None, center=False,
@@ -1746,6 +2053,28 @@ class WindowOps:
             q = self.db.quote_identifier
             suffix = f"_by_{'_'.join(safe_groups)}" if safe_groups else ""
             new_col = f"{safe_col}_rolling_{stat.lower()}_w{win_tag}{suffix}"
+            message = (
+                f"Rolling {stat.lower()} on '{column}'"
+                + (f" grouped by {safe_groups}" if safe_groups else "")
+            )
+            if spec["kind"] == "rows":
+                feature_sql = self._moment_window_sql(
+                    table, schema, column, order_by, stat, min_p,
+                    safe_groups, new_col, window=window, center=center,
+                    closed=closed,
+                )
+                if safe_groups:
+                    return await self._finish_grouped_special(
+                        table, schema, column, new_col, feature_sql,
+                        self._ewm_float_type(), backend, data_id,
+                        safe_groups, order_by, message,
+                        window=window, min_periods=min_p,
+                    )
+                return await self._finish_window_special(
+                    table, schema, column, new_col, feature_sql,
+                    self._ewm_float_type(), backend, data_id, order_by,
+                    message, window=window, min_periods=min_p,
+                )
             if safe_groups:
                 base = self._group_base_cte(
                     table, schema, safe_col, safe_groups, orders,
@@ -1798,30 +2127,15 @@ class WindowOps:
             safe_groups = [
                 SQLIdentifierSanitizer.sanitize(c) for c in (group_cols or [])
             ]
-            orders = self._order_keys(order_by)
-            q = self.db.quote_identifier
             suffix = f"_by_{'_'.join(safe_groups)}" if safe_groups else ""
             new_col = f"{safe_col}_expanding_{stat.lower()}{suffix}"
-            if safe_groups:
-                base = self._group_base_cte(
-                    table, schema, safe_col, safe_groups, orders,
-                )
-                group_eq = self._group_eq(safe_groups)
-            else:
-                base = self._window_base_cte(table, schema, safe_col, orders)
-                group_eq = ""
-            where = f"r.__rn <= b.__rn{group_eq}"
-            count_sql = f"(SELECT COUNT(r.v) FROM __base r WHERE {where})"
-            expr = self._moment_sql(stat, where, int(min_periods or 0), count_sql)
-            feature_sql = f"""
-                WITH {base}
-                SELECT b.{q("_mf_idx")},
-                    {expr} AS {q(new_col)}
-                FROM __base b
-            """
             message = (
                 f"Expanding {stat.lower()} on '{column}'"
                 + (f" grouped by {safe_groups}" if safe_groups else "")
+            )
+            feature_sql = self._moment_window_sql(
+                table, schema, column, order_by, stat, int(min_periods or 0),
+                safe_groups, new_col, expanding=True,
             )
             if safe_groups:
                 return await self._finish_grouped_special(

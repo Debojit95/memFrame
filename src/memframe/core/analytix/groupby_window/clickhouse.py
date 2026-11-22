@@ -13,6 +13,11 @@ from memframe.core.analytix.window._ewm_hooks import ClickHouseEWMHooks
 class ClickHouseGroupbyWindowOps(ClickHouseEWMHooks, GroupbyWindowOps):
     """ClickHouse backend — MergeTree CTAS with ordering fallback."""
 
+    NATIVE_TIME_UNIT = 1
+
+    def _epoch_us_expr(self, column_expr: str) -> str:
+        return f"toUnixTimestamp({column_expr})"
+
     def _ch_agg_spec(self, raw: str) -> tuple[str, str] | None:
         """Normalize public and backend-specific aggregation aliases for ClickHouse."""
         key = raw.strip().lower()
