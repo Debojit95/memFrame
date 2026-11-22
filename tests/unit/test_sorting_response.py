@@ -55,21 +55,22 @@ def test_sorting_cache_hit_preserves_order(sorting_context):
 
     be = sorting_context.memframe._backend
     row = asyncio.run(be.fetch_row(
-        f"SELECT order_kind, order_table, ref_schema, ref_table, owns_table "
+        f"SELECT cache_kind, order_kind, order_table, owns_table "
         f"FROM {be.cache_registry_table} "
         f"WHERE data_id = {be.placeholder(1)} "
         f"AND operation_type = 'method_call' ORDER BY opidx DESC LIMIT 1",
         sorting_context._data_id,
     ))
-    assert row[0] is None
+    assert row[0] == "actual"
     assert row[1] is None
-    assert row[4] is True
-    snapshot = row[3]
-    assert asyncio.run(
-        be.table_exists(be.qualify_table(row[2], snapshot))
-    )
+    assert row[2] is None
+    assert row[3] is False
     asyncio.run(sorting_context.memframe._aclear_cache(sorting_context._data_id))
-    assert not asyncio.run(be.table_exists(be.qualify_table(row[2], snapshot)))
+    assert asyncio.run(be.fetchval(
+        f"SELECT COUNT(*) FROM {be.cache_registry_table} "
+        f"WHERE data_id = {be.placeholder(1)}",
+        sorting_context._data_id,
+    )) == 0
 
 
 def test_sorting_return_ctx(sorting_context):

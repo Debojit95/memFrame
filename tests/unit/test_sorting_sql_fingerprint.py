@@ -164,5 +164,45 @@ def test_sorting_sql_fingerprint_unchanged():
     assert not diffs, f"SQL changed for: {diffs}"
 
 
+def test_preview_sort_uses_top_n_without_order_table():
+    adapter = RecordingDuckAdapter()
+    adapter.preview_rows = 1000
+    ops = make_sorting_ops(adapter)
+    asyncio.run(
+        ops.sort_values("t", "s", by="score", backend=object(), data_id="abc123")
+    )
+    sqls = ["".join(sql.split()) for _, sql, _ in adapter.calls]
+    assert not any(sql.startswith("CREATETABLE") for sql in sqls)
+    assert any(
+        sql.startswith("SELECT") and "ORDERBY" in sql and "LIMIT1000" in sql
+        for sql in sqls
+    )
+
+
+def test_chunked_sort_uses_narrow_order_table():
+    adapter = RecordingDuckAdapter()
+    adapter.backend = "duckdb"
+    adapter.cache_schema = "memframe_cache"
+    adapter.cache_registry_table = "memframe_csv_registry.memframe_cache_registry"
+    ops = make_sorting_ops(adapter)
+    asyncio.run(
+        ops.sort_values(
+            "t", "s", by="score", chunk_size=2,
+            backend=adapter, data_id="abc123",
+        )
+    )
+    sqls = ["".join(sql.split()) for _, sql, _ in adapter.calls]
+    order_sql = [
+        sql for sql in sqls
+        if sql.startswith("CREATETABLE") and "ROW_NUMBER()OVER(ORDERBY" in sql
+    ]
+    assert order_sql
+    assert "position" in order_sql[0]
+    assert "_mf_idx" in order_sql[0]
+    assert not any(
+        sql.startswith("CREATETABLE") and "_rolling" in sql for sql in sqls
+    )
+
+
 def test_sorting_ops_is_correct_class():
     assert DataSortingOps.__name__ == "DataSortingOps"
