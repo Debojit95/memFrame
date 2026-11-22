@@ -93,11 +93,9 @@ the column already exists.
 
 ## Sorting
 
-`sort_values` leaves the source untouched. With deep cache enabled it stores a
-write-once sorted snapshot in `memframe_cache` and records a ref with
-`owns_table=true` and no order table; a cache hit scans the snapshot directly.
-Without deep cache it stores a `(position, <idxdtype>)` permutation and joins
-the source on replay:
+`sort_values` leaves the source untouched. Preview-only calls cache the small
+ordered result payload. Chunked/full-result calls store a narrow
+`(position, <idxdtype>)` permutation and join the source on replay:
 
 ```sql
 (position <posdtype>, mf_idx <idxdtype>)

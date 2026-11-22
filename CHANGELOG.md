@@ -37,6 +37,11 @@ to [Semantic Versioning](https://semver.org/).
   of rows.
 
 ### Changed
+- **Large sort performance**: preview-only `sort_values` now executes a
+  bounded Top-N query and caches the small ordered result payload instead of
+  materializing a full-width sorted snapshot. Chunked/full-result sorts use a
+  narrow `(position, _mf_idx)` permutation and join only the requested range.
+  This avoids the 50M-row full-table sort/copy that made Colab sorting slow.
 - **Large window performance**: standard time windows
   (`sum`/`mean`/`min`/`max`/`count`/`std`/`var`) now use native range frames
   with duplicate-timestamp row-order handling instead of per-row correlated

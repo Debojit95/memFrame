@@ -70,9 +70,9 @@ order_table = '<base>__op_<n>'
 
 The order table holds only `(position, _mf_idx)`. Replay joins the source to
 it and orders by `position`, so no filtered copy of the data is stored.
-A cached `sort_values` is different: it stores a write-once **sorted snapshot**
-in `memframe_cache` (`owns_table = true`, no order table) and replays with a
-plain scan. Non-cached sorts keep the permutation path.
+A cached preview-only `sort_values` stores the small ordered result as an
+**actual payload**. Chunked/full sorts store a narrow `(position, _mf_idx)`
+permutation; replay joins only the requested permutation range to the source.
 `filter(..., create_flag=True)` additionally writes the flag column
 into the source and bumps the epoch.
 
