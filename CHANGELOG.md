@@ -36,6 +36,18 @@ to [Semantic Versioning](https://semver.org/).
   two Python dicts per row, which previously exhausted RAM on tens of millions
   of rows.
 
+### Changed
+- **Large window performance**: standard time windows
+  (`sum`/`mean`/`min`/`max`/`count`/`std`/`var`) now use native range frames
+  with duplicate-timestamp row-order handling instead of per-row correlated
+  scans. Rolling/expanding `skew` and `kurt` now use one native window-moments
+  pass. DuckDB, PostgreSQL, and ClickHouse all use the optimized paths.
+- **Bounded result previews**: `preview_rows` now defaults to `10,000`.
+  Pass `preview_rows=None` explicitly for the full result frame; source tables
+  and cache refs still retain every row.
+- **Cumulative map-back**: ClickHouse/PostgreSQL map-back joins the generated
+  values by `_mf_idx` instead of every original column.
+
 ### Added
 - **Rolling `min_periods`**: `rolling(..., min_periods=None)` on the ungrouped
   and grouped APIs, plus `min_periods` on rolling builders

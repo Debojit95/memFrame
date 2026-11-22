@@ -212,9 +212,9 @@ AVG("sales") OVER (ORDER BY "date", "_mf_idx"
   window (`"3D"`), the frame is `(t − window, t]` over the values of the
   `order_by` timestamp, so `order_by` is required to be datetime-typed.
 
-For large frames, pass `preview_rows=N` to `MemFrame`/`mf.DataFrame`: the
-source still receives every generated value, only the returned preview is
-capped.
+The default result preview is capped at `10,000` rows; pass `preview_rows=N`
+for a different cap or `preview_rows=None` for the full frame. The source still
+receives every generated value.
 
 > **Ordered vs. unordered:** every example below is shown twice — once with
 > `order_by` and once without. Both forms are fully deterministic; they differ
@@ -1011,11 +1011,13 @@ columns; the deep cache stores a ref to the source.
 - **PostgreSQL / DuckDB:** rolling and expanding aggregations add the
   generated column(s) to the source and backfill them in one windowed
   `UPDATE` keyed by `_mf_idx` — the source is never cloned or swapped.
+  Time-window `sum`/`mean`/`min`/`max`/`count`/`std`/`var` use native
+  `RANGE` plus a current-timestamp prefix, preserving row-order tie handling.
   EWM builds narrow `ordered`/`blocks`/`state` temps, runs the blockwise
   feature SQL, and uses the same backfill by `_mf_idx`. Specials
   (`quantile`/`median`, `sem`, `rank`, `nunique`, `skew`/`kurt`,
-  `first`/`last`, datetime stats) use a narrow ordered base and the same
-  backfill.
+  `first`/`last`, datetime stats) use the same backfill; specials without a
+  portable native form retain the correlated fallback.
 - **ClickHouse:** each operation builds a narrow feature table, joins it to
   the source by `_mf_idx`, and atomically swaps the result into the source
   with `EXCHANGE TABLES`; the temporary feature/wide tables are dropped.

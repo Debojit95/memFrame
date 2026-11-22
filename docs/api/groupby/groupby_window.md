@@ -422,8 +422,11 @@ upload table; the deep cache stores a ref to the source:
 - **PostgreSQL / DuckDB:** grouped rolling/expanding compute a narrow
   `(_mf_idx, <windows>)` feature query and backfill the source with one
   `UPDATE` keyed by `_mf_idx`. The source is never cloned or swapped.
+  Grouped time-window `sum`/`mean`/`min`/`max`/`count`/`std`/`var` use native
+  `RANGE` plus a current-timestamp prefix, preserving row-order tie handling.
   Specials (quantile/median, sem, rank, nunique, skew/kurt, first/last,
-  datetime) use the same backfill over a narrow ordered base.
+  datetime) use the same backfill over a narrow ordered base; specials without
+  a portable native form retain the correlated fallback.
 - **ClickHouse:** grouped rolling/expanding build a narrow feature table,
   join it to the source by `_mf_idx`, and atomically swap it in with
   `EXCHANGE TABLES`; the temp feature/wide tables are dropped.
@@ -476,8 +479,9 @@ mf = MemFrame(
 )
 ```
 
-- `preview_rows` caps the returned DataFrame. The generated column still
-  covers every source row; the source (and cache ref) holds the full result.
+- `preview_rows` caps the returned DataFrame (default `10,000`). The generated
+  column still covers every source row; the source (and cache ref) holds the
+  full result.
 - Group-by cumulative and grouped-window operations update the source in
   place and cache a source ref, so no wide result copy is materialized.
 - Benchmark the cold path with:

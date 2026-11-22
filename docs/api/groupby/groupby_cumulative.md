@@ -241,7 +241,9 @@ upload table; the deep cache stores a source ref.
 - **ClickHouse:** a single-pass CTAS with `ENGINE = MergeTree()
   ORDER BY tuple()` computes the column, then `EXCHANGE TABLES` swaps it into
   the source; without `order_col` the source is wrapped in a `ROW_NUMBER()`
-  subquery whose helper column is excluded from the output.
+  subquery whose helper column is excluded from the output. Optional
+  map-back joins the generated values by `_mf_idx`, not by every original
+  column.
 
 Operations apply `@record_call`, so repeat calls are recorded in the
 cache registry.
@@ -285,8 +287,9 @@ mf = MemFrame(
 )
 ```
 
-- `preview_rows` caps the returned DataFrame. The generated column still
-  covers every source row; the source (and cache ref) holds the full result.
+- `preview_rows` caps the returned DataFrame (default `10,000`). The generated
+  column still covers every source row; the source (and cache ref) holds the
+  full result.
 - Group-by cumulative and grouped-window operations update the source in
   place and cache a source ref, so no wide result copy is materialized.
 - Benchmark the cold path with:
