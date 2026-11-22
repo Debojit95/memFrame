@@ -314,14 +314,30 @@ class CacheManager:
                 src_cols = ", ".join(
                     f"s.{self._quote_col(c, backend)}" for c in columns
                 )
+                order_limit_now = order_limit
+                if preview:
+                    order_limit_now = (
+                        min(int(preview), int(order_limit_now))
+                        if order_limit_now else int(preview)
+                    )
+                order_source = qualified_order
+                if order_limit_now is not None:
+                    # Only join the rows needed for the preview. Joining the
+                    # full permutation and sorting the full source defeats the
+                    # narrow-order-table design.
+                    order_source = (
+                        f"(SELECT {self._quote_col(MF_IDX, backend)}, position "
+                        f"FROM {qualified_order} ORDER BY position "
+                        f"LIMIT {int(order_limit_now)})"
+                    )
                 sql = (
                     f"SELECT {src_cols} FROM {qualified} s "
-                    f"JOIN {qualified_order} o "
+                    f"JOIN {order_source} o "
                     f"ON s.{self._quote_col(MF_IDX, backend)} = "
                     f"o.{self._quote_col(MF_IDX, backend)} "
                     f'ORDER BY o."position"'
                 )
-                limit = order_limit
+                limit = None
             elif order_kind == "mf_idx":
                 sql = (
                     f"SELECT {cols} FROM {qualified} "

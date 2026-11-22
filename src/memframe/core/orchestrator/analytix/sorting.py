@@ -140,7 +140,7 @@ class SortingOrchestrator:
             columns=columns,
             chunk_size=chunk_size,
             return_ctx=False,
-            cache_snapshot=getattr(self._memframe, "deep_cache", None) is not False,
+            cache_snapshot=False,
         )
         return result
 

@@ -233,6 +233,39 @@ class DataSortingOps:
             order_sql = ", ".join(order_clauses)
 
             qualified = self._qualified_table(table, schema)
+            plain_select = ", ".join(
+                self.db.quote_identifier(str(c)) for c in output_cols
+            )
+            preview_limit = getattr(self.db, "preview_rows", None)
+
+            # A preview does not need a full sorted table. Let DuckDB use its
+            # Top-N operator and cache only the small result payload.
+            if not return_ctx and chunk_size is None and preview_limit:
+                sample = await _fetch_df_rows(
+                    self.db,
+                    f"SELECT {plain_select} FROM {qualified} "
+                    f"ORDER BY {order_sql} LIMIT {int(preview_limit)}",
+                )
+                return ok(
+                    f"Sorted by {by}",
+                    result=strip_hidden(sample),
+                    involved_cols=by,
+                    sorted_by=by,
+                    ascending=ascending,
+                    na_position=na_position,
+                    output_columns=output_cols,
+                    cache_kind="actual",
+                    new_table=table,
+                    order_kind=None,
+                    order_table=None,
+                    order_schema=None,
+                    order_position_dtype=None,
+                    order_limit=None,
+                    result_cols=output_cols,
+                    owns_table=False,
+                    mutates=False,
+                )
+
             row_count = int(await self.db.fetchval(
                 f"SELECT COUNT(*) FROM {qualified}"
             ) or 0)
@@ -293,10 +326,6 @@ class DataSortingOps:
                 # The caller materializes the dataset DB-side; no pandas sample
                 # is ever returned, so don't fetch millions of rows.
                 return _response(None)
-
-            plain_select = ", ".join(
-                self.db.quote_identifier(str(c)) for c in output_cols
-            )
 
             if cache_snapshot:
                 # One write-once sorted snapshot replaces the permutation +
