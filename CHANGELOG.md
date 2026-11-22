@@ -37,6 +37,10 @@ to [Semantic Versioning](https://semver.org/).
   of rows.
 
 ### Changed
+- **Datetime previews**: datetime helpers such as `ctx.dt.is_weekend(...)`
+  now honor `preview_rows` and fetch results through the Arrow-backed
+  DataFrame path instead of materializing every row as a Python dictionary.
+  On large tables this removes the multi-GB result-transfer spike.
 - **Large sort performance**: preview-only `sort_values` now executes a
   bounded Top-N query and caches the small ordered result payload instead of
   materializing a full-width sorted snapshot. Chunked/full-result sorts use a

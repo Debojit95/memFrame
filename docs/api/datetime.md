@@ -97,8 +97,9 @@ Every datetime operation has synchronous and asynchronous forms:
 | `asfreq(column, freq, method=None)` | `await aasfreq(...)` | Reindex to a regular frequency |
 | `add_offset(column, years=0, quarters=0, months=0, weeks=0, days=0, business_day=False, target_col=None)` | `await aadd_offset(...)` | Calendar-aware offset |
 
-Public methods return the resulting DataFrame directly. Invalid operations
-raise `OperationError`.
+Public methods return the resulting DataFrame directly, capped by the
+`preview_rows` setting (default `10,000`). The generated column still covers
+every source row. Invalid operations raise `OperationError`.
 
 ## Usage Overview
 
