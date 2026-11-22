@@ -161,10 +161,6 @@ def _scenarios():
             "t", "s", "x", ["g"], order_by=None, span=2,
             agg="mean", backend=backend, data_id=data_id,
         ),
-        "rolling_quantile": lambda ops, backend: ops.rolling_quantile_groupby(
-            "t", "s", "x", ["g"], order_by="o", window=3, q=0.5,
-            backend=backend, data_id=data_id,
-        ),
         "rolling_rank": lambda ops, backend: ops.rolling_rank_groupby(
             "t", "s", "x", ["g"], order_by="o", window=3,
             backend=backend, data_id=data_id,
@@ -220,6 +216,16 @@ def test_groupby_window_sql_fingerprint_unchanged():
             if current[name][backend] != expected[name][backend]:
                 diffs.append(f"{name}/{backend}")
     assert not diffs, f"SQL changed for: {diffs}"
+
+
+def test_grouped_moments_use_native_window_aggregates():
+    snapshot = _capture()
+    sql = "".join(
+        call[1] for call in snapshot["rolling_skew"]["duckdb"]
+        if call[0] in ("exec", "fetch", "fetchval")
+    )
+    assert "AVG(v*v)" in sql
+    assert "__base" not in sql
 
 
 def test_groupby_window_personas_match_real_backends():

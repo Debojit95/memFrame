@@ -266,6 +266,35 @@ def test_window_sql_fingerprint_unchanged():
     assert not diffs, f"SQL changed for: {diffs}"
 
 
+def _sql_for(snapshot, scenario, backend):
+    return "".join(
+        call[1] for call in snapshot[scenario][backend]
+        if call[0] in ("exec", "fetch", "fetchval")
+    )
+
+
+def test_time_windows_use_native_range_frames():
+    snapshot = _capture()
+    for scenario in (
+        "rolling_time_mean",
+        "rolling_time_center",
+        "rolling_time_closed_both",
+    ):
+        for backend in ("duckdb", "postgres", "clickhouse"):
+            sql = _sql_for(snapshot, scenario, backend)
+            assert "RANGE" in sql, (scenario, backend)
+            assert "__base" not in sql, (scenario, backend)
+
+
+def test_moments_use_native_window_aggregates():
+    snapshot = _capture()
+    for scenario in ("rolling_skew", "rolling_kurt", "expanding_skew"):
+        for backend in ("duckdb", "postgres", "clickhouse"):
+            sql = _sql_for(snapshot, scenario, backend)
+            assert "AVG(v*v)" in sql, (scenario, backend)
+            assert "__base" not in sql, (scenario, backend)
+
+
 def test_window_personas_match_real_backends():
     assert isinstance(_DuckDBPersona(), DuckDBAdapter)
     assert isinstance(_PostgresPersona(), PostgresAdapter)

@@ -104,6 +104,36 @@ def test_preview_rows_must_be_positive():
     raise AssertionError("preview_rows=0 should raise ConfigurationError")
 
 
+def test_default_preview_rows_is_bounded_but_can_be_disabled():
+    default = MemFrame(
+        connection_type="local",
+        connection_params={"db_path": ":memory:"},
+    )
+    assert default.preview_rows == 10_000
+    full = MemFrame(
+        connection_type="local",
+        connection_params={"db_path": ":memory:"},
+        preview_rows=None,
+    )
+    assert full.preview_rows is None
+
+
+def test_default_preview_caps_large_results():
+    mf = MemFrame(
+        connection_type="local",
+        connection_params={"db_path": ":memory:"},
+    )
+    asyncio.run(mf.aconnect())
+    try:
+        ctx = asyncio.run(mf.aupload_df(
+            pd.DataFrame({"x": range(10_050)}), filename="default_preview"
+        ))
+        result = asyncio.run(ctx.acumsum(column="x"))
+        assert len(result) == 10_000
+    finally:
+        asyncio.run(mf.aclose())
+
+
 def test_preview_rows_limits_sort_and_filter():
     mf = MemFrame(
         connection_type="local",

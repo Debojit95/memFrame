@@ -62,7 +62,9 @@ class _Recording:
     async def get_column_types(self, table, schema=None):
         # ponytail: realistic original-table columns so map_feature scenarios
         # exercise the join/swap SQL instead of the empty-columns error path.
-        return {"g": "TEXT", "o": "INTEGER", "num": "DOUBLE"}
+        return {
+            "_mf_idx": "BIGINT", "g": "TEXT", "o": "INTEGER", "num": "DOUBLE",
+        }
 
     async def get_table_info(self, table, schema=None):
         return {}
@@ -156,6 +158,14 @@ def test_groupby_cumulative_sql_fingerprint_unchanged():
             if current[name][backend] != expected[name][backend]:
                 diffs.append(f"{name}/{backend}")
     assert not diffs, f"SQL changed for: {diffs}"
+
+
+def test_map_feature_joins_on_immutable_index():
+    sql = "".join(
+        call[1] for call in _capture()["map_feature"]["clickhouse"]
+        if call[0] == "exec"
+    )
+    assert "o.`_mf_idx`=g.`_mf_idx`" in sql
 
 
 def test_groupby_cumulative_personas_match_real_backends():

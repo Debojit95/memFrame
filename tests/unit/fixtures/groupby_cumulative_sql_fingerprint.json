@@ -460,7 +460,7 @@
    ],
    [
     "exec",
-    "CREATETABLE`s`.`t__map_tmp`ENGINE=MergeTree()ORDERBYtuple()ASSELECTo.*,g.`cum_num_sum_by_g_order_by_o`AS`cum_num_sum_by_g_order_by_o`FROM`s`.`t`oLEFTJOIN`s`.`t__op_1`gONo.`g`=g.`g`ANDo.`o`=g.`o`ANDo.`num`=g.`num`",
+    "CREATETABLE`s`.`t__map_tmp`ENGINE=MergeTree()ORDERBYtuple()ASSELECTo.*,g.`cum_num_sum_by_g_order_by_o`AS`cum_num_sum_by_g_order_by_o`FROM`s`.`t`oLEFTJOIN`s`.`t__op_1`gONo.`_mf_idx`=g.`_mf_idx`",
     []
    ],
    [
