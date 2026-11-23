@@ -4,7 +4,7 @@ import asyncio
 
 import pandas as pd
 
-from memframe.main import MemFrame
+from memframe.client import MemFrame
 
 
 def _open(df, filename):
@@ -104,21 +104,21 @@ def test_preview_rows_must_be_positive():
     raise AssertionError("preview_rows=0 should raise ConfigurationError")
 
 
-def test_default_preview_rows_is_bounded_but_can_be_disabled():
+def test_default_preview_rows_is_unbounded():
     default = MemFrame(
         connection_type="local",
         connection_params={"db_path": ":memory:"},
     )
-    assert default.preview_rows == 10_000
-    full = MemFrame(
+    assert default.preview_rows is None
+    bounded = MemFrame(
         connection_type="local",
         connection_params={"db_path": ":memory:"},
-        preview_rows=None,
+        preview_rows=5,
     )
-    assert full.preview_rows is None
+    assert bounded.preview_rows == 5
 
 
-def test_default_preview_caps_large_results():
+def test_default_preview_returns_full_results():
     mf = MemFrame(
         connection_type="local",
         connection_params={"db_path": ":memory:"},
@@ -129,7 +129,7 @@ def test_default_preview_caps_large_results():
             pd.DataFrame({"x": range(10_050)}), filename="default_preview"
         ))
         result = asyncio.run(ctx.acumsum(column="x"))
-        assert len(result) == 10_000
+        assert len(result) == 10_050
     finally:
         asyncio.run(mf.aclose())
 

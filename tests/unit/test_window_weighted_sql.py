@@ -9,7 +9,7 @@ import pytest
 from scipy.signal import get_window
 
 from memframe.core.analytix.window.base import WindowOps
-from memframe.main import MemFrame
+from memframe.client import MemFrame
 from memframe.wrappers.analytix.groupby_window import GroupByWindowStatsWrapper
 from memframe.wrappers.analytix.window import WindowWrapper
 

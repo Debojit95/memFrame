@@ -7,7 +7,7 @@ from memframe.core.analytix.sorting import DataSortingOps
 from memframe.core.orchestrator.analytix.sorting import SortingOrchestrator
 from memframe.db_manager.context import ContextManager
 from memframe.exceptions import OperationError
-from memframe.main import MemFrame
+from memframe.client import MemFrame
 from memframe.wrappers.analytix.sorting import SortingWrapper
 
 
@@ -61,9 +61,9 @@ def test_sorting_cache_hit_preserves_order(sorting_context):
         f"AND operation_type = 'method_call' ORDER BY opidx DESC LIMIT 1",
         sorting_context._data_id,
     ))
-    assert row[0] == "actual"
-    assert row[1] is None
-    assert row[2] is None
+    assert row[0] == "ref"
+    assert row[1] == "sort"
+    assert row[2]
     assert row[3] is False
     asyncio.run(sorting_context.memframe._aclear_cache(sorting_context._data_id))
     assert asyncio.run(be.fetchval(

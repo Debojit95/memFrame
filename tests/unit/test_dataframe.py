@@ -1,11 +1,12 @@
 import asyncio
 
+import numpy as np
 import pandas as pd
 import pytest
 
 from memframe.db_manager.context import ContextManager
 from memframe.exceptions import ConfigurationError
-from memframe.main import MemFrame
+from memframe.client import MemFrame
 
 
 @pytest.fixture
@@ -26,20 +27,6 @@ def test_dataframe_from_dict(mf):
 
     assert isinstance(ctx, ContextManager)
     assert ctx.head(n=10).shape == (2, 2)
-
-
-def test_dataframe_from_lists_with_columns(mf):
-    ctx = mf.DataFrame([[1, "x"], [2, "y"]], columns=["a", "b"])
-
-    assert list(ctx.columns) == ["a", "b"]
-    assert ctx.head(n=10)["a"].tolist() == [1, 2]
-
-
-def test_dataframe_from_series(mf):
-    ctx = mf.DataFrame(pd.Series([1, 2, 3], name="s"))
-
-    assert list(ctx.columns) == ["s"]
-    assert len(ctx.head(n=10)) == 3
 
 
 def test_dataframe_from_dataframe_with_dtype(mf):
@@ -77,15 +64,30 @@ def test_dataframe_columns_select_and_order(mf):
     assert ctx.head(n=10).to_dict("list") == {"c": [3], "a": [1]}
 
 
-def test_dataframe_index_alignment(mf):
-    ctx = mf.DataFrame(
-        {"a": pd.Series([2, 3], index=[2, 3])},
-        index=[0, 1, 2, 3],
-    )
+@pytest.mark.parametrize(
+    "data",
+    [
+        [[1, 2], [3, 4]],
+        pd.Series([1, 2, 3]),
+        np.array([1, 2, 3]),
+        "not a frame",
+        42,
+        None,
+    ],
+)
+def test_dataframe_rejects_unsupported_data(mf, data):
+    with pytest.raises(ConfigurationError):
+        mf.DataFrame(data)
 
-    values = ctx.head(n=10)["a"].tolist()
-    assert sum(pd.isna(value) for value in values) == 2
-    assert sorted(value for value in values if not pd.isna(value)) == [2, 3]
+
+def test_dataframe_requires_data_argument(mf):
+    with pytest.raises(TypeError):
+        mf.DataFrame()
+
+
+def test_dataframe_rejects_index_argument(mf):
+    with pytest.raises(TypeError):
+        mf.DataFrame({"a": [1]}, index=[0])
 
 
 def test_dataframe_copy_argument(mf):

@@ -14,7 +14,7 @@ from memframe.core.analytix.merging import make_merge_ops
 from memframe.core.orchestrator.analytix.merging import MergeOrchestrator
 from memframe.db_manager.context import ContextManager
 from memframe.exceptions import DataNotFound, OperationError
-from memframe.main import MemFrame
+from memframe.client import MemFrame
 from memframe.wrappers.analytix.merging import MergeAccessor, MergeWrapper
 
 

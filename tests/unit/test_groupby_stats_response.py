@@ -3,7 +3,7 @@ import asyncio
 import pandas as pd
 import pytest
 
-from memframe.main import MemFrame
+from memframe.client import MemFrame
 from memframe.wrappers.analytix.groupby_stats import GroupByStatsWrapper
 
 

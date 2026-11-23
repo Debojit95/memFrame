@@ -3,7 +3,7 @@ import asyncio
 import pyarrow as pa
 
 from memframe.core.ingestion.upload.strategies.csv import CsvUploadStrategy
-from memframe.main import MemFrame
+from memframe.client import MemFrame
 
 _SENTINEL = "__-333333333333333333333333333__"
 

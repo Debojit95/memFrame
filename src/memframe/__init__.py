@@ -15,7 +15,7 @@
 import logging
 from importlib.metadata import PackageNotFoundError, version as _package_version
 
-from .main import MemFrame
+from .client import MemFrame
 from .core.ingestion.datatype_detector import Backend
 from .db_manager.setup import DatabaseBackend
 from .db_manager.context import ContextManager

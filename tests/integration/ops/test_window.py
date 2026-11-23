@@ -17,7 +17,7 @@ import pytest
 
 from matplotlib.backends.backend_pdf import PdfPages
 
-from memframe.main import MemFrame
+from memframe.client import MemFrame
 from tests.db_test_utils import default_duckdb_test_path
 from pdf_report import render_df_to_pdf_page
 

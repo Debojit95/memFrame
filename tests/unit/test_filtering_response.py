@@ -5,7 +5,7 @@ import pytest
 
 from memframe.core.analytix.filter.filter_I import F, SQLContext
 from memframe.core.analytix.filter.filter_II import DataFilteringOps
-from memframe.main import MemFrame
+from memframe.client import MemFrame
 from memframe.utils.str_filter_parser import ParseError
 from memframe.wrappers.analytix.filter import FilteringWrapper
 

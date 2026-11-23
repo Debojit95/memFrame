@@ -5,7 +5,7 @@ import pandas as pd
 import pytest
 
 from memframe.core.analytix.window.base import WindowOps
-from memframe.main import MemFrame
+from memframe.client import MemFrame
 from memframe.wrappers.analytix.window import WindowWrapper
 
 

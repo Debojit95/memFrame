@@ -4,7 +4,7 @@ import pandas as pd
 import pytest
 
 from memframe.core.analytix.arithmetic import DuckDBArithmeticOps
-from memframe.main import MemFrame
+from memframe.client import MemFrame
 from memframe.wrappers.analytix.arithmetic import ArithmeticWrapper
 
 

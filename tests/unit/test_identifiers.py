@@ -6,7 +6,7 @@ import pandas as pd
 import pytest
 
 from memframe.exceptions import ConfigurationError
-from memframe.main import MemFrame
+from memframe.client import MemFrame
 
 
 @pytest.fixture

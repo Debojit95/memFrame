@@ -4,7 +4,7 @@ import pandas as pd
 import pytest
 
 from memframe.core.analytix.selection import DuckDBSelectionOps
-from memframe.main import MemFrame
+from memframe.client import MemFrame
 from memframe.wrappers.analytix.selection import SelectionWrapper
 
 

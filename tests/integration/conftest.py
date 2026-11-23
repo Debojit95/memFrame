@@ -9,7 +9,7 @@ from typing import Any, Dict, List
 import pandas as pd
 import pytest
 
-from memframe.main import MemFrame
+from memframe.client import MemFrame
 from tests.db_test_utils import default_duckdb_test_path
 
 

@@ -4,7 +4,7 @@ import pandas as pd
 import pytest
 from pydantic_ai.toolsets import FunctionToolset
 
-from memframe.main import MemFrame
+from memframe.client import MemFrame
 from memframe_ai.agents import (
     SPECIALISTS,
     AnalyticsAgent,

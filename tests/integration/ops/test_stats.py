@@ -18,7 +18,7 @@ import pytest
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 
-from src.memframe.main import MemFrame
+from src.memframe.client import MemFrame
 from tests.db_test_utils import default_duckdb_test_path
 
 # ----------------------------------------------------------------------

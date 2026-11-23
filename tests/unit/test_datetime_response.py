@@ -5,7 +5,7 @@ import pytest
 
 from memframe.core.analytix.datetime import DatetimeOps
 from memframe.exceptions import OperationError
-from memframe.main import MemFrame
+from memframe.client import MemFrame
 from memframe.wrappers.analytix.datetime import DateTimeWrapper
 
 

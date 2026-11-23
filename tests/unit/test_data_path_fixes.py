@@ -6,7 +6,7 @@ import pandas as pd
 import pytest
 
 from memframe.cache.cache_manager import CacheManager
-from memframe.main import MemFrame
+from memframe.client import MemFrame
 
 
 # ── cache signature: content hash prevents same-shape collisions ─────────

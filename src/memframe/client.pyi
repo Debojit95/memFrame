@@ -1,9 +1,14 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 from memframe.db_manager.context import ContextManager
+
+if TYPE_CHECKING:
+    import pandas as pd
+
+DataInput = Union[ContextManager, "pd.DataFrame", Dict[str, Any]]
 
 
 class MemFrame(ContextManager):
@@ -24,7 +29,7 @@ class MemFrame(ContextManager):
         connection_type: str = "local",
         connection_params: Optional[Dict[str, Any]] = None,
         deep_cache: Optional[bool] = None,
-        preview_rows: Optional[int] = 10_000,
+        preview_rows: Optional[int] = None,
     ) -> None: ...
 
     async def aconnect(self) -> None: ...
@@ -66,8 +71,7 @@ class MemFrame(ContextManager):
 
     def DataFrame(
         self,
-        data: Any = ...,
-        index: Any = ...,
+        data: DataInput,
         columns: Optional[List[str]] = ...,
         dtype: Any = ...,
         copy: Optional[bool] = ...,
@@ -78,8 +82,7 @@ class MemFrame(ContextManager):
 
     async def aDataFrame(
         self,
-        data: Any = ...,
-        index: Any = ...,
+        data: DataInput,
         columns: Optional[List[str]] = ...,
         dtype: Any = ...,
         copy: Optional[bool] = ...,

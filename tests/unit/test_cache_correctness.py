@@ -6,7 +6,7 @@ import pandas as pd
 import pytest
 
 from memframe.cache import record_call
-from memframe.main import MemFrame
+from memframe.client import MemFrame
 
 
 @pytest.fixture

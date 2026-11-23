@@ -5,7 +5,7 @@ import asyncio
 import pandas as pd
 
 from memframe.core.indexing import MF_IDX
-from memframe.main import MemFrame
+from memframe.client import MemFrame
 from memframe.wrappers.analytix.filter import FilteringWrapper
 
 

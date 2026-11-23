@@ -1,6 +1,6 @@
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 import importlib.metadata
 
 if TYPE_CHECKING:
@@ -15,9 +15,17 @@ from memframe.utils.async_sync import async_to_sync
 
 logger = logging.getLogger("memFrame")
 
+DataInput = Union[ContextManager, "pd.DataFrame", Dict[str, Any]]
+
 
 class MemFrame(ContextManager, OpsMixin):
-    def __init__(self, connection_type: str = "local", connection_params: Optional[Dict[str, Any]] = None, deep_cache: Optional[bool] = None, preview_rows: Optional[int] = 10_000):
+    def __init__(
+        self,
+        connection_type: str = "local",
+        connection_params: Optional[Dict[str, Any]] = None,
+        deep_cache: Optional[bool] = None,
+        preview_rows: Optional[int] = None,
+    ):
         super().__init__(self)
         if preview_rows is not None:
             preview_rows = int(preview_rows)
@@ -221,8 +229,7 @@ class MemFrame(ContextManager, OpsMixin):
     @async_to_sync
     async def DataFrame(
         self,
-        data: Any = None,
-        index: Any = None,
+        data: DataInput,
         columns: Optional[List[str]] = None,
         dtype: Any = None,
         copy: Optional[bool] = None,
@@ -232,21 +239,20 @@ class MemFrame(ContextManager, OpsMixin):
     ) -> ContextManager:
         """Pandas-style constructor: build a dataset from in-memory data.
 
-        Mirrors ``pd.DataFrame(data, index=index, columns=columns, dtype=dtype,
-        copy=copy)`` and uploads the result as a new table, returning its
-        dataset context with the full operation surface. ``data`` may also be a
-        dataset ``ContextManager``, which is snapshotted first. ``filename`` and
+        Accepts a dataset ``ContextManager``, a ``pandas.DataFrame``, or a
+        ``dict`` and uploads the result as a new table, returning its dataset
+        context with the full operation surface. A ``ContextManager`` is
+        snapshotted first, leaving the source untouched. ``filename`` and
         ``dtypes`` are memFrame extensions passed to :meth:`aupload_df`.
         """
         return await self.aDataFrame(
-            data, index=index, columns=columns, dtype=dtype, copy=copy,
+            data, columns=columns, dtype=dtype, copy=copy,
             filename=filename, dtypes=dtypes,
         )
 
     async def aDataFrame(
         self,
-        data: Any = None,
-        index: Any = None,
+        data: DataInput,
         columns: Optional[List[str]] = None,
         dtype: Any = None,
         copy: Optional[bool] = None,
@@ -255,8 +261,6 @@ class MemFrame(ContextManager, OpsMixin):
         dtypes: Optional[Dict[str, str]] = None,
     ) -> ContextManager:
         """Asynchronous form of :meth:`DataFrame`."""
-        if data is None:
-            raise ConfigurationError("DataFrame() needs `data` to create a table.")
         try:
             import pandas as pd
         except ImportError as exc:
@@ -264,12 +268,16 @@ class MemFrame(ContextManager, OpsMixin):
                 "DataFrame() requires pandas for DataFrame conversion."
             ) from exc
 
+        if not isinstance(data, (ContextManager, pd.DataFrame, dict)):
+            raise ConfigurationError(
+                "DataFrame() data must be a ContextManager, pandas DataFrame, "
+                f"or dict; got {type(data).__name__}."
+            )
+
         if isinstance(data, ContextManager):
             data = await data.afull_table()
 
-        df = pd.DataFrame(
-            data, index=index, columns=columns, dtype=dtype, copy=copy
-        )
+        df = pd.DataFrame(data, columns=columns, dtype=dtype, copy=copy)
         if df.empty or len(df.columns) == 0:
             raise ConfigurationError("DataFrame() needs non-empty `data` to create a table.")
         return await self.aupload_df(df, filename=filename, dtypes=dtypes)

@@ -9,7 +9,7 @@ from memframe.exceptions import (
     DataNotFound,
     OperationError,
 )
-from memframe.main import MemFrame
+from memframe.client import MemFrame
 from memframe.utils.helper import SQLIdentifierSanitizer
 
 

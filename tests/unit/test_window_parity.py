@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from memframe.main import MemFrame
+from memframe.client import MemFrame
 from memframe.wrappers.analytix.groupby_window import GroupByWindowStatsWrapper
 from memframe.wrappers.analytix.window import WindowWrapper
 

@@ -4,7 +4,7 @@ import pandas as pd
 import pytest
 
 from memframe.exceptions import OperationError
-from memframe.main import MemFrame
+from memframe.client import MemFrame
 
 
 @pytest.fixture

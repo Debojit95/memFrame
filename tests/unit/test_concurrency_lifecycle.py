@@ -7,7 +7,7 @@ import pytest
 
 from memframe.db_manager.connection.pool import DuckDBPool
 from memframe.exceptions import ConnectionNotReady
-from memframe.main import MemFrame
+from memframe.client import MemFrame
 from memframe.utils import async_sync
 from memframe.utils.async_sync import async_to_sync
 

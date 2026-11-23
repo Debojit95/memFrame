@@ -5,7 +5,7 @@ import pytest
 
 from memframe.core.analytix.stats import DuckDBDataStatsOps
 from memframe.core.orchestrator.analytix.stats import StatsOrchestrator
-from memframe.main import MemFrame
+from memframe.client import MemFrame
 from memframe.wrappers.analytix.stats import StatsWrapper
 
 

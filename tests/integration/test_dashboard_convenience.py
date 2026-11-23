@@ -16,7 +16,7 @@ import os
 import pandas as pd
 import pytest
 
-from memframe.main import MemFrame
+from memframe.client import MemFrame
 
 pytestmark = [
     pytest.mark.integration,

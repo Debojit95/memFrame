@@ -50,7 +50,7 @@ def test_strip_hidden():
 def test_public_view_hides_mf_idx():
     import asyncio
 
-    from memframe.main import MemFrame
+    from memframe.client import MemFrame
 
     mf = MemFrame(connection_type="local", connection_params={"db_path": ":memory:"})
     asyncio.run(mf.aconnect())
@@ -89,7 +89,7 @@ def test_reserved_index_is_not_a_write_target():
     import asyncio
 
     from memframe.exceptions import OperationError
-    from memframe.main import MemFrame
+    from memframe.client import MemFrame
 
     mf = MemFrame(connection_type="local", connection_params={"db_path": ":memory:"})
     asyncio.run(mf.aconnect())
@@ -115,7 +115,7 @@ def test_reserved_index_is_not_a_write_target():
 def test_derived_public_views_hide_mf_idx():
     import asyncio
 
-    from memframe.main import MemFrame
+    from memframe.client import MemFrame
 
     async def run():
         mf = MemFrame(

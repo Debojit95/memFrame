@@ -3,7 +3,7 @@ import json
 
 import pytest
 
-from memframe.main import MemFrame
+from memframe.client import MemFrame
 from memframe.exceptions import ConfigurationError, DataNotFound
 
 

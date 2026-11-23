@@ -47,18 +47,6 @@ def test_context_input_copies_to_new_dataset(connected_memframe):
     assert source.head(n=10)["a"].tolist() == [1, 2]
 
 
-def test_index_alignment_is_not_persisted(connected_memframe):
-    ctx = connected_memframe.DataFrame(
-        {"a": pd.Series([2, 3], index=[2, 3])},
-        index=[0, 1, 2, 3],
-    )
-
-    values = ctx.head(n=10)["a"].tolist()
-    assert sum(pd.isna(value) for value in values) == 2
-    assert sorted(value for value in values if not pd.isna(value)) == [2, 3]
-    assert "index" not in ctx.columns
-
-
 def test_filename_and_dtypes_extensions(connected_memframe):
     ctx = connected_memframe.DataFrame(
         {"id": [1, 2]},

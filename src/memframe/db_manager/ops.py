@@ -155,7 +155,7 @@ class OpsMixin:
         self._active_id = data_id
         logger.info(f"Active CSV set to {data_id}")
         # ponytail: return a context bound to this data_id, matching the
-        # ContextManager that upload_df/ops() hand back from main.py.
+        # ContextManager that upload_df/ops() hand back from client.py.
         return ContextManager(self, data_id=data_id)
 
     @async_to_sync

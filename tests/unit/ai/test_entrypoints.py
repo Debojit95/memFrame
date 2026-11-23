@@ -8,7 +8,7 @@ from memframe_ai.config import AISettings
 
 def test_entrypoints_are_real_methods():
     from memframe.db_manager.context import ContextManager
-    from memframe.main import MemFrame
+    from memframe.client import MemFrame
 
     assert callable(getattr(ContextManager, "chat", None))
     assert callable(getattr(ContextManager, "achat", None))
@@ -18,7 +18,7 @@ def test_entrypoints_are_real_methods():
 
 
 def test_chat_without_enable_agent_raises():
-    from memframe.main import MemFrame
+    from memframe.client import MemFrame
 
     m = MemFrame()
     ops = m._ops()
@@ -27,7 +27,7 @@ def test_chat_without_enable_agent_raises():
 
 
 def test_aenable_agent_stores_settings():
-    from memframe.main import MemFrame
+    from memframe.client import MemFrame
 
     m = MemFrame()
     settings = asyncio.run(m.aenable_agent(api_key="k"))
@@ -39,7 +39,7 @@ def test_aenable_agent_stores_settings():
 
 
 def test_aenable_agent_requires_api_key():
-    from memframe.main import MemFrame
+    from memframe.client import MemFrame
 
     m = MemFrame()
     with pytest.raises(ValidationError):
@@ -47,7 +47,7 @@ def test_aenable_agent_requires_api_key():
 
 
 def test_aenable_agent_defaults_when_only_api_key_given():
-    from memframe.main import MemFrame
+    from memframe.client import MemFrame
 
     m = MemFrame()
     settings = asyncio.run(m.aenable_agent(api_key="k"))
@@ -56,7 +56,7 @@ def test_aenable_agent_defaults_when_only_api_key_given():
 
 
 def test_enable_agent_sync_form():
-    from memframe.main import MemFrame
+    from memframe.client import MemFrame
 
     m = MemFrame()
     settings = m.enable_agent(provider="anthropic", model="claude-x", api_key="sk-ant-...")

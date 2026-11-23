@@ -5,7 +5,7 @@ import asyncio
 import pandas as pd
 import pytest
 
-from memframe.main import MemFrame
+from memframe.client import MemFrame
 
 
 @pytest.fixture

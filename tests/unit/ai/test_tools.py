@@ -3,7 +3,7 @@ import asyncio
 import pandas as pd
 import pytest
 
-from memframe.main import MemFrame
+from memframe.client import MemFrame
 from memframe_ai.config import AISettings
 from memframe_ai.sessions import store
 from memframe_ai.tools import arithmetic, clean, context, inspect, plot, select, stats, upload

@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 
 from memframe.core.analytix.filter.filter_I import F
-from memframe.main import MemFrame
+from memframe.client import MemFrame
 from memframe.utils.str_filter_parser import ParseError
 from memframe.wrappers.analytix.filter import FilteringWrapper
 from tests.db_test_utils import default_duckdb_test_path
