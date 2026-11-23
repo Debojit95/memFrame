@@ -57,7 +57,15 @@ class TestOperationLifecycle:
         method_calls = [o for o in ops if o["operation_type"] == "method_call"]
         assert method_calls, ops
 
-        table = asyncio.run(connected_memframe.aretrieve_operation(data_id, method_calls[0]["opidx"]))
+        retrieved = asyncio.run(connected_memframe.aretrieve_operation(
+            data_id, method_calls[0]["opidx"]
+        ))
+        assert isinstance(retrieved, pd.DataFrame)
+        assert list(retrieved.columns) == list(result.columns)
+        assert len(retrieved) == len(result)
+        table = asyncio.run(connected_memframe.aretrieve_operation(
+            data_id, method_calls[0]["opidx"], return_table=True
+        ))
         assert table is not None and table != ""
 
     def test_deep_cache_hit_roundtrip(self, connected_memframe, uploaded_ctx):

@@ -138,7 +138,32 @@ class TestOperationRecording:
     def test_retrieve_operation(self, mf, uploaded):
         data_id = uploaded._data_id
         asyncio.run(mf._arecord_operation(data_id, "test_op", "tbl_z"))
-        assert asyncio.run(mf.aretrieve_operation(data_id, 1)) == "tbl_z"
+        assert asyncio.run(
+            mf.aretrieve_operation(data_id, 1, return_table=True)
+        ) == "tbl_z"
+
+    def test_retrieve_operation_missing_result_raises(self, mf, uploaded):
+        data_id = uploaded._data_id
+        asyncio.run(mf._arecord_operation(data_id, "test_op", "tbl_z"))
+        with pytest.raises(DataNotFound):
+            asyncio.run(mf.aretrieve_operation(data_id, 1))
+
+    def test_retrieve_actual_payload(self, mf, uploaded):
+        from memframe.cache.cache_manager import CacheManager
+
+        data_id = uploaded._data_id
+        asyncio.run(mf._arecord_method_call(
+            data_id, "Stats", "summary", "[]", "{}", cache_kind="actual",
+        ))
+        fmt, data = CacheManager._encode_actual({"rows": 3})
+        asyncio.run(mf._backend.execute(
+            f"INSERT INTO {mf._backend.cache_payloads_table} "
+            f"(data_id, opidx, format, payload) VALUES "
+            f"({mf._placeholder(1)}, {mf._placeholder(2)}, "
+            f"{mf._placeholder(3)}, {mf._placeholder(4)})",
+            data_id, 1, fmt, data,
+        ))
+        assert asyncio.run(mf.aretrieve_operation(data_id, 1)) == {"rows": 3}
 
     def test_retrieve_missing_operation_raises(self, mf, uploaded):
         with pytest.raises(DataNotFound):
