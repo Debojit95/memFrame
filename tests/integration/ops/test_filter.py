@@ -1093,17 +1093,17 @@ class TestFilteringOperations:
     def test_flag_subset(self, uploaded_ctx, sample_df, backend_config):
         result = FilteringWrapper(uploaded_ctx).filter("B > 15", create_flag=True)
         assert not result.get("is_error"), result.get("error_message")
-        assert result["flag_column"] == "filter_flag"
+        assert result["flag_column"] == "filter_flag_b_gt_15"
 
         src = self._source_frame(uploaded_ctx, len(sample_df))
-        assert "filter_flag" in src.columns
-        assert src["filter_flag"].astype(bool).tolist() == [False, True, False, True, False]
+        assert "filter_flag_b_gt_15" in src.columns
+        assert src["filter_flag_b_gt_15"].astype(bool).tolist() == [False, True, False, True, False]
         # Filtered result itself is unchanged
         assert sorted(get_result_df(result)["B"].tolist()) == [20, 25]
         self._record_result(
             test_name="flag_subset",
             method_call='filter("B > 15", create_flag=True)',
-            pandas_call='sample_df.query("B > 15")  # + filter_flag mask column',
+            pandas_call='sample_df.query("B > 15")  # + filter_flag_b_gt_15 mask column',
             original_df=sample_df,
             memframe_df=src,
             pandas_df=sample_df,
@@ -1114,41 +1114,41 @@ class TestFilteringOperations:
         result = FilteringWrapper(uploaded_ctx).filter(
             F.cat.eq("D", "zoom"), create_flag=True
         )
-        assert result["flag_column"] == "filter_flag"
+        assert result["flag_column"] == "filter_flag_d_eq_1_zoom"
         src = self._source_frame(uploaded_ctx, len(sample_df))
-        assert src["filter_flag"].astype(bool).tolist() == [False, False, False, True, True]
+        assert src["filter_flag_d_eq_1_zoom"].astype(bool).tolist() == [False, False, False, True, True]
 
     def test_flag_empty_match_skipped(self, uploaded_ctx, sample_df, backend_config):
         result = FilteringWrapper(uploaded_ctx).filter("B > 1000", create_flag=True)
         assert not result.get("is_error"), result.get("error_message")
         assert result["flag_column"] is None
         src = self._source_frame(uploaded_ctx, len(sample_df))
-        assert "filter_flag" not in src.columns
+        assert "filter_flag_b_gt_1000" not in src.columns
 
     def test_flag_full_match_skipped(self, uploaded_ctx, sample_df, backend_config):
         result = FilteringWrapper(uploaded_ctx).filter("B > 0", create_flag=True)
         assert result["flag_column"] is None
         src = self._source_frame(uploaded_ctx, len(sample_df))
-        assert "filter_flag" not in src.columns
+        assert "filter_flag_b_gt_0" not in src.columns
 
     def test_flag_off_by_default(self, uploaded_ctx, sample_df, backend_config):
         uploaded_ctx.filter("B > 15")
         src = self._source_frame(uploaded_ctx, len(sample_df))
-        assert "filter_flag" not in src.columns
+        assert "filter_flag_b_gt_15" not in src.columns
 
     def test_flag_null_reads_false(self, connected_memframe, backend_config):
         df = pd.DataFrame({"g": ["x", None, "y"], "v": [1, 2, 3]})
         ctx = connected_memframe.upload_df(df, filename="filtering_flag_null")
         result = FilteringWrapper(ctx).filter(F.cat.eq("g", "x"), create_flag=True)
-        assert result["flag_column"] == "filter_flag"
+        assert result["flag_column"] == "filter_flag_g_eq_1_x"
         src = self._source_frame(ctx, len(df))
-        assert src["filter_flag"].astype(bool).tolist() == [True, False, False]
+        assert src["filter_flag_g_eq_1_x"].astype(bool).tolist() == [True, False, False]
 
     def test_flag_rededupe_on_refilter(self, uploaded_ctx, sample_df, backend_config):
         FilteringWrapper(uploaded_ctx).filter("B > 15", create_flag=True)
         result = FilteringWrapper(uploaded_ctx).filter("B > 20", create_flag=True)
-        assert result["flag_column"] == "filter_flag_1"
+        assert result["flag_column"] == "filter_flag_b_gt_20"
         src = self._source_frame(uploaded_ctx, len(sample_df))
-        assert "filter_flag" in src.columns
-        assert "filter_flag_1" in src.columns
-        assert src["filter_flag_1"].astype(bool).tolist() == [False, False, False, True, False]
+        assert "filter_flag_b_gt_15" in src.columns
+        assert "filter_flag_b_gt_20" in src.columns
+        assert src["filter_flag_b_gt_20"].astype(bool).tolist() == [False, False, False, True, False]

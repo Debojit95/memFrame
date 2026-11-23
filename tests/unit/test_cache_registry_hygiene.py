@@ -290,11 +290,11 @@ def test_filter_create_flag_is_a_source_ref():
     try:
         wrapper = FilteringWrapper(ctx)
         first = asyncio.run(wrapper.afilter("x >= 2", create_flag=True))
-        assert first["flag_column"] == "filter_flag"
-        assert "filter_flag" in first["result"].columns
+        assert first["flag_column"] == "filter_flag_x_gte_2"
+        assert "filter_flag_x_gte_2" in first["result"].columns
 
         flags = asyncio.run(mf._backend.fetch(
-            f'SELECT "filter_flag" FROM memframe_upload."{did}__base" '
+            f'SELECT "filter_flag_x_gte_2" FROM memframe_upload."{did}__base" '
             f'ORDER BY "{MF_IDX}"'
         ))
         assert [bool(r[0]) for r in flags] == [False, True, True, True]
@@ -305,7 +305,7 @@ def test_filter_create_flag_is_a_source_ref():
         rows = _method_rows(mf, did)
         assert len(rows) == 1
         assert rows[0][2] == "ref"
-        assert rows[0][4] == '["filter_flag"]'
+        assert rows[0][4] == '["filter_flag_x_gte_2"]'
         assert rows[0][8] >= 1
     finally:
         asyncio.run(mf.aclose())

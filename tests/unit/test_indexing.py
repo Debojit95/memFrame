@@ -79,7 +79,7 @@ def test_public_view_hides_mf_idx():
             ctx._data_id,
         ))
         assert [r[0] for r in cols] == [
-            "cost", "price_add__1", "extra", "filter_flag",
+            "cost", "price_add__1", "extra", "filter_flag_price_gt_10",
         ]
     finally:
         asyncio.run(mf.aclose())
