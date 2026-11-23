@@ -1,3 +1,4 @@
+import json
 import logging
 from typing import Any, Dict, List, Optional
 
@@ -376,14 +377,33 @@ class OpsMixin:
 
     # ── operation listing / retrieval ────────────────────────────
 
+    @staticmethod
+    def _decode_operation_json(value: Any, default: Any) -> Any:
+        if value is None or value == "":
+            return default
+        if isinstance(value, (dict, list)):
+            return value
+        try:
+            return json.loads(value)
+        except (TypeError, ValueError):
+            return value
+
+    @staticmethod
+    def _decode_operation_list(value: Any) -> List[Any]:
+        decoded = OpsMixin._decode_operation_json(value, [])
+        return decoded if isinstance(decoded, list) else []
+
     async def alist_operations(self, data_id: Optional[str] = None) -> List[Dict[str, Any]]:
         if data_id is None:
             data_id = self._active_id
             if data_id is None:
                 raise DataNotFound("No data_id provided and no active CSV set.")
         rows = await self._backend.fetch(
-            f"SELECT opidx, operation_type, "
-            f"COALESCE(ref_table, generated_table_name), created_at "
+            f"SELECT opidx, operation_type, class_name, method_name, args, kwargs, "
+            f"COALESCE(ref_table, generated_table_name) AS table_name, "
+            f"generated_table_name, schema, cache_kind, ref_schema, ref_table, "
+            f"involved_cols, generated_cols, result_cols, is_deep_cache, "
+            f"owns_table, created_at "
             f"FROM {self._backend.cache_registry_table} "
             f"WHERE data_id = {self._placeholder(1)} "
             f"AND operation_type NOT IN "
@@ -391,10 +411,42 @@ class OpsMixin:
             f"ORDER BY opidx",
             data_id,
         )
-        return [
-            {"opidx": r[0], "operation_type": r[1], "table_name": r[2], "created_at": r[3]}
-            for r in rows
-        ]
+        result = []
+        for r in rows:
+            params = self._decode_operation_json(r[4], {})
+            kwargs = self._decode_operation_json(r[5], {})
+            if isinstance(params, dict):
+                params = {
+                    key: value for key, value in params.items()
+                    if not str(key).startswith("__")
+                }
+            operation = (
+                f"{r[2]}.{r[3]}" if r[2] and r[3]
+                else (r[3] or r[2] or r[1])
+            )
+            result.append({
+                "data_id": data_id,
+                "opidx": r[0],
+                "operation": operation,
+                "operation_type": r[1],
+                "class_name": r[2],
+                "method_name": r[3],
+                "params": params,
+                "kwargs": kwargs,
+                "table_name": r[6],
+                "generated_table_name": r[7],
+                "schema": r[8],
+                "cache_kind": r[9],
+                "ref_schema": r[10],
+                "ref_table": r[11],
+                "involved_cols": self._decode_operation_list(r[12]),
+                "generated_cols": self._decode_operation_list(r[13]),
+                "result_cols": self._decode_operation_list(r[14]),
+                "is_deep_cache": bool(r[15]) if r[15] is not None else None,
+                "owns_table": bool(r[16]) if r[16] is not None else None,
+                "created_at": r[17],
+            })
+        return result
 
     @async_to_sync
     async def list_operations(self, data_id: Optional[str] = None) -> List[Dict[str, Any]]:
