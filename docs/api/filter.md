@@ -103,20 +103,23 @@ rows read `False`, not `NULL`). The filtered result itself is unchanged.
 ```python
 ctx.filter("salary >= 50000", create_flag=True)
 print(ctx.head(n=10))
-#    salary  region  filter_flag
-# 0   40000  active        False
-# 1   60000  active         True
-# 2   80000    left         True
-# 3   55000  active         True
+#    salary  region  filter_flag_salary_gte_50000
+# 0   40000  active                       False
+# 1   60000  active                        True
+# 2   80000    left                        True
+# 3   55000  active                        True
 ```
 
 Rules:
 
 - The flag is only written for a **proper subset**. Empty and full-table
   matches skip it (`flag_column` is `None`) — a constant column is useless.
-- The column name is fixed (`filter_flag`, auto-suffixed to `filter_flag_1`,
-  … on collision). Re-filtering the same dataset therefore adds a new column
-  next to the stale one rather than overwriting it.
+- The column name is derived from the filter query (`filter_flag_<query>`):
+  operators become words and punctuation collapses to underscores, as in
+  `"B > 15"` → `filter_flag_b_gt_15`. Predicate objects use their structural
+  signature. Distinct queries therefore get distinct columns instead of
+  `filter_flag`, `filter_flag_1`, …; a real collision still falls back to a
+  numeric suffix.
 - The source table is mutated: later ops on the dataset see the flag column.
   The raw response dict carries the name under `flag_column`; the public
   `ctx.filter(...)` unwraps to a bare DataFrame, so read it via

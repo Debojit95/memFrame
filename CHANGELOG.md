@@ -37,6 +37,10 @@ to [Semantic Versioning](https://semver.org/).
   of rows.
 
 ### Changed
+- **Filter flag naming**: `filter(..., create_flag=True)` now derives the
+  in-place boolean column from the submitted query (for example
+  `"B > 15"` → `filter_flag_b_gt_15`) instead of always using `filter_flag`.
+  Distinct queries no longer collide with numeric suffixes.
 - **Operation retrieval**: `retrieve_operation()`/`aretrieve_operation()` now
   returns the operation's stored result (DataFrame or scalar/dict/list payload)
   instead of only a table name. Pass `return_table=True` for the previous
