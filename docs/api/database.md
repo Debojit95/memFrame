@@ -27,7 +27,7 @@ mf.connect()
 | `get_active_table()` | `await aget_active_table()` | Read the active dataset ID |
 | `delete_table(data_id=None, filename=None)` | `await adelete_table(data_id=None, filename=None)` | Delete an uploaded dataset |
 | `list_operations(data_id=None)` | `await alist_operations(data_id=None)` | List operation history |
-| `retrieve_operation(data_id, opidx)` | `await aretrieve_operation(data_id, opidx)` | Resolve an operation table name |
+| `retrieve_operation(data_id, opidx)` | `await aretrieve_operation(data_id, opidx)` | Retrieve an operation's stored result |
 
 ## Dataset Management
 
@@ -100,14 +100,59 @@ List the recorded operations for a dataset:
 operations = mf.list_operations("a1b2c3")
 ```
 
-Each record contains `opidx`, `operation_type`, `table_name`, and `created_at`.
-When no `data_id` is supplied, `list_operations` uses the active dataset.
-
-Retrieve the generated table name for one operation:
+Each record contains the operation index, type, class, method, decoded
+parameters, cache metadata, columns, and generated/ref table details:
 
 ```python
-table_name = mf.retrieve_operation("a1b2c3", opidx=2)
+{
+    "data_id": "a1b2c3",
+    "opidx": 3,
+    "operation": "StatsWrapper.mean",
+    "operation_type": "method_call",
+    "class_name": "StatsWrapper",
+    "method_name": "mean",
+    "params": {"column": "salary"},
+    "kwargs": {},
+    "table_name": "a1b2c3__base",
+    "generated_table_name": "a1b2c3__op_3",
+    "schema": "memframe_cache",
+    "cache_kind": "ref",
+    "ref_schema": "memframe_upload",
+    "ref_table": "a1b2c3__base",
+    "involved_cols": ["salary"],
+    "generated_cols": [],
+    "result_cols": ["salary"],
+    "is_deep_cache": True,
+    "owns_table": False,
+    "created_at": datetime(...),
+}
 ```
+
+`params` is decoded from the stored call signature and excludes internal cache
+keys. `involved_cols`, `generated_cols`, and `result_cols` are decoded lists.
+Legacy rows without class/method information fall back to `operation_type`.
+When no `data_id` is supplied, `list_operations` uses the active dataset.
+
+Retrieve the stored result of one operation:
+
+```python
+result = mf.retrieve_operation("a1b2c3", opidx=2)
+```
+
+The return value is the operation's cached result: a `pandas.DataFrame` for
+table-producing operations, or the recorded scalar/dict/list payload for
+operations with an actual result. Sorted and filtered results keep their
+stored row order, and preview limits apply as they do on a cache hit.
+
+Pass `return_table=True` to get the generated/ref table name instead:
+
+```python
+table_name = mf.retrieve_operation("a1b2c3", opidx=2, return_table=True)
+```
+
+`DataNotFound` is raised when the operation is not recorded or no stored
+result exists for it. Operations that were not deep-cached have no persisted
+result to retrieve.
 
 Operation recording is handled internally by memFrame when library operations
 create generated tables.

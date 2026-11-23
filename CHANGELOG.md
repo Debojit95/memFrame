@@ -37,6 +37,14 @@ to [Semantic Versioning](https://semver.org/).
   of rows.
 
 ### Changed
+- **Operation retrieval**: `retrieve_operation()`/`aretrieve_operation()` now
+  returns the operation's stored result (DataFrame or scalar/dict/list payload)
+  instead of only a table name. Pass `return_table=True` for the previous
+  table-name behavior.
+- **Operation history detail**: `list_operations()`/`alist_operations()` now
+  returns the operation class and method, decoded call parameters, cache kind,
+  generated/ref tables, involved/generated/result columns, and deep-cache
+  metadata alongside the existing fields.
 - **Datetime previews**: datetime helpers such as `ctx.dt.is_weekend(...)`
   now honor `preview_rows` and fetch results through the Arrow-backed
   DataFrame path instead of materializing every row as a Python dictionary.
