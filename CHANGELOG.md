@@ -37,6 +37,13 @@ to [Semantic Versioning](https://semver.org/).
   of rows.
 
 ### Changed
+- **Client module**: `MemFrame` now lives in `memframe.client`; the old
+  `memframe.main` module name is gone.
+- **DataFrame constructor**: `DataFrame()`/`aDataFrame()` accept only a
+  `ContextManager`, `pandas.DataFrame`, or `dict`, and the `index` parameter
+  was removed. Unsupported inputs raise `ConfigurationError`.
+- **Result previews**: `preview_rows` now defaults to `None` (full result)
+  instead of capping previews at 10,000 rows.
 - **Filter flag naming**: `filter(..., create_flag=True)` now derives the
   in-place boolean column from the submitted query (for example
   `"B > 15"` → `filter_flag_b_gt_15`) instead of always using `filter_flag`.

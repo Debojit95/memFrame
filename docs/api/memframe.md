@@ -41,8 +41,7 @@ operation surface:
 
 ```python
 mf.DataFrame(
-    data=None,       # dict, rows, pd.Series, pd.DataFrame, or ctx context
-    index=None,      # pandas alignment; the index is not persisted
+    data,            # ContextManager, pd.DataFrame, or dict
     columns=None,    # selection/order, pandas semantics
     dtype=None,      # single dtype, pandas semantics
     copy=None,       # pandas construction semantics
@@ -52,9 +51,11 @@ mf.DataFrame(
 )
 ```
 
-`data` may be a `ContextManager` (a dataset context); its full table is
+`data` must be a `ContextManager` (a dataset context), a `pandas.DataFrame`,
+or a `dict`. Other inputs raise `ConfigurationError`. A `ContextManager` is
 snapshotted into a new upload dataset, leaving the source untouched. Async
-code uses `await mf.aDataFrame(...)` with the same arguments.
+code uses `await mf.aDataFrame(...)` with the same arguments. The pandas
+`index` parameter is not supported; dataset tables are unordered.
 
 ```python
 people = mf.DataFrame(
@@ -76,8 +77,8 @@ columns (`uint64` values past 9.2e18 overflow at insert); `float32`/`float64`,
 `bool`, `datetime64` (tz-aware becomes tz-stamped); `str`/`object`/`string`/
 `category` → text; `decimal`, `date`, `bytes` map natively. Anything else falls
 back to text (lossy). Empty input raises — a table needs typed columns.
-`columns=` selects/orders columns at construction; the pandas index is used
-for alignment only and dropped (tables are unordered).
+`columns=` selects/orders columns at construction; the pandas index is not
+persisted (tables are unordered).
 
 ## Domains
 

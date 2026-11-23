@@ -212,8 +212,7 @@ AVG("sales") OVER (ORDER BY "date", "_mf_idx"
   window (`"3D"`), the frame is `(t − window, t]` over the values of the
   `order_by` timestamp, so `order_by` is required to be datetime-typed.
 
-The default result preview is capped at `10,000` rows; pass `preview_rows=N`
-for a different cap or `preview_rows=None` for the full frame. The source still
+The default result is the full frame; pass `preview_rows=N` to cap it. The source still
 receives every generated value.
 
 > **Ordered vs. unordered:** every example below is shown twice — once with

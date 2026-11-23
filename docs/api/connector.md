@@ -113,10 +113,9 @@ mf = MemFrame(
 )
 ```
 
-The default is `10,000` rows. Pass `preview_rows=None` to return the full
-result frame. Use the default or a smaller value for dashboards and benchmarks
-where scanning millions of rows into pandas is not needed; read explicit full
-tables via `head`/`full_table` when required.
+The default is the full result frame. Set `preview_rows=N` to cap large
+results for dashboards and benchmarks where scanning millions of rows into
+pandas is not needed; the source and cache still hold every row.
 
 ## PostgreSQL
 
@@ -192,7 +191,7 @@ These are passed to `MemFrame(...)` directly, outside `connection_params`:
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
-| `preview_rows` | `int` or `None` | `10_000` | Cap the rows materialised into `result` for row-returning operations; the source (and cache ref) still holds every row. Pass `None` for the full frame. See [Result previews](#result-previews). |
+| `preview_rows` | `int` or `None` | `None` (full) | Cap the rows materialised into `result` for row-returning operations; the source (and cache ref) still holds every row. See [Result previews](#result-previews). |
 | `deep_cache` | `bool` or `None` | `None` | Force the deep-cache streaming path for cached results. |
 
 ## Connection Lifecycle

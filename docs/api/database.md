@@ -1,6 +1,6 @@
 # Dataset Operations
 
-Source: `src/memframe/main.py`
+Source: `src/memframe/client.py`
 
 `OpsWrapper` is the public dataset-operation interface exposed through
 `MemFrame`. It manages uploaded datasets, tracks the active dataset, and reads
@@ -168,7 +168,7 @@ create generated tables.
 
 <div class="compact-api" markdown="1">
 
-::: memframe.main.MemFrame
+::: memframe.client.MemFrame
     options:
       show_root_heading: true
       show_root_full_path: true

@@ -92,10 +92,10 @@ removed whether the upload succeeds or fails.
 ### From in-memory data
 
 `mf.DataFrame(...)` is the pandas-style constructor: it builds a frame in
-memory (dict, rows + `columns`, `pd.Series`, `pd.DataFrame`, or an existing
-dataset context) and uploads it to the upload schema, returning a dataset
-context. `index` is used for pandas alignment only; `filename` and `dtypes` are
-optional memFrame extensions.
+memory from a `dict`, a `pd.DataFrame`, or an existing dataset context and
+uploads it to the upload schema, returning a dataset context. Other input types
+raise `ConfigurationError`. The pandas `index` parameter is not supported;
+`filename` and `dtypes` are optional memFrame extensions.
 
 ```python
 dataset = mf.DataFrame({"id": [1, 2], "name": ["a", "b"]}, filename="built.csv")
@@ -131,7 +131,7 @@ of fields use a padding/truncation fallback before they are copied.
 
 ## API Reference
 
-::: memframe.main.MemFrame
+::: memframe.client.MemFrame
     options:
       show_root_heading: true
       show_root_full_path: true

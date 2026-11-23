@@ -479,7 +479,7 @@ mf = MemFrame(
 )
 ```
 
-- `preview_rows` caps the returned DataFrame (default `10,000`). The generated
+- `preview_rows` caps the returned DataFrame (full frame by default). The generated
   column still covers every source row; the source (and cache ref) holds the
   full result.
 - Group-by cumulative and grouped-window operations update the source in
