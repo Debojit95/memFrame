@@ -1,4 +1,5 @@
 import asyncio
+import json
 
 import pytest
 
@@ -79,6 +80,9 @@ class TestOperationRecording:
         ops = asyncio.run(mf.alist_operations(data_id))
         assert len(ops) == 1
         assert ops[0]["operation_type"] == "test_op"
+        assert ops[0]["operation"] == "test_op"
+        assert ops[0]["params"] == {}
+        assert ops[0]["involved_cols"] == []
         assert ops[0]["table_name"] == "tbl_x"
 
     def test_record_method_call(self, mf, uploaded):
@@ -90,6 +94,46 @@ class TestOperationRecording:
         assert op == 1
         ops = asyncio.run(mf.alist_operations(data_id))
         assert ops[0]["operation_type"] == "method_call"
+
+    def test_list_operations_includes_method_and_params(self, mf, uploaded):
+        data_id = uploaded._data_id
+        asyncio.run(mf._arecord_method_call(
+            data_id,
+            "StatsWrapper",
+            "mean",
+            json.dumps({
+                "column": "salary",
+                "top_n": 5,
+                "__self__": {"group_cols": ["region"]},
+            }),
+            "{}",
+            generated_table_name="abc123__op_1",
+            is_deep_cache=True,
+            schema="memframe_cache",
+            cache_kind="ref",
+            ref_schema="memframe_upload",
+            ref_table="abc123__base",
+            involved_cols=json.dumps(["salary"]),
+            generated_cols=json.dumps([]),
+            result_cols=json.dumps(["salary"]),
+        ))
+        op = asyncio.run(mf.alist_operations(data_id))[0]
+        assert op["data_id"] == data_id
+        assert op["operation"] == "StatsWrapper.mean"
+        assert op["class_name"] == "StatsWrapper"
+        assert op["method_name"] == "mean"
+        assert op["params"] == {"column": "salary", "top_n": 5}
+        assert op["kwargs"] == {}
+        assert op["table_name"] == "abc123__base"
+        assert op["generated_table_name"] == "abc123__op_1"
+        assert op["cache_kind"] == "ref"
+        assert op["ref_schema"] == "memframe_upload"
+        assert op["ref_table"] == "abc123__base"
+        assert op["involved_cols"] == ["salary"]
+        assert op["generated_cols"] == []
+        assert op["result_cols"] == ["salary"]
+        assert op["is_deep_cache"] is True
+        assert op["owns_table"] is False
 
     def test_retrieve_operation(self, mf, uploaded):
         data_id = uploaded._data_id
