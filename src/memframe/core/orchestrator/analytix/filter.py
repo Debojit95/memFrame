@@ -51,8 +51,8 @@ class FilteringOrchestrator:
             If given, returns an async iterator yielding DataFrames of that size.
         create_flag : bool
             If True and the match is a proper subset, write a boolean
-            ``filter_flag`` column in place onto the source table (True for
-            matching rows). Empty/full matches skip the flag.
+            ``filter_flag_<query>`` column in place onto the source table
+            (True for matching rows). Empty/full matches skip the flag.
 
         Returns
         -------
@@ -61,8 +61,11 @@ class FilteringOrchestrator:
             ``new_table``, and ``flag_column`` (name or None).
         """
         # Convert string to Predicate if needed
+        flag_source = predicate if isinstance(predicate, str) else None
         if isinstance(predicate, str):
             predicate = parse_filter_string(predicate)
+        elif create_flag:
+            flag_source = predicate.cache_key()
 
         ops = await self._ensure_ops()
         table, schema = await self._get_context()
@@ -79,6 +82,7 @@ class FilteringOrchestrator:
             data_id=data_id,
             chunk_size=chunk_size,
             create_flag=create_flag,
+            flag_source=flag_source,
         )
 
         return result

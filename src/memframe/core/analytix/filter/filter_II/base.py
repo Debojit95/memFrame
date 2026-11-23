@@ -1,4 +1,5 @@
 from typing import Any, Dict, List, Optional, Union, TYPE_CHECKING
+import re
 import traceback
 
 from memframe.core.analytix._fetch import fetch_df as _fetch_df_rows
@@ -101,18 +102,37 @@ class DataFilteringOps:
         """Extra table-engine SQL for CTAS; ClickHouse overrides."""
         return ""
 
-    # Fixed flag column name for create_flag (auto-suffixed on collision).
+    # Legacy default flag column name; query-derived when a predicate is given.
     FLAG_COLUMN = "filter_flag"
+
+    _FLAG_OPERATORS = (
+        (">=", "gte"), ("<=", "lte"), ("!=", "ne"), ("==", "eq"),
+        (">", "gt"), ("<", "lt"), ("&&", "and"), ("||", "or"), ("=", "eq"),
+    )
 
     def _flag_column_type(self) -> str:
         """Boolean column type for the in-place flag; ClickHouse overrides."""
         return "BOOLEAN"
 
-    def _resolve_flag_column(self, column_lookup: Dict[str, str]) -> str:
+    @classmethod
+    def _flag_column_name(cls, source: Optional[str]) -> str:
+        """Derive a readable flag name from the filter query/predicate."""
+        if not source:
+            return cls.FLAG_COLUMN
+        text = source
+        for token, word in cls._FLAG_OPERATORS:
+            text = text.replace(token, f"_{word}_")
+        slug = re.sub(r"[^0-9A-Za-z]+", "_", text).strip("_").lower()[:40]
+        return f"filter_flag_{slug.strip('_') or 'query'}"
+
+    def _resolve_flag_column(
+        self, column_lookup: Dict[str, str], base: Optional[str] = None
+    ) -> str:
         existing = {c.lower() for c in column_lookup.values()}
-        name, suffix = self.FLAG_COLUMN, 1
+        base = base or self.FLAG_COLUMN
+        name, suffix = base, 1
         while name.lower() in existing:
-            name = f"{self.FLAG_COLUMN}_{suffix}"
+            name = f"{base}_{suffix}"
             suffix += 1
         return name
 
@@ -143,6 +163,7 @@ class DataFilteringOps:
         params: list,
         column_lookup: Dict[str, str],
         create_flag: bool,
+        flag_source: Optional[str] = None,
     ) -> Optional[str]:
         """Write the boolean flag column in place; None when skipped."""
         if not create_flag:
@@ -154,7 +175,9 @@ class DataFilteringOps:
         )
         if not matched or matched >= (total or 0):
             return None
-        flag_col = self._resolve_flag_column(column_lookup)
+        flag_col = self._resolve_flag_column(
+            column_lookup, self._flag_column_name(flag_source)
+        )
         safe_flag = SQLIdentifierSanitizer.sanitize(flag_col)
         if flag_col.lower() not in {c.lower() for c in column_lookup.values()}:
             await self._exec(
@@ -179,6 +202,7 @@ class DataFilteringOps:
         data_id: str = None,
         chunk_size: Optional[int] = None,
         create_flag: bool = False,
+        flag_source: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Create a new cache table containing only rows that satisfy
@@ -187,6 +211,8 @@ class DataFilteringOps:
         With create_flag=True and a proper row subset, a boolean flag
         column is also written in place onto the source table (True for
         matching rows, False otherwise). Empty/full matches skip the flag.
+        ``flag_source`` is the user query or predicate signature used to
+        derive that column's name.
         """
         try:
             supported = (PostgresAdapter, DuckDBAdapter, ClickHouseAdapter)
@@ -202,7 +228,7 @@ class DataFilteringOps:
                 # the result is selected so columns="*" includes it.
                 flag_column = await self._maybe_write_flag(
                     table, schema, qualified, where_clause, ctx.params,
-                    column_lookup, create_flag,
+                    column_lookup, create_flag, flag_source,
                 )
 
                 # Resolve selected columns after any flag column was added.
