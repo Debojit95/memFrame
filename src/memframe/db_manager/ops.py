@@ -3,6 +3,7 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from memframe.exceptions import ConfigurationError, ConnectionNotReady, DataNotFound
+from memframe.cache.cache_manager import CacheManager
 from memframe.core.indexing import mf_idx_sql_type, select_mf_idx_dtype
 from memframe.core.ingestion.datatype_detector import _generate_6char_id
 from memframe.db_manager.context import ContextManager
@@ -452,17 +453,99 @@ class OpsMixin:
     async def list_operations(self, data_id: Optional[str] = None) -> List[Dict[str, Any]]:
         return await self.alist_operations(data_id)
 
-    async def aretrieve_operation(self, data_id: str, opidx: int) -> str:
+    async def aretrieve_operation(
+        self, data_id: str, opidx: int, return_table: bool = False
+    ) -> Any:
         row = await self._backend.fetch_row(
-            f"SELECT COALESCE(ref_table, generated_table_name) "
+            f"SELECT COALESCE(ref_table, generated_table_name) AS table_name, "
+            f"cache_kind, ref_schema, ref_table, generated_table_name, schema, "
+            f"involved_cols, generated_cols, result_cols, order_schema, "
+            f"order_table, order_limit, order_kind, result_envelope, "
+            f"class_name, method_name "
             f"FROM {self._backend.cache_registry_table} "
             f"WHERE data_id = {self._placeholder(1)} AND opidx = {self._placeholder(2)}",
             data_id, opidx,
         )
         if not row:
             raise DataNotFound(f"Operation {opidx} not found for data_id {data_id}")
-        return row[0]
+
+        (
+            table_name, cache_kind, ref_schema, ref_table, generated, schema,
+            involved, generated_cols, result_cols, order_schema, order_table,
+            order_limit, order_kind, envelope, class_name, method_name,
+        ) = row
+        if return_table:
+            return table_name
+
+        manager = CacheManager()
+        payload = {
+            "class_name": class_name or "operation",
+            "method_name": method_name or str(opidx),
+            "_backend": self._backend,
+        }
+
+        if cache_kind == "actual":
+            prow = await self._backend.fetch_row(
+                f"SELECT format, payload FROM {self._backend.cache_payloads_table} "
+                f"WHERE data_id = {self._placeholder(1)} "
+                f"AND opidx = {self._placeholder(2)}",
+                data_id, opidx,
+            )
+            if not prow:
+                raise DataNotFound(
+                    f"No stored result for operation {opidx} of data_id {data_id}"
+                )
+            cached = manager._decode_actual(
+                prow[0], manager._payload_from_backend(prow[1], self._backend)
+            )
+            return manager._make_hit_response(
+                payload, cached, envelope=envelope, kind="actual"
+            )["result"]
+
+        if cache_kind == "ref":
+            cols = manager._as_list(result_cols) or manager._ref_columns({
+                "involved_cols": manager._as_list(involved),
+                "generated_cols": manager._as_list(generated_cols),
+            })
+            target_schema = ref_schema or schema or self._backend.cache_schema
+            target_table = ref_table or generated
+            cached = (
+                await manager._load_ref_table(
+                    self._backend, target_schema, target_table, cols,
+                    order_schema=order_schema,
+                    order_table=order_table,
+                    order_limit=order_limit,
+                    order_kind=order_kind,
+                )
+                if target_table else None
+            )
+            if cached is None:
+                raise DataNotFound(
+                    f"No stored result for operation {opidx} of data_id {data_id}"
+                )
+            return manager._make_hit_response(
+                payload, cached, target_table, target_schema, envelope, kind="ref"
+            )["result"]
+
+        # Legacy rows (cache_kind NULL) predate ref/actual bookkeeping and may
+        # still point at a generated table kept on disk.
+        if generated:
+            qualified = manager._qualify(
+                schema or self._backend.cache_schema, generated, self._backend
+            )
+            cached = await manager._load_generated_table(self._backend, qualified)
+            if cached is not None:
+                return manager._make_hit_response(
+                    payload, cached, generated,
+                    schema or self._backend.cache_schema, envelope, kind="ref",
+                )["result"]
+
+        raise DataNotFound(
+            f"No stored result for operation {opidx} of data_id {data_id}"
+        )
 
     @async_to_sync
-    async def retrieve_operation(self, data_id: str, opidx: int) -> str:
-        return await self.aretrieve_operation(data_id, opidx)
+    async def retrieve_operation(
+        self, data_id: str, opidx: int, return_table: bool = False
+    ) -> Any:
+        return await self.aretrieve_operation(data_id, opidx, return_table=return_table)
