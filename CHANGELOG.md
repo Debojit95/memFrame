@@ -6,6 +6,8 @@ to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-11-24
+
 ### Fixed
 - **Group-by cumulative cold path**: `ctx.groupby(...).cum*()` now adds the
   generated column and backfills it in place by `_mf_idx` instead of
@@ -70,9 +72,6 @@ to [Semantic Versioning](https://semver.org/).
   with duplicate-timestamp row-order handling instead of per-row correlated
   scans. Rolling/expanding `skew` and `kurt` now use one native window-moments
   pass. DuckDB, PostgreSQL, and ClickHouse all use the optimized paths.
-- **Bounded result previews**: `preview_rows` now defaults to `10,000`.
-  Pass `preview_rows=None` explicitly for the full result frame; source tables
-  and cache refs still retain every row.
 - **Cumulative map-back**: ClickHouse/PostgreSQL map-back joins the generated
   values by `_mf_idx` instead of every original column.
 
