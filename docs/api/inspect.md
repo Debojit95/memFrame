@@ -46,7 +46,8 @@ Every inspect operation has synchronous and asynchronous forms:
 | `statistical_profile_report(columns)` | `await astatistical_profile_report(...)` | Combined profile report |
 | `full_table(columns=None, chunk_size=None)` | `await afull_table(...)` | Full table or chunk iterator |
 | `astype(columns=None, dtypes=None, dtype_map=None)` | `await aastype(...)` | Cast selected columns |
-| `insert(column, value)` | `await ainsert(...)` | Add a column from a value list |
+| `insert(column, value)` | `await ainsert(...)` | Create or overwrite a column from a scalar/list/tuple/Series |
+| `ctx["column"] = value` | — | Assignment sugar for `insert` (sync only) |
 | `rename(columns)` | `await arename(...)` | Rename columns |
 | `update(on, other_table, other_schema="upload", overwrite=True, errors="ignore")` | `await aupdate(...)` | Update from another table |
 | `dt.resample(column, freq, ...)` | `await dt.aresample(...)` | Time-series aggregation — see [Datetime](datetime.md#resampling) |
@@ -336,14 +337,25 @@ Supported dtype aliases:
 
 ### `insert`
 
-`insert` adds a new text column and fills it from a list of values. The list
-length must match the row count.
+`insert` creates a typed column or overwrites an existing one. Values are
+assigned positionally in row (`_mf_idx`) order. A scalar is broadcast to every
+row; a list, tuple, or Series must match the row count. A pandas Series index
+is ignored. Sets are rejected because they have no defined row order.
 
 ```python
-result = ctx.insert(
-    column="region",
-    value=["retail", "enterprise", "retail"],
-)
+# scalar broadcast
+ctx["region"] = "retail"
+
+# list / tuple / Series (length must equal the row count)
+ctx["region"] = ["retail", "enterprise", "retail"]
+ctx["revenue"] = (10.0, 20.0, 30.0)
+ctx["score"] = df["score"]
+```
+
+The equivalent explicit methods are `insert` / `ainsert`:
+
+```python
+result = ctx.insert(column="region", value=["retail", "enterprise", "retail"])
 ```
 
 ```python
@@ -353,12 +365,17 @@ result = await ctx.ainsert(
 )
 ```
 
+The column type is inferred from the values (`BOOLEAN`, `BIGINT`,
+`DOUBLE PRECISION`, `TIMESTAMP`, or `TEXT`). Missing values (`NaN`, `NaT`,
+`pd.NA`) become SQL `NULL`. Assignment is sync-only; inside a coroutine use
+`await ctx.ainsert(...)`.
+
 Parameters:
 
 | Parameter | Type | Description |
 | --- | --- | --- |
-| `column` | `str` | New column name. |
-| `value` | `list` | Values assigned row-by-row. Must match row count. |
+| `column` | `str` | Column name. Created if missing, otherwise overwritten. |
+| `value` | scalar, list, tuple, or Series | Broadcast value or row-wise values. |
 
 ### `rename`
 
@@ -513,8 +530,9 @@ Inspect methods raise `OperationError` for invalid input or backend failures.
 - `describe` raises an error when no numeric columns are available.
 - `astype` raises an error for missing columns or unsupported dtype aliases.
 - `astype` requires either `dtype_map` or matching `columns` and `dtypes`.
-- `insert` raises an error when `value` is not a list or its length does not
-  match the row count.
+- `insert` raises an error for unsupported value types, an unordered set, a
+  sequence whose length does not match the row count, or a reserved internal
+  column name (`_mf_idx`).
 - `rename` and `update` can raise backend SQL errors when identifiers or
   constraints are invalid.
 

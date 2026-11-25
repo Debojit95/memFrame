@@ -6,6 +6,16 @@ to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **Column assignment**: `ctx["name"] = value` (via `ContextManager.__setitem__`)
+  creates or overwrites a column. `insert`/`ainsert` now accept a scalar
+  (broadcast), list, tuple, or pandas Series, infer the column type from the
+  values, convert missing values to SQL `NULL`, and fill the column in one
+  bulk update keyed on `_mf_idx` instead of one `INSERT` per row. ClickHouse
+  works through an `ALTER TABLE ... UPDATE` mutation. Sets are rejected because
+  they have no defined row order. Overwrites bump the cache epoch so downstream
+  deep-cache entries are invalidated.
+
 ## [0.18.0] - 2026-11-24
 
 ### Fixed
