@@ -107,6 +107,8 @@ def _to_clickhouse_literal(value: Any) -> str:
             else value.isoformat()
         )
         return _quote_string(encoded)
+    if isinstance(value, (list, tuple)):
+        return "[" + ", ".join(_to_clickhouse_literal(v) for v in value) + "]"
     return _quote_string(str(value))
 
 

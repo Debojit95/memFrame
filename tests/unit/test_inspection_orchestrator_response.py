@@ -29,7 +29,7 @@ def inspection_context():
     [
         (lambda wrapper: wrapper.null_analysis(columns="value"), "columns must be"),
         (lambda wrapper: wrapper.astype(), "Provide either dtype_map"),
-        (lambda wrapper: wrapper.insert("added", 1), "Value must be a list"),
+        (lambda wrapper: wrapper.insert("added", {"a": 1}), "Unsupported value type"),
         (lambda wrapper: wrapper.map("x", datetime_action="bad"), "Invalid datetime_action"),
     ],
 )

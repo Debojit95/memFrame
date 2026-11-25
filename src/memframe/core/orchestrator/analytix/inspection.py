@@ -122,11 +122,10 @@ class TableOpsOrchestrator:
         return await ops.dataframe_astype(table, schema, dtype_map=dtype_map)
 
 
+    @record_call(deep_cache=True)
     async def insert(self, column: str, value: Any) -> Dict[str, Any]:
         ops = await self._ensure_ops()
 
-        if not isinstance(value, list):
-            return fail("Value must be a list")
         try:
             assert_user_column(column)
         except ValueError as exc:

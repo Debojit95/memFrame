@@ -1,6 +1,7 @@
 from typing import Dict, List, Any, Optional
 import re
 import traceback
+import numpy as np
 import pandas as pd
 from collections import namedtuple
 from datetime import datetime, timezone
@@ -28,7 +29,7 @@ class GeneralTableOps:
     ``_cast_expr``, ... family). Concrete backend subclasses in
     ``duckdb.py`` / ``postgres.py`` / ``clickhouse.py`` override only the hooks
     that differ; ClickHouse additionally overrides the few methods with a
-    wholly different algorithm (``dataframe_insert`` / ``dataframe_update`` /
+    wholly different algorithm (``dataframe_update`` /
     ``_sql_type_for_series``).
 
     All database access is delegated to the provided DatabaseAdapter.
@@ -231,6 +232,63 @@ class GeneralTableOps:
             except Exception:
                 return value
         return value
+
+    # ------------------------------------------------------------------
+    # Column assignment (insert / overwrite)
+    # ------------------------------------------------------------------
+    def _coerce_assignment(self, value: Any) -> tuple[Optional[pd.Series], bool]:
+        """Return (series, is_scalar) for a public assignment value."""
+        if isinstance(value, set):
+            raise ValueError(
+                "Sets are unordered; pass a list, tuple, or pandas Series"
+            )
+        if isinstance(value, dict):
+            raise ValueError(
+                "Unsupported value type: dict. Pass a scalar, list, tuple, "
+                "or pandas Series"
+            )
+        if isinstance(value, pd.Series):
+            return value, False
+        if isinstance(value, (list, tuple)):
+            return pd.Series(list(value)), False
+        if isinstance(value, np.ndarray):
+            if value.ndim != 1:
+                raise ValueError("Only 1-D arrays are supported")
+            return pd.Series(value), False
+        if pd.api.types.is_scalar(value):
+            return None, True
+        raise ValueError(
+            f"Unsupported value type: {type(value).__name__}. Pass a scalar, "
+            "list, tuple, or pandas Series"
+        )
+
+    @staticmethod
+    def _assignment_param(value: Any) -> Any:
+        """Convert a Python/pandas scalar to a DB-bindable value (NA -> NULL)."""
+        if value is None:
+            return None
+        try:
+            if pd.isna(value):
+                return None
+        except (TypeError, ValueError):
+            pass
+        if isinstance(value, pd.Timestamp):
+            return value.to_pydatetime()
+        if hasattr(value, "item"):
+            try:
+                return value.item()
+            except Exception:
+                pass
+        return value
+
+    def _assignment_values_expr(self, sql_type: str) -> str:
+        """Expression mapping the row index onto a bound value array."""
+        rid = self.db.quote_identifier(MF_IDX)
+        return f"list_extract({self.db.placeholder(1)}, CAST({rid} AS BIGINT) + 1)"
+
+    def _update_stmt(self, qualified: str, set_expr: str) -> str:
+        """In-place UPDATE; ClickHouse overrides with ALTER TABLE UPDATE."""
+        return f"UPDATE {qualified} SET {set_expr}"
 
     async def _save_dataframe_as_table(
         self,
@@ -987,53 +1045,49 @@ class GeneralTableOps:
             column = SQLIdentifierSanitizer.sanitize(column)
             qualified = self._qualified_table(table, schema)
 
-            if not isinstance(value, list):
-                return self._error_response("Value must be a list")
-
-            total_rows = await self._fetchval(f"SELECT COUNT(*) FROM {qualified}") or 0
-
-            if len(value) != total_rows:
+            total_rows = int(
+                await self._fetchval(f"SELECT COUNT(*) FROM {qualified}") or 0
+            )
+            series, is_scalar = self._coerce_assignment(value)
+            if not is_scalar and len(series) != total_rows:
                 return self._error_response(
-                    f"Length mismatch: Expected {total_rows}, got {len(value)}"
+                    f"Length mismatch: Expected {total_rows}, got {len(series)}"
                 )
 
-            # Determine column type from values
-            non_none = [v for v in value if v is not None]
-            if all(isinstance(v, bool) for v in non_none):
-                col_type = "BOOLEAN"
-            elif all(isinstance(v, int) for v in non_none):
-                col_type = "BIGINT"
-            elif all(isinstance(v, float) for v in non_none):
-                col_type = "DOUBLE PRECISION"
-            else:
-                col_type = "TEXT"
+            column_types = await self._get_column_types(table, schema)
+            if not is_scalar and total_rows and MF_IDX not in column_types:
+                return self._error_response(
+                    "Active table has no immutable row index; re-upload or "
+                    "activate the dataset first."
+                )
 
-            await self._exec(f'ALTER TABLE {qualified} ADD COLUMN "{column}" {col_type}')
-
-            temp_table = f"temp_insert_{column}"
-
-            await self._exec(f"CREATE TEMP TABLE {temp_table} (idx INT, val {col_type})")
-
-            for i, v in enumerate(value):
-                placeholder1 = self.db.placeholder(1)
-                placeholder2 = self.db.placeholder(2)
-
+            probe = pd.Series([value]) if is_scalar else series
+            sql_type = self._sql_type_for_series(probe)
+            col_q = self.db.quote_identifier(column)
+            created = column not in column_types
+            if created:
                 await self._exec(
-                    f"INSERT INTO {temp_table} VALUES ({placeholder1}, {placeholder2})",
-                    i,
-                    v
+                    f"ALTER TABLE {qualified} ADD COLUMN {col_q} {sql_type}"
                 )
 
-            update_sql = f"""
-                UPDATE {qualified}
-                SET "{column}" = t.val
-                FROM {temp_table} t
-                WHERE {qualified}."{MF_IDX}" = t.idx
-            """
-
-            await self._exec(update_sql)
-
-            await self._exec(f"DROP TABLE {temp_table}")
+            if total_rows:
+                if is_scalar:
+                    await self._exec(
+                        self._update_stmt(
+                            qualified,
+                            f"{col_q} = {self.db.placeholder(1)}",
+                        ),
+                        self._assignment_param(value),
+                    )
+                else:
+                    params = [self._assignment_param(v) for v in series.tolist()]
+                    await self._exec(
+                        self._update_stmt(
+                            qualified,
+                            f"{col_q} = {self._assignment_values_expr(sql_type)}",
+                        ),
+                        params,
+                    )
 
             sql = f"SELECT * FROM {qualified}"
             limit = getattr(self.db, "preview_rows", None)
@@ -1044,11 +1098,21 @@ class GeneralTableOps:
             records = await self._normalize_records_by_type(records, table, schema)
             current_df = pd.DataFrame.from_records(records)
 
+            action = "created" if created else "updated"
             return self._success_response(
-                message=f"Column '{column}' created successfully with {total_rows} values",
+                message=(
+                    f"Column '{column}' {action} successfully with "
+                    f"{total_rows} values"
+                ),
                 involved_cols=[],
                 generated_cols=[column],
                 result=current_df,
+                new_table=table,
+                cache_kind="ref",
+                ref_schema=schema,
+                ref_table=table,
+                result_cols=[column],
+                mutates=True,
             )
         except Exception as e:
             return self._error_response(str(e))

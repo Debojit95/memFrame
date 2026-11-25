@@ -170,6 +170,16 @@ class ContextManager:
             return value["shape"]
         return value
 
+    def __setitem__(self, key: str, value: Any) -> None:
+        """Assign values to a column: ``ctx["revenue"] = values``.
+
+        Values are positional (``_mf_idx`` row order); a Series index is
+        ignored. Use ``await ctx.ainsert(...)`` from async code.
+        """
+        if not isinstance(key, str):
+            raise TypeError("column name must be a string")
+        self.insert(key, value)
+
     def groupby(self, *columns: str):
         # ponytail: unified GroupBy facade (stats + cumulative + window
         # builders) so the flat `groupby` name doesn't collide between

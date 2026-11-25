@@ -3,9 +3,13 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
+import numpy as np
+import pandas as pd
+
 if TYPE_CHECKING:
     pass
 
+from memframe.core.analytix._response import fail
 from memframe.utils.async_sync import async_to_sync
 from memframe.core.orchestrator.analytix.inspection import TableOpsOrchestrator
 
@@ -279,6 +283,18 @@ class TableOpsWrapper(TableOpsOrchestrator):
         value: Any,
     ) -> Dict[str, Any]:
         """Asynchronously insert or assign a column value."""
+        if isinstance(value, set):
+            return fail(
+                "Sets are unordered; pass a list, tuple, or pandas Series"
+            )
+        if isinstance(value, (list, tuple)):
+            # Convert before the orchestrator so the cache signature is a
+            # compact content hash instead of a multi-megabyte JSON array.
+            value = pd.Series(list(value))
+        elif isinstance(value, np.ndarray):
+            if value.ndim != 1:
+                return fail("Only 1-D arrays are supported")
+            value = pd.Series(value)
         return await super().insert(
             column=column,
             value=value,

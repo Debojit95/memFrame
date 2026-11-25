@@ -8,10 +8,23 @@ from memframe.utils.helper import SQLIdentifierSanitizer
 
 class ClickHouseTableOps(GeneralTableOps):
     """ClickHouse backend — overrides hooks plus the methods whose algorithm
-    differs wholesale from PostgreSQL/DuckDB (insert / update and the
-    nullable-aware type mapping)."""
+    differs wholesale from PostgreSQL/DuckDB (update and the nullable-aware
+    type mapping)."""
 
     # ── hooks ──────────────────────────────────────────────────────
+    def _assignment_values_expr(self, sql_type: str) -> str:
+        rid = self.db.quote_identifier(MF_IDX)
+        return (
+            f"arrayElement(CAST({self.db.placeholder(1)} AS Array({sql_type})), "
+            f"CAST({rid} AS Int64) + 1)"
+        )
+
+    def _update_stmt(self, qualified: str, set_expr: str) -> str:
+        return (
+            f"ALTER TABLE {qualified} UPDATE {set_expr} WHERE 1 "
+            f"SETTINGS mutations_sync = 1"
+        )
+
     def _limit_offset(self, limit: int, offset: int) -> str:
         # ClickHouse requires LIMIT before OFFSET
         return f"LIMIT {limit} OFFSET {offset}"
@@ -122,45 +135,6 @@ class ClickHouseTableOps(GeneralTableOps):
         return value
 
     # ── whole-method overrides (different algorithm) ──────────────
-    async def dataframe_insert(self, table: str, schema: str, column: str, value: Any, **kwargs) -> Dict[str, Any]:
-        try:
-            table = SQLIdentifierSanitizer.sanitize(table)
-            column = SQLIdentifierSanitizer.sanitize(column)
-            qualified = self._qualified_table(table, schema)
-
-            if not isinstance(value, list):
-                return self._error_response("Value must be a list")
-
-            total_rows = await self._fetchval(f"SELECT count() FROM {qualified}") or 0
-
-            if len(value) != total_rows:
-                return self._error_response(
-                    f"Length mismatch: Expected {total_rows}, got {len(value)}"
-                )
-
-            # ClickHouse: get current data, add column, recreate table
-            df = await self._get_table_dataframe(table, schema)
-            if MF_IDX in df.columns:
-                df = df.sort_values(MF_IDX).reset_index(drop=True)
-            df[column] = value
-
-            temp_name = await self._save_dataframe_as_table(
-                df, schema, table, backend=kwargs.get("backend"), data_id=kwargs.get("data_id")
-            )
-            temp_qualified = self._qualified_table(temp_name, schema)
-
-            await self._exec(f"DROP TABLE IF EXISTS {qualified}")
-            await self._exec(f"RENAME TABLE {temp_qualified} TO {qualified}")
-
-            return self._success_response(
-                message=f"Column '{column}' created successfully with {total_rows} values",
-                involved_cols=[],
-                generated_cols=[column],
-                result=df,
-            )
-        except Exception as e:
-            return self._error_response(str(e))
-
     async def dataframe_update(self, table: str, schema: str, other_table: str, other_schema: str, on: str, overwrite: bool = True, errors: str = "ignore", **kwargs) -> Dict[str, Any]:
         try:
             table = SQLIdentifierSanitizer.sanitize(table)

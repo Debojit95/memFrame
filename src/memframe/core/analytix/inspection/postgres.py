@@ -1,10 +1,18 @@
 from typing import Any, Dict, List, Optional
 
 from memframe.core.analytix.inspection.base import GeneralTableOps
+from memframe.core.indexing import MF_IDX
 
 
 class PostgresTableOps(GeneralTableOps):
     """PostgreSQL backend — only the hooks that differ from DuckDB."""
+
+    def _assignment_values_expr(self, sql_type: str) -> str:
+        rid = self.db.quote_identifier(MF_IDX)
+        return (
+            f"({self.db.placeholder(1)}::{sql_type}[])"
+            f"[CAST({rid} AS BIGINT) + 1]"
+        )
 
     def _numeric_stat_exprs(self, col: str) -> Dict[str, str]:
         return {
