@@ -864,6 +864,21 @@ class TestInspectionOperations:
         res_df = get_result_df(result)
         assert "new_col" in res_df.columns
         assert res_df["new_col"].tolist() == vals
+
+    def test_insert_inputs_and_overwrite(self, uploaded_ctx, sample_df, backend_config):
+        n = len(sample_df)
+        uploaded_ctx.insert(column="tuple_col", value=tuple(range(n)))
+        uploaded_ctx.insert(column="series_col", value=pd.Series(range(n)))
+        uploaded_ctx["scalar_col"] = 7
+
+        res_df = get_result_df(uploaded_ctx.head(n + 1))
+        assert res_df["tuple_col"].tolist() == list(range(n))
+        assert res_df["series_col"].tolist() == list(range(n))
+        assert res_df["scalar_col"].tolist() == [7] * n
+
+        uploaded_ctx["tuple_col"] = [100] * n
+        res_df = get_result_df(uploaded_ctx.head(n + 1))
+        assert res_df["tuple_col"].tolist() == [100] * n
     # ----------------------------------------------------
     # map
     # ----------------------------------------------------
